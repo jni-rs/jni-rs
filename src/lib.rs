@@ -1,37 +1,33 @@
-extern crate libc;
+#![allow(unused_imports)]
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(non_snake_case)]
 
-mod bindgen;
-use bindgen::*;
+#[macro_use]
+extern crate log;
 
-use std::ffi;
-use std::str;
+extern crate jni_sys;
 
+#[macro_use]
+extern crate error_chain;
 
-#[repr(C)]
-pub struct JEnv(*mut JNIEnv);
+extern crate combine;
 
-impl JEnv {
-    fn find_class<S: Into<String>>(&self, name: S) -> jclass {
-        let jni_env = self.0;
-        let mut name_null_term = name.into();
-        name_null_term.push_str("\0");
-        unsafe { (**jni_env).FindClass.unwrap()(jni_env, name_null_term.as_ptr() as *const i8)}
-    }
+extern crate cesu8;
 
-    fn get_string(&self, str_obj: jstring) -> &str {
-        let jni_env = self.0;
-        let mut copy = false as jboolean;
+#[macro_use]
+mod macros;
 
-        unsafe { str::from_utf8(ffi::CStr::from_ptr((**jni_env).GetStringUTFChars.unwrap()(jni_env, str_obj, &mut copy)).to_bytes()).unwrap() }
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn Java_HelloWorld_nativeProtect(arg1: JEnv, arg2: jobject, input: jstring) -> jobject {
-    let string = arg1.get_string(input);
-    println!("String from java: {}", string);
-
-    arg1.find_class("com/prevoty/commons/content/ProtectResult")
-}
-
-
+mod signature;
+pub mod errors;
+pub mod jvalue;
+pub mod jmethodid;
+pub mod jobject;
+pub mod jthrowable;
+pub mod jclass;
+pub mod jstring;
+pub mod java_string;
+pub mod global_ref;
+pub mod jnienv;
+pub mod java_defs;
+pub mod sys;

@@ -4,8 +4,9 @@ version = "0.1.0"
 authors = ["Josh Chase <jcjoshuachase@gmail.com>"]
 description = "proof-of-concept callable from java lib"
 
-[lib]
-crate-type = ["dylib"]
-
 [dependencies]
-libc = "*"
+log = "0.3"
+jni-sys = { path = "./jni-sys" }
+error-chain = "0.5"
+combine = "2"
+cesu8 = "1"
