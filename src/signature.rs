@@ -65,8 +65,8 @@ pub struct TypeSignature {
 }
 
 impl TypeSignature {
-    pub fn from_str(s: &str) -> Result<TypeSignature> {
-        Ok(match parser(parse_sig).parse(s).map(|res| res.0) {
+    pub fn from_str<S: AsRef<str>>(s: S) -> Result<TypeSignature> {
+        Ok(match parser(parse_sig).parse(s.as_ref()).map(|res| res.0) {
             Ok(JavaType::Method(sig)) => *sig,
             Err(e) => return Err(format!("{}", e).into()),
             _ => unreachable!(),

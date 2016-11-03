@@ -20,6 +20,8 @@ mod macros;
 
 mod signature;
 pub mod errors;
+pub mod desc;
+pub mod ffi_str;
 pub mod jvalue;
 pub mod jmethodid;
 pub mod jobject;
@@ -29,5 +31,4 @@ pub mod jstring;
 pub mod java_string;
 pub mod global_ref;
 pub mod jnienv;
-pub mod java_defs;
 pub mod sys;

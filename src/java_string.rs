@@ -21,8 +21,7 @@ pub struct JavaStr<'a> {
 
 impl<'a> JavaStr<'a> {
     pub fn from_env(env: &'a JNIEnv, obj: jstring) -> Result<Self> {
-        let ptr: *const c_char =
-            jni_call!(env.internal,
+        let ptr: *const c_char = jni_call!(env.internal,
                       GetStringUTFChars,
                       obj,
                       ::std::ptr::null::<jboolean>() as *mut jboolean);
