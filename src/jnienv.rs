@@ -1,13 +1,3 @@
-use errors::*;
-
-use desc::Desc;
-
-use macros;
-
-use jni_sys::{self, jclass, jstring, jboolean, jobject, jvalue, jint, jsize};
-
-use ffi_str::JNIString;
-
 use std::borrow::Cow;
 
 use std::ffi;
@@ -15,14 +5,22 @@ use std::str;
 
 use std::marker::PhantomData;
 
+use sys::{self, jclass, jstring, jboolean, jobject, jvalue, jint, jsize};
+
+use macros;
+use errors::*;
+
+use desc::Desc;
+
+use ffi_str::JNIString;
+use java_str::JavaStr;
+
 use jvalue::JValue;
 use jclass::JClass;
 use jobject::JObject;
 use jstring::JString;
 use jthrowable::JThrowable;
 use jmethodid::JMethodID;
-
-use java_string::JavaStr;
 
 use signature::TypeSignature;
 use signature::JavaType;
@@ -32,12 +30,12 @@ use global_ref::GlobalRef;
 
 #[repr(C)]
 pub struct JNIEnv<'a> {
-    pub internal: *mut jni_sys::JNIEnv,
+    pub internal: *mut sys::JNIEnv,
     lifetime: PhantomData<&'a ()>,
 }
 
-impl<'a> From<*mut jni_sys::JNIEnv> for JNIEnv<'a> {
-    fn from(other: *mut jni_sys::JNIEnv) -> Self {
+impl<'a> From<*mut sys::JNIEnv> for JNIEnv<'a> {
+    fn from(other: *mut sys::JNIEnv) -> Self {
         JNIEnv {
             internal: other,
             lifetime: PhantomData,
@@ -120,7 +118,7 @@ impl<'a> JNIEnv<'a> {
                            IsAssignableFrom,
                            class1.into_inner(),
                            class2.into_inner())
-        } == jni_sys::JNI_TRUE)
+        } == sys::JNI_TRUE)
     }
 
     pub fn throw(&self, obj: JThrowable) -> Result<()> {
@@ -183,7 +181,7 @@ impl<'a> JNIEnv<'a> {
 
     pub fn exception_check(&self) -> Result<bool> {
         let check = unsafe { jni_unchecked!(self.internal, ExceptionCheck) } ==
-                    jni_sys::JNI_TRUE;
+                    sys::JNI_TRUE;
         Ok(check)
     }
 
@@ -300,7 +298,7 @@ impl<'a> JNIEnv<'a> {
                                         class,
                                         method_id,
                                         jni_args) ==
-                         jni_sys::JNI_TRUE)
+                         sys::JNI_TRUE)
                             .into()
                     }
                     Primitive::Char => {
@@ -418,7 +416,7 @@ impl<'a> JNIEnv<'a> {
                                         obj,
                                         method_id,
                                         jni_args) ==
-                         jni_sys::JNI_TRUE)
+                         sys::JNI_TRUE)
                             .into()
                     }
                     Primitive::Char => {
@@ -534,7 +532,6 @@ impl<'a> JNIEnv<'a> {
               T: Into<JNIString>,
               U: Into<JNIString> + AsRef<str>
     {
-        // parse the signature
         let parsed = TypeSignature::from_str(&sig)?;
         if parsed.args.len() != args.len() {
             return Err(ErrorKind::InvalidArgList.into());
@@ -591,14 +588,8 @@ impl<'a> JNIEnv<'a> {
         JavaStr::from_env(self, obj.into_inner())
     }
 
-    pub fn new_string<S: AsRef<str>>(&self, from: S) -> Result<JString> {
-        use cesu8::to_java_cesu8;
-        use std::borrow::Borrow;
-
-        let cow = to_java_cesu8(from.as_ref());
-        let slice: &[u8] = cow.borrow();
-        let with_null = ffi::CString::new(slice)?;
-
-        Ok(jni_call!(self.internal, NewStringUTF, with_null.as_ptr()))
+    pub fn new_string<S: Into<JNIString>>(&self, from: S) -> Result<JString> {
+        let ffi_str = from.into();
+        Ok(jni_call!(self.internal, NewStringUTF, ffi_str.as_ptr()))
     }
 }

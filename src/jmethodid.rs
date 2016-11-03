@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use jni_sys::jmethodID;
+use sys::jmethodID;
 
 #[repr(C)]
 pub struct JMethodID<'a> {

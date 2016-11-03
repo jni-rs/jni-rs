@@ -1,7 +1,7 @@
 use errors::*;
 use std::convert::From;
 use jnienv;
-use jni_sys::{self, jobject, JNIEnv};
+use sys::{self, jobject, JNIEnv};
 
 pub struct GlobalRef {
     obj: jobject,

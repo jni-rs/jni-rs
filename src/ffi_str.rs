@@ -1,3 +1,5 @@
+use std::os::raw::c_char;
+
 use std::ffi;
 
 use cesu8::from_java_cesu8;
@@ -60,6 +62,12 @@ impl From<JNIString> for String {
 impl JNIString {
     pub fn borrowed(&self) -> &JNIStr {
         self
+    }
+}
+
+impl JNIStr {
+    pub unsafe fn from_ptr<'a>(ptr: *const c_char) -> &'a JNIStr {
+        ::std::mem::transmute(ffi::CStr::from_ptr(ptr))
     }
 }
 

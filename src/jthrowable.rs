@@ -1,5 +1,5 @@
 use jobject::JObject;
-use jni_sys::{jobject, jthrowable};
+use sys::{jobject, jthrowable};
 
 #[repr(C)]
 pub struct JThrowable<'a>(JObject<'a>);

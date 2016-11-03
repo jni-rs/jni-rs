@@ -1,5 +1,5 @@
 use jobject::JObject;
-use jni_sys::{jobject, jstring};
+use sys::{jobject, jstring};
 
 #[repr(C)]
 #[derive(Clone, Copy)]

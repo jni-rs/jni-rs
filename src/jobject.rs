@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use jni_sys::jobject;
+use sys::jobject;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]

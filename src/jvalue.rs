@@ -1,7 +1,7 @@
 use errors::*;
 use std::mem::transmute;
 use jobject::JObject;
-use jni_sys::*;
+use sys::*;
 
 #[derive(Clone, Copy, Debug)]
 pub enum JValue<'a> {
@@ -65,6 +65,84 @@ impl<'a> JValue<'a> {
             JValue::Bool(b) => Ok(b != 0),
             _ => {
                 Err(ErrorKind::WrongJValueType("bool", self.type_name()).into())
+            }
+        }
+    }
+
+    pub fn b(self) -> Result<jbyte> {
+        match self {
+            JValue::Byte(b) => Ok(b),
+            _ => {
+                Err(ErrorKind::WrongJValueType("jbyte", self.type_name())
+                    .into())
+            }
+        }
+    }
+
+    pub fn c(self) -> Result<jchar> {
+        match self {
+            JValue::Char(b) => Ok(b),
+            _ => {
+                Err(ErrorKind::WrongJValueType("jchar", self.type_name())
+                    .into())
+            }
+        }
+    }
+
+    pub fn d(self) -> Result<jdouble> {
+        match self {
+            JValue::Double(b) => Ok(b),
+            _ => {
+                Err(ErrorKind::WrongJValueType("jdouble", self.type_name())
+                    .into())
+            }
+        }
+    }
+
+    pub fn F(self) -> Result<jfloat> {
+        match self {
+            JValue::Float(b) => Ok(b),
+            _ => {
+                Err(ErrorKind::WrongJValueType("jfloat", self.type_name())
+                    .into())
+            }
+        }
+    }
+
+    pub fn i(self) -> Result<jint> {
+        match self {
+            JValue::Int(b) => Ok(b),
+            _ => {
+                Err(ErrorKind::WrongJValueType("jint", self.type_name()).into())
+            }
+        }
+    }
+
+    pub fn j(self) -> Result<jlong> {
+        match self {
+            JValue::Long(b) => Ok(b),
+            _ => {
+                Err(ErrorKind::WrongJValueType("jlong", self.type_name())
+                    .into())
+            }
+        }
+    }
+
+    pub fn s(self) -> Result<jshort> {
+        match self {
+            JValue::Short(b) => Ok(b),
+            _ => {
+                Err(ErrorKind::WrongJValueType("jshort", self.type_name())
+                    .into())
+            }
+        }
+    }
+
+    pub fn v(self) -> Result<()> {
+        match self {
+            JValue::Void => Ok(()),
+            _ => {
+                Err(ErrorKind::WrongJValueType("void", self.type_name()).into())
             }
         }
     }

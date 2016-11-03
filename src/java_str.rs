@@ -1,7 +1,10 @@
 use std::marker::PhantomData;
-use jni_sys::{jsize, jstring, jboolean};
+use sys::{jsize, jstring, jboolean};
 use jnienv::JNIEnv;
 use std::os::raw::c_char;
+
+use ffi_str::JNIStr;
+use ffi_str::JNIString;
 
 use std::borrow::ToOwned;
 use std::borrow::Cow;
@@ -14,7 +17,6 @@ use errors::*;
 // returned by GetStringUTFChars. Calls ReleaseStringUTFChars on Drop.
 pub struct JavaStr<'a> {
     internal: *const c_char,
-    length: jsize,
     obj: jstring,
     env: &'a JNIEnv<'a>,
 }
@@ -25,34 +27,25 @@ impl<'a> JavaStr<'a> {
                       GetStringUTFChars,
                       obj,
                       ::std::ptr::null::<jboolean>() as *mut jboolean);
-        let java_str = unsafe {
-            let len: jsize =
-                jni_unchecked!(env.internal, GetStringUTFLength, obj);
-            JavaStr {
-                internal: ptr,
-                length: len,
-                env: env,
-                obj: obj,
-            }
+        let java_str = JavaStr {
+            internal: ptr,
+            env: env,
+            obj: obj,
         };
         Ok(java_str)
     }
 }
 
-impl<'a> From<&'a JavaStr<'a>> for &'a [u8] {
-    fn from(other: &JavaStr) -> &'a [u8] {
-        unsafe {
-            ::std::slice::from_raw_parts(other.internal as *const u8,
-                                         other.length as usize)
-        }
+impl<'a> From<&'a JavaStr<'a>> for &'a JNIStr {
+    fn from(other: &'a JavaStr) -> &'a JNIStr {
+        unsafe { JNIStr::from_ptr(other.internal) }
     }
 }
 
 impl<'a> From<&'a JavaStr<'a>> for Cow<'a, str> {
     fn from(other: &'a JavaStr) -> Cow<'a, str> {
-        let slice: &[u8] = other.into();
-        // TODO make sure this is ok
-        from_java_cesu8(slice).unwrap()
+        let jni_str: &JNIStr = other.into();
+        jni_str.into()
     }
 }
 

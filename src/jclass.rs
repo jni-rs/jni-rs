@@ -1,5 +1,5 @@
 use jobject::JObject;
-use jni_sys::{jobject, jclass};
+use sys::{jobject, jclass};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
