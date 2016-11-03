@@ -199,45 +199,119 @@ impl<'a> JNIEnv<'a> {
         Ok(jni_call!(self.internal, GetObjectClass, obj.into_inner()))
     }
 
-    pub fn call_method<S, T>(&self,
-                             obj: JObject,
-                             name: S,
-                             sig: T,
-                             args: &[JValue])
-                             -> Result<JValue>
-        where S: Into<String>,
-              T: Into<String>
-    {
-        non_null!(obj, "call_method obj argument");
-        let class = self.get_object_class(obj)?;
+    pub unsafe fn call_static_method_unsafe(&self,
+                                            class: JClass,
+                                            method_id: JMethodID,
+                                            ret: JavaType,
+                                            args: &[JValue]) -> Result<JValue> {
+        let jni_args: Vec<jvalue> = args.iter().map(|v| v.to_jni()).collect();
 
-        let jni_args: Vec<jvalue> =
-            args.iter().map(|v| unsafe { v.to_jni() }).collect();
+        let method_id = method_id.into_inner();
 
-        // build strings
-        let name: String = name.into();
-        let sig: String = sig.into();
+        let class = class.into_inner();
+        let jni_args = jni_args.as_ptr();
 
-        // parse the signature
-        let parsed = TypeSignature::from_str(&sig)?;
-        if parsed.args.len() != jni_args.len() {
-            return Err(ErrorKind::InvalidArgList.into());
-        }
+        // TODO clean this up
+        Ok(match ret {
+            JavaType::Object(_) | JavaType::Array(_) => {
+                #[allow(unused_unsafe)]
+                let obj: JObject = jni_call!(self.internal,
+                                                     CallStaticObjectMethodA,
+                                                     class,
+                                                     method_id,
+                                                     jni_args);
+                obj.into()
+            } // JavaType::Object
+            JavaType::Method(_) => unimplemented!(),
+            JavaType::Primitive(p) => {
+                let v: JValue = match p {
+                    Primitive::Boolean => {
+                        (jni_unchecked!(self.internal,
+                                        CallStaticBooleanMethodA,
+                                        class,
+                                        method_id,
+                                        jni_args) ==
+                         jni_sys::JNI_TRUE)
+                            .into()
+                    }
+                    Primitive::Char => {
+                        jni_unchecked!(self.internal,
+                                       CallStaticCharMethodA,
+                                       class,
+                                       method_id,
+                                       jni_args)
+                            .into()
+                    }
+                    Primitive::Short => {
+                        jni_unchecked!(self.internal,
+                                       CallStaticShortMethodA,
+                                       class,
+                                       method_id,
+                                       jni_args)
+                            .into()
+                    }
+                    Primitive::Int => {
+                        jni_unchecked!(self.internal,
+                                       CallStaticIntMethodA,
+                                       class,
+                                       method_id,
+                                       jni_args)
+                            .into()
+                    }
+                    Primitive::Long => {
+                        jni_unchecked!(self.internal,
+                                       CallStaticLongMethodA,
+                                       class,
+                                       method_id,
+                                       jni_args)
+                            .into()
+                    }
+                    Primitive::Float => {
+                        jni_unchecked!(self.internal,
+                                       CallStaticFloatMethodA,
+                                       class,
+                                       method_id,
+                                       jni_args)
+                            .into()
+                    }
+                    Primitive::Double => {
+                        jni_unchecked!(self.internal,
+                                       CallStaticDoubleMethodA,
+                                       class,
+                                       method_id,
+                                       jni_args)
+                            .into()
+                    }
+                    Primitive::Byte => {
+                        jni_unchecked!(self.internal,
+                                       CallStaticByteMethodA,
+                                       class,
+                                       method_id,
+                                       jni_args)
+                            .into()
+                    }
+                    Primitive::Void => {
+                        jni_unchecked!(self.internal,
+                                       CallStaticVoidMethodA,
+                                       class,
+                                       method_id,
+                                       jni_args)
+                        .into()
+                    }
+                };
+                v.into()
+            }, // JavaType::Primitive
+        }) // match parsed.ret
+    }
 
-        // build ffi-compatible strings
-        let ffi_name = ffi::CString::new(name.as_str())?;
-        let ffi_sig = ffi::CString::new(sig)?;
-
-        // get the actual method
-        let method_id = match self.get_method_id(class.into_inner(),
-                                                 ffi_name.as_ptr(),
-                                                 ffi_sig.as_ptr()) {
-            Err(e) => match e.kind() {
-                &ErrorKind::NullPtr(_) => return Err(ErrorKind::MethodNotFound(name).into()),
-                _ => return Err(e),
-            },
-            Ok(id) => id,
-        };
+    // calls a method in an unsafe manner. Assumes that the obj and method id
+    // arguments line up and that the number of args matches the signature.
+    pub unsafe fn call_method_unsafe(&self,
+                                     obj: JObject,
+                                     method_id: JMethodID,
+                                     ret: JavaType,
+                                     args: &[JValue]) -> Result<JValue>{
+        let jni_args: Vec<jvalue> = args.iter().map(|v| v.to_jni()).collect();
 
         let method_id = method_id.into_inner();
 
@@ -245,8 +319,9 @@ impl<'a> JNIEnv<'a> {
         let jni_args = jni_args.as_ptr();
 
         // TODO clean this up
-        Ok(match parsed.ret {
-            JavaType::Object(_) => {
+        Ok(match ret {
+            JavaType::Object(_) | JavaType::Array(_) => {
+                #[allow(unused_unsafe)]
                 let obj: JObject = jni_call!(self.internal,
                                                      CallObjectMethodA,
                                                      obj,
@@ -254,7 +329,8 @@ impl<'a> JNIEnv<'a> {
                                                      jni_args);
                 obj.into()
             } // JavaType::Object
-            JavaType::Primitive(p) => unsafe {
+            JavaType::Method(_) => unimplemented!(),
+            JavaType::Primitive(p) => {
                 let v: JValue = match p {
                     Primitive::Boolean => {
                         (jni_unchecked!(self.internal,
@@ -332,9 +408,94 @@ impl<'a> JNIEnv<'a> {
                 };
                 v.into()
             }, // JavaType::Primitive
-            JavaType::Array(_) |
-            JavaType::Method(_) => unimplemented!(),
         }) // match parsed.ret
+    }
+
+    // calls a method safely by looking up the id based on the object's class,
+    // method name, and signature and parsing the signature to ensure that the
+    // arguments and return type line up.
+    pub fn call_method<S, T>(&self,
+                             obj: JObject,
+                             name: S,
+                             sig: T,
+                             args: &[JValue])
+                             -> Result<JValue>
+        where S: Into<String>,
+              T: Into<String>
+    {
+        non_null!(obj, "call_method obj argument");
+        let class = self.get_object_class(obj)?;
+
+        // build strings
+        let name: String = name.into();
+        let sig: String = sig.into();
+
+        // parse the signature
+        let parsed = TypeSignature::from_str(&sig)?;
+        if parsed.args.len() != args.len() {
+            return Err(ErrorKind::InvalidArgList.into());
+        }
+
+        // build ffi-compatible strings
+        let ffi_name = ffi::CString::new(name.as_str())?;
+        let ffi_sig = ffi::CString::new(sig)?;
+
+        // get the actual method
+        let method_id = match self.get_method_id(class.into_inner(),
+                                                 ffi_name.as_ptr(),
+                                                 ffi_sig.as_ptr()) {
+            Err(e) => match e.kind() {
+                &ErrorKind::NullPtr(_) => return Err(ErrorKind::MethodNotFound(name).into()),
+                _ => return Err(e),
+            },
+            Ok(id) => id,
+        };
+
+        unsafe { self.call_method_unsafe(obj, method_id, parsed.ret, args) }
+    }
+
+    // calls a static method safely by looking up the id based on the class,
+    // method name, and signature and parsing the signature to ensure that the
+    // arguments and return type line up.
+    pub fn call_static_method<S, T, U>(&self,
+                             class: S,
+                             name: T,
+                             sig: U,
+                             args: &[JValue])
+                             -> Result<JValue>
+        where S: Into<Vec<u8>>,
+              T: Into<String>,
+              U: Into<String>
+    {
+        // build strings
+        let name: String = name.into();
+        let sig: String = sig.into();
+
+        // look up the class
+        let class: JClass = self.find_class(class)?;
+
+        // parse the signature
+        let parsed = TypeSignature::from_str(&sig)?;
+        if parsed.args.len() != args.len() {
+            return Err(ErrorKind::InvalidArgList.into());
+        }
+
+        // build ffi-compatible strings
+        let ffi_name = ffi::CString::new(name.as_str())?;
+        let ffi_sig = ffi::CString::new(sig)?;
+
+        // get the actual method
+        let method_id = match self.get_method_id(class.into_inner(),
+                                                 ffi_name.as_ptr(),
+                                                 ffi_sig.as_ptr()) {
+            Err(e) => match e.kind() {
+                &ErrorKind::NullPtr(_) => return Err(ErrorKind::MethodNotFound(name).into()),
+                _ => return Err(e),
+            },
+            Ok(id) => id,
+        };
+
+        unsafe { self.call_static_method_unsafe(class, method_id, parsed.ret, args) }
     }
 
     pub fn new_object<S, T>(&self,

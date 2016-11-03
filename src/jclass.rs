@@ -24,3 +24,9 @@ impl<'a> From<JClass<'a>> for JObject<'a> {
         other.0
     }
 }
+
+impl<'a> From<JObject<'a>> for JClass<'a> {
+    fn from(other: JObject) -> JClass {
+        (other.into_inner() as jclass).into()
+    }
+}

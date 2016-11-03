@@ -1,8 +1,3 @@
-#[inline(always)]
-pub fn nullopt<T>(obj: *mut T) -> Option<*mut T> {
-    if obj.is_null() { None } else { Some(obj) }
-}
-
 macro_rules! non_null {
     ( $obj:expr, $ctx:expr ) => {
         if $obj.is_null() {
@@ -13,23 +8,24 @@ macro_rules! non_null {
     }
 }
 
+macro_rules! deref {
+    ( $obj:expr, $ctx:expr ) => { *non_null!($obj, $ctx) };
+}
+
 macro_rules! jni_method {
     ( $jnienv:expr, $name:tt ) => ({
         trace!("looking up jni method {}", stringify!($name));
         let env = $jnienv;
-        non_null!(env, "JNIEnv");
-        non_null!(*env, "JNIEnv");
-        match (**env).$name {
+        match deref!(deref!(env, "JNIEnv"), "*JNIEnv").$name {
             Some(meth) => {
                 trace!("found jni method");
                 meth
             },
             None => {
                 trace!("jnienv method not defined, returning error");
-                return Err(
-                    $crate::errors::Error::from(
-                        $crate::errors::ErrorKind::JNIEnvMethodNotFound(
-                            stringify!($name))).into())},
+                return Err($crate::errors::Error::from(
+                    $crate::errors::ErrorKind::JNIEnvMethodNotFound(
+                        stringify!($name))).into())},
         }
     })
 }
@@ -40,9 +36,8 @@ macro_rules! check_exception {
         let env: $crate::jnienv::JNIEnv = $jnienv.into();
         if env.exception_check()? {
             trace!("exception found, returning error");
-            return Err(
-                $crate::errors::Error::from(
-                    $crate::errors::ErrorKind::JavaException).into());
+            return Err($crate::errors::Error::from(
+                $crate::errors::ErrorKind::JavaException).into());
         }
         trace!("no exception found");
     }

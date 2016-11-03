@@ -23,3 +23,9 @@ impl<'a> From<JThrowable<'a>> for JObject<'a> {
         other.0
     }
 }
+
+impl<'a> From<JObject<'a>> for JThrowable<'a> {
+    fn from(other: JObject) -> JThrowable {
+        (other.into_inner() as jthrowable).into()
+    }
+}

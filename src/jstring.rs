@@ -24,3 +24,9 @@ impl<'a> From<JString<'a>> for JObject<'a> {
         other.0
     }
 }
+
+impl<'a> From<JObject<'a>> for JString<'a> {
+    fn from(other: JObject) -> JString {
+        (other.into_inner() as jstring).into()
+    }
+}

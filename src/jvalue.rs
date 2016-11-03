@@ -1,3 +1,4 @@
+use errors::*;
 use std::mem::transmute;
 use jobject::JObject;
 use jni_sys::*;
@@ -32,6 +33,40 @@ impl<'a> JValue<'a> {
         };
         trace!("converted {:?} to jvalue {:?}", self, val);
         val
+    }
+
+    pub fn type_name(&self) -> &'static str {
+        match *self {
+            JValue::Void => "void",
+            JValue::Object(_) => "object",
+            JValue::Byte(_) => "byte",
+            JValue::Char(_) => "char",
+            JValue::Short(_) => "short",
+            JValue::Int(_) => "int",
+            JValue::Long(_) => "long",
+            JValue::Bool(_) => "bool",
+            JValue::Float(_) => "float",
+            JValue::Double(_) => "double",
+        }
+    }
+
+    pub fn l(self) -> Result<JObject<'a>> {
+        match self {
+            JValue::Object(obj) => Ok(obj),
+            _ => {
+                Err(ErrorKind::WrongJValueType("object", self.type_name())
+                    .into())
+            }
+        }
+    }
+
+    pub fn z(self) -> Result<bool> {
+        match self {
+            JValue::Bool(b) => Ok(b != 0),
+            _ => {
+                Err(ErrorKind::WrongJValueType("bool", self.type_name()).into())
+            }
+        }
     }
 }
 
@@ -94,5 +129,12 @@ impl<'a> From<jlong> for JValue<'a> {
 impl<'a> From<jbyte> for JValue<'a> {
     fn from(other: jbyte) -> Self {
         JValue::Byte(other)
+    }
+}
+
+// jvoid
+impl<'a> From<()> for JValue<'a> {
+    fn from(other: ()) -> Self {
+        JValue::Void
     }
 }
