@@ -6,7 +6,9 @@ error_chain!{
     errors {
         WrongJValueType(cast: &'static str, actual: &'static str) {
             description("Invalid JValue type cast")
-            display("invaid JValue type cast: {}. actual type: {}", cast, actual)
+            display("invaid JValue type cast: {}. actual type: {}",
+                    cast,
+                    actual)
         }
         InvalidCtorReturn {
             description("Invalid contructor return type (must be void)")

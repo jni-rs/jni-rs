@@ -156,15 +156,15 @@ mod test {
     fn test_parser() {
         let inputs =
             ["(Ljava/lang/String;I)V", "[Lherp;", "(IBVZ)Ljava/lang/String;"];
+
         for each in inputs.iter() {
-            let mut res = JavaType::from_str(*each);
+            let res = JavaType::from_str(*each).unwrap();
             println!("{:#?}", res);
-            let out = res.unwrap();
-            let s = format!("{}", out);
+            let s = format!("{}", res);
             assert_eq!(s, *each);
-            res = JavaType::from_str(*each);
-            println!("{:#?}", res);
-            assert_eq!(res.unwrap(), out);
+            let res2 = JavaType::from_str(*each).unwrap();
+            println!("{:#?}", res2);
+            assert_eq!(res2, res);
         }
     }
 }
