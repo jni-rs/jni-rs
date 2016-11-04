@@ -1,6 +1,5 @@
 error_chain!{
     foreign_links {
-        ::std::ffi::NulError, NulError;
     }
 
     errors {
@@ -33,6 +32,10 @@ error_chain!{
         NullPtr(context: &'static str) {
             description("null pointer")
             display("null pointer in {}", context)
+        }
+        NullDeref(context: &'static str) {
+            description("null pointer deref")
+            display("null pointer deref in {}", context)
         }
     }
 }

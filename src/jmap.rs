@@ -1,7 +1,5 @@
 use errors::*;
 
-use desc::Desc;
-
 use jnienv::JNIEnv;
 use jobject::JObject;
 use jclass::JClass;
@@ -17,6 +15,7 @@ pub struct JMap<'a> {
     class: JClass<'a>,
     get: JMethodID<'a>,
     put: JMethodID<'a>,
+    remove: JMethodID<'a>,
     env: &'a JNIEnv<'a>,
 }
 
@@ -36,38 +35,40 @@ impl<'a> From<JMap<'a>> for JObject<'a> {
 
 impl<'a> JMap<'a> {
     pub fn from_env(env: &'a JNIEnv<'a>, obj: JObject<'a>) -> Result<JMap<'a>> {
-        let class = try!(env.find_class(Desc::Descriptor("java/util/Map")));
-        let class_desc = move || {
-            let c: Desc<&'static str, JClass> = Desc::Value(class);
-            c
-        };
+        let class = try!(env.find_class("java/util/Map"));
 
-        let get = try!(env.get_method_id(Desc::Descriptor((class_desc(),
-                                                      "get",
-                                                      "(Ljava/lang/Object;\
-                                                       )Ljava/lang/Object;"))));
-        let put = try!(env.get_method_id(Desc::Descriptor((class_desc(),
-                                                      "put",
-                                                      "(Ljava/lang/Object;\
-                                                       Ljava/lang/Object;\
-                                                       )Ljava/lang/Object;"))));
+        let get = try!(env.get_method_id((class,
+                                          "get",
+                                          "(Ljava/lang/Object;\
+                                           )Ljava/lang/Object;")));
+        let put = try!(env.get_method_id((class,
+                                          "put",
+                                          "(Ljava/lang/Object;\
+                                           Ljava/lang/Object;\
+                                           )Ljava/lang/Object;")));
+
+        let remove = try!(env.get_method_id((class,
+                                             "remove",
+                                             "(Ljava/lang/Object;\
+                                              )Ljava/lang/Object;")));
+
         Ok(JMap {
             internal: obj,
             class: class,
             get: get,
             put: put,
+            remove: remove,
             env: env,
         })
     }
 
     pub fn get(&self, key: JObject<'a>) -> Result<Option<JObject>> {
         let result = unsafe {
-            self.env.call_method_unsafe::<&str, &str, &str>(
-                self.internal,
-                Desc::Value(self.get),
-                JavaType::Object("java/lang/Object".into()),
-                &[key.into()],
-            )
+            self.env.call_method_unsafe(self.internal,
+                                        self.get,
+                                        JavaType::Object("java/lang/Object"
+                                            .into()),
+                                        &[key.into()])
         };
 
         match result {
@@ -86,12 +87,31 @@ impl<'a> JMap<'a> {
                value: JObject<'a>)
                -> Result<Option<JObject>> {
         let result = unsafe {
-            self.env.call_method_unsafe::<&str, &str, &str>(
-                self.internal,
-                Desc::Value(self.put),
-                JavaType::Object("java/lang/Object".into()),
-                &[key.into(), value.into()],
-            )
+            self.env.call_method_unsafe(self.internal,
+                                        self.put,
+                                        JavaType::Object("java/lang/Object"
+                                            .into()),
+                                        &[key.into(), value.into()])
+        };
+
+        match result {
+            Ok(val) => Ok(Some(try!(val.l()))),
+            Err(e) => {
+                match e.kind() {
+                    &ErrorKind::NullPtr(_) => Ok(None),
+                    _ => Err(e),
+                }
+            }
+        }
+    }
+
+    pub fn remove(&self, key: JObject<'a>) -> Result<Option<JObject<'a>>> {
+        let result = unsafe {
+            self.env.call_method_unsafe(self.internal,
+                                        self.remove,
+                                        JavaType::Object("java/lang/Object"
+                                            .into()),
+                                        &[])
         };
 
         match result {
@@ -108,45 +128,44 @@ impl<'a> JMap<'a> {
     pub fn iter(&'a self) -> Result<JMapIter<'a>> {
         let set = unsafe {
             let set = try!(self.env
-                           .call_method_unsafe::<&str, &str, &str>(self.internal,
-                                                             Desc::Descriptor((Desc::Value(self.class), "entrySet", "()Ljava/util/Set;")),
-                                                             JavaType::Object("java/util/Set".into()),
-                                                             &[]));
+                .call_method_unsafe(self.internal,
+                                    (self.class,
+                                     "entrySet",
+                                     "()Ljava/util/Set;"),
+                                    JavaType::Object("java/util/Set".into()),
+                                    &[]));
             try!(set.l())
         };
 
         let iter = unsafe {
-            try!(try!(self.env
-                      .call_method_unsafe::<&str, &str, &str>(set,
-                                                              Desc::Descriptor((Desc::Descriptor("java/util/Set"), "iterator", "()Ljava/util/Iterator;")),
-                                                              JavaType::Object("java/util/Iterator".into()),
-                                                              &[]))
-                 .l())
+            let iter = try!(self.env
+                .call_method_unsafe(set,
+                                    ("java/util/Set",
+                                     "iterator",
+                                     "()Ljava/util/Iterator;"),
+                                    JavaType::Object("java/util/Iterator"
+                                        .into()),
+                                    &[]));
+            try!(iter.l())
         };
 
-        let iter_class = try!(self.env.find_class(Desc::Descriptor("java/util/Iterator")));
+        let iter_class = try!(self.env
+            .find_class("java/util/Iterator"));
+
         let has_next = try!(self.env
-            .get_method_id::<&str, &str, &str>(Desc::Descriptor((Desc::Value(iter_class),
-                                                                 "hasNext",
-                                                                 "()Z"))));
+            .get_method_id((iter_class, "hasNext", "()Z")));
+
         let next = try!(self.env
-            .get_method_id::<&str, &str, &str>(Desc::Descriptor((Desc::Value(iter_class),
-                                                                 "next",
-                                                                 "()Ljava/lang/Object;"))));
+            .get_method_id((iter_class, "next", "()Ljava/lang/Object;")));
 
         let entry_class = try!(self.env
-            .find_class(Desc::Descriptor("java/util/Map$Entry")));
+            .find_class("java/util/Map$Entry"));
 
         let get_key = try!(self.env
-            .get_method_id::<&str, &str, &str>(
-                Desc::Descriptor((Desc::Value(entry_class),
-                                  "getKey",
-                                  "()Ljava/lang/Object;"))));
+            .get_method_id((entry_class, "getKey", "()Ljava/lang/Object;")));
+
         let get_value = try!(self.env
-            .get_method_id::<&str, &str, &str>(
-                Desc::Descriptor((Desc::Value(entry_class),
-                                  "getValue",
-                                  "()Ljava/lang/Object;"))));
+            .get_method_id((entry_class, "getValue", "()Ljava/lang/Object;")));
 
         Ok(JMapIter {
             map: &self,
@@ -171,12 +190,12 @@ pub struct JMapIter<'a> {
 impl<'a> JMapIter<'a> {
     fn get_next(&self) -> Result<Option<(JObject<'a>, JObject<'a>)>> {
         let has_next = unsafe {
-            let val = try!(self.map.env.call_method_unsafe::<&str, &str, &str>(
-                self.iter,
-                Desc::Value(self.has_next),
-                JavaType::Primitive(Primitive::Boolean),
-                &[]
-            ));
+            let val = try!(self.map
+                .env
+                .call_method_unsafe(self.iter,
+                                    self.has_next,
+                                    JavaType::Primitive(Primitive::Boolean),
+                                    &[]));
             try!(val.z())
         };
 
@@ -184,32 +203,35 @@ impl<'a> JMapIter<'a> {
             return Ok(None);
         }
         let next = unsafe {
-            let next = try!(self.map.env.call_method_unsafe::<&str, &str, &str>(
-                self.iter,
-                Desc::Value(self.next),
-                JavaType::Object("java/util/Map$Entry".into()),
-                &[],
-            ));
+            let next = try!(self.map
+                .env
+                .call_method_unsafe(self.iter,
+                                    self.next,
+                                    JavaType::Object("java/util/Map$Entry"
+                                        .into()),
+                                    &[]));
             try!(next.l())
         };
 
         let key = unsafe {
-            let key = try!(self.map.env.call_method_unsafe::<&str, &str, &str>(
-                next,
-                Desc::Value(self.get_key),
-                JavaType::Object("java/lang/Object".into()),
-                &[],
-            ));
+            let key = try!(self.map
+                .env
+                .call_method_unsafe(next,
+                                    self.get_key,
+                                    JavaType::Object("java/lang/Object"
+                                        .into()),
+                                    &[]));
             try!(key.l())
         };
 
         let value = unsafe {
-            let value = try!(self.map.env.call_method_unsafe::<&str, &str, &str>(
-                next,
-                Desc::Value(self.get_value),
-                JavaType::Object("java/lang/Object".into()),
-                &[],
-            ));
+            let value = try!(self.map
+                .env
+                .call_method_unsafe(next,
+                                    self.get_value,
+                                    JavaType::Object("java/lang/Object"
+                                        .into()),
+                                    &[]));
             try!(value.l())
         };
 

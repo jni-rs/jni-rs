@@ -9,7 +9,13 @@ macro_rules! non_null {
 }
 
 macro_rules! deref {
-    ( $obj:expr, $ctx:expr ) => { *non_null!($obj, $ctx) };
+    ( $obj:expr, $ctx:expr ) => {
+        if $obj.is_null() {
+            return Err($crate::errors::ErrorKind::NullDeref($ctx).into());
+        } else {
+            *$obj
+        }
+    };
 }
 
 macro_rules! jni_method {
