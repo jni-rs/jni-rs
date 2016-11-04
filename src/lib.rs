@@ -34,6 +34,7 @@ pub mod jobject;
 pub mod jthrowable;
 pub mod jclass;
 pub mod jstring;
+pub mod jmap;
 
 // String types for sending to/from the jvm
 pub mod ffi_str;

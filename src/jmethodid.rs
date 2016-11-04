@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 use sys::jmethodID;
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct JMethodID<'a> {
     internal: jmethodID,
     lifetime: PhantomData<&'a ()>,
