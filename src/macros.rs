@@ -34,7 +34,7 @@ macro_rules! check_exception {
     ( $jnienv:expr ) => {
         trace!("checking for exception");
         let env: $crate::jnienv::JNIEnv = $jnienv.into();
-        if env.exception_check()? {
+        if try!(env.exception_check()) {
             trace!("exception found, returning error");
             return Err($crate::errors::Error::from(
                 $crate::errors::ErrorKind::JavaException).into());

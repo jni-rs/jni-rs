@@ -12,3 +12,7 @@ pub enum Desc<D, V> {
     Descriptor(D),
     Value(V),
 }
+
+pub trait IntoDesc<D, V> {
+    fn into_desc(self) -> Desc<D, V>;
+}

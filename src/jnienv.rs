@@ -101,7 +101,7 @@ impl<'a> JNIEnv<'a> {
                              -> Result<JClass<'a>>
         where S: Into<JNIString>
     {
-        let class = self.find_class(class)?;
+        let class = try!(self.find_class(class));
         Ok(jni_call!(self.internal, GetSuperclass, class.into_inner()))
     }
 
@@ -112,8 +112,8 @@ impl<'a> JNIEnv<'a> {
         where S: Into<JNIString>,
               T: Into<JNIString>
     {
-        let class1 = self.find_class(class1)?;
-        let class2 = self.find_class(class2)?;
+        let class1 = try!(self.find_class(class1));
+        let class2 = try!(self.find_class(class2));
         Ok(unsafe {
             jni_unchecked!(self.internal,
                            IsAssignableFrom,
@@ -140,7 +140,7 @@ impl<'a> JNIEnv<'a> {
         where S: Into<JNIString>,
               T: Into<JNIString>
     {
-        let class = self.find_class(class)?;
+        let class = try!(self.find_class(class));
         let msg = msg.into();
         let res: i32 = unsafe {
             jni_unchecked!(self.internal,
@@ -210,7 +210,7 @@ impl<'a> JNIEnv<'a> {
                            -> Result<JObject<'a>>
         where S: Into<JNIString>
     {
-        let class = self.find_class(class)?;
+        let class = try!(self.find_class(class));
         Ok(jni_call!(self.internal, AllocObject, class.into_inner()))
     }
 
@@ -226,7 +226,7 @@ impl<'a> JNIEnv<'a> {
             Desc::Descriptor((class, name, sig)) => {
                 // TODO this block is ugly and does an extra copy on errors.
                 // Fix?
-                let class = self.find_class(class)?;
+                let class = try!(self.find_class(class));
                 let ffi_name = name.into();
                 let sig = sig.into();
 
@@ -260,6 +260,7 @@ impl<'a> JNIEnv<'a> {
         Ok(jni_call!(self.internal, GetObjectClass, obj.into_inner()))
     }
 
+    #[allow(unused_unsafe)]
     pub unsafe fn call_static_method_unsafe<S, T, U>(&self,
                                                      class: Desc<S, JClass<'a>>,
                                                      method_id: Desc<(T, U),
@@ -271,13 +272,13 @@ impl<'a> JNIEnv<'a> {
               T: Into<JNIString>,
               U: Into<JNIString>
     {
-        let class = self.find_class(class)?;
+        let class = try!(self.find_class(class));
 
         let method_id: JMethodID = match method_id {
             Desc::Descriptor((name, sig)) => {
-                self.get_method_id::<S, T, U>(
+                try!(self.get_method_id::<S, T, U>(
                     Desc::Descriptor((Desc::Value(class), name, sig))
-                )?
+                ))
             }
             Desc::Value(v) => v,
         };
@@ -293,7 +294,6 @@ impl<'a> JNIEnv<'a> {
         Ok(match ret {
             JavaType::Object(_) |
             JavaType::Array(_) => {
-                #[allow(unused_unsafe)]
                 let obj: JObject = jni_call!(self.internal,
                                              CallStaticObjectMethodA,
                                              class,
@@ -385,25 +385,27 @@ impl<'a> JNIEnv<'a> {
 
     // calls a method in an unsafe manner. Assumes that the obj and method id
     // arguments line up and that the number of args matches the signature.
-    pub unsafe fn call_method_unsafe<S, T>(&self,
+    #[allow(unused_unsafe)]
+    pub unsafe fn call_method_unsafe<S, T, U>(&self,
                                            obj: JObject,
-                                           method_id: Desc<(S, T),
+                                           method_id: Desc<(Desc<S, JClass<'a>>, T, U),
                                                            JMethodID<'a>>,
                                            ret: JavaType,
                                            args: &[JValue<'a>])
                                            -> Result<JValue<'a>>
         where S: Into<JNIString>,
-              T: Into<JNIString>
+              T: Into<JNIString>,
+              U: Into<JNIString>
     {
         let jni_args: Vec<jvalue> = args.iter().map(|v| v.to_jni()).collect();
 
         let method_id = match method_id {
                 Desc::Value(v) => v,
-                Desc::Descriptor((name, sig)) => {
-                    let class = self.get_object_class(obj)?;
-                    self.get_method_id::<String, S, T>(
+                Desc::Descriptor((class, name, sig)) => {
+                    let class = try!(self.find_class(class));
+                    try!(self.get_method_id::<S, T, U>(
                         Desc::Descriptor((Desc::Value(class), name, sig))
-                    )?
+                    ))
                 }
             }
             .into_inner();
@@ -415,7 +417,6 @@ impl<'a> JNIEnv<'a> {
         Ok(match ret {
             JavaType::Object(_) |
             JavaType::Array(_) => {
-                #[allow(unused_unsafe)]
                 let obj: JObject = jni_call!(self.internal,
                                              CallObjectMethodA,
                                              obj,
@@ -508,7 +509,7 @@ impl<'a> JNIEnv<'a> {
     // calls a method safely by looking up the id based on the object's class,
     // method name, and signature and parsing the signature to ensure that the
     // arguments and return type line up.
-    pub fn call_method<S, T>(&self,
+    pub fn call_method<S, T>(&'a self,
                              obj: JObject<'a>,
                              name: S,
                              sig: T,
@@ -520,19 +521,17 @@ impl<'a> JNIEnv<'a> {
         non_null!(obj, "call_method obj argument");
 
         // parse the signature
-        let parsed = TypeSignature::from_str(sig.as_ref())?;
+        let parsed = try!(TypeSignature::from_str(sig.as_ref()));
         if parsed.args.len() != args.len() {
             return Err(ErrorKind::InvalidArgList.into());
         }
 
-        // build strings
-        let name: JNIString = name.into();
-        let sig: JNIString = sig.into();
+        let class = try!(self.get_object_class(obj));
 
         // get the actual method
-        let method_desc = Desc::Descriptor((name, sig));
+        let method_desc: Desc<(Desc<&str, JClass>, S, T), JMethodID> = Desc::Descriptor((Desc::Value(class), name, sig));
 
-        unsafe { self.call_method_unsafe(obj, method_desc, parsed.ret, args) }
+        unsafe { self.call_method_unsafe::<&str, S, T>(obj, method_desc, parsed.ret, args) }
     }
 
     // calls a static method safely by looking up the id based on the class,
@@ -548,7 +547,7 @@ impl<'a> JNIEnv<'a> {
               T: Into<JNIString>,
               U: Into<JNIString> + AsRef<str>
     {
-        let parsed = TypeSignature::from_str(&sig)?;
+        let parsed = try!(TypeSignature::from_str(&sig));
         if parsed.args.len() != args.len() {
             return Err(ErrorKind::InvalidArgList.into());
         }
@@ -569,7 +568,7 @@ impl<'a> JNIEnv<'a> {
               T: Into<JNIString> + AsRef<str>
     {
         // parse the signature
-        let parsed = TypeSignature::from_str(&ctor_sig)?;
+        let parsed = try!(TypeSignature::from_str(&ctor_sig));
 
         if parsed.args.len() != ctor_args.len() {
             return Err(ErrorKind::InvalidArgList.into());
@@ -585,12 +584,12 @@ impl<'a> JNIEnv<'a> {
         // build strings
         let name = "<init>";
 
-        let class = self.find_class(class)?;
+        let class = try!(self.find_class(class));
 
         // get the actual method
         let method_desc: Desc<(Desc<S, JClass>, &str, T), JMethodID> =
             Desc::Descriptor((Desc::Value(class), name, ctor_sig));
-        let method_id = self.get_method_id(method_desc)?;
+        let method_id = try!(self.get_method_id(method_desc));
 
         let jni_args = jni_args.as_ptr();
 
