@@ -99,7 +99,7 @@ impl<'a> JValue<'a> {
         }
     }
 
-    pub fn F(self) -> Result<jfloat> {
+    pub fn f(self) -> Result<jfloat> {
         match self {
             JValue::Float(b) => Ok(b),
             _ => {
@@ -212,7 +212,7 @@ impl<'a> From<jbyte> for JValue<'a> {
 
 // jvoid
 impl<'a> From<()> for JValue<'a> {
-    fn from(other: ()) -> Self {
+    fn from(_: ()) -> Self {
         JValue::Void
     }
 }

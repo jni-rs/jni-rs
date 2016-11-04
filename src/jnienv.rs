@@ -1,13 +1,9 @@
-use std::borrow::Cow;
-
-use std::ffi;
 use std::str;
 
 use std::marker::PhantomData;
 
-use sys::{self, jclass, jstring, jboolean, jobject, jvalue, jint, jsize};
+use sys::{self, jvalue, jint};
 
-use macros;
 use errors::*;
 
 use ffi_str::JNIString;
@@ -198,11 +194,13 @@ impl<'a> JNIEnv<'a> {
     }
 
     // Not public yet - not sure what the GC behavior is. Needs more research
+    #[allow(dead_code)]
     fn new_local_ref(&self, obj: JObject) -> Result<JObject> {
         non_null!(obj, "new_local_ref obj argument");
         Ok(jni_call!(self.internal, NewLocalRef, obj.into_inner()))
     }
 
+    #[allow(dead_code)]
     fn delete_local_ref(&self, obj: JObject) -> Result<()> {
         non_null!(obj, "delete_local_ref obj argument");
         Ok(unsafe {

@@ -1,15 +1,10 @@
-use std::marker::PhantomData;
-use sys::{jsize, jstring, jboolean};
+use sys::{jstring, jboolean};
 use jnienv::JNIEnv;
 use std::os::raw::c_char;
 
 use ffi_str::JNIStr;
-use ffi_str::JNIString;
 
-use std::borrow::ToOwned;
 use std::borrow::Cow;
-
-use cesu8::from_java_cesu8;
 
 use errors::*;
 

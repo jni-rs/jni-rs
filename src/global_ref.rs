@@ -1,25 +1,24 @@
 use errors::*;
 use std::convert::From;
-use jnienv;
-use sys::{self, jobject, JNIEnv};
+use sys::{jobject, JNIEnv};
 
 pub struct GlobalRef {
     obj: jobject,
-    internal: *mut JNIEnv,
+    env: *mut JNIEnv,
 }
 
 impl GlobalRef {
     pub unsafe fn new(env: *mut JNIEnv, obj: jobject) -> Self {
         GlobalRef {
             obj: obj,
-            internal: env,
+            env: env,
         }
     }
 
     fn drop_ref(&mut self) -> Result<()> {
         unsafe {
-            jni_unchecked!(self.internal, DeleteGlobalRef, self.obj);
-            check_exception!(self.internal);
+            jni_unchecked!(self.env, DeleteGlobalRef, self.obj);
+            check_exception!(self.env);
         }
         Ok(())
     }
@@ -27,7 +26,6 @@ impl GlobalRef {
 
 impl Drop for GlobalRef {
     fn drop(&mut self) {
-        let env: jnienv::JNIEnv = self.internal.into();
         let res = self.drop_ref();
         match res {
             Ok(()) => {}

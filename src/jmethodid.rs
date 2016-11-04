@@ -2,7 +2,6 @@ use std::marker::PhantomData;
 
 use desc::Desc;
 
-use jclass::JClass;
 use jclass::ClassDesc;
 use jclass::IntoClassDesc;
 

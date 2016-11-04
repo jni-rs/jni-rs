@@ -5,8 +5,6 @@ use jobject::JObject;
 use jclass::JClass;
 use jmethodid::JMethodID;
 
-use sys::{jobject, jclass};
-
 use signature::JavaType;
 use signature::Primitive;
 
@@ -111,7 +109,7 @@ impl<'a> JMap<'a> {
                                         self.remove,
                                         JavaType::Object("java/lang/Object"
                                             .into()),
-                                        &[])
+                                        &[key.into()])
         };
 
         match result {

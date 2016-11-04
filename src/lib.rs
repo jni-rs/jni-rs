@@ -1,8 +1,3 @@
-#![allow(unused_imports)]
-#![allow(dead_code)]
-#![allow(unused_variables)]
-#![allow(non_snake_case)]
-
 #[macro_use]
 extern crate log;
 
