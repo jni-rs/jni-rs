@@ -1,8 +1,6 @@
 #[macro_use]
 extern crate log;
 
-extern crate jni_sys;
-
 #[macro_use]
 extern crate error_chain;
 
@@ -13,7 +11,6 @@ extern crate cesu8;
 #[macro_use]
 mod macros;
 
-// Re-export of the jni_sys types
 pub mod sys;
 
 // errors. do you really need an explanation?

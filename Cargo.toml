@@ -10,7 +10,6 @@ repository = "https://github.com/prevoty/jni-rs"
 
 [dependencies]
 log = "0.3"
-jni-sys = { path = "./jni-sys" }
 error-chain = "0.5"
 combine = "2"
 cesu8 = "1"
