@@ -1,8 +1,12 @@
 [package]
 name = "jni"
 version = "0.1.0"
-authors = ["Josh Chase <jcjoshuachase@gmail.com>"]
-description = "proof-of-concept callable from java lib"
+authors = ["Josh Chase <josh@prevoty.com>"]
+description = "Rust bindings to the JNI"
+license = "MIT/Apache-2.0"
+keywords = ["ffi", "jni", "java"]
+repository = "https://github.com/prevoty/jni-rs"
+
 
 [dependencies]
 log = "0.3"
