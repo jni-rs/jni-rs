@@ -7,6 +7,8 @@ use objects::JMethodID;
 
 use strings::JNIString;
 
+/// Specialization of `Desc` for describing `JMethodID`s. Requires a class,
+/// method name, and signature.
 pub struct MethodDesc<'a, S: Into<JNIString>,
                       T: IntoClassDesc<'a, S>,
                       U: Into<JNIString>,
@@ -16,6 +18,13 @@ pub struct MethodDesc<'a, S: Into<JNIString>,
         pub ::std::marker::PhantomData<S>
 );
 
+/// Trait representing anything that can be turned into a method descriptor.
+/// Implementations are provided for `MethodDesc`, `Desc<(T, U, V), JMethodID>`,
+/// `JMethodID`, and any tuple containing an `IntoClassDesc` implementor, and
+/// two things that implement `Into<JNIString>`.
+///
+/// Implementors are better off implementing `Into<JNIString>` and
+/// `IntoClassDesc` and letting the provided implementations for it do the rest.
 pub trait IntoMethodDesc<'a, S, T, U, V>
     where S: Into<JNIString>,
           T: IntoClassDesc<'a, S>,

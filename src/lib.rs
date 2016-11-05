@@ -87,7 +87,7 @@
 
 //! The last thing we need to do is to define our exported method. Add this to your crate's `src/lib.rs`:
 //!
-//! ```
+//! ```rust,ignore
 //! extern crate jni;
 //!
 //! // This is the interface to the JVM that we'll call the majority of our methods on.

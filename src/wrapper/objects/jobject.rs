@@ -2,6 +2,14 @@ use std::marker::PhantomData;
 
 use sys::jobject;
 
+/// Wrapper around `sys::jobject` that adds a lifetime. This prevents it from
+/// outliving the context in which it was acquired and getting GC'd out from
+/// under us. It matches C's representation of the raw pointer, so it can be
+/// used in any of the extern function argument positions that would take a
+/// `jobject`.
+///
+/// Most other types in the `objects` module deref to this, as they do in the C
+/// representation.
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct JObject<'a> {

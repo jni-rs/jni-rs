@@ -9,6 +9,11 @@ use objects::JMethodID;
 use signature::JavaType;
 use signature::Primitive;
 
+/// Wrapper for JObjects that implement `java/util/Map`. Provides methods to get
+/// and set entries and a way to iterate over key/value pairs.
+///
+/// Looks up the class and method ids on creation rather than for every method
+/// call.
 pub struct JMap<'a> {
     internal: JObject<'a>,
     class: JClass<'a>,
@@ -33,6 +38,9 @@ impl<'a> From<JMap<'a>> for JObject<'a> {
 }
 
 impl<'a> JMap<'a> {
+    /// Create a map from the environment and an object. This looks up the
+    /// necessary class and method ids to call all of the methods on it so that
+    /// exra work doesn't need to be done on every method call.
     pub fn from_env(env: &'a JNIEnv<'a>, obj: JObject<'a>) -> Result<JMap<'a>> {
         let class = try!(env.find_class("java/util/Map"));
 
@@ -61,6 +69,8 @@ impl<'a> JMap<'a> {
         })
     }
 
+    /// Look up the value for a key. Returns `Some` if it's found and `None` if
+    /// a null pointer would be returned.
     pub fn get(&self, key: JObject<'a>) -> Result<Option<JObject>> {
         let result = unsafe {
             self.env.call_method_unsafe(self.internal,
@@ -81,6 +91,8 @@ impl<'a> JMap<'a> {
         }
     }
 
+    /// Look up the value for a key. Returns `Some` with the old value if the
+    /// key already existed and `None` if it's a new key.
     pub fn put(&self,
                key: JObject<'a>,
                value: JObject<'a>)
@@ -104,6 +116,8 @@ impl<'a> JMap<'a> {
         }
     }
 
+    /// Remove a value from the map. Returns `Some` with the removed value and
+    /// `None` if there was no value for the key.
     pub fn remove(&self, key: JObject<'a>) -> Result<Option<JObject<'a>>> {
         let result = unsafe {
             self.env.call_method_unsafe(self.internal,
@@ -124,6 +138,8 @@ impl<'a> JMap<'a> {
         }
     }
 
+    /// Get key/value iterator for the map. This is done by getting the
+    /// `EntrySet` from java and iterating over it.
     pub fn iter(&'a self) -> Result<JMapIter<'a>> {
         let set = unsafe {
             let set = try!(self.env
@@ -177,6 +193,10 @@ impl<'a> JMap<'a> {
     }
 }
 
+/// An iterator over the keys and values in a map.
+///
+/// TODO: make the iterator implementation for java iterators its own thing
+/// and generic enough to use elsewhere.
 pub struct JMapIter<'a> {
     map: &'a JMap<'a>,
     has_next: JMethodID<'a>,

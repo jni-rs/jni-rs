@@ -1,6 +1,8 @@
 use errors::*;
 use combine::*;
 
+/// A primitive java type. These are the things that can be represented without
+/// an object.
 #[derive(Eq, PartialEq, Debug)]
 pub enum Primitive {
     Boolean, // Z
@@ -30,6 +32,7 @@ impl ::std::fmt::Display for Primitive {
     }
 }
 
+/// Enum representing any java type in addition to method signatures.
 #[derive(Eq, PartialEq, Debug)]
 pub enum JavaType {
     Primitive(Primitive),
@@ -39,6 +42,7 @@ pub enum JavaType {
 }
 
 impl JavaType {
+    /// Parse a type string into a JavaType enum.
     pub fn from_str(s: &str) -> Result<JavaType> {
         Ok(match parser(parse_type).parse(s).map(|res| res.0) {
             Ok(sig) => sig,
@@ -58,6 +62,9 @@ impl ::std::fmt::Display for JavaType {
     }
 }
 
+/// A method type signature. This is the structure representation of something
+/// like `(Ljava/lang/String;)Z`. Used by the `call_(object|static)_method`
+/// functions on jnienv to ensure safety.
 #[derive(Eq, PartialEq, Debug)]
 pub struct TypeSignature {
     pub args: Vec<JavaType>,
@@ -65,6 +72,7 @@ pub struct TypeSignature {
 }
 
 impl TypeSignature {
+    /// Parse a signature string into a TypeSignature enum.
     pub fn from_str<S: AsRef<str>>(s: S) -> Result<TypeSignature> {
         Ok(match parser(parse_sig).parse(s.as_ref()).map(|res| res.0) {
             Ok(JavaType::Method(sig)) => *sig,

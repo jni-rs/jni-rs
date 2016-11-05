@@ -4,12 +4,18 @@ use errors::*;
 
 use sys::{jobject, JNIEnv};
 
+/// A global JVM reference. These are "pinned" by the garbage collector and are
+/// guaranteed to not get collected until released. Thus, this is allowed to
+/// outlive the `JNIEnv` that it came from. Still can't cross thread boundaries
+/// since it requires a pointer to the `JNIEnv` to do anything useful with it.
 pub struct GlobalRef {
     obj: jobject,
     env: *mut JNIEnv,
 }
 
 impl GlobalRef {
+    /// Create a new global reference object. This assumes that
+    /// `CreateGlobalRef` has already been called.
     pub unsafe fn new(env: *mut JNIEnv, obj: jobject) -> Self {
         GlobalRef {
             obj: obj,

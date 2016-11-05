@@ -10,8 +10,10 @@ use sys::{jstring, jboolean};
 
 use strings::JNIStr;
 
-// borrowed version of a java string. Holds a pointer to the array
-// returned by GetStringUTFChars. Calls ReleaseStringUTFChars on Drop.
+/// Reference to a string in the JVM. Holds a pointer to the array
+/// returned by GetStringUTFChars. Calls ReleaseStringUTFChars on Drop.
+/// Can be converted to a `&JNIStr` with the same cost as the `&CStr.from_ptr`
+/// conversion.
 pub struct JavaStr<'a> {
     internal: *const c_char,
     obj: jstring,
@@ -33,6 +35,13 @@ impl<'a> JavaStr<'a> {
     }
 }
 
+impl<'a> ::std::ops::Deref for JavaStr<'a> {
+    type Target = JNIStr;
+    fn deref(&self) -> &Self::Target {
+        self.into()
+    }
+}
+
 impl<'a> From<&'a JavaStr<'a>> for &'a JNIStr {
     fn from(other: &'a JavaStr) -> &'a JNIStr {
         unsafe { JNIStr::from_ptr(other.internal) }
@@ -41,7 +50,7 @@ impl<'a> From<&'a JavaStr<'a>> for &'a JNIStr {
 
 impl<'a> From<&'a JavaStr<'a>> for Cow<'a, str> {
     fn from(other: &'a JavaStr) -> Cow<'a, str> {
-        let jni_str: &JNIStr = other.into();
+        let jni_str: &JNIStr = &*other;
         jni_str.into()
     }
 }

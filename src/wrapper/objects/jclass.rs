@@ -2,6 +2,8 @@ use objects::JObject;
 
 use sys::{jobject, jclass};
 
+/// Lifetime'd representation of a `jclass`. Just a `JObject` wrapped in a new
+/// class.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct JClass<'a>(JObject<'a>);

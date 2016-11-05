@@ -5,6 +5,8 @@ use sys::*;
 
 use objects::JObject;
 
+/// Rusty version of the JNI C `jvalue` enum. Used in Java method call arguments
+/// and returns.
 #[derive(Clone, Copy, Debug)]
 pub enum JValue<'a> {
     Object(JObject<'a>),
@@ -19,19 +21,27 @@ pub enum JValue<'a> {
     Void,
 }
 
+impl<'a> From<JValue<'a>> for jvalue {
+    fn from(other: JValue) -> jvalue {
+        other.to_jni()
+    }
+}
+
 impl<'a> JValue<'a> {
-    pub unsafe fn to_jni(self) -> jvalue {
-        let val: jvalue = match self {
-            JValue::Object(obj) => transmute(obj.into_inner()),
-            JValue::Byte(byte) => transmute(byte as i64),
-            JValue::Char(char) => transmute(char as u64),
-            JValue::Short(short) => transmute(short as i64),
-            JValue::Int(int) => transmute(int as i64),
-            JValue::Long(long) => transmute(long),
-            JValue::Bool(boolean) => transmute(boolean as u64),
-            JValue::Float(float) => transmute(float as f64),
-            JValue::Double(double) => transmute(double),
-            JValue::Void => Default::default(),
+    pub fn to_jni(self) -> jvalue {
+        let val: jvalue = unsafe {
+            match self {
+                JValue::Object(obj) => transmute(obj.into_inner()),
+                JValue::Byte(byte) => transmute(byte as i64),
+                JValue::Char(char) => transmute(char as u64),
+                JValue::Short(short) => transmute(short as i64),
+                JValue::Int(int) => transmute(int as i64),
+                JValue::Long(long) => transmute(long),
+                JValue::Bool(boolean) => transmute(boolean as u64),
+                JValue::Float(float) => transmute(float as f64),
+                JValue::Double(double) => transmute(double),
+                JValue::Void => Default::default(),
+            }
         };
         trace!("converted {:?} to jvalue {:?}", self, val);
         val

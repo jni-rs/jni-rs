@@ -2,6 +2,11 @@ use std::marker::PhantomData;
 
 use sys::jmethodID;
 
+/// Wrapper around `sys::jmethodid` that adds a lifetime. This prevents it from
+/// outliving the context in which it was acquired and getting GC'd out from
+/// under us. It matches C's representation of the raw pointer, so it can be
+/// used in any of the extern function argument positions that would take a
+/// `jmethodid`.
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct JMethodID<'a> {
