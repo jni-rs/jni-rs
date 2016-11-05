@@ -1,4 +1,5 @@
-use jobject::JObject;
+use objects::JObject;
+
 use sys::{jobject, jstring};
 
 #[repr(C)]

@@ -1,7 +1,9 @@
-use errors::*;
 use std::mem::transmute;
-use jobject::JObject;
+
+use errors::*;
 use sys::*;
+
+use objects::JObject;
 
 #[derive(Clone, Copy, Debug)]
 pub enum JValue<'a> {

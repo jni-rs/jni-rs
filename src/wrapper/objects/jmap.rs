@@ -1,9 +1,10 @@
+use JNIEnv;
+
 use errors::*;
 
-use jnienv::JNIEnv;
-use jobject::JObject;
-use jclass::JClass;
-use jmethodid::JMethodID;
+use objects::JObject;
+use objects::JClass;
+use objects::JMethodID;
 
 use signature::JavaType;
 use signature::Primitive;

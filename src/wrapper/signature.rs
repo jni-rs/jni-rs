@@ -149,7 +149,6 @@ fn parse_sig<S: Stream<Item = char>>(input: S) -> ParseResult<JavaType, S> {
 
 #[cfg(test)]
 mod test {
-    use combine::*;
     use super::*;
 
     #[test]

@@ -2,10 +2,10 @@ use std::os::raw::c_char;
 
 use std::ffi;
 
+use std::borrow::{Cow, ToOwned, Borrow};
+
 use cesu8::from_java_cesu8;
 use cesu8::to_java_cesu8;
-
-use std::borrow::{Cow, ToOwned, Borrow};
 
 pub struct JNIString {
     internal: ffi::CString,

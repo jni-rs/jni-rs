@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+
 use sys::jobject;
 
 #[repr(C)]

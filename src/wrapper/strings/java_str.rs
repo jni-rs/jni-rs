@@ -1,12 +1,14 @@
-use sys::{jstring, jboolean};
-use jnienv::JNIEnv;
 use std::os::raw::c_char;
-
-use ffi_str::JNIStr;
 
 use std::borrow::Cow;
 
+use JNIEnv;
+
 use errors::*;
+
+use sys::{jstring, jboolean};
+
+use strings::JNIStr;
 
 // borrowed version of a java string. Holds a pointer to the array
 // returned by GetStringUTFChars. Calls ReleaseStringUTFChars on Drop.

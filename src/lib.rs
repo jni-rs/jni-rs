@@ -15,45 +15,26 @@ extern crate combine;
 extern crate cesu8;
 
 #[cfg(not(feature = "sys-only"))]
-#[macro_use]
-mod macros;
+mod wrapper {
+    #[macro_use]
+    mod macros;
 
-// errors. do you really need an explanation?
-#[cfg(not(feature = "sys-only"))]
-pub mod errors;
+    // errors. do you really need an explanation?
+    pub mod errors;
 
-// parser for method signatures
-#[cfg(not(feature = "sys-only"))]
-pub mod signature;
+    pub mod descriptors;
 
-// wrappers arount jni pointer types that add lifetimes and other functionality.
-#[cfg(not(feature = "sys-only"))]
-pub mod jvalue;
-#[cfg(not(feature = "sys-only"))]
-pub mod jmethodid;
-#[cfg(not(feature = "sys-only"))]
-pub mod jobject;
-#[cfg(not(feature = "sys-only"))]
-pub mod jthrowable;
-#[cfg(not(feature = "sys-only"))]
-pub mod jclass;
-#[cfg(not(feature = "sys-only"))]
-pub mod jstring;
-#[cfg(not(feature = "sys-only"))]
-pub mod jmap;
+    // parser for method signatures
+    pub mod signature;
 
-// String types for sending to/from the jvm
-#[cfg(not(feature = "sys-only"))]
-pub mod ffi_str;
-#[cfg(not(feature = "sys-only"))]
-pub mod java_str;
+    pub mod objects;
 
-// For when you want to store a reference to a java object
-#[cfg(not(feature = "sys-only"))]
-pub mod global_ref;
+    pub mod strings;
 
-// Actual communication with the JVM
+    // Actual communication with the JVM
+    mod jnienv;
+    pub use self::jnienv::*;
+}
+
 #[cfg(not(feature = "sys-only"))]
-pub mod desc;
-#[cfg(not(feature = "sys-only"))]
-pub mod jnienv;
+pub use wrapper::*;

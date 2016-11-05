@@ -2,32 +2,31 @@ use std::str;
 
 use std::marker::PhantomData;
 
-use sys::{self, jvalue, jint};
-
 use errors::*;
 
-use ffi_str::JNIString;
-use java_str::JavaStr;
+use sys::{self, jvalue, jint};
 
-use jmap::JMap;
-use jvalue::JValue;
-use jclass::JClass;
-use jobject::JObject;
-use jstring::JString;
-use jthrowable::JThrowable;
-use jmethodid::JMethodID;
+use strings::JNIString;
+use strings::JavaStr;
 
-use desc::Desc;
-use jclass::ClassDesc;
-use jclass::IntoClassDesc;
-use jmethodid::MethodDesc;
-use jmethodid::IntoMethodDesc;
+use objects::JMap;
+use objects::JValue;
+use objects::JClass;
+use objects::JObject;
+use objects::JString;
+use objects::JThrowable;
+use objects::JMethodID;
+use objects::GlobalRef;
+
+use descriptors::Desc;
+use descriptors::ClassDesc;
+use descriptors::IntoClassDesc;
+use descriptors::MethodDesc;
+use descriptors::IntoMethodDesc;
 
 use signature::TypeSignature;
 use signature::JavaType;
 use signature::Primitive;
-
-use global_ref::GlobalRef;
 
 #[repr(C)]
 pub struct JNIEnv<'a> {

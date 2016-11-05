@@ -1,35 +1,11 @@
-use std::marker::PhantomData;
+use descriptors::Desc;
 
-use desc::Desc;
+use descriptors::ClassDesc;
+use descriptors::IntoClassDesc;
 
-use jclass::ClassDesc;
-use jclass::IntoClassDesc;
+use objects::JMethodID;
 
-use ffi_str::JNIString;
-
-use sys::jmethodID;
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct JMethodID<'a> {
-    internal: jmethodID,
-    lifetime: PhantomData<&'a ()>,
-}
-
-impl<'a> From<jmethodID> for JMethodID<'a> {
-    fn from(other: jmethodID) -> Self {
-        JMethodID {
-            internal: other,
-            lifetime: PhantomData,
-        }
-    }
-}
-
-impl<'a> JMethodID<'a> {
-    pub fn into_inner(self) -> jmethodID {
-        self.internal
-    }
-}
+use strings::JNIString;
 
 pub struct MethodDesc<'a, S: Into<JNIString>,
                       T: IntoClassDesc<'a, S>,
@@ -75,11 +51,8 @@ impl<'a, S, T, U, V> IntoMethodDesc<'a, S, T, U, V> for (T, U, V)
     }
 }
 
-impl<'a, S, T, U, V> IntoMethodDesc<'a, S, T, U, V> for MethodDesc<'a,
-                                                                   S,
-                                                                   T,
-                                                                   U,
-                                                                   V>
+impl<'a, S, T, U, V> IntoMethodDesc<'a, S, T, U, V>
+    for MethodDesc<'a, S, T, U, V>
     where S: Into<JNIString>,
           T: IntoClassDesc<'a, S>,
           U: Into<JNIString>,
@@ -90,8 +63,8 @@ impl<'a, S, T, U, V> IntoMethodDesc<'a, S, T, U, V> for MethodDesc<'a,
     }
 }
 
-impl<'a, S, T, U, V> IntoMethodDesc<'a, S, T, U, V> for Desc<(T, U, V),
-                                                             JMethodID<'a>>
+impl<'a, S, T, U, V> IntoMethodDesc<'a, S, T, U, V>
+    for Desc<(T, U, V), JMethodID<'a>>
     where S: Into<JNIString>,
           T: IntoClassDesc<'a, S>,
           U: Into<JNIString>,
