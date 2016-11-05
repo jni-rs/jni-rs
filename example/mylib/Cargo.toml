@@ -1,0 +1,10 @@
+[package]
+name = "mylib"
+version = "0.1.0"
+authors = ["Josh Chase <josh@prevoty.com>"]
+
+[dependencies]
+jni = { path = "../../" }
+
+[lib]
+crate_type = ["dylib"]
