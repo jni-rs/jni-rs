@@ -1,5 +1,5 @@
 [![Build Status](https://travis-ci.org/prevoty/jni-rs.svg?branch=develop)](https://travis-ci.org/prevoty/jni-rs)
-[![Docs](https://docs.rs/mio/badge.svg)](https://docs.rs/jni)
+[![Docs](https://docs.rs/jni/badge.svg)](https://docs.rs/jni)
 [![Crates.io](https://img.shields.io/crates/v/jni.svg)](https://crates.io/crates/jni)
 
 # JNI bindings for Rust
