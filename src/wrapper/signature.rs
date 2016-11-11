@@ -84,12 +84,12 @@ impl TypeSignature {
 
 impl ::std::fmt::Display for TypeSignature {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        try!(write!(f, "("));
+        write!(f, "(")?;
         for a in self.args.iter() {
-            try!(write!(f, "{}", a));
+            write!(f, "{}", a)?;
         }
-        try!(write!(f, ")"));
-        try!(write!(f, "{}", self.ret));
+        write!(f, ")")?;
+        write!(f, "{}", self.ret)?;
         Ok(())
     }
 }

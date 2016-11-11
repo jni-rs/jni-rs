@@ -5,6 +5,9 @@ pub use self::jvalue::*;
 mod jmethodid;
 pub use self::jmethodid::*;
 
+mod jfieldid;
+pub use self::jfieldid::*;
+
 mod jobject;
 pub use self::jobject::*;
 

@@ -17,9 +17,13 @@ error_chain!{
             description("Invalid number of arguments passed to java method")
             display("Invalid number of arguments passed to java method")
         }
-        MethodNotFound(name: String) {
+        MethodNotFound(name: String, sig: String) {
             description("Method not found")
-            display("Method not found: {}", name)
+            display("Method not found: {} {}", name, sig)
+        }
+        FieldNotFound(name: String, ty: String) {
+            description("Field not found")
+            display("Field not found: {} {}", name, ty)
         }
         JavaException {
             description("Java exception was thrown")

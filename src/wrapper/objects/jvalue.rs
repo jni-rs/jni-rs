@@ -1,5 +1,7 @@
 use std::mem::transmute;
 
+use signature::Primitive;
+
 use errors::*;
 use sys::*;
 
@@ -62,6 +64,24 @@ impl<'a> JValue<'a> {
         }
     }
 
+    /// Get the primitive type for the enum variant. If it's not a primitive
+    /// (i.e. an Object), returns None.
+    pub fn primitive_type(&self) -> Option<Primitive> {
+        Some(match *self {
+            JValue::Object(_) => return None,
+            JValue::Void => Primitive::Void,
+            JValue::Byte(_) => Primitive::Byte,
+            JValue::Char(_) => Primitive::Char,
+            JValue::Short(_) => Primitive::Short,
+            JValue::Int(_) => Primitive::Int,
+            JValue::Long(_) => Primitive::Long,
+            JValue::Bool(_) => Primitive::Boolean,
+            JValue::Float(_) => Primitive::Float,
+            JValue::Double(_) => Primitive::Double,
+        })
+    }
+
+    /// Try to unwrap to an Object.
     pub fn l(self) -> Result<JObject<'a>> {
         match self {
             JValue::Object(obj) => Ok(obj),
@@ -72,6 +92,7 @@ impl<'a> JValue<'a> {
         }
     }
 
+    /// Try to unwrap to a boolean.
     pub fn z(self) -> Result<bool> {
         match self {
             JValue::Bool(b) => Ok(b != 0),
@@ -81,6 +102,7 @@ impl<'a> JValue<'a> {
         }
     }
 
+    /// Try to unwrap to a byte.
     pub fn b(self) -> Result<jbyte> {
         match self {
             JValue::Byte(b) => Ok(b),
@@ -91,6 +113,7 @@ impl<'a> JValue<'a> {
         }
     }
 
+    /// Try to unwrap to a char.
     pub fn c(self) -> Result<jchar> {
         match self {
             JValue::Char(b) => Ok(b),
@@ -101,6 +124,7 @@ impl<'a> JValue<'a> {
         }
     }
 
+    /// Try to unwrap to a double.
     pub fn d(self) -> Result<jdouble> {
         match self {
             JValue::Double(b) => Ok(b),
@@ -111,6 +135,7 @@ impl<'a> JValue<'a> {
         }
     }
 
+    /// Try to unwrap to a float.
     pub fn f(self) -> Result<jfloat> {
         match self {
             JValue::Float(b) => Ok(b),
@@ -121,6 +146,7 @@ impl<'a> JValue<'a> {
         }
     }
 
+    /// Try to unwrap to an int.
     pub fn i(self) -> Result<jint> {
         match self {
             JValue::Int(b) => Ok(b),
@@ -130,6 +156,7 @@ impl<'a> JValue<'a> {
         }
     }
 
+    /// Try to unwrap to a long.
     pub fn j(self) -> Result<jlong> {
         match self {
             JValue::Long(b) => Ok(b),
@@ -140,6 +167,7 @@ impl<'a> JValue<'a> {
         }
     }
 
+    /// Try to unwrap to a short.
     pub fn s(self) -> Result<jshort> {
         match self {
             JValue::Short(b) => Ok(b),
@@ -150,6 +178,7 @@ impl<'a> JValue<'a> {
         }
     }
 
+    /// Try to unwrap to a void.
     pub fn v(self) -> Result<()> {
         match self {
             JValue::Void => Ok(()),

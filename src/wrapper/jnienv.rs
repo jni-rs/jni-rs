@@ -18,13 +18,10 @@ use objects::JObject;
 use objects::JString;
 use objects::JThrowable;
 use objects::JMethodID;
+use objects::JFieldID;
 use objects::GlobalRef;
 
 use descriptors::Desc;
-use descriptors::ClassDesc;
-use descriptors::IntoClassDesc;
-use descriptors::MethodDesc;
-use descriptors::IntoMethodDesc;
 
 use signature::TypeSignature;
 use signature::JavaType;
@@ -102,42 +99,30 @@ impl<'a> JNIEnv<'a> {
     /// ```rust,ignore
     /// let class: JClass<'a> = env.find_class("java/lang/String");
     /// ```
-    pub fn find_class<T>(&self, name: T) -> Result<JClass<'a>>
-        where T: IntoClassDesc<'a>
+    pub fn find_class<S>(&self, name: S) -> Result<JClass<'a>>
+        where S: Into<JNIString>
     {
-        let ClassDesc(name) = name.into_desc();
-        match name {
-            Desc::Descriptor(name) => {
-                let name = name.into();
-                let class = jni_call!(self.internal, FindClass, name.as_ptr());
-                Ok(class)
-            }
-            Desc::Value(class) => {
-                non_null!(class, "find_class value");
-                Ok(class)
-            }
-        }
+        let name = name.into();
+        let class = jni_call!(self.internal, FindClass, name.as_ptr());
+        Ok(class)
     }
 
     /// Get the superclass for a particular class. As with `find_class`, takes
     /// a descriptor.
-    pub fn get_superclass<T>(&self, class: T) -> Result<JClass<'a>>
-        where T: IntoClassDesc<'a>
+    pub fn get_superclass<T>(&self, class: T) -> Result<JClass>
+        where T: Desc<'a, JClass<'a>>
     {
-        let class = try!(self.find_class(class));
+        let class = class.lookup(self)?;
         Ok(jni_call!(self.internal, GetSuperclass, class.into_inner()))
     }
 
     /// Tests whether class1 is assignable from class2.
-    pub fn is_assignable_from<T, U>(&self,
-                                    class1: T,
-                                    class2: U)
-                                    -> Result<bool>
-        where T: IntoClassDesc<'a>,
-              U: IntoClassDesc<'a>
+    pub fn is_assignable_from<T, U>(&self, class1: T, class2: U) -> Result<bool>
+        where T: Desc<'a, JClass<'a>>,
+              U: Desc<'a, JClass<'a>>
     {
-        let class1 = try!(self.find_class(class1));
-        let class2 = try!(self.find_class(class2));
+        let class1 = class1.lookup(self)?;
+        let class2 = class2.lookup(self)?;
         Ok(unsafe {
             jni_unchecked!(self.internal,
                            IsAssignableFrom,
@@ -163,9 +148,9 @@ impl<'a> JNIEnv<'a> {
     /// message.
     pub fn throw_new<S, T>(&self, class: T, msg: S) -> Result<()>
         where S: Into<JNIString>,
-              T: IntoClassDesc<'a>
+              T: Desc<'a, JClass<'a>>
     {
-        let class = try!(self.find_class(class));
+        let class = class.lookup(self)?;
         let msg = msg.into();
         let res: i32 = unsafe {
             jni_unchecked!(self.internal,
@@ -214,7 +199,7 @@ impl<'a> JNIEnv<'a> {
     /// exception.
     pub fn exception_check(&self) -> Result<bool> {
         let check = unsafe { jni_unchecked!(self.internal, ExceptionCheck) } ==
-            sys::JNI_TRUE;
+                    sys::JNI_TRUE;
         Ok(check)
     }
 
@@ -248,10 +233,10 @@ impl<'a> JNIEnv<'a> {
 
     /// Allocates a new object from a class descriptor without running a
     /// constructor.
-    pub fn alloc_object<T>(&self, class: T) -> Result<JObject<'a>>
-        where T: IntoClassDesc<'a>
+    pub fn alloc_object<T>(&self, class: T) -> Result<JObject>
+        where T: Desc<'a, JClass<'a>>
     {
-        let class = try!(self.find_class(class));
+        let class = class.lookup(self)?;
         Ok(jni_call!(self.internal, AllocObject, class.into_inner()))
     }
 
@@ -266,41 +251,75 @@ impl<'a> JNIEnv<'a> {
     ///     ("java/lang/String", "getString", "()Ljava/lang/String;"),
     /// );
     /// ```
-    pub fn get_method_id<T>(&self, desc: T) -> Result<JMethodID<'a>>
-        where T: IntoMethodDesc<'a>
+    pub fn get_method_id<T, U, V>(&self,
+                                  class: T,
+                                  name: U,
+                                  sig: V)
+                                  -> Result<JMethodID<'a>>
+        where T: Desc<'a, JClass<'a>>,
+              U: Into<JNIString>,
+              V: Into<JNIString>
     {
-        let MethodDesc(desc) = desc.into_desc();
-        match desc {
-            Desc::Descriptor((class, name, sig)) => {
-                // TODO this block is ugly and does an extra copy on errors.
-                // Fix?
-                let class = try!(self.find_class(class));
-                let ffi_name = name.into();
-                let sig = sig.into();
+        let class = class.lookup(self)?;
+        let ffi_name = name.into();
+        let sig = sig.into();
 
-                let res = (|| -> Result<JMethodID> {
-                    Ok(jni_call!(self.internal,
-                                 GetMethodID,
-                                 class.into_inner(),
-                                 ffi_name.as_ptr(),
-                                 sig.as_ptr()))
-                })();
+        let res: Result<JMethodID> = catch!({
+            Ok(jni_call!(self.internal,
+                         GetMethodID,
+                         class.into_inner(),
+                         ffi_name.as_ptr(),
+                         sig.as_ptr()))
+        });
 
-                match res {
-                    Ok(m) => Ok(m),
-                    Err(e) => {
-                        match e.kind() {
-                            &ErrorKind::NullPtr(_) => {
-                                let name: String = ffi_name.into();
-                                return Err(ErrorKind::MethodNotFound(name)
-                                           .into());
-                            }
-                            _ => return Err(e),
-                        }
+        match res {
+            Ok(m) => Ok(m),
+            Err(e) => {
+                match e.kind() {
+                    &ErrorKind::NullPtr(_) => {
+                        let name: String = ffi_name.into();
+                        let sig: String = sig.into();
+                        return Err(ErrorKind::MethodNotFound(name, sig).into());
                     }
+                    _ => return Err(e),
                 }
             }
-            Desc::Value(id) => Ok(id),
+        }
+    }
+
+    pub fn get_field_id<T, U, V>(&self,
+                                 class: T,
+                                 name: U,
+                                 sig: V)
+                                 -> Result<JFieldID<'a>>
+        where T: Desc<'a, JClass<'a>>,
+              U: Into<JNIString>,
+              V: Into<JNIString>
+    {
+        let class = class.lookup(self)?;
+        let ffi_name = name.into();
+        let ffi_sig = sig.into();
+
+        let res: Result<JFieldID> = catch!({
+            Ok(jni_call!(self.internal,
+                         GetFieldID,
+                         class.into_inner(),
+                         ffi_name.as_ptr(),
+                         ffi_sig.as_ptr()))
+        });
+
+        match res {
+            Ok(m) => Ok(m),
+            Err(e) => {
+                match e.kind() {
+                    &ErrorKind::NullPtr(_) => {
+                        let name: String = ffi_name.into();
+                        let sig: String = ffi_sig.into();
+                        return Err(ErrorKind::FieldNotFound(name, sig).into());
+                    }
+                    _ => return Err(e),
+                }
+            }
         }
     }
 
@@ -310,32 +329,24 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Call a static method in an unsafe manner. This does nothing to check
-    /// whether the method is valid to call on the class, whether the return type
-    /// is correct, or whether the number of args is valid for the method.
+    /// whether the method is valid to call on the class, whether the return
+    /// type is correct, or whether the number of args is valid for the method.
     ///
     /// Under the hood, this simply calls the `CallStatic<Type>MethodA` method
     /// with the provided arguments.
     #[allow(unused_unsafe)]
-    pub unsafe fn call_static_method_unsafe<T, U> (&self,
-                                                   class: T,
-                                                   method_id: U,
-                                                   ret: JavaType,
-                                                   args: &[JValue<'a>])
-                                                   -> Result<JValue<'a>>
-        where T: IntoClassDesc<'a>,
-              U: IntoMethodDesc<'a>
+    pub unsafe fn call_static_method_unsafe<T, U>(&self,
+                                                  class: T,
+                                                  method_id: U,
+                                                  ret: JavaType,
+                                                  args: &[JValue])
+                                                  -> Result<JValue>
+        where T: Desc<'a, JClass<'a>>,
+              U: Desc<'a, JMethodID<'a>>
     {
-        let class = try!(self.find_class(class));
+        let class = class.lookup(self)?;
 
-        let MethodDesc(method_desc) = method_id.into_desc();
-        let method_desc = match method_desc {
-            Desc::Descriptor((_, name, sig)) => {
-                Desc::Descriptor((class, name, sig))
-            }
-            Desc::Value(v) => Desc::Value(v),
-        };
-
-        let method_id = try!(self.get_method_id(method_desc)).into_inner();
+        let method_id = method_id.lookup(self)?.into_inner();
 
         let class = class.into_inner();
         let args: Vec<jvalue> = args.into_iter().map(|v| v.to_jni()).collect();
@@ -435,21 +446,21 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Call an object method in an unsafe manner. This does nothing to check
-    /// whether the method is valid to call on the object, whether the return type
-    /// is correct, or whether the number of args is valid for the method.
+    /// whether the method is valid to call on the object, whether the return
+    /// type is correct, or whether the number of args is valid for the method.
     ///
-    /// Under the hood, this simply calls the `Call<Type>MethodA` method
-    /// with the provided arguments.
+    /// Under the hood, this simply calls the `Call<Type>MethodA` method with
+    /// the provided arguments.
     #[allow(unused_unsafe)]
-        pub unsafe fn call_method_unsafe<T>(&self,
-                                            obj: JObject,
-                                            method_id: T,
-                                            ret: JavaType,
-                                            args: &[JValue<'a>])
-                                            -> Result<JValue<'a>>
-        where T: IntoMethodDesc<'a>
+    pub unsafe fn call_method_unsafe<T>(&self,
+                                        obj: JObject,
+                                        method_id: T,
+                                        ret: JavaType,
+                                        args: &[JValue])
+                                        -> Result<JValue>
+        where T: Desc<'a, JMethodID<'a>>
     {
-        let method_id = try!(self.get_method_id(method_id)).into_inner();
+        let method_id = method_id.lookup(self)?.into_inner();
 
         let obj = obj.into_inner();
 
@@ -562,23 +573,23 @@ impl<'a> JNIEnv<'a> {
     /// Note: this may cause a java exception if the arguments are the wrong
     /// type, in addition to if the method itself throws.
     pub fn call_method<S, T>(&'a self,
-                             obj: JObject<'a>,
+                             obj: JObject,
                              name: S,
                              sig: T,
-                             args: &[JValue<'a>])
-                             -> Result<JValue<'a>>
+                             args: &[JValue])
+                             -> Result<JValue>
         where S: Into<JNIString>,
               T: Into<JNIString> + AsRef<str>
     {
         non_null!(obj, "call_method obj argument");
 
         // parse the signature
-        let parsed = try!(TypeSignature::from_str(sig.as_ref()));
+        let parsed = TypeSignature::from_str(sig.as_ref())?;
         if parsed.args.len() != args.len() {
             return Err(ErrorKind::InvalidArgList.into());
         }
 
-        let class = try!(self.get_object_class(obj));
+        let class = self.get_object_class(obj)?;
 
         unsafe {
             self.call_method_unsafe(obj, (class, name, sig), parsed.ret, args)
@@ -600,20 +611,20 @@ impl<'a> JNIEnv<'a> {
                                        class: T,
                                        name: U,
                                        sig: V,
-                                       args: &[JValue<'a>])
-                                       -> Result<JValue<'a>>
-        where T: IntoClassDesc<'a>,
+                                       args: &[JValue])
+                                       -> Result<JValue>
+        where T: Desc<'a, JClass<'a>>,
               U: Into<JNIString>,
               V: Into<JNIString> + AsRef<str>
     {
-        let parsed = try!(TypeSignature::from_str(&sig));
+        let parsed = TypeSignature::from_str(&sig)?;
         if parsed.args.len() != args.len() {
             return Err(ErrorKind::InvalidArgList.into());
         }
 
         // go ahead and look up the class since it's already Copy,
         // and we'll need that for the next call.
-        let class = try!(self.find_class(class));
+        let class = class.lookup(self)?;
 
         unsafe {
             self.call_static_method_unsafe(class,
@@ -628,13 +639,13 @@ impl<'a> JNIEnv<'a> {
     pub fn new_object<T, U>(&self,
                             class: T,
                             ctor_sig: U,
-                            ctor_args: &[JValue<'a>])
-                            -> Result<JObject<'a>>
-        where T: IntoClassDesc<'a>,
+                            ctor_args: &[JValue])
+                            -> Result<JObject>
+        where T: Desc<'a, JClass<'a>>,
               U: Into<JNIString> + AsRef<str>
     {
         // parse the signature
-        let parsed = try!(TypeSignature::from_str(&ctor_sig));
+        let parsed = TypeSignature::from_str(&ctor_sig)?;
 
         if parsed.args.len() != ctor_args.len() {
             return Err(ErrorKind::InvalidArgList.into());
@@ -650,9 +661,9 @@ impl<'a> JNIEnv<'a> {
         // build strings
         let name = "<init>";
 
-        let class = try!(self.find_class(class));
+        let class = class.lookup(self)?;
 
-        let method_id = try!(self.get_method_id((class, name, ctor_sig)));
+        let method_id: JMethodID = (class, name, ctor_sig).lookup(self)?;
 
         let jni_args = jni_args.as_ptr();
 
@@ -687,5 +698,187 @@ impl<'a> JNIEnv<'a> {
     pub fn new_string<S: Into<JNIString>>(&self, from: S) -> Result<JString> {
         let ffi_str = from.into();
         Ok(jni_call!(self.internal, NewStringUTF, ffi_str.as_ptr()))
+    }
+
+    #[allow(unused_unsafe)]
+    pub unsafe fn get_field_unsafe<T>(&self,
+                                      obj: JObject,
+                                      field: T,
+                                      ty: JavaType)
+                                      -> Result<JValue>
+        where T: Desc<'a, JFieldID<'a>>
+    {
+        non_null!(obj, "get_field_typed obj argument");
+
+        let field = field.lookup(self)?.into_inner();
+        let obj = obj.into_inner();
+
+        // TODO clean this up
+        Ok(match ty {
+            JavaType::Object(_) |
+            JavaType::Array(_) => {
+                let obj: JObject =
+                    jni_call!(self.internal, GetObjectField, obj, field);
+                obj.into()
+            } // JavaType::Object
+            JavaType::Method(_) => unimplemented!(),
+            JavaType::Primitive(p) => {
+                let v: JValue = match p {
+                    Primitive::Boolean => {
+                        (jni_unchecked!(self.internal,
+                                        GetBooleanField,
+                                        obj,
+                                        field) ==
+                         sys::JNI_TRUE)
+                            .into()
+                    }
+                    Primitive::Char => {
+                        jni_unchecked!(self.internal, GetCharField, obj, field)
+                            .into()
+                    }
+                    Primitive::Short => {
+                        jni_unchecked!(self.internal, GetShortField, obj, field)
+                            .into()
+                    }
+                    Primitive::Int => {
+                        jni_unchecked!(self.internal, GetIntField, obj, field)
+                            .into()
+                    }
+                    Primitive::Long => {
+                        jni_unchecked!(self.internal, GetLongField, obj, field)
+                            .into()
+                    }
+                    Primitive::Float => {
+                        jni_unchecked!(self.internal, GetFloatField, obj, field)
+                            .into()
+                    }
+                    Primitive::Double => {
+                        jni_unchecked!(self.internal,
+                                       GetDoubleField,
+                                       obj,
+                                       field)
+                            .into()
+                    }
+                    Primitive::Byte => {
+                        jni_unchecked!(self.internal, GetByteField, obj, field)
+                            .into()
+                    }
+                    Primitive::Void => {
+                        return Err("attempt to get void field".into());
+                    }
+                };
+                v.into()
+            } // JavaType::Primitive
+        }) // match parsed.ret
+    }
+
+    pub unsafe fn set_field_unsafe<T>(&self,
+                                      obj: JObject,
+                                      field: T,
+                                      val: JValue)
+                                      -> Result<()>
+        where T: Desc<'a, JFieldID<'a>>
+    {
+        non_null!(obj, "set_field_typed obj argument");
+
+        let field = field.lookup(self)?.into_inner();
+        let obj = obj.into_inner();
+
+        // TODO clean this up
+        match val {
+            JValue::Object(o) => {
+                jni_unchecked!(self.internal,
+                               SetObjectField,
+                               obj,
+                               field,
+                               o.into_inner());
+            } // JavaType::Object
+            JValue::Bool(b) => {
+                jni_unchecked!(self.internal, SetBooleanField, obj, field, b);
+            }
+            JValue::Char(c) => {
+                jni_unchecked!(self.internal, SetCharField, obj, field, c);
+            }
+            JValue::Short(s) => {
+                jni_unchecked!(self.internal, SetShortField, obj, field, s);
+            }
+            JValue::Int(i) => {
+                jni_unchecked!(self.internal, SetIntField, obj, field, i);
+            }
+            JValue::Long(l) => {
+                jni_unchecked!(self.internal, SetLongField, obj, field, l);
+            }
+            JValue::Float(f) => {
+                jni_unchecked!(self.internal, SetFloatField, obj, field, f);
+            }
+            JValue::Double(d) => {
+                jni_unchecked!(self.internal, SetDoubleField, obj, field, d);
+            }
+            JValue::Byte(b) => {
+                jni_unchecked!(self.internal, SetByteField, obj, field, b);
+            }
+            JValue::Void => {
+                return Err("attempt to set void field".into());
+            }
+        };
+
+        Ok(())
+    }
+
+    pub fn get_field<S, T>(&self,
+                           obj: JObject,
+                           name: S,
+                           ty: T)
+                           -> Result<JValue>
+        where S: Into<JNIString>,
+              T: Into<JNIString> + AsRef<str>
+    {
+        let class: JClass = self.get_object_class(obj)?;
+
+        let parsed = JavaType::from_str(ty.as_ref())?;
+
+        let field_id: JFieldID = (class, name, ty).lookup(self)?;
+
+        unsafe { self.get_field_unsafe(obj, field_id, parsed) }
+    }
+
+    pub fn set_field<S, T>(&self,
+                           obj: JObject,
+                           name: S,
+                           ty: T,
+                           val: JValue)
+                           -> Result<()>
+        where S: Into<JNIString>,
+              T: Into<JNIString> + AsRef<str>
+    {
+        let parsed = JavaType::from_str(ty.as_ref())?;
+        let in_type = val.primitive_type();
+
+        match parsed {
+            JavaType::Object(_) |
+            JavaType::Array(_) => {
+                if let None = in_type {
+                    // we're good here
+                } else {
+                    return Err("incorrect value type".into());
+                }
+            }
+            JavaType::Primitive(p) => {
+                if let Some(in_p) = in_type {
+                    if in_p == p {
+                        // good
+                    } else {
+                        return Err("incorrect value type".into());
+                    }
+                } else {
+                    return Err("incorrect value type".into());
+                }
+            }
+            JavaType::Method(_) => unimplemented!(),
+        }
+
+        let class = self.get_object_class(obj)?;
+
+        unsafe { self.set_field_unsafe(obj, (class, name, ty), val) }
     }
 }
