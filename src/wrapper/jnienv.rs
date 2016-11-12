@@ -6,7 +6,8 @@ use std::iter::IntoIterator;
 
 use errors::*;
 
-use sys::{self, jvalue, jint, jsize, jbyte};
+use sys::{self, jvalue, jint, jsize, jbyte, jboolean};
+use std::os::raw::c_char;
 
 use strings::JNIString;
 use strings::JavaStr;
@@ -45,7 +46,7 @@ use signature::Primitive;
 /// as `MethodNotFound`.
 #[repr(C)]
 pub struct JNIEnv<'a> {
-    pub internal: *mut sys::JNIEnv,
+    internal: *mut sys::JNIEnv,
     lifetime: PhantomData<&'a ()>,
 }
 
@@ -677,7 +678,7 @@ impl<'a> JNIEnv<'a> {
     /// Cast a JObject to a JMap. This won't throw exceptions or return errors
     /// in the event that the object isn't actually a map, but the methods on
     /// the resulting map object will.
-    pub fn get_map(&'a self, obj: JObject<'a>) -> Result<JMap<'a>> {
+    pub fn get_map(&self, obj: JObject<'a>) -> Result<JMap> {
         non_null!(obj, "get_map obj argument");
         JMap::from_env(self, obj)
     }
@@ -687,9 +688,35 @@ impl<'a> JNIEnv<'a> {
     ///
     /// This entails a call to `GetStringUTFChars` and only decodes java's
     /// modified UTF-8 format on conversion to a rust-compatible string.
-    pub fn get_string(&self, obj: JString) -> Result<JavaStr> {
+    pub fn get_string(&self, obj: JString<'a>) -> Result<JavaStr> {
         non_null!(obj, "get_string obj argument");
-        JavaStr::from_env(self, obj.into_inner())
+        JavaStr::from_env(self, obj)
+    }
+
+    #[allow(unused_unsafe)]
+    pub unsafe fn get_string_utf_chars(&self,
+                                       obj: JString)
+                                       -> Result<*const c_char> {
+        non_null!(obj, "get_string_utf_chars obj argument");
+        let ptr: *const c_char = jni_call!(self.internal,
+                      GetStringUTFChars,
+                      obj.into_inner(),
+                      ::std::ptr::null::<jboolean>() as *mut jboolean);
+        Ok(ptr)
+    }
+
+    #[allow(unused_unsafe)]
+    pub unsafe fn release_string_utf_chars(&self,
+                                           obj: JString,
+                                           arr: *const c_char)
+                                           -> Result<()> {
+        non_null!(obj, "release_string_utf_chars obj argument");
+        jni_unchecked!(self.internal,
+                       ReleaseStringUTFChars,
+                       obj.into_inner(),
+                       arr);
+        check_exception!(self.internal);
+        Ok(())
     }
 
     /// Create a new java string object from a rust string. This requires a

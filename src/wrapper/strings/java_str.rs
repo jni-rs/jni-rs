@@ -4,9 +4,9 @@ use std::borrow::Cow;
 
 use JNIEnv;
 
-use errors::*;
+use objects::JString;
 
-use sys::{jstring, jboolean};
+use errors::*;
 
 use strings::JNIStr;
 
@@ -16,16 +16,15 @@ use strings::JNIStr;
 /// conversion.
 pub struct JavaStr<'a> {
     internal: *const c_char,
-    obj: jstring,
+    obj: JString<'a>,
     env: &'a JNIEnv<'a>,
 }
 
 impl<'a> JavaStr<'a> {
-    pub fn from_env(env: &'a JNIEnv, obj: jstring) -> Result<Self> {
-        let ptr: *const c_char = jni_call!(env.internal,
-                      GetStringUTFChars,
-                      obj,
-                      ::std::ptr::null::<jboolean>() as *mut jboolean);
+    /// Build a `JavaStr` from an object and a reference to the environment. You
+    /// probably want to use `JNIEnv::get_string` instead.
+    pub fn from_env(env: &'a JNIEnv<'a>, obj: JString<'a>) -> Result<Self> {
+        let ptr = unsafe { env.get_string_utf_chars(obj)? };
         let java_str = JavaStr {
             internal: ptr,
             env: env,
@@ -64,17 +63,11 @@ impl<'a> From<JavaStr<'a>> for String {
 
 impl<'a> Drop for JavaStr<'a> {
     fn drop(&mut self) {
-        match destroy_java_string(self.env, self.obj, self.internal) {
+        match unsafe {
+            self.env.release_string_utf_chars(self.obj, self.internal)
+        } {
             Ok(()) => {}
             Err(e) => warn!("error dropping java str: {}", e),
         }
     }
-}
-
-fn destroy_java_string(env: &JNIEnv,
-                       obj: jstring,
-                       array: *const c_char)
-                       -> Result<()> {
-    unsafe { jni_unchecked!(env.internal, ReleaseStringUTFChars, obj, array) };
-    Ok(())
 }
