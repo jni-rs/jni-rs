@@ -39,8 +39,11 @@ macro_rules! jni_method {
 macro_rules! check_exception {
     ( $jnienv:expr ) => {
         trace!("checking for exception");
-        let env: $crate::JNIEnv = $jnienv.into();
-        if env.exception_check()? {
+        #[allow(unused_unsafe)]
+        let check = unsafe {
+            jni_unchecked!($jnienv, ExceptionCheck)
+        } == $crate::sys::JNI_TRUE;
+        if check {
             trace!("exception found, returning error");
             return Err($crate::errors::Error::from(
                 $crate::errors::ErrorKind::JavaException).into());
@@ -60,6 +63,7 @@ macro_rules! jni_unchecked {
 macro_rules! jni_call {
     ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
         trace!("calling checked jni method: {}", stringify!($name));
+        #[allow(unused_unsafe)]
         unsafe {
             trace!("entering unsafe");
             let res = jni_method!($jnienv, $name)($jnienv, $($args),*);
