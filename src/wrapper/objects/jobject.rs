@@ -35,6 +35,7 @@ impl<'a> ::std::ops::Deref for JObject<'a> {
 }
 
 impl<'a> JObject<'a> {
+    /// Unwrap to the internal jni type.
     pub fn into_inner(self) -> jobject {
         self.internal
     }

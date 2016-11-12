@@ -9,6 +9,7 @@ use objects::JObject;
 
 /// Rusty version of the JNI C `jvalue` enum. Used in Java method call arguments
 /// and returns.
+#[allow(missing_docs)]
 #[derive(Clone, Copy, Debug)]
 pub enum JValue<'a> {
     Object(JObject<'a>),
@@ -30,6 +31,7 @@ impl<'a> From<JValue<'a>> for jvalue {
 }
 
 impl<'a> JValue<'a> {
+    /// Convert the enum to its jni-compatible equivalent.
     pub fn to_jni(self) -> jvalue {
         let val: jvalue = unsafe {
             match self {
@@ -49,6 +51,7 @@ impl<'a> JValue<'a> {
         val
     }
 
+    /// Get the type name for the enum variant.
     pub fn type_name(&self) -> &'static str {
         match *self {
             JValue::Void => "void",

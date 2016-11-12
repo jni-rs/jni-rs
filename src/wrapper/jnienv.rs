@@ -88,13 +88,7 @@ impl<'a> JNIEnv<'a> {
         Ok(class)
     }
 
-    /// Look up a class by name. The argument to this will be something like
-    /// `java/lang/String`. This can also take a concrete JClass, in which case
-    /// it simply returns it after doing a null check. This is so that it can be
-    /// generic over both concrete classes and class descriptor strings. Methods
-    /// with class arguments should therefore take `IntoClassDesc` instead, and
-    /// use ths when an actual class is needed. That way, optimizations such as
-    /// reusing a class object to look up multiple methods can be done.
+    /// Look up a class by name.
     ///
     /// # Example
     /// ```rust,ignore
@@ -241,15 +235,13 @@ impl<'a> JNIEnv<'a> {
         Ok(jni_call!(self.internal, AllocObject, class.into_inner()))
     }
 
-    /// Look up a method by class descriptor (or concrete class), name, and
-    /// signature. Like `find_class`, this is generic over descriptors and
-    /// concrete JMethodID objects and can take both. If given a concrete
-    /// object, it simply returns it.
+    /// Look up a method by class descriptor, name, and
+    /// signature.
     ///
     /// # Example
     /// ```rust,ignore
     /// let method_id: JMethodID = env.get_method_id(
-    ///     ("java/lang/String", "getString", "()Ljava/lang/String;"),
+    ///     "java/lang/String", "getString", "()Ljava/lang/String;",
     /// );
     /// ```
     pub fn get_method_id<T, U, V>(&self,
@@ -288,6 +280,12 @@ impl<'a> JNIEnv<'a> {
         }
     }
 
+    /// Look up the field ID for a class/name/type combination.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let field_id = env.get_field_id("com/my/Class", "intField", "I");
+    /// ```
     pub fn get_field_id<T, U, V>(&self,
                                  class: T,
                                  name: U,
@@ -693,6 +691,9 @@ impl<'a> JNIEnv<'a> {
         JavaStr::from_env(self, obj)
     }
 
+    /// Get a pointer to the character array beneath a JString. This is in
+    /// Java's modified UTF-8 and will leak memory if `release_string_utf_chars`
+    /// is never called.
     #[allow(unused_unsafe)]
     pub unsafe fn get_string_utf_chars(&self,
                                        obj: JString)
@@ -705,6 +706,7 @@ impl<'a> JNIEnv<'a> {
         Ok(ptr)
     }
 
+    /// Unpin the array returned by `get_string_utf_chars`.
     #[allow(unused_unsafe)]
     pub unsafe fn release_string_utf_chars(&self,
                                            obj: JString,
@@ -727,6 +729,7 @@ impl<'a> JNIEnv<'a> {
         Ok(jni_call!(self.internal, NewStringUTF, ffi_str.as_ptr()))
     }
 
+    /// Get a field without checking the provided type against the actual field.
     #[allow(unused_unsafe)]
     pub unsafe fn get_field_unsafe<T>(&self,
                                       obj: JObject,
@@ -799,6 +802,7 @@ impl<'a> JNIEnv<'a> {
         }) // match parsed.ret
     }
 
+    /// Set a field without any type checking.
     pub unsafe fn set_field_unsafe<T>(&self,
                                       obj: JObject,
                                       field: T,
@@ -852,6 +856,8 @@ impl<'a> JNIEnv<'a> {
         Ok(())
     }
 
+    /// Get a field. Requires an object class lookup and a field id lookup
+    /// internally.
     pub fn get_field<S, T>(&self,
                            obj: JObject,
                            name: S,
@@ -869,6 +875,8 @@ impl<'a> JNIEnv<'a> {
         unsafe { self.get_field_unsafe(obj, field_id, parsed) }
     }
 
+    /// Set a field. Does the same lookups as `get_field` and ensures that the
+    /// type matches the given value.
     pub fn set_field<S, T>(&self,
                            obj: JObject,
                            name: S,

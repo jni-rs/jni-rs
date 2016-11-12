@@ -24,6 +24,7 @@ impl<'a> From<jmethodID> for JMethodID<'a> {
 }
 
 impl<'a> JMethodID<'a> {
+    /// Unwrap to the internal jni type.
     pub fn into_inner(self) -> jmethodID {
         self.internal
     }

@@ -5,6 +5,8 @@
          non_upper_case_globals,
          non_snake_case)]
 
+#![allow(missing_docs)]
+
 pub type va_list = __gnuc_va_list;
 pub type __gnuc_va_list = __builtin_va_list;
 

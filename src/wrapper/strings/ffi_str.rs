@@ -65,12 +65,16 @@ impl From<JNIString> for String {
 }
 
 impl JNIString {
+    /// Get the borrowed version of the JNIString. Equivalent to
+    /// `CString::borrowed`.
     pub fn borrowed(&self) -> &JNIStr {
         self
     }
 }
 
 impl JNIStr {
+    /// Construct a reference to a `JNIStr` from a pointer. Equivalent to
+    /// `CStr::from_ptr`.
     pub unsafe fn from_ptr<'a>(ptr: *const c_char) -> &'a JNIStr {
         ::std::mem::transmute(ffi::CStr::from_ptr(ptr))
     }

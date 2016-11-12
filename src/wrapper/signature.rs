@@ -3,6 +3,7 @@ use combine::*;
 
 /// A primitive java type. These are the things that can be represented without
 /// an object.
+#[allow(missing_docs)]
 #[derive(Eq, PartialEq, Debug)]
 pub enum Primitive {
     Boolean, // Z
@@ -33,6 +34,7 @@ impl ::std::fmt::Display for Primitive {
 }
 
 /// Enum representing any java type in addition to method signatures.
+#[allow(missing_docs)]
 #[derive(Eq, PartialEq, Debug)]
 pub enum JavaType {
     Primitive(Primitive),
@@ -65,6 +67,7 @@ impl ::std::fmt::Display for JavaType {
 /// A method type signature. This is the structure representation of something
 /// like `(Ljava/lang/String;)Z`. Used by the `call_(object|static)_method`
 /// functions on jnienv to ensure safety.
+#[allow(missing_docs)]
 #[derive(Eq, PartialEq, Debug)]
 pub struct TypeSignature {
     pub args: Vec<JavaType>,
