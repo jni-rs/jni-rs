@@ -797,7 +797,9 @@ impl<'a> JNIEnv<'a> {
                             .into()
                     }
                     Primitive::Void => {
-                        return Err("attempt to get void field".into());
+                        return Err(ErrorKind::WrongJValueType("void",
+                                                              "see java field")
+                            .into());
                     }
                 };
                 v.into()
@@ -852,7 +854,9 @@ impl<'a> JNIEnv<'a> {
                 jni_unchecked!(self.internal, SetByteField, obj, field, b);
             }
             JValue::Void => {
-                return Err("attempt to set void field".into());
+                return Err(ErrorKind::WrongJValueType("void",
+                                                      "see java field")
+                    .into());
             }
         };
 
@@ -898,7 +902,9 @@ impl<'a> JNIEnv<'a> {
                 if let None = in_type {
                     // we're good here
                 } else {
-                    return Err("incorrect value type".into());
+                    return Err(ErrorKind::WrongJValueType(val.type_name(),
+                                                          "see java field")
+                        .into());
                 }
             }
             JavaType::Primitive(p) => {
@@ -906,10 +912,14 @@ impl<'a> JNIEnv<'a> {
                     if in_p == p {
                         // good
                     } else {
-                        return Err("incorrect value type".into());
+                        return Err(ErrorKind::WrongJValueType(val.type_name(),
+                                                              "see java field")
+                            .into());
                     }
                 } else {
-                    return Err("incorrect value type".into());
+                    return Err(ErrorKind::WrongJValueType(val.type_name(),
+                                                          "see java field")
+                        .into());
                 }
             }
             JavaType::Method(_) => unimplemented!(),
