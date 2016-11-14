@@ -43,5 +43,15 @@ error_chain!{
             description("null pointer deref")
             display("null pointer deref in {}", context)
         }
+        TryLock {
+            description("mutex already locked")
+            display("mutex already locked")
+        }
+    }
+}
+
+impl<T> From<::std::sync::TryLockError<T>> for Error {
+    fn from(_: ::std::sync::TryLockError<T>) -> Self {
+        ErrorKind::TryLock.into()
     }
 }

@@ -4,6 +4,9 @@ use std::marker::PhantomData;
 
 use std::iter::IntoIterator;
 
+use std::sync::Mutex;
+use std::sync::MutexGuard;
+
 use errors::*;
 
 use sys::{self, jvalue, jint, jsize, jbyte, jboolean};
@@ -915,5 +918,146 @@ impl<'a> JNIEnv<'a> {
         let class = self.get_object_class(obj)?;
 
         unsafe { self.set_field_unsafe(obj, (class, name, ty), val) }
+    }
+
+    /// Surrenders ownership of a rust object to Java. Requires an object with a
+    /// `long` field to store the pointer. The Rust value will be wrapped in a
+    /// Mutex since Java will be controlling where it'll be used thread-wise.
+    /// Unsafe because it leaks memory if `take_rust_field` is never called (so
+    /// be sure to make a finalizer).
+    ///
+    /// **DO NOT** make a copy of the object containing one of these fields. If
+    /// you've set up a finalizer to pass it back to Rust upon being GC'd, it
+    /// will point to invalid memory and will likely attempt to be deallocated
+    /// again.
+    #[allow(unused_variables)]
+    pub unsafe fn set_rust_field<S, T>(&self,
+                                       obj: JObject,
+                                       field: S,
+                                       rust_object: T)
+                                       -> Result<()>
+        where S: AsRef<str>,
+              T: Send + 'static
+    {
+        let class = self.get_object_class(obj)?;
+        let field_id: JFieldID = (class, &field, "J").lookup(self)?;
+
+        let guard = self.lock_obj(obj)?;
+
+        // Check to see if we've already set this value. If it's not null, that
+        // means that we're going to leak memory if it gets overwritten.
+        let field_ptr = self.get_field_unsafe(obj,
+                              field_id,
+                              JavaType::Primitive(Primitive::Long))?
+            .j()? as *mut Mutex<T>;
+        if !field_ptr.is_null() {
+            return Err(format!("field already set: {}", field.as_ref()).into());
+        }
+
+        let mbox = Box::new(::std::sync::Mutex::new(rust_object));
+        let ptr: *mut Mutex<T> = Box::into_raw(mbox);
+
+        self.set_field_unsafe(obj, field_id, (ptr as ::sys::jlong).into())
+    }
+
+    /// Gets a lock on a Rust value that's been given to a Java object. Java
+    /// still retains ownership and `take_rust_field` will still need to be
+    /// called at some point. Checks for a null pointer, but assumes that the
+    /// data it ponts to is valid for T.
+    #[allow(unused_variables)]
+    pub unsafe fn get_rust_field<S, T>(&self,
+                                       obj: JObject,
+                                       field: S)
+                                       -> Result<MutexGuard<T>>
+        where S: Into<JNIString>,
+              T: Send + 'static
+    {
+        let guard = self.lock_obj(obj)?;
+
+        let ptr = self.get_field(obj, field, "J")?.j()? as *mut Mutex<T>;
+        non_null!(ptr, "rust value from Java");
+        Ok((*ptr).lock().unwrap())
+    }
+
+    /// Take a Rust field back from Java. Makes sure that the pointer is
+    /// non-null, but still assumes that the data it points to is valid for T.
+    /// Sets the field to a null pointer to signal that it's empty.
+    ///
+    /// This will return an error in the event that there's an outstanding lock
+    /// on the object.
+    #[allow(unused_variables)]
+    pub unsafe fn take_rust_field<S, T>(&self,
+                                        obj: JObject,
+                                        field: S)
+                                        -> Result<T>
+        where S: AsRef<str>,
+              T: Send + 'static
+    {
+        let class = self.get_object_class(obj)?;
+        let field_id: JFieldID = (class, &field, "J").lookup(self)?;
+
+        let mbox = {
+            let guard = self.lock_obj(obj)?;
+
+            let ptr = self.get_field_unsafe(obj,
+                                  field_id,
+                                  JavaType::Primitive(Primitive::Long))?
+                .j()? as *mut Mutex<T>;
+
+            non_null!(ptr, "rust value from Java");
+
+            let mbox = Box::from_raw(ptr);
+
+            // attempt to acquire the lock. This prevents us from consuming the
+            // mutex if there's an outstanding lock. No one else will be able to
+            // get a new one as long as we're in the guarded scope.
+            let _ = mbox.try_lock()?;
+
+            self.set_field_unsafe(obj,
+                                  field_id,
+                                  (::std::ptr::null_mut::<()>() as sys::jlong)
+                                      .into())?;
+
+            mbox
+        };
+
+        Ok(mbox.into_inner().unwrap())
+    }
+
+    /// Lock a Java object. The MonitorGuard that this returns is responsible
+    /// for ensuring that it gets unlocked.
+    pub fn lock_obj(&self, obj: JObject) -> Result<MonitorGuard<'a>> {
+        unsafe {
+            let _ =
+                jni_unchecked!(self.internal, MonitorEnter, obj.into_inner());
+        }
+
+        Ok(MonitorGuard {
+            obj: obj.into_inner(),
+            env: self.internal,
+            life: Default::default(),
+        })
+    }
+}
+
+/// Guard for a lock on a java object. This gets returned from the `lock_obj`
+/// method.
+pub struct MonitorGuard<'a> {
+    obj: sys::jobject,
+    env: *mut sys::JNIEnv,
+    life: PhantomData<&'a ()>,
+}
+
+impl<'a> Drop for MonitorGuard<'a> {
+    fn drop(&mut self) {
+        let res: Result<()> = catch!({
+            unsafe { jni_unchecked!(self.env, MonitorExit, self.obj) };
+            Ok(())
+        });
+
+        match res {
+            Err(e) => warn!("error releasing java monitor: {}", e),
+            _ => {}
+        }
     }
 }
