@@ -35,7 +35,7 @@ impl<'a> JValue<'a> {
     pub fn to_jni(self) -> jvalue {
         let val: jvalue = unsafe {
             match self {
-                JValue::Object(obj) => transmute(obj.into_inner()),
+                JValue::Object(obj) => transmute(obj.into_inner() as u64),
                 JValue::Byte(byte) => transmute(byte as i64),
                 JValue::Char(char) => transmute(char as u64),
                 JValue::Short(short) => transmute(short as i64),
