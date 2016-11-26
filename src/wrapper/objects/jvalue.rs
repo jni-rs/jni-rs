@@ -47,7 +47,7 @@ impl<'a> JValue<'a> {
                 JValue::Void => Default::default(),
             }
         };
-        trace!("converted {:?} to jvalue {:?}", self, val);
+        trace!("converted {:?} to jvalue {:?}", self, val._data);
         val
     }
 

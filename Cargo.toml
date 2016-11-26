@@ -14,8 +14,4 @@ log = "0.3"
 error-chain = "0.5"
 combine = "2"
 cesu8 = "1"
-
-[features]
-default = []
-
-sys-only = []
+jni-sys = "0.2"

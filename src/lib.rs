@@ -153,23 +153,20 @@
 //! expected output `Hello, josh!` from your java class.
 
 /// Bindgen-generated definitions. Mirrors `jni.h` and `jni_md.h`.
+extern crate jni_sys;
+/// `jni-sys` re-exports
 pub mod sys;
 
-#[cfg(not(feature = "sys-only"))]
 #[macro_use]
 extern crate log;
 
-#[cfg(not(feature = "sys-only"))]
 #[macro_use]
 extern crate error_chain;
 
-#[cfg(not(feature = "sys-only"))]
 extern crate combine;
 
-#[cfg(not(feature = "sys-only"))]
 extern crate cesu8;
 
-#[cfg(not(feature = "sys-only"))]
 mod wrapper {
     #[macro_use]
     mod macros;
@@ -194,5 +191,4 @@ mod wrapper {
     pub use self::jnienv::*;
 }
 
-#[cfg(not(feature = "sys-only"))]
 pub use wrapper::*;
