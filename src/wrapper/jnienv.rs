@@ -186,10 +186,15 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Abort the JVM with an error message.
-    pub fn fatal_error<S: Into<JNIString>>(&self, msg: S) -> Result<()> {
+    #[allow(unused_variables)]
+    pub fn fatal_error<S: Into<JNIString>>(&self, msg: S) -> ! {
         let msg = msg.into();
-        unsafe { jni_unchecked!(self.internal, FatalError, msg.as_ptr()) };
-        Ok(())
+        let res: Result<()> = catch!({
+            unsafe { jni_unchecked!(self.internal, FatalError, msg.as_ptr()) }
+            unreachable!()
+        });
+
+        panic!(res.unwrap_err());
     }
 
     /// Check to see if an exception is being thrown. This only differs from
