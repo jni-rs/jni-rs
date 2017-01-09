@@ -22,6 +22,7 @@ use objects::JObject;
 use objects::JString;
 use objects::JThrowable;
 use objects::JMethodID;
+use objects::JStaticMethodID;
 use objects::JFieldID;
 use objects::GlobalRef;
 
@@ -186,7 +187,7 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Abort the JVM with an error message.
-    #[allow(unused_variables)]
+    #[allow(unused_variables, unreachable_code)]
     pub fn fatal_error<S: Into<JNIString>>(&self, msg: S) -> ! {
         let msg = msg.into();
         let res: Result<()> = catch!({
@@ -243,34 +244,24 @@ impl<'a> JNIEnv<'a> {
         Ok(jni_call!(self.internal, AllocObject, class.into_inner()))
     }
 
-    /// Look up a method by class descriptor, name, and
-    /// signature.
-    ///
-    /// # Example
-    /// ```rust,ignore
-    /// let method_id: JMethodID = env.get_method_id(
-    ///     "java/lang/String", "getString", "()Ljava/lang/String;",
-    /// );
-    /// ```
-    pub fn get_method_id<T, U, V>(&self,
-                                  class: T,
-                                  name: U,
-                                  sig: V)
-                                  -> Result<JMethodID<'a>>
+    /// Common functionality for finding methods.
+    fn get_method_id_base<T, U, V, C, R>(&self,
+                                     class: T,
+                                     name: U,
+                                     sig: V,
+                                     get_method: C)
+                                     -> Result<R>
         where T: Desc<'a, JClass<'a>>,
               U: Into<JNIString>,
-              V: Into<JNIString>
+              V: Into<JNIString>,
+              C: Fn(&JClass<'a>, &JNIString, &JNIString) -> Result<R>
     {
         let class = class.lookup(self)?;
         let ffi_name = name.into();
         let sig = sig.into();
 
-        let res: Result<JMethodID> = catch!({
-            Ok(jni_call!(self.internal,
-                         GetMethodID,
-                         class.into_inner(),
-                         ffi_name.as_ptr(),
-                         sig.as_ptr()))
+        let res: Result<R> = catch!({
+            get_method(&class, &ffi_name, &sig)
         });
 
         match res {
@@ -288,7 +279,59 @@ impl<'a> JNIEnv<'a> {
         }
     }
 
-    /// Look up the field ID for a class/name/type combination.
+    /// Look up a method by class descriptor, name, and
+    /// signature.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let method_id: JMethodID = env.get_method_id(
+    ///     "java/lang/String", "substring", "(II)Ljava/lang/String;",
+    /// );
+    /// ```
+    pub fn get_method_id<T, U, V>(&self,
+                                  class: T,
+                                  name: U,
+                                  sig: V)
+                                  -> Result<JMethodID<'a>>
+        where T: Desc<'a, JClass<'a>>,
+              U: Into<JNIString>,
+              V: Into<JNIString>
+    {
+        self.get_method_id_base(class, name, sig, |class,name,sig| {
+            Ok(jni_call!(self.internal,
+                         GetMethodID,
+                         class.into_inner(),
+                         name.as_ptr(),
+                         sig.as_ptr()))
+        })
+    }
+     /// Look up a static method by class descriptor, name, and
+    /// signature.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let method_id: JMethodID = env.get_static_method_id(
+    ///     "java/lang/String", "valueOf", "(I)Ljava/lang/String;",
+    /// );
+    /// ```
+    pub fn get_static_method_id<T, U, V>(&self,
+                                  class: T,
+                                  name: U,
+                                  sig: V)
+                                  -> Result<JStaticMethodID<'a>>
+        where T: Desc<'a, JClass<'a>>,
+              U: Into<JNIString>,
+              V: Into<JNIString>
+    {
+        self.get_method_id_base(class, name, sig, |class,name,sig| {
+            Ok(jni_call!(self.internal,
+                         GetStaticMethodID,
+                         class.into_inner(),
+                         name.as_ptr(),
+                         sig.as_ptr()))
+        })
+    }
+     /// Look up the field ID for a class/name/type combination.
     ///
     /// # Example
     /// ```rust,ignore
@@ -349,7 +392,7 @@ impl<'a> JNIEnv<'a> {
                                                   args: &[JValue])
                                                   -> Result<JValue>
         where T: Desc<'a, JClass<'a>>,
-              U: Desc<'a, JMethodID<'a>>
+              U: Desc<'a, JStaticMethodID<'a>>
     {
         let class = class.lookup(self)?;
 
