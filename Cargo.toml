@@ -11,7 +11,11 @@ homepage = "https://docs.rs/jni"
 
 [dependencies]
 log = "0.3"
-error-chain = "0.5"
 combine = "2"
 cesu8 = "1"
 jni-sys = "0.2"
+error-chain = { version = "0.9", default-features = false }
+
+[features]
+default = ["backtrace"]
+backtrace = ["error-chain/backtrace"]
