@@ -9,8 +9,8 @@ use std::sync::MutexGuard;
 
 use errors::*;
 
-use sys::{self, jvalue, jint, jsize, jbyte, jboolean, jbyteArray};
-use std::os::raw::c_char;
+use sys::{self, jvalue, jint, jlong, jsize, jbyte, jboolean, jbyteArray};
+use std::os::raw::{c_char, c_void};
 
 use strings::JNIString;
 use strings::JavaStr;
@@ -198,6 +198,41 @@ impl<'a> JNIEnv<'a> {
     pub fn exception_check(&self) -> Result<bool> {
         let check = unsafe { jni_unchecked!(self.internal, ExceptionCheck) } == sys::JNI_TRUE;
         Ok(check)
+    }
+
+    /// Create a new instance of a direct java.nio.ByteBuffer.
+    pub fn new_direct_byte_buffer(&self,
+                                  address: *mut c_void,
+                                  capacity: jlong)
+                                  -> Result<JObject> {
+        let obj = unsafe {
+            jni_unchecked!(self.internal,
+                           NewDirectByteBuffer,
+                           address,
+                           capacity)
+        };
+        Ok(JObject::from(obj))
+    }
+
+    /// Returns the starting address of the memory of the direct
+    /// java.nio.ByteBuffer.
+    pub fn get_direct_buffer_address(&self,
+                                     buf: JObject)
+                                     -> Result<*mut c_void> {
+        let ptr = unsafe {
+            jni_call!(self.internal, GetDirectBufferAddress, buf.into_inner())
+        };
+        Ok(ptr)
+    }
+
+    /// Returns the capacity of the direct java.nio.ByteBuffer.
+    pub fn get_direct_buffer_capacity(&self, buf: JObject) -> Result<jlong> {
+        let capacity = unsafe {
+            jni_unchecked!(self.internal,
+                           GetDirectBufferCapacity,
+                           buf.into_inner())
+        };
+        Ok(capacity)
     }
 
     /// Turns an object into a global ref. This has the benefit of removing the
