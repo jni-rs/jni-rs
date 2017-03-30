@@ -32,6 +32,12 @@ impl<'a> JavaStr<'a> {
         };
         Ok(java_str)
     }
+
+    /// Extract the raw C string pointer from the JavaStr. This will be
+    /// encoded using the JVM internal `CESU-8`-style.
+    pub fn get_raw(&self) -> *const c_char {
+        self.internal
+    }
 }
 
 impl<'a> ::std::ops::Deref for JavaStr<'a> {
@@ -63,11 +69,10 @@ impl<'a> From<JavaStr<'a>> for String {
 
 impl<'a> Drop for JavaStr<'a> {
     fn drop(&mut self) {
-        match unsafe {
-            self.env.release_string_utf_chars(self.obj, self.internal)
-        } {
+        match unsafe { self.env.release_string_utf_chars(self.obj, self.internal) } {
             Ok(()) => {}
             Err(e) => warn!("error dropping java str: {}", e),
         }
     }
 }
+
