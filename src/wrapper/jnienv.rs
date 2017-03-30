@@ -9,7 +9,7 @@ use std::sync::MutexGuard;
 
 use errors::*;
 
-use sys::{self, jvalue, jint, jsize, jbyte, jboolean};
+use sys::{self, jvalue, jint, jsize, jbyte, jboolean, jbyteArray};
 use std::os::raw::c_char;
 
 use strings::JNIString;
@@ -778,6 +778,16 @@ impl<'a> JNIEnv<'a> {
     pub fn new_string<S: Into<JNIString>>(&self, from: S) -> Result<JString> {
         let ffi_str = from.into();
         Ok(jni_call!(self.internal, NewStringUTF, ffi_str.as_ptr()))
+    }
+
+    /// Create a new java byte array from a rust byte slice.
+    pub fn new_byte_array(&self, buf: &[i8]) -> Result<jbyteArray> {
+        let length = buf.len() as i32;
+        let bytes: jbyteArray = jni_call!(self.internal, NewByteArray, length);
+        unsafe {
+            jni_unchecked!(self.internal, SetByteArrayRegion, bytes, 0, length, buf.as_ptr());
+        }
+        Ok(bytes)
     }
 
     /// Get a field without checking the provided type against the actual field.
