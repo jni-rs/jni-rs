@@ -55,3 +55,13 @@ impl<T> From<::std::sync::TryLockError<T>> for Error {
         ErrorKind::TryLock.into()
     }
 }
+
+pub struct Exception {
+    pub class: String,
+    pub msg: String,
+}
+
+pub trait ToException {
+    fn to_exception(&self) -> Exception;
+}
+
