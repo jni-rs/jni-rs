@@ -14,7 +14,7 @@ log = "0.3"
 combine = "2"
 cesu8 = "1"
 jni-sys = "0.2"
-error-chain = { version = "0.9", default-features = false }
+error-chain = { version = "0.10", default-features = false }
 
 [features]
 default = ["backtrace"]
