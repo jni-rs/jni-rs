@@ -4,6 +4,8 @@ use std::marker::PhantomData;
 
 use std::iter::IntoIterator;
 
+use std::slice;
+
 use std::sync::Mutex;
 use std::sync::MutexGuard;
 
@@ -19,6 +21,7 @@ use objects::JMap;
 use objects::JValue;
 use objects::JClass;
 use objects::JObject;
+use objects::JByteBuffer;
 use objects::JString;
 use objects::JThrowable;
 use objects::JMethodID;
@@ -202,31 +205,34 @@ impl<'a> JNIEnv<'a> {
 
     /// Create a new instance of a direct java.nio.ByteBuffer.
     pub fn new_direct_byte_buffer(&self,
-                                  address: *mut c_void,
-                                  capacity: jlong)
-                                  -> Result<JObject> {
+                                  data: &mut [u8])
+                                  -> Result<JByteBuffer> {
         let obj = unsafe {
             jni_unchecked!(self.internal,
                            NewDirectByteBuffer,
-                           address,
-                           capacity)
+                           data.as_mut_ptr() as *mut c_void,
+                           data.len() as jlong)
         };
-        Ok(JObject::from(obj))
+        Ok(JByteBuffer::from(obj))
     }
 
     /// Returns the starting address of the memory of the direct
     /// java.nio.ByteBuffer.
     pub fn get_direct_buffer_address(&self,
-                                     buf: JObject)
-                                     -> Result<*mut c_void> {
-        let ptr = unsafe {
-            jni_call!(self.internal, GetDirectBufferAddress, buf.into_inner())
-        };
-        Ok(ptr)
+                                     buf: JByteBuffer)
+                                     -> Result<&mut [u8]> {
+        let ptr: *mut c_void =
+            jni_call!(self.internal, GetDirectBufferAddress, buf.into_inner());
+        let capacity = self.get_direct_buffer_capacity(buf)?;
+        unsafe {
+            Ok(slice::from_raw_parts_mut(ptr as *mut u8, capacity as usize))
+        }
     }
 
     /// Returns the capacity of the direct java.nio.ByteBuffer.
-    pub fn get_direct_buffer_capacity(&self, buf: JObject) -> Result<jlong> {
+    pub fn get_direct_buffer_capacity(&self,
+                                      buf: JByteBuffer)
+                                      -> Result<jlong> {
         let capacity = unsafe {
             jni_unchecked!(self.internal,
                            GetDirectBufferCapacity,
