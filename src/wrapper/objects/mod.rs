@@ -26,6 +26,9 @@ pub use self::jstring::*;
 mod jmap;
 pub use self::jmap::*;
 
+mod jbytebuffer;
+pub use self::jbytebuffer::*;
+
 // For when you want to store a reference to a java object
 mod global_ref;
 pub use self::global_ref::*;
