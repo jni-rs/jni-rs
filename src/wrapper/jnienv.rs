@@ -13,6 +13,9 @@ use errors::*;
 
 use sys::{self, jvalue, jint, jlong, jsize, jbyte, jboolean, jbyteArray};
 use std::os::raw::{c_char, c_void};
+use std::ptr::null_mut;
+
+use wrapper::JavaVM;
 
 use strings::JNIString;
 use strings::JavaStr;
@@ -1005,6 +1008,19 @@ impl<'a> JNIEnv<'a> {
                env: self.internal,
                life: Default::default(),
            })
+    }
+
+    /// Need docs
+    pub fn get_java_vm(&self) -> Result<JavaVM> {
+        let mut ptr: *mut sys::JavaVM = null_mut();
+        let pptr = &mut ptr as *mut *mut sys::JavaVM;
+        unsafe {
+            let status = jni_unchecked!(self.internal, GetJavaVM, pptr);
+            if status != sys::JNI_OK {
+                return Err(ErrorKind::JavaException.into());
+            }
+        }
+        Ok(JavaVM::from(ptr as *mut sys::JavaVM))
     }
 }
 
