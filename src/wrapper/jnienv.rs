@@ -221,8 +221,11 @@ impl<'a> JNIEnv<'a> {
     pub fn get_direct_buffer_address(&self,
                                      buf: JByteBuffer)
                                      -> Result<&mut [u8]> {
-        let ptr: *mut c_void =
-            jni_call!(self.internal, GetDirectBufferAddress, buf.into_inner());
+        let ptr: *mut c_void = unsafe {
+            jni_unchecked!(self.internal,
+                           GetDirectBufferAddress,
+                           buf.into_inner())
+        };
         let capacity = self.get_direct_buffer_capacity(buf)?;
         unsafe {
             Ok(slice::from_raw_parts_mut(ptr as *mut u8, capacity as usize))
