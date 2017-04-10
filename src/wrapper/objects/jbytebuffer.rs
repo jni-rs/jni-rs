@@ -1,6 +1,6 @@
 use objects::JObject;
 
-use sys::{jobject, jstring};
+use sys::jobject;
 
 /// Lifetime'd representation of a `jobject` that is an instance of the
 /// ByteBuffer Java class. Just a `JObject` wrapped in a new class.
@@ -8,9 +8,9 @@ use sys::{jobject, jstring};
 #[derive(Clone, Copy)]
 pub struct JByteBuffer<'a>(JObject<'a>);
 
-impl<'a> From<jstring> for JByteBuffer<'a> {
-    fn from(other: jstring) -> Self {
-        JByteBuffer(From::from(other as jobject))
+impl<'a> From<jobject> for JByteBuffer<'a> {
+    fn from(other: jobject) -> Self {
+        JByteBuffer(From::from(other))
     }
 }
 
