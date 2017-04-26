@@ -5,7 +5,7 @@ use sys::{jobject, jclass};
 /// Lifetime'd representation of a `jclass`. Just a `JObject` wrapped in a new
 /// class.
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct JClass<'a>(JObject<'a>);
 
 impl<'a> From<jclass> for JClass<'a> {

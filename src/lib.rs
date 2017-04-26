@@ -1,4 +1,5 @@
 #![warn(missing_docs)]
+#![feature(drop_types_in_const)]
 
 //! # Safe JNI Bindings in Rust
 //!
@@ -189,6 +190,9 @@ mod wrapper {
     /// Actual communication with the JVM
     mod jnienv;
     pub use self::jnienv::*;
+
+    mod javavm;
+    pub use self::javavm::*;
 }
 
 pub use wrapper::*;
