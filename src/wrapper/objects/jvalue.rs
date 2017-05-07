@@ -34,18 +34,22 @@ impl<'a> JValue<'a> {
     /// Convert the enum to its jni-compatible equivalent.
     pub fn to_jni(self) -> jvalue {
         let val: jvalue = unsafe {
+            let mut value = jvalue::default();
+
             match self {
-                JValue::Object(obj) => transmute(obj.into_inner() as i64),
-                JValue::Byte(byte) => transmute(byte as i64),
-                JValue::Char(char) => transmute(char as u64),
-                JValue::Short(short) => transmute(short as i64),
-                JValue::Int(int) => transmute(int as i64),
-                JValue::Long(long) => transmute(long),
-                JValue::Bool(boolean) => transmute(boolean as u64),
-                JValue::Float(float) => transmute(float as f64),
-                JValue::Double(double) => transmute(double),
+                JValue::Object(obj) => *value.l() = transmute(obj),
+                JValue::Byte(byte) => *value.b() = byte,
+                JValue::Char(char) => *value.c() = char,
+                JValue::Short(short) => *value.s() = short,
+                JValue::Int(int) => *value.i() = int,
+                JValue::Long(long) => *value.j() = long,
+                JValue::Bool(boolean) => *value.b() = boolean as i8,
+                JValue::Float(float) => *value.f() = float,
+                JValue::Double(double) => *value.d() = double,
                 JValue::Void => Default::default(),
             }
+
+            value
         };
         trace!("converted {:?} to jvalue {:?}", self, val._data);
         val
