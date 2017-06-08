@@ -60,7 +60,7 @@ macro_rules! jni_unchecked {
     })
 }
 
-macro_rules! jni_call {
+macro_rules! jni_non_null_call {
     ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
         trace!("calling checked jni method: {}", stringify!($name));
         #[allow(unused_unsafe)]
@@ -69,8 +69,15 @@ macro_rules! jni_call {
             let res = jni_method!($jnienv, $name)($jnienv, $($args),*);
             check_exception!($jnienv);
             trace!("exiting unsafe");
-            non_null!(res, concat!(stringify!($name), " result")).into()
+            res
         }
+    })
+}
+
+macro_rules! jni_call {
+    ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
+        let res = jni_non_null_call!($jnienv, $name $(, $args)*);
+        non_null!(res, concat!(stringify!($name), " result")).into()
     })
 }
 
