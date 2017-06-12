@@ -1008,8 +1008,8 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Returns underlying `sys::JNIEnv` interface.
-    pub fn get_native_interface(&self) -> sys::JNIEnv {
-        unsafe { *self.internal }
+    pub fn get_native_interface(&self) -> *mut sys::JNIEnv {
+        self.internal
     }
 }
 
