@@ -758,6 +758,17 @@ impl<'a> JNIEnv<'a> {
         Ok(bytes)
     }
 
+    /// Converts a java byte array to a rust vector of bytes.
+    pub fn convert_byte_array(&self, array: jbyteArray) -> Result<Vec<u8>> {
+        let length = jni_non_null_call!(self.internal, GetArrayLength, array);
+        let mut vec = vec![0u8; length as usize];
+        unsafe {
+            jni_unchecked!(self.internal, GetByteArrayRegion, array, 0, length,
+                vec.as_mut_ptr() as *mut i8);
+        }
+        Ok(vec)
+    }
+
     /// Get a field without checking the provided type against the actual field.
     #[allow(unused_unsafe)]
     pub unsafe fn get_field_unsafe<T>(&self, obj: JObject, field: T, ty: JavaType) -> Result<JValue>
