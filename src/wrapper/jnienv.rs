@@ -1017,6 +1017,11 @@ impl<'a> JNIEnv<'a> {
                life: Default::default(),
            })
     }
+
+    /// Returns underlying `sys::JNIEnv` interface.
+    pub fn get_native_interface(&self) -> *mut sys::JNIEnv {
+        self.internal
+    }
 }
 
 /// Guard for a lock on a java object. This gets returned from the `lock_obj`
