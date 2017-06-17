@@ -760,12 +760,14 @@ impl<'a> JNIEnv<'a> {
 
     /// Converts a java byte array to a rust vector of bytes.
     pub fn convert_byte_array(&self, array: jbyteArray) -> Result<Vec<u8>> {
+        non_null!(array, "convert_byte_array array argument");
         let length = jni_non_null_call!(self.internal, GetArrayLength, array);
         let mut vec = vec![0u8; length as usize];
         unsafe {
             jni_unchecked!(self.internal, GetByteArrayRegion, array, 0, length,
                 vec.as_mut_ptr() as *mut i8);
         }
+        check_exception!(self.internal);
         Ok(vec)
     }
 
