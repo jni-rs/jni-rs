@@ -13,7 +13,7 @@ homepage = "https://docs.rs/jni"
 log = "0.3"
 combine = "2"
 cesu8 = "1"
-jni-sys = "0.2.4"
+jni-sys = "0.2.5"
 error-chain = { version = "0.10", default-features = false }
 
 [features]
