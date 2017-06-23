@@ -52,6 +52,7 @@ use signature::Primitive;
 /// applicable, the null error is changed to a more applicable error type, such
 /// as `MethodNotFound`.
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct JNIEnv<'a> {
     internal: *mut sys::JNIEnv,
     lifetime: PhantomData<&'a ()>,
