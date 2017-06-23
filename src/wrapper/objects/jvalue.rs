@@ -51,8 +51,7 @@ impl<'a> JValue<'a> {
 
             value
         };
-        // TODO(jechas01): re-add this once jni-sys adds it back
-        // trace!("converted {:?} to jvalue {:?}", self, val._data);
+        trace!("converted {:?} to jvalue {:?}", self, val._data);
         val
     }
 
