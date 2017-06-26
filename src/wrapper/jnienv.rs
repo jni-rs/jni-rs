@@ -15,6 +15,9 @@ use sys::{self, jarray, jboolean, jbooleanArray, jbyte, jbyteArray, jchar,
           jcharArray, jdouble, jdoubleArray, jfloat, jfloatArray, jint,
           jintArray, jlong, jlongArray, jshort, jshortArray, jsize, jvalue};
 use std::os::raw::{c_char, c_void};
+use std::ptr::null_mut;
+
+use wrapper::JavaVM;
 
 use strings::JNIString;
 use strings::JavaStr;
@@ -1688,6 +1691,19 @@ impl<'a> JNIEnv<'a> {
     /// Returns underlying `sys::JNIEnv` interface.
     pub fn get_native_interface(&self) -> *mut sys::JNIEnv {
         self.internal
+    }
+
+    /// Need docs
+    pub fn get_java_vm(&self) -> Result<JavaVM> {
+        let mut ptr: *mut sys::JavaVM = null_mut();
+        let pptr = &mut ptr as *mut *mut sys::JavaVM;
+        unsafe {
+            let status = jni_unchecked!(self.internal, GetJavaVM, pptr);
+            if status != sys::JNI_OK {
+                return Err(ErrorKind::JavaException.into());
+            }
+        }
+        Ok(JavaVM::from(ptr as *mut sys::JavaVM))
     }
 }
 
