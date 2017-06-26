@@ -11,7 +11,9 @@ use std::sync::MutexGuard;
 
 use errors::*;
 
-use sys::{self, jvalue, jint, jlong, jsize, jbyte, jboolean, jbyteArray};
+use sys::{self, jarray, jboolean, jbooleanArray, jbyte, jbyteArray, jchar,
+          jcharArray,  jdouble, jdoubleArray, jfloat, jfloatArray, jint,
+          jintArray, jlong, jlongArray, jshort, jshortArray, jsize, jvalue};
 use std::os::raw::{c_char, c_void};
 
 use strings::JNIString;
@@ -748,10 +750,18 @@ impl<'a> JNIEnv<'a> {
         Ok(jni_call!(self.internal, NewStringUTF, ffi_str.as_ptr()))
     }
 
+    /// Get the length of a java array
+    pub fn get_array_length(&self, array: jarray) -> Result<jsize> {
+        non_null!(array, "get_array_length array argument");
+        let len: jsize =
+            unsafe { jni_unchecked!(self.internal, GetArrayLength, array) };
+        Ok(len)
+    }
+
     /// Create a new java byte array from a rust byte slice.
-    pub fn new_byte_array(&self, buf: &[u8]) -> Result<jbyteArray> {
+    pub fn byte_array_from_slice(&self, buf: &[u8]) -> Result<jbyteArray> {
         let length = buf.len() as i32;
-        let bytes: jbyteArray = jni_call!(self.internal, NewByteArray, length);
+        let bytes: jbyteArray = self.new_byte_array(length)?;
         unsafe {
             jni_unchecked!(self.internal, SetByteArrayRegion, bytes, 0, length,
                 buf.as_ptr() as *const i8);
@@ -770,6 +780,331 @@ impl<'a> JNIEnv<'a> {
         }
         check_exception!(self.internal);
         Ok(vec)
+    }
+
+    /// Create a new java boolean array of supplied length.
+    pub fn new_boolean_array(&self, length: jsize) -> Result<jbooleanArray> {
+        let array: jbooleanArray =
+            jni_call!(self.internal, NewBooleanArray, length);
+        Ok(array)
+    }
+
+    /// Create a new java byte array of supplied length.
+    pub fn new_byte_array(&self, length: jsize) -> Result<jbyteArray> {
+        let array: jbyteArray = jni_call!(self.internal, NewByteArray, length);
+        Ok(array)
+    }
+
+    /// Create a new java char array of supplied length.
+    pub fn new_char_array(&self, length: jsize) -> Result<jcharArray> {
+        let array: jcharArray =
+            jni_call!(self.internal, NewCharArray, length);
+        Ok(array)
+    }
+
+    /// Create a new java short array of supplied length.
+    pub fn new_short_array(&self, length: jsize) -> Result<jshortArray> {
+        let array: jshortArray =
+            jni_call!(self.internal, NewShortArray, length);
+        Ok(array)
+    }
+
+    /// Create a new java int array of supplied length.
+    pub fn new_int_array(&self, length: jsize) -> Result<jintArray> {
+        let array: jintArray = jni_call!(self.internal, NewIntArray, length);
+        Ok(array)
+    }
+
+    /// Create a new java long array of supplied length.
+    pub fn new_long_array(&self, length: jsize) -> Result<jlongArray> {
+        let array: jlongArray = jni_call!(self.internal, NewLongArray, length);
+        Ok(array)
+    }
+
+    /// Create a new java float array of supplied length.
+    pub fn new_float_array(&self, length: jsize) -> Result<jfloatArray> {
+        let array: jfloatArray =
+            jni_call!(self.internal, NewFloatArray, length);
+        Ok(array)
+    }
+
+    /// Create a new java double array of supplied length.
+    pub fn new_double_array(&self, length: jsize) -> Result<jdoubleArray> {
+        let array: jdoubleArray =
+            jni_call!(self.internal, NewDoubleArray, length);
+        Ok(array)
+    }
+
+    /// Copy elements of the java boolean array from the `start` index to the
+    /// `buf` slice.
+    pub fn get_boolean_array_region(&self,
+                                    array: jbooleanArray,
+                                    start: jsize,
+                                    buf: &mut [jboolean])
+                                    -> Result<()> {
+        non_null!(array, "get_boolean_array_region array argument");
+        jni_void_call!(self.internal,
+                       GetBooleanArrayRegion,
+                       array,
+                       start,
+                       buf.len() as jsize,
+                       buf.as_mut_ptr());
+        Ok(())
+    }
+
+    /// Copy elements of the java byte array from the `start` index to the `buf`
+    /// slice.
+    pub fn get_byte_array_region(&self,
+                                 array: jbyteArray,
+                                 start: jsize,
+                                 buf: &mut [jbyte])
+                                 -> Result<()> {
+        non_null!(array, "get_byte_array_region array argument");
+        jni_void_call!(self.internal,
+                       GetByteArrayRegion,
+                       array,
+                       start,
+                       buf.len() as jsize,
+                       buf.as_mut_ptr());
+        Ok(())
+    }
+
+    /// Copy elements of the java char array from the `start` index to the
+    /// `buf` slice.
+    pub fn get_char_array_region(&self,
+                                 array: jcharArray,
+                                 start: jsize,
+                                 buf: &mut [jchar])
+                                 -> Result<()> {
+        non_null!(array, "get_char_array_region array argument");
+        jni_void_call!(self.internal,
+                       GetCharArrayRegion,
+                       array,
+                       start,
+                       buf.len() as jsize,
+                       buf.as_mut_ptr());
+        Ok(())
+    }
+
+    /// Copy elements of the java short array from the `start` index to the
+    /// `buf` slice.
+    pub fn get_short_array_region(&self,
+                                  array: jshortArray,
+                                  start: jsize,
+                                  buf: &mut [jshort])
+                                  -> Result<()> {
+        non_null!(array, "get_short_array_region array argument");
+        jni_void_call!(self.internal,
+                       GetShortArrayRegion,
+                       array,
+                       start,
+                       buf.len() as jsize,
+                       buf.as_mut_ptr());
+        Ok(())
+    }
+
+    /// Copy elements of the java int array from the `start` index to the
+    /// `buf` slice.
+    pub fn get_int_array_region(&self,
+                                array: jintArray,
+                                start: jsize,
+                                buf: &mut [jint])
+                                -> Result<()> {
+        non_null!(array, "get_int_array_region array argument");
+        jni_void_call!(self.internal,
+                       GetIntArrayRegion,
+                       array,
+                       start,
+                       buf.len() as jsize,
+                       buf.as_mut_ptr());
+        Ok(())
+    }
+
+    /// Copy elements of the java long array from the `start` index to the
+    /// `buf` slice.
+    pub fn get_long_array_region(&self,
+                                 array: jlongArray,
+                                 start: jsize,
+                                 buf: &mut [jlong])
+                                 -> Result<()> {
+        non_null!(array, "get_long_array_region array argument");
+        jni_void_call!(self.internal,
+                       GetLongArrayRegion,
+                       array,
+                       start,
+                       buf.len() as jsize,
+                       buf.as_mut_ptr());
+        Ok(())
+    }
+
+    /// Copy elements of the java float array from the `start` index to the
+    /// `buf` slice.
+    pub fn get_float_array_region(&self,
+                                  array: jfloatArray,
+                                  start: jsize,
+                                  buf: &mut [jfloat])
+                                  -> Result<()> {
+        non_null!(array, "get_float_array_region array argument");
+        jni_void_call!(self.internal,
+                       GetFloatArrayRegion,
+                       array,
+                       start,
+                       buf.len() as jsize,
+                       buf.as_mut_ptr());
+        Ok(())
+    }
+
+    /// Copy elements of the java double array from the `start` index to the
+    /// `buf` slice.
+    pub fn get_double_array_region(&self,
+                                   array: jdoubleArray,
+                                   start: jsize,
+                                   buf: &mut [jdouble])
+                                   -> Result<()> {
+        non_null!(array, "get_double_array_region array argument");
+        jni_void_call!(self.internal,
+                       GetDoubleArrayRegion,
+                       array,
+                       start,
+                       buf.len() as jsize,
+                       buf.as_mut_ptr());
+        Ok(())
+    }
+
+    /// Copy the contents of the `buf` slice to the java boolean array at the
+    /// `start` index.
+    pub fn set_boolean_array_region(&self,
+                                    array: jbooleanArray,
+                                    start: jsize,
+                                    buf: &[jboolean])
+                                    -> Result<()> {
+        non_null!(array, "set_boolean_array_region array argument");
+        jni_void_call!(self.internal,
+                       SetBooleanArrayRegion,
+                       array,
+                       start,
+                       buf.len() as jsize,
+                       buf.as_ptr());
+        Ok(())
+    }
+
+    /// Copy the contents of the `buf` slice to the java byte array at the
+    /// `start` index.
+    pub fn set_byte_array_region(&self,
+                                 array: jbyteArray,
+                                 start: jsize,
+                                 buf: &[jbyte])
+                                 -> Result<()> {
+        non_null!(array, "set_byte_array_region array argument");
+        jni_void_call!(self.internal,
+                       SetByteArrayRegion,
+                       array,
+                       start,
+                       buf.len() as jsize,
+                       buf.as_ptr());
+        Ok(())
+    }
+
+    /// Copy the contents of the `buf` slice to the java char array at the
+    /// `start` index.
+    pub fn set_char_array_region(&self,
+                                 array: jcharArray,
+                                 start: jsize,
+                                 buf: &[jchar])
+                                 -> Result<()> {
+        non_null!(array, "set_char_array_region array argument");
+        jni_void_call!(self.internal,
+                       SetCharArrayRegion,
+                       array,
+                       start,
+                       buf.len() as jsize,
+                       buf.as_ptr());
+        Ok(())
+    }
+
+    /// Copy the contents of the `buf` slice to the java short array at the
+    /// `start` index.
+    pub fn set_short_array_region(&self,
+                                  array: jshortArray,
+                                  start: jsize,
+                                  buf: &[jshort])
+                                  -> Result<()> {
+        non_null!(array, "set_short_array_region array argument");
+        jni_void_call!(self.internal,
+                       SetShortArrayRegion,
+                       array,
+                       start,
+                       buf.len() as jsize,
+                       buf.as_ptr());
+        Ok(())
+    }
+
+    /// Copy the contents of the `buf` slice to the java int array at the
+    /// `start` index.
+    pub fn set_int_array_region(&self,
+                                array: jintArray,
+                                start: jsize,
+                                buf: &[jint])
+                                -> Result<()> {
+        non_null!(array, "set_int_array_region array argument");
+        jni_void_call!(self.internal,
+                       SetIntArrayRegion,
+                       array,
+                       start,
+                       buf.len() as jsize,
+                       buf.as_ptr());
+        Ok(())
+    }
+
+    /// Copy the contents of the `buf` slice to the java long array at the
+    /// `start` index.
+    pub fn set_long_array_region(&self,
+                                 array: jlongArray,
+                                 start: jsize,
+                                 buf: &[jlong])
+                                 -> Result<()> {
+        non_null!(array, "set_long_array_region array argument");
+        jni_void_call!(self.internal,
+                       SetLongArrayRegion,
+                       array,
+                       start,
+                       buf.len() as jsize,
+                       buf.as_ptr());
+        Ok(())
+    }
+
+    /// Copy the contents of the `buf` slice to the java float array at the
+    /// `start` index.
+    pub fn set_float_array_region(&self,
+                                  array: jfloatArray,
+                                  start: jsize,
+                                  buf: &[jfloat])
+                                  -> Result<()> {
+        non_null!(array, "set_float_array_region array argument");
+        jni_void_call!(self.internal,
+                       SetFloatArrayRegion,
+                       array,
+                       start,
+                       buf.len() as jsize,
+                       buf.as_ptr());
+        Ok(())
+    }
+
+    /// Copy the contents of the `buf` slice to the java double array at the
+    /// `start` index.
+    pub fn set_double_array_region(&self,
+                                   array: jdoubleArray,
+                                   start: jsize,
+                                   buf: &[jdouble])
+                                   -> Result<()> {
+        non_null!(array, "set_double_array_region array argument");
+        jni_void_call!(self.internal,
+                       SetDoubleArrayRegion,
+                       array,
+                       start,
+                       buf.len() as jsize,
+                       buf.as_ptr());
+        Ok(())
     }
 
     /// Get a field without checking the provided type against the actual field.
