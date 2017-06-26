@@ -749,7 +749,7 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Create a new java byte array from a rust byte slice.
-    pub fn new_byte_array(&self, buf: &[u8]) -> Result<jbyteArray> {
+    pub fn byte_array_from_slice(&self, buf: &[u8]) -> Result<jbyteArray> {
         let length = buf.len() as i32;
         let bytes: jbyteArray = jni_call!(self.internal, NewByteArray, length);
         unsafe {
