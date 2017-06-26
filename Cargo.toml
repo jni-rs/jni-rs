@@ -1,6 +1,6 @@
 [package]
 name = "jni"
-version = "0.4.2"
+version = "0.4.4"
 authors = ["Josh Chase <josh@prevoty.com>"]
 description = "Rust bindings to the JNI"
 license = "MIT/Apache-2.0"
@@ -13,7 +13,7 @@ homepage = "https://docs.rs/jni"
 log = "0.3"
 combine = "2"
 cesu8 = "1"
-jni-sys = "0.2"
+jni-sys = "^0.2.5"
 error-chain = { version = "0.10", default-features = false }
 
 [features]
