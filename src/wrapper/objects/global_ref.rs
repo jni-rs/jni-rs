@@ -17,10 +17,7 @@ impl GlobalRef {
     /// Create a new global reference object. This assumes that
     /// `CreateGlobalRef` has already been called.
     pub unsafe fn new(env: *mut JNIEnv, obj: jobject) -> Self {
-        GlobalRef {
-            obj: obj,
-            env: env,
-        }
+        GlobalRef { obj: obj, env: env }
     }
 
     fn drop_ref(&mut self) -> Result<()> {

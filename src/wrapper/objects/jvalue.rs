@@ -93,8 +93,10 @@ impl<'a> JValue<'a> {
         match self {
             JValue::Object(obj) => Ok(obj),
             _ => {
-                Err(ErrorKind::WrongJValueType("object", self.type_name())
-                    .into())
+                Err(
+                    ErrorKind::WrongJValueType("object", self.type_name())
+                        .into(),
+                )
             }
         }
     }
@@ -114,8 +116,9 @@ impl<'a> JValue<'a> {
         match self {
             JValue::Byte(b) => Ok(b),
             _ => {
-                Err(ErrorKind::WrongJValueType("jbyte", self.type_name())
-                    .into())
+                Err(
+                    ErrorKind::WrongJValueType("jbyte", self.type_name()).into(),
+                )
             }
         }
     }
@@ -125,8 +128,9 @@ impl<'a> JValue<'a> {
         match self {
             JValue::Char(b) => Ok(b),
             _ => {
-                Err(ErrorKind::WrongJValueType("jchar", self.type_name())
-                    .into())
+                Err(
+                    ErrorKind::WrongJValueType("jchar", self.type_name()).into(),
+                )
             }
         }
     }
@@ -136,8 +140,10 @@ impl<'a> JValue<'a> {
         match self {
             JValue::Double(b) => Ok(b),
             _ => {
-                Err(ErrorKind::WrongJValueType("jdouble", self.type_name())
-                    .into())
+                Err(
+                    ErrorKind::WrongJValueType("jdouble", self.type_name())
+                        .into(),
+                )
             }
         }
     }
@@ -147,8 +153,10 @@ impl<'a> JValue<'a> {
         match self {
             JValue::Float(b) => Ok(b),
             _ => {
-                Err(ErrorKind::WrongJValueType("jfloat", self.type_name())
-                    .into())
+                Err(
+                    ErrorKind::WrongJValueType("jfloat", self.type_name())
+                        .into(),
+                )
             }
         }
     }
@@ -168,8 +176,9 @@ impl<'a> JValue<'a> {
         match self {
             JValue::Long(b) => Ok(b),
             _ => {
-                Err(ErrorKind::WrongJValueType("jlong", self.type_name())
-                    .into())
+                Err(
+                    ErrorKind::WrongJValueType("jlong", self.type_name()).into(),
+                )
             }
         }
     }
@@ -179,8 +188,10 @@ impl<'a> JValue<'a> {
         match self {
             JValue::Short(b) => Ok(b),
             _ => {
-                Err(ErrorKind::WrongJValueType("jshort", self.type_name())
-                    .into())
+                Err(
+                    ErrorKind::WrongJValueType("jshort", self.type_name())
+                        .into(),
+                )
             }
         }
     }

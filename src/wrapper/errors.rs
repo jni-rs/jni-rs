@@ -64,4 +64,3 @@ pub struct Exception {
 pub trait ToException {
     fn to_exception(&self) -> Exception;
 }
-

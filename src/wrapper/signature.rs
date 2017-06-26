@@ -97,8 +97,9 @@ impl ::std::fmt::Display for TypeSignature {
     }
 }
 
-fn parse_primitive<S: Stream<Item = char>>(input: S)
-                                           -> ParseResult<JavaType, S> {
+fn parse_primitive<S: Stream<Item = char>>(
+    input: S,
+) -> ParseResult<JavaType, S> {
     let boolean = token('Z').map(|_| Primitive::Boolean);
     let byte = token('B').map(|_| Primitive::Byte);
     let char_type = token('C').map(|_| Primitive::Char);
@@ -109,14 +110,15 @@ fn parse_primitive<S: Stream<Item = char>>(input: S)
     let short = token('S').map(|_| Primitive::Short);
     let void = token('V').map(|_| Primitive::Void);
 
-    (boolean.or(byte)
-            .or(char_type)
-            .or(double)
-            .or(float)
-            .or(int)
-            .or(long)
-            .or(short)
-            .or(void))
+    (boolean
+         .or(byte)
+         .or(char_type)
+         .or(double)
+         .or(float)
+         .or(int)
+         .or(long)
+         .or(short)
+         .or(void))
         .map(|ty| JavaType::Primitive(ty))
         .parse_stream(input)
 }
@@ -144,8 +146,9 @@ fn parse_type<S: Stream<Item = char>>(input: S) -> ParseResult<JavaType, S> {
         .parse_stream(input)
 }
 
-fn parse_args<S: Stream<Item = char>>(input: S)
-                                      -> ParseResult<Vec<JavaType>, S> {
+fn parse_args<S: Stream<Item = char>>(
+    input: S,
+) -> ParseResult<Vec<JavaType>, S> {
     between(token('('), token(')'), many(parser(parse_type)))
         .parse_stream(input)
 }
@@ -164,8 +167,11 @@ mod test {
 
     #[test]
     fn test_parser() {
-        let inputs =
-            ["(Ljava/lang/String;I)V", "[Lherp;", "(IBVZ)Ljava/lang/String;"];
+        let inputs = [
+            "(Ljava/lang/String;I)V",
+            "[Lherp;",
+            "(IBVZ)Ljava/lang/String;",
+        ];
 
         for each in inputs.iter() {
             let res = JavaType::from_str(*each).unwrap();

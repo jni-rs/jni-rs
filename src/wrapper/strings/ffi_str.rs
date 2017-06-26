@@ -37,7 +37,8 @@ impl ::std::ops::Deref for JNIStr {
 }
 
 impl<T> From<T> for JNIString
-    where T: AsRef<str>
+where
+    T: AsRef<str>,
 {
     fn from(other: T) -> Self {
         let enc = to_java_cesu8(other.as_ref()).into_owned();
@@ -94,8 +95,9 @@ impl ToOwned for JNIStr {
     fn to_owned(&self) -> JNIString {
         unsafe {
             JNIString {
-                internal: ffi::CString::from_vec_unchecked(self.to_bytes()
-                    .to_vec()),
+                internal: ffi::CString::from_vec_unchecked(
+                    self.to_bytes().to_vec(),
+                ),
             }
         }
     }
