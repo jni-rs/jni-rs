@@ -17,14 +17,14 @@ use jni::sys::jstring;
 #[no_mangle]
 // This turns off linter warnings because the name doesn't conform to conventions.
 #[allow(non_snake_case)]
-pub extern "C" fn Java_HelloWorld_hello(env: JNIEnv,
-                                        // this is the class that owns our
-                                        // static method. Not going to be used,
-                                        // but still needs to have an argument
-                                        // slot
-                                        class: JClass,
-                                        input: JString)
-                                        -> jstring {
+pub extern "system" fn Java_HelloWorld_hello(env: JNIEnv,
+                                             // this is the class that owns our
+                                             // static method. Not going to be used,
+                                             // but still needs to have an argument
+                                             // slot
+                                             class: JClass,
+                                             input: JString)
+                                             -> jstring {
     // First, we have to get the string out of java. Check out the `strings`
     // module for more info on how this works.
     let input: String =
