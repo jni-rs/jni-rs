@@ -1,6 +1,8 @@
-use std::convert::From;
+use std::convert::{AsRef, From};
 
 use errors::*;
+
+use objects::JObject;
 
 use sys::{jobject, JNIEnv};
 
@@ -13,11 +15,26 @@ pub struct GlobalRef {
     env: *mut JNIEnv,
 }
 
+impl<'a> AsRef<JObject<'a>> for GlobalRef {
+    fn as_ref(&self) -> &JObject<'a> {
+        unsafe { ::std::mem::transmute(&self.obj) }
+    }
+}
+
+impl<'a> From<GlobalRef> for JObject<'a> {
+    fn from(other: GlobalRef) -> JObject<'a> {
+        other.obj.into()
+    }
+}
+
 impl GlobalRef {
     /// Create a new global reference object. This assumes that
     /// `CreateGlobalRef` has already been called.
     pub unsafe fn new(env: *mut JNIEnv, obj: jobject) -> Self {
-        GlobalRef { obj: obj, env: env }
+        GlobalRef {
+            obj: obj,
+            env: env,
+        }
     }
 
     fn drop_ref(&mut self) -> Result<()> {
