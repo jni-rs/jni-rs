@@ -11,19 +11,19 @@ use sys::{jobject, JNIEnv};
 /// outlive the `JNIEnv` that it came from. Still can't cross thread boundaries
 /// since it requires a pointer to the `JNIEnv` to do anything useful with it.
 pub struct GlobalRef {
-    obj: jobject,
+    obj: JObject<'static>,
     env: *mut JNIEnv,
 }
 
 impl<'a> AsRef<JObject<'a>> for GlobalRef {
     fn as_ref(&self) -> &JObject<'a> {
-        unsafe { ::std::mem::transmute(&self.obj) }
+        &self.obj
     }
 }
 
 impl<'a> From<GlobalRef> for JObject<'a> {
     fn from(other: GlobalRef) -> JObject<'a> {
-        other.obj.into()
+        other.obj
     }
 }
 
@@ -32,14 +32,14 @@ impl GlobalRef {
     /// `CreateGlobalRef` has already been called.
     pub unsafe fn new(env: *mut JNIEnv, obj: jobject) -> Self {
         GlobalRef {
-            obj: obj,
+            obj: JObject::from(obj),
             env: env,
         }
     }
 
     fn drop_ref(&mut self) -> Result<()> {
         unsafe {
-            jni_unchecked!(self.env, DeleteGlobalRef, self.obj);
+            jni_unchecked!(self.env, DeleteGlobalRef, self.obj.into_inner());
             check_exception!(self.env);
         }
         Ok(())
