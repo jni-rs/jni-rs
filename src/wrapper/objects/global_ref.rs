@@ -1,4 +1,4 @@
-use std::convert::{AsRef, From};
+use std::convert::From;
 
 use errors::*;
 
