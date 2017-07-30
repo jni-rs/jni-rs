@@ -15,14 +15,8 @@ pub struct GlobalRef {
     env: *mut JNIEnv,
 }
 
-impl<'a> AsRef<JObject<'a>> for GlobalRef {
-    fn as_ref(&self) -> &JObject<'a> {
-        &self.obj
-    }
-}
-
-impl<'a> From<GlobalRef> for JObject<'a> {
-    fn from(other: GlobalRef) -> JObject<'a> {
+impl<'a> From<&'a GlobalRef> for JObject<'a> {
+    fn from(other: &'a GlobalRef) -> JObject<'a> {
         other.obj
     }
 }

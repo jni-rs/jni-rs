@@ -68,7 +68,7 @@ impl Counter {
 
     pub fn increment(&mut self, env: JNIEnv) {
         self.count = self.count + 1;
-        env.call_method(*self.callback.as_ref(),
+        env.call_method((&self.callback).into(),
                          "counterCallback",
                          "(I)V",
                          &[self.count.into()])
