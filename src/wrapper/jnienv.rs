@@ -916,6 +916,22 @@ impl<'a> JNIEnv<'a> {
         Ok(jni_call!(self.internal, NewStringUTF, ffi_str.as_ptr()))
     }
 
+    /// Create new java.lang.Exception
+    pub fn new_exception(&self) -> Result<JThrowable> {
+        let exception = self.find_class("java/lang/Exception")?;
+        self.new_object(exception, "()V", &[]).map(Into::into)
+    }
+
+    /// Create new java.lang.Exception with message
+    pub fn new_exception_with_message<S: Into<JNIString>>(
+        &self,
+        message: S,
+    ) -> Result<JThrowable> {
+        let exception = self.find_class("java/lang/Exception")?;
+        let arg = JValue::Object(self.new_string(message.into())?.into());
+        self.new_object(exception, "(Ljava/lang/String;)V", &[arg]).map(Into::into)
+    }
+
     /// Get the length of a java array
     pub fn get_array_length(&self, array: jarray) -> Result<jsize> {
         non_null!(array, "get_array_length array argument");
