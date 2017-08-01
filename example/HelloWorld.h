@@ -15,6 +15,38 @@ extern "C" {
 JNIEXPORT jstring JNICALL Java_HelloWorld_hello
   (JNIEnv *, jclass, jstring);
 
+/*
+ * Class:     HelloWorld
+ * Method:    factAndCallMeBack
+ * Signature: (ILHelloWorld;)V
+ */
+JNIEXPORT void JNICALL Java_HelloWorld_factAndCallMeBack
+  (JNIEnv *, jclass, jint, jobject);
+
+/*
+ * Class:     HelloWorld
+ * Method:    counterNew
+ * Signature: (LHelloWorld;)J
+ */
+JNIEXPORT jlong JNICALL Java_HelloWorld_counterNew
+  (JNIEnv *, jclass, jobject);
+
+/*
+ * Class:     HelloWorld
+ * Method:    counterIncrement
+ * Signature: (J)V
+ */
+JNIEXPORT void JNICALL Java_HelloWorld_counterIncrement
+  (JNIEnv *, jclass, jlong);
+
+/*
+ * Class:     HelloWorld
+ * Method:    counterDestroy
+ * Signature: (J)V
+ */
+JNIEXPORT void JNICALL Java_HelloWorld_counterDestroy
+  (JNIEnv *, jclass, jlong);
+
 #ifdef __cplusplus
 }
 #endif
