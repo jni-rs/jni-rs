@@ -38,6 +38,14 @@ impl GlobalRef {
         }
         Ok(())
     }
+
+    /// Get the object from the global ref
+    ///
+    /// This borrows the ref and prevents it from being dropped as long as the
+    /// JObject sticks around.
+    pub fn as_obj<'a>(&'a self) -> JObject<'a> {
+        self.obj
+    }
 }
 
 impl Drop for GlobalRef {
