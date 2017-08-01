@@ -148,6 +148,11 @@ impl<'a> JNIEnv<'a> {
 
     /// Raise an exception from an existing object. This will continue being
     /// thrown in java unless `exception_clear` is called.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let _ = env.throw(("java/lang/Exception", "something bad happened"));
+    /// ```
     pub fn throw<E>(&self, obj: E) -> Result<()>
     where
         E: Desc<'a, JThrowable<'a>>,
@@ -165,6 +170,11 @@ impl<'a> JNIEnv<'a> {
 
     /// Create and throw a new exception from a class descriptor and an error
     /// message.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let _ = env.throw_new("java/lang/Exception", "something bad happened");
+    /// ```
     pub fn throw_new<S, T>(&self, class: T, msg: S) -> Result<()>
     where
         S: Into<JNIString>,
