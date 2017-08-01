@@ -1,3 +1,4 @@
+#![allow(unused_doc_comment)]
 #![allow(missing_docs)]
 
 error_chain!{
