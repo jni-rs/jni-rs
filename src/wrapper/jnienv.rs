@@ -473,7 +473,7 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Get the class for an object.
-    pub fn get_object_class(&self, obj: JObject) -> Result<JClass> {
+    pub fn get_object_class(&self, obj: JObject) -> Result<JClass<'a>> {
         Ok(jni_call!(self.internal, GetObjectClass, obj.into_inner()))
     }
 

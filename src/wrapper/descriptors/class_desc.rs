@@ -1,6 +1,6 @@
 use strings::JNIString;
 
-use objects::JClass;
+use objects::{JObject, JClass};
 
 use descriptors::Desc;
 
@@ -14,5 +14,11 @@ where
 {
     fn lookup(self, env: &JNIEnv<'a>) -> Result<JClass<'a>> {
         env.find_class(self)
+    }
+}
+
+impl<'a, 'b> Desc<'a, JClass<'a>> for JObject<'b> {
+    fn lookup(self, env: &JNIEnv<'a>) -> Result<JClass<'a>> {
+        env.get_object_class(self)
     }
 }
