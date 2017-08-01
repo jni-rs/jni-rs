@@ -149,9 +149,15 @@ impl<'a> JNIEnv<'a> {
     /// Raise an exception from an existing object. This will continue being
     /// thrown in java unless `exception_clear` is called.
     ///
-    /// # Example
+    /// # Examples
     /// ```rust,ignore
     /// let _ = env.throw(("java/lang/Exception", "something bad happened"));
+    /// ```
+    ///
+    /// Defaulting to "java/lang/Exception":
+    ///
+    /// ```rust,ignore
+    /// let _ = env.throw("something bad happened");
     /// ```
     pub fn throw<E>(&self, obj: E) -> Result<()>
     where
@@ -180,21 +186,7 @@ impl<'a> JNIEnv<'a> {
         S: Into<JNIString>,
         T: Desc<'a, JClass<'a>>,
     {
-        let class = class.lookup(self)?;
-        let msg = msg.into();
-        let res: i32 = unsafe {
-            jni_unchecked!(
-                self.internal,
-                ThrowNew,
-                class.into_inner(),
-                msg.as_ptr()
-            )
-        };
-        if res < 0 {
-            Err(format!("throw failed with code {}", res).into())
-        } else {
-            Ok(())
-        }
+        self.throw((class, msg))
     }
 
     /// Check whether or not an exception is currently in the process of being

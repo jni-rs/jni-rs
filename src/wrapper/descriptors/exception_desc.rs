@@ -30,3 +30,21 @@ impl<'a> Desc<'a, JThrowable<'a>> for Exception {
         (self.class, self.msg).lookup(env)
     }
 }
+
+impl<'a, 'b> Desc<'a, JThrowable<'a>> for &'b str {
+    fn lookup(self, env: &JNIEnv<'a>) -> Result<JThrowable<'a>> {
+        ("java/lang/Exception", self).lookup(env)
+    }
+}
+
+impl<'a> Desc<'a, JThrowable<'a>> for String {
+    fn lookup(self, env: &JNIEnv<'a>) -> Result<JThrowable<'a>> {
+        ("java/lang/Exception", self).lookup(env)
+    }
+}
+
+impl<'a, 'b> Desc<'a, JThrowable<'a>> for JNIString {
+    fn lookup(self, env: &JNIEnv<'a>) -> Result<JThrowable<'a>> {
+        ("java/lang/Exception", self).lookup(env)
+    }
+}
