@@ -13,7 +13,8 @@ use errors::*;
 
 use sys::{self, jarray, jboolean, jbooleanArray, jbyte, jbyteArray, jchar,
           jcharArray, jdouble, jdoubleArray, jfloat, jfloatArray, jint,
-          jintArray, jlong, jlongArray, jshort, jshortArray, jsize, jvalue};
+          jintArray, jlong, jlongArray, jshort, jshortArray, jsize, jvalue,
+          jobjectArray};
 use std::os::raw::{c_char, c_void};
 
 use strings::JNIString;
@@ -924,6 +925,56 @@ impl<'a> JNIEnv<'a> {
         let len: jsize =
             unsafe { jni_unchecked!(self.internal, GetArrayLength, array) };
         Ok(len)
+    }
+
+    /// Construct a new array holding objects in class `element_class`.
+    /// All elements are initially set to `initial_element`.
+    pub fn new_object_array(
+        &self,
+        length: jsize,
+        element_class: JClass,
+        initial_element: JObject,
+    ) -> Result<jobjectArray> {
+        non_null!(element_class, "new_object_array element_class argument");
+        Ok(jni_call!(
+            self.internal,
+            NewObjectArray,
+            length,
+            element_class.into_inner(),
+            initial_element.into_inner()
+        ))
+    }
+
+    /// Returns an element of the `jobjectArray` array.
+    pub fn get_object_array_element(
+        &self,
+        array: jobjectArray,
+        index: jsize,
+    ) -> Result<JObject> {
+        non_null!(array, "get_object_array_element array argument");
+        Ok(jni_call!(
+            self.internal,
+            GetObjectArrayElement,
+            array,
+            index
+        ))
+    }
+
+    /// Sets an element of the `jobjectArray` array.
+    pub fn set_object_array_element(
+        &self,
+        array: jobjectArray,
+        index: jsize,
+        value: JObject,
+    ) -> Result<()> {
+        non_null!(array, "set_object_array_element array argument");
+        Ok(jni_void_call!(
+            self.internal,
+            SetObjectArrayElement,
+            array,
+            index,
+            value.into_inner()
+        ))
     }
 
     /// Create a new java byte array from a rust byte slice.
