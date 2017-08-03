@@ -831,23 +831,36 @@ impl<'a> JNIEnv<'a> {
             return Err(ErrorKind::InvalidCtorReturn.into());
         }
 
-        let jni_args: Vec<jvalue> =
-            ctor_args.into_iter().map(|v| v.to_jni()).collect();
-
         // build strings
-        let name = "<init>";
-
         let class = class.lookup(self)?;
 
-        let method_id: JMethodID = (class, name, ctor_sig).lookup(self)?;
+        let method_id: JMethodID = (class, ctor_sig).lookup(self)?;
 
+        self.new_object_by_id(class, method_id, ctor_args)
+    }
+
+    /// Create a new object using a constructor. Arguments aren't checked because
+    /// of the `JMethodID` usage.
+    pub fn new_object_by_id<T>(
+        &self,
+        class: T,
+        ctor_id: JMethodID,
+        ctor_args: &[JValue],
+    ) -> Result<JObject<'a>>
+        where
+            T: Desc<'a, JClass<'a>>,
+    {
+        let class = class.lookup(self)?;
+
+        let jni_args: Vec<jvalue> =
+            ctor_args.into_iter().map(|v| v.to_jni()).collect();
         let jni_args = jni_args.as_ptr();
 
         Ok(jni_call!(
             self.internal,
             NewObjectA,
             class.into_inner(),
-            method_id.into_inner(),
+            ctor_id.into_inner(),
             jni_args
         ))
     }

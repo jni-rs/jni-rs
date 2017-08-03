@@ -21,6 +21,16 @@ where
     }
 }
 
+impl<'a, T, Signature> Desc<'a, JMethodID<'a>> for (T, Signature)
+    where
+        T: Desc<'a, JClass<'a>>,
+        Signature: Into<JNIString>,
+{
+    fn lookup(self, env: &JNIEnv<'a>) -> Result<JMethodID<'a>> {
+        (self.0, "<init>", self.1).lookup(env)
+    }
+}
+
 impl<'a, T, U, V> Desc<'a, JStaticMethodID<'a>> for (T, U, V)
 where
     T: Desc<
