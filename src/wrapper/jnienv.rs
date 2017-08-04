@@ -929,18 +929,25 @@ impl<'a> JNIEnv<'a> {
 
     /// Construct a new array holding objects in class `element_class`.
     /// All elements are initially set to `initial_element`.
-    pub fn new_object_array(
+    ///
+    /// This function returns a local reference, that must not be allocated excessively.
+    /// See [Java documentation][1] for details.
+    /// [1]: https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/design.html#global_and_local_references
+    pub fn new_object_array<T>(
         &self,
         length: jsize,
-        element_class: JClass,
+        element_class: T,
         initial_element: JObject,
-    ) -> Result<jobjectArray> {
-        non_null!(element_class, "new_object_array element_class argument");
+    ) -> Result<jobjectArray>
+    where
+        T: Desc<'a, JClass<'a>>
+    {
+        let class = element_class.lookup(self)?;
         Ok(jni_call!(
             self.internal,
             NewObjectArray,
             length,
-            element_class.into_inner(),
+            class.into_inner(),
             initial_element.into_inner()
         ))
     }
