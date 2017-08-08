@@ -23,6 +23,7 @@ impl<'a, 'b> Desc<'a, JClass<'a>> for JObject<'b> {
     }
 }
 
+/// This conversion assumes that the `GlobalRef` is a pointer to a class object.
 impl<'a> Desc<'a, JClass<'a>> for &'a GlobalRef {
     fn lookup(self, _: &JNIEnv<'a>) -> Result<JClass<'a>> {
         Ok(self.as_obj().into())
