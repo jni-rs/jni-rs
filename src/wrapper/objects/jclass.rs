@@ -28,7 +28,7 @@ impl<'a> From<JClass<'a>> for JObject<'a> {
     }
 }
 
-/// This conversion assumes that the `JClass` is a pointer to a class object.
+/// This conversion assumes that the `JObject` is a pointer to a class object.
 impl<'a> From<JObject<'a>> for JClass<'a> {
     fn from(other: JObject) -> JClass {
         (other.into_inner() as jclass).into()
