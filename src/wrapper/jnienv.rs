@@ -303,8 +303,17 @@ impl<'a> JNIEnv<'a> {
         Ok(jni_call!(self.internal, NewLocalRef, obj.into_inner()))
     }
 
-    #[allow(dead_code)]
-    fn delete_local_ref(&self, obj: JObject) -> Result<()> {
+
+    /// Deletes the local reference.
+    ///
+    /// Local references are valid for the duration of a native method call. They are
+    /// freed automatically after the native method returns. Each local reference costs
+    /// some amount of Java Virtual Machine resource. Programmers need to make sure that
+    /// native methods do not excessively allocate local references. Although local
+    /// references are automatically freed after the native method returns to Java,
+    /// excessive allocation of local references may cause the VM to run out of memory
+    /// during the execution of a native method.
+    pub fn delete_local_ref(&self, obj: JObject) -> Result<()> {
         non_null!(obj, "delete_local_ref obj argument");
         Ok(unsafe {
             jni_unchecked!(self.internal, DeleteLocalRef, obj.into_inner());
