@@ -317,7 +317,6 @@ impl<'a> JNIEnv<'a> {
         non_null!(obj, "delete_local_ref obj argument");
         Ok(unsafe {
             jni_unchecked!(self.internal, DeleteLocalRef, obj.into_inner());
-            check_exception!(self.internal);
         })
     }
 
