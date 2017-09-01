@@ -649,7 +649,7 @@ impl<'a> JNIEnv<'a> {
             JavaType::Primitive(p) => {
                 let v: JValue = match p {
                     Primitive::Boolean => {
-                        (jni_unchecked!(
+                        (jni_non_null_call!(
                             self.internal,
                             CallBooleanMethodA,
                             obj,
@@ -659,7 +659,7 @@ impl<'a> JNIEnv<'a> {
                             .into()
                     }
                     Primitive::Char => {
-                        jni_unchecked!(
+                        jni_non_null_call!(
                             self.internal,
                             CallCharMethodA,
                             obj,
@@ -668,7 +668,7 @@ impl<'a> JNIEnv<'a> {
                         ).into()
                     }
                     Primitive::Short => {
-                        jni_unchecked!(
+                        jni_non_null_call!(
                             self.internal,
                             CallShortMethodA,
                             obj,
@@ -677,7 +677,7 @@ impl<'a> JNIEnv<'a> {
                         ).into()
                     }
                     Primitive::Int => {
-                        jni_unchecked!(
+                        jni_non_null_call!(
                             self.internal,
                             CallIntMethodA,
                             obj,
@@ -686,7 +686,7 @@ impl<'a> JNIEnv<'a> {
                         ).into()
                     }
                     Primitive::Long => {
-                        jni_unchecked!(
+                        jni_non_null_call!(
                             self.internal,
                             CallLongMethodA,
                             obj,
@@ -695,7 +695,7 @@ impl<'a> JNIEnv<'a> {
                         ).into()
                     }
                     Primitive::Float => {
-                        jni_unchecked!(
+                        jni_non_null_call!(
                             self.internal,
                             CallFloatMethodA,
                             obj,
@@ -704,7 +704,7 @@ impl<'a> JNIEnv<'a> {
                         ).into()
                     }
                     Primitive::Double => {
-                        jni_unchecked!(
+                        jni_non_null_call!(
                             self.internal,
                             CallDoubleMethodA,
                             obj,
@@ -713,7 +713,7 @@ impl<'a> JNIEnv<'a> {
                         ).into()
                     }
                     Primitive::Byte => {
-                        jni_unchecked!(
+                        jni_non_null_call!(
                             self.internal,
                             CallByteMethodA,
                             obj,
@@ -722,7 +722,7 @@ impl<'a> JNIEnv<'a> {
                         ).into()
                     }
                     Primitive::Void => {
-                        jni_unchecked!(
+                        jni_void_call!(
                             self.internal,
                             CallVoidMethodA,
                             obj,
