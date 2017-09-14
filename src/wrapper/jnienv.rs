@@ -770,9 +770,12 @@ impl<'a> JNIEnv<'a> {
 
         let class = self.get_object_class(obj)?;
 
-        unsafe {
+        let res = unsafe {
             self.call_method_unsafe(obj, (class, name, sig), parsed.ret, args)
-        }
+        };
+        self.delete_local_ref(JObject::from(class))?;
+
+        res
     }
 
     /// Calls a static method safely. This comes with a number of
@@ -1574,6 +1577,8 @@ impl<'a> JNIEnv<'a> {
 
         let field_id: JFieldID = (class, name, ty).lookup(self)?;
 
+        self.delete_local_ref(JObject::from(class))?;
+
         unsafe { self.get_field_unsafe(obj, field_id, parsed) }
     }
 
@@ -1633,7 +1638,11 @@ impl<'a> JNIEnv<'a> {
 
         let class = self.get_object_class(obj)?;
 
-        unsafe { self.set_field_unsafe(obj, (class, name, ty), val) }
+        let res = unsafe { self.set_field_unsafe(obj, (class, name, ty), val) };
+
+        self.delete_local_ref(JObject::from(class))?;
+
+        res
     }
 
     /// Surrenders ownership of a rust object to Java. Requires an object with a
@@ -1659,6 +1668,7 @@ impl<'a> JNIEnv<'a> {
     {
         let class = self.get_object_class(obj)?;
         let field_id: JFieldID = (class, &field, "J").lookup(self)?;
+        self.delete_local_ref(JObject::from(class))?;
 
         let guard = self.lock_obj(obj)?;
 
@@ -1719,6 +1729,7 @@ impl<'a> JNIEnv<'a> {
     {
         let class = self.get_object_class(obj)?;
         let field_id: JFieldID = (class, &field, "J").lookup(self)?;
+        self.delete_local_ref(JObject::from(class))?;
 
         let mbox = {
             let guard = self.lock_obj(obj)?;
