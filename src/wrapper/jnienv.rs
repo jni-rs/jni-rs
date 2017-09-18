@@ -31,6 +31,7 @@ use objects::JMethodID;
 use objects::JStaticMethodID;
 use objects::JFieldID;
 use objects::GlobalRef;
+use objects::AutoLocal;
 
 use descriptors::Desc;
 
@@ -296,11 +297,21 @@ impl<'a> JNIEnv<'a> {
         Ok(global)
     }
 
-    // Not public yet - not sure what the GC behavior is. Needs more research
-    #[allow(dead_code)]
-    fn new_local_ref(&self, obj: JObject) -> Result<JObject> {
+    /// Create a new local ref to an object.
+    ///
+    /// Note that the object passed to this is *already* a local ref. This
+    /// creates yet another reference to it, which is most likely not what you
+    /// want.
+    pub fn new_local_ref<T>(&self, obj: JObject) -> Result<JObject>
+    {
         non_null!(obj, "new_local_ref obj argument");
-        Ok(jni_call!(self.internal, NewLocalRef, obj.into_inner()))
+        let local: JObject = jni_call!(self.internal, NewLocalRef, obj.into_inner());
+        Ok(local)
+    }
+
+    /// Creates a new auto-deleted local reference
+    pub fn auto_local(&'a self, obj: JObject<'a>) -> AutoLocal<'a> {
+        AutoLocal::new(self, obj)
     }
 
 

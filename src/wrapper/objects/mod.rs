@@ -32,3 +32,7 @@ pub use self::jbytebuffer::*;
 // For when you want to store a reference to a java object
 mod global_ref;
 pub use self::global_ref::*;
+
+// For automatic local ref deletion
+mod auto_local;
+pub use self::auto_local::*;
