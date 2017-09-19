@@ -1,6 +1,6 @@
 use strings::JNIString;
 
-use objects::{JObject, JClass, GlobalRef};
+use objects::{AutoLocal, GlobalRef, JClass, JObject};
 
 use descriptors::Desc;
 
@@ -24,8 +24,18 @@ impl<'a, 'b> Desc<'a, JClass<'a>> for JObject<'b> {
 }
 
 /// This conversion assumes that the `GlobalRef` is a pointer to a class object.
-impl<'a> Desc<'a, JClass<'a>> for &'a GlobalRef {
-    fn lookup(self, _: &JNIEnv<'a>) -> Result<JClass<'a>> {
+impl<'a, 'b> Desc<'a, JClass<'b>> for &'b GlobalRef {
+    fn lookup(self, _: &JNIEnv<'a>) -> Result<JClass<'b>> {
+        Ok(self.as_obj().into())
+    }
+}
+
+/// This conversion assumes that the `AutoLocal` is a pointer to a class object.
+impl<'a, 'b, 'c> Desc<'a, JClass<'b>> for &'b AutoLocal<'c>
+where
+    'c: 'b,
+{
+    fn lookup(self, _: &JNIEnv<'a>) -> Result<JClass<'b>> {
         Ok(self.as_obj().into())
     }
 }

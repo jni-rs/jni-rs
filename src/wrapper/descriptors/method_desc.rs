@@ -10,9 +10,9 @@ use strings::JNIString;
 
 use JNIEnv;
 
-impl<'a, T, U, V> Desc<'a, JMethodID<'a>> for (T, U, V)
+impl<'a, 'c, T, U, V> Desc<'a, JMethodID<'a>> for (T, U, V)
 where
-    T: Desc<'a, JClass<'a>>,
+    T: Desc<'a, JClass<'c>>,
     U: Into<JNIString>,
     V: Into<JNIString>,
 {
@@ -21,22 +21,19 @@ where
     }
 }
 
-impl<'a, T, Signature> Desc<'a, JMethodID<'a>> for (T, Signature)
-    where
-        T: Desc<'a, JClass<'a>>,
-        Signature: Into<JNIString>,
+impl<'a, 'c, T, Signature> Desc<'a, JMethodID<'a>> for (T, Signature)
+where
+    T: Desc<'a, JClass<'c>>,
+    Signature: Into<JNIString>,
 {
     fn lookup(self, env: &JNIEnv<'a>) -> Result<JMethodID<'a>> {
         (self.0, "<init>", self.1).lookup(env)
     }
 }
 
-impl<'a, T, U, V> Desc<'a, JStaticMethodID<'a>> for (T, U, V)
+impl<'a, 'c, T, U, V> Desc<'a, JStaticMethodID<'a>> for (T, U, V)
 where
-    T: Desc<
-        'a,
-        JClass<'a>,
-    >,
+    T: Desc<'a, JClass<'c>>,
     U: Into<JNIString>,
     V: Into<JNIString>,
 {

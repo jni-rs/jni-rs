@@ -2,15 +2,15 @@ use errors::*;
 
 use descriptors::Desc;
 
-use objects::{JObject, JClass, JThrowable, JValue};
+use objects::{JClass, JObject, JThrowable, JValue};
 
 use strings::JNIString;
 
 use JNIEnv;
 
-impl<'a, C, M> Desc<'a, JThrowable<'a>> for (C, M)
+impl<'a, 'c, C, M> Desc<'a, JThrowable<'a>> for (C, M)
 where
-    C: Desc<'a, JClass<'a>>,
+    C: Desc<'a, JClass<'c>>,
     M: Into<JNIString>,
 {
     fn lookup(self, env: &JNIEnv<'a>) -> Result<JThrowable<'a>> {

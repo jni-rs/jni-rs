@@ -9,9 +9,9 @@ use strings::JNIString;
 
 use JNIEnv;
 
-impl<'a, T, U, V> Desc<'a, JFieldID<'a>> for (T, U, V)
+impl<'a, 'c, T, U, V> Desc<'a, JFieldID<'a>> for (T, U, V)
 where
-    T: Desc<'a, JClass<'a>>,
+    T: Desc<'a, JClass<'c>>,
     U: Into<JNIString>,
     V: Into<JNIString>,
 {
