@@ -39,4 +39,9 @@ impl<'a> JObject<'a> {
     pub fn into_inner(self) -> jobject {
         self.internal
     }
+
+    /// Creates a new null object
+    pub fn null() -> JObject<'a> {
+        (::std::ptr::null_mut() as jobject).into()
+    }
 }
