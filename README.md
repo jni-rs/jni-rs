@@ -4,6 +4,8 @@
 
 # JNI bindings for Rust
 
+[![Join the chat at https://gitter.im/jni-rs/Lobby](https://badges.gitter.im/jni-rs/Lobby.svg)](https://gitter.im/jni-rs/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 See the [docs](https://docs.rs/jni) for more details.
 
 ## License
