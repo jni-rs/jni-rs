@@ -8,7 +8,7 @@ use sys::jmethodID;
 /// used in any of the extern function argument positions that would take a
 /// `jmethodid`.
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct JMethodID<'a> {
     internal: jmethodID,
     lifetime: PhantomData<&'a ()>,
