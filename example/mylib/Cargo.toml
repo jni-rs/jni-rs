@@ -7,4 +7,4 @@ authors = ["Josh Chase <josh@prevoty.com>"]
 jni = { path = "../../" }
 
 [lib]
-crate_type = ["dylib"]
+crate_type = ["cdylib"]

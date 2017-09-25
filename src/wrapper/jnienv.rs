@@ -125,11 +125,11 @@ impl<'a> JNIEnv<'a> {
     where
         T: Desc<'a, JClass<'a>>,
     {
-        let class = self.auto_local(class.lookup(self)?.into());
+        let class = class.lookup(self)?;
         Ok(jni_call!(
             self.internal,
             GetSuperclass,
-            class.as_obj().into_inner()
+            class.into_inner()
         ))
     }
 
@@ -139,15 +139,15 @@ impl<'a> JNIEnv<'a> {
         T: Desc<'a, JClass<'a>>,
         U: Desc<'a, JClass<'a>>,
     {
-        let class1 = self.auto_local(class1.lookup(self)?.into());
-        let class2 = self.auto_local(class2.lookup(self)?.into());
+        let class1 = class1.lookup(self)?;
+        let class2 = class2.lookup(self)?;
         Ok(
             unsafe {
                 jni_unchecked!(
                     self.internal,
                     IsAssignableFrom,
-                    class1.as_obj().into_inner(),
-                    class2.as_obj().into_inner()
+                    class1.into_inner(),
+                    class2.into_inner()
                 )
             } == sys::JNI_TRUE,
         )
@@ -170,12 +170,12 @@ impl<'a> JNIEnv<'a> {
     where
         E: Desc<'a, JThrowable<'a>>,
     {
-        let throwable = self.auto_local(obj.lookup(self)?.into());
+        let throwable = obj.lookup(self)?;
         let res: i32 = unsafe {
             jni_unchecked!(
                 self.internal,
                 Throw,
-                throwable.as_obj().into_inner()
+                throwable.into_inner()
             )
         };
         if res < 0 {
@@ -346,11 +346,11 @@ impl<'a> JNIEnv<'a> {
     where
         T: Desc<'a, JClass<'a>>,
     {
-        let class = self.auto_local(class.lookup(self)?.into());
+        let class = class.lookup(self)?;
         Ok(jni_call!(
             self.internal,
             AllocObject,
-            class.as_obj().into_inner()
+            class.into_inner()
         ))
     }
 
@@ -368,12 +368,12 @@ impl<'a> JNIEnv<'a> {
         V: Into<JNIString>,
         C: for<'d> Fn(&JClass<'d>, &JNIString, &JNIString) -> Result<R>,
     {
-        let class = self.auto_local(class.lookup(self)?.into());
+        let class = class.lookup(self)?;
         let ffi_name = name.into();
         let sig = sig.into();
 
         let res: Result<R> = catch!({
-            get_method(&class.as_obj().into(), &ffi_name, &sig)
+            get_method(&class, &ffi_name, &sig)
         });
 
         match res {
