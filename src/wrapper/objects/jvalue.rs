@@ -33,25 +33,21 @@ impl<'a> From<JValue<'a>> for jvalue {
 impl<'a> JValue<'a> {
     /// Convert the enum to its jni-compatible equivalent.
     pub fn to_jni(self) -> jvalue {
-        let val: jvalue = unsafe {
-            let mut value = jvalue::default();
-
-            match self {
-                JValue::Object(obj) => *value.l() = transmute(obj),
-                JValue::Byte(byte) => *value.b() = byte,
-                JValue::Char(char) => *value.c() = char,
-                JValue::Short(short) => *value.s() = short,
-                JValue::Int(int) => *value.i() = int,
-                JValue::Long(long) => *value.j() = long,
-                JValue::Bool(boolean) => *value.b() = boolean as i8,
-                JValue::Float(float) => *value.f() = float,
-                JValue::Double(double) => *value.d() = double,
-                JValue::Void => Default::default(),
-            }
-
-            value
+        let val: jvalue = match self {
+            JValue::Object(obj) => jvalue { l: unsafe { transmute(obj) } },
+            JValue::Byte(byte) => jvalue { b: byte },
+            JValue::Char(char) => jvalue { c: char },
+            JValue::Short(short) => jvalue { s: short },
+            JValue::Int(int) => jvalue { i: int },
+            JValue::Long(long) => jvalue { j: long },
+            JValue::Bool(boolean) => jvalue { b: boolean as i8 },
+            JValue::Float(float) => jvalue { f: float },
+            JValue::Double(double) => jvalue { d: double },
+            JValue::Void => jvalue { l: ::std::ptr::null_mut() },
         };
-        trace!("converted {:?} to jvalue {:?}", self, val._data);
+        trace!("converted {:?} to jvalue {:?}", self, unsafe {
+            ::std::mem::transmute::<_, usize>(val)
+        });
         val
     }
 
