@@ -7,14 +7,14 @@ use combine::*;
 #[derive(Eq, PartialEq, Debug)]
 pub enum Primitive {
     Boolean, // Z
-    Byte, // B
-    Char, // C
-    Double, // D
-    Float, // F
-    Int, // I
-    Long, // J
-    Short, // S
-    Void, // V
+    Byte,    // B
+    Char,    // C
+    Double,  // D
+    Float,   // F
+    Int,     // I
+    Long,    // J
+    Short,   // S
+    Void,    // V
 }
 
 impl ::std::fmt::Display for Primitive {
@@ -97,9 +97,7 @@ impl ::std::fmt::Display for TypeSignature {
     }
 }
 
-fn parse_primitive<S: Stream<Item = char>>(
-    input: S,
-) -> ParseResult<JavaType, S> {
+fn parse_primitive<S: Stream<Item = char>>(input: S) -> ParseResult<JavaType, S> {
     let boolean = token('Z').map(|_| Primitive::Boolean);
     let byte = token('B').map(|_| Primitive::Byte);
     let char_type = token('C').map(|_| Primitive::Char);
@@ -111,14 +109,14 @@ fn parse_primitive<S: Stream<Item = char>>(
     let void = token('V').map(|_| Primitive::Void);
 
     (boolean
-         .or(byte)
-         .or(char_type)
-         .or(double)
-         .or(float)
-         .or(int)
-         .or(long)
-         .or(short)
-         .or(void))
+        .or(byte)
+        .or(char_type)
+        .or(double)
+        .or(float)
+        .or(int)
+        .or(long)
+        .or(short)
+        .or(void))
         .map(|ty| JavaType::Primitive(ty))
         .parse_stream(input)
 }
@@ -146,11 +144,8 @@ fn parse_type<S: Stream<Item = char>>(input: S) -> ParseResult<JavaType, S> {
         .parse_stream(input)
 }
 
-fn parse_args<S: Stream<Item = char>>(
-    input: S,
-) -> ParseResult<Vec<JavaType>, S> {
-    between(token('('), token(')'), many(parser(parse_type)))
-        .parse_stream(input)
+fn parse_args<S: Stream<Item = char>>(input: S) -> ParseResult<Vec<JavaType>, S> {
+    between(token('('), token(')'), many(parser(parse_type))).parse_stream(input)
 }
 
 fn parse_sig<S: Stream<Item = char>>(input: S) -> ParseResult<JavaType, S> {

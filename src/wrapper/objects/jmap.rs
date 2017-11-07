@@ -44,23 +44,15 @@ impl<'a> JMap<'a> {
     pub fn from_env(env: &'a JNIEnv<'a>, obj: JObject<'a>) -> Result<JMap<'a>> {
         let class = env.find_class("java/util/Map")?;
 
-        let get = env.get_method_id(
-            class,
-            "get",
-            "(Ljava/lang/Object;)Ljava/lang/Object;",
-        )?;
+        let get = env.get_method_id(class, "get", "(Ljava/lang/Object;)Ljava/lang/Object;")?;
         let put = env.get_method_id(
             class,
             "put",
             "(Ljava/lang/Object;Ljava/lang/Object;\
-                            )Ljava/lang/Object;",
+             )Ljava/lang/Object;",
         )?;
 
-        let remove = env.get_method_id(
-            class,
-            "remove",
-            "(Ljava/lang/Object;)Ljava/lang/Object;",
-        )?;
+        let remove = env.get_method_id(class, "remove", "(Ljava/lang/Object;)Ljava/lang/Object;")?;
 
         Ok(JMap {
             internal: obj,
@@ -86,22 +78,16 @@ impl<'a> JMap<'a> {
 
         match result {
             Ok(val) => Ok(Some(val.l()?)),
-            Err(e) => {
-                match e.kind() {
-                    &ErrorKind::NullPtr(_) => Ok(None),
-                    _ => Err(e),
-                }
-            }
+            Err(e) => match e.kind() {
+                &ErrorKind::NullPtr(_) => Ok(None),
+                _ => Err(e),
+            },
         }
     }
 
     /// Look up the value for a key. Returns `Some` with the old value if the
     /// key already existed and `None` if it's a new key.
-    pub fn put(
-        &self,
-        key: JObject<'a>,
-        value: JObject<'a>,
-    ) -> Result<Option<JObject>> {
+    pub fn put(&self, key: JObject<'a>, value: JObject<'a>) -> Result<Option<JObject>> {
         let result = unsafe {
             self.env.call_method_unsafe(
                 self.internal,
@@ -113,12 +99,10 @@ impl<'a> JMap<'a> {
 
         match result {
             Ok(val) => Ok(Some(val.l()?)),
-            Err(e) => {
-                match e.kind() {
-                    &ErrorKind::NullPtr(_) => Ok(None),
-                    _ => Err(e),
-                }
-            }
+            Err(e) => match e.kind() {
+                &ErrorKind::NullPtr(_) => Ok(None),
+                _ => Err(e),
+            },
         }
     }
 
@@ -136,12 +120,10 @@ impl<'a> JMap<'a> {
 
         match result {
             Ok(val) => Ok(Some(val.l()?)),
-            Err(e) => {
-                match e.kind() {
-                    &ErrorKind::NullPtr(_) => Ok(None),
-                    _ => Err(e),
-                }
-            }
+            Err(e) => match e.kind() {
+                &ErrorKind::NullPtr(_) => Ok(None),
+                _ => Err(e),
+            },
         }
     }
 
@@ -161,11 +143,7 @@ impl<'a> JMap<'a> {
         let iter = unsafe {
             let iter = self.env.call_method_unsafe(
                 set,
-                (
-                    "java/util/Set",
-                    "iterator",
-                    "()Ljava/util/Iterator;",
-                ),
+                ("java/util/Set", "iterator", "()Ljava/util/Iterator;"),
                 JavaType::Object("java/util/Iterator".into()),
                 &[],
             )?;
@@ -176,25 +154,16 @@ impl<'a> JMap<'a> {
 
         let has_next = self.env.get_method_id(iter_class, "hasNext", "()Z")?;
 
-        let next = self.env.get_method_id(
-            iter_class,
-            "next",
-            "()Ljava/lang/Object;",
-        )?;
+        let next = self.env
+            .get_method_id(iter_class, "next", "()Ljava/lang/Object;")?;
 
         let entry_class = self.env.find_class("java/util/Map$Entry")?;
 
-        let get_key = self.env.get_method_id(
-            entry_class,
-            "getKey",
-            "()Ljava/lang/Object;",
-        )?;
+        let get_key = self.env
+            .get_method_id(entry_class, "getKey", "()Ljava/lang/Object;")?;
 
-        let get_value = self.env.get_method_id(
-            entry_class,
-            "getValue",
-            "()Ljava/lang/Object;",
-        )?;
+        let get_value = self.env
+            .get_method_id(entry_class, "getValue", "()Ljava/lang/Object;")?;
 
         Ok(JMapIter {
             map: &self,
@@ -236,13 +205,12 @@ impl<'a> JMapIter<'a> {
             return Ok(None);
         }
         let next = unsafe {
-            let next =
-                self.map.env.call_method_unsafe(
-                    self.iter,
-                    self.next,
-                    JavaType::Object("java/util/Map$Entry".into()),
-                    &[],
-                )?;
+            let next = self.map.env.call_method_unsafe(
+                self.iter,
+                self.next,
+                JavaType::Object("java/util/Map$Entry".into()),
+                &[],
+            )?;
             next.l()?
         };
 

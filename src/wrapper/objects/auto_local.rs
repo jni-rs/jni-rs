@@ -5,14 +5,14 @@ use objects::JObject;
 use JNIEnv;
 
 /// Auto-delete wrapper for local refs.
-/// 
+///
 /// Anything passed to a foreign method is considered a local ref unless it's
 /// explicitly turned into a global. These refs are automatically deleted once
 /// the foreign method exits, but it's possible that they may reach the
 /// JVM-imposed limit before that happens.
-/// 
+///
 /// This wrapper provides automatic local ref deletion when it goes out of scope.
-/// 
+///
 /// NOTE: This comes with some potential safety risks. DO NOT use this to wrap
 /// something unless you're SURE it won't be used after this wrapper gets
 /// dropped. Otherwise, you'll get a nasty JVM crash.

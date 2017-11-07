@@ -2,7 +2,7 @@ use std::os::raw::c_char;
 
 use std::ffi;
 
-use std::borrow::{Cow, ToOwned, Borrow};
+use std::borrow::{Borrow, Cow, ToOwned};
 
 use cesu8::from_java_cesu8;
 use cesu8::to_java_cesu8;
@@ -42,7 +42,9 @@ where
 {
     fn from(other: T) -> Self {
         let enc = to_java_cesu8(other.as_ref()).into_owned();
-        JNIString { internal: unsafe { ffi::CString::from_vec_unchecked(enc) } }
+        JNIString {
+            internal: unsafe { ffi::CString::from_vec_unchecked(enc) },
+        }
     }
 }
 
@@ -95,9 +97,7 @@ impl ToOwned for JNIStr {
     fn to_owned(&self) -> JNIString {
         unsafe {
             JNIString {
-                internal: ffi::CString::from_vec_unchecked(
-                    self.to_bytes().to_vec(),
-                ),
+                internal: ffi::CString::from_vec_unchecked(self.to_bytes().to_vec()),
             }
         }
     }
