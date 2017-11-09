@@ -47,6 +47,14 @@ JNIEXPORT void JNICALL Java_HelloWorld_counterIncrement
 JNIEXPORT void JNICALL Java_HelloWorld_counterDestroy
   (JNIEnv *, jclass, jlong);
 
+/*
+ * Class:     HelloWorld
+ * Method:    asyncComputation
+ * Signature: (LHelloWorld;)V
+ */
+JNIEXPORT void JNICALL Java_HelloWorld_asyncComputation
+  (JNIEnv *, jclass, jobject);
+
 #ifdef __cplusplus
 }
 #endif
