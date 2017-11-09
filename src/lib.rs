@@ -189,6 +189,10 @@ mod wrapper {
     /// Actual communication with the JVM
     mod jnienv;
     pub use self::jnienv::*;
+
+    /// Java VM interface
+    mod java_vm;
+    pub use self::java_vm::*;
 }
 
 pub use wrapper::*;

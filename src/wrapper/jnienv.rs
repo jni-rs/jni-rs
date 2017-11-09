@@ -15,6 +15,7 @@ use sys::{self, jarray, jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, js
           jvalue, jbooleanArray, jbyteArray, jcharArray, jdoubleArray, jfloatArray, jintArray,
           jlongArray, jobjectArray, jshortArray};
 use std::os::raw::{c_char, c_void};
+use std::ptr;
 
 use strings::JNIString;
 use strings::JavaStr;
@@ -37,6 +38,8 @@ use descriptors::Desc;
 use signature::TypeSignature;
 use signature::JavaType;
 use signature::Primitive;
+
+use JavaVM;
 
 /// FFI-compatible JNIEnv struct. You can safely use this as the JNIEnv argument
 /// to exported methods that will be called by java. This is where most of the
@@ -1605,6 +1608,17 @@ impl<'a> JNIEnv<'a> {
     /// Returns underlying `sys::JNIEnv` interface.
     pub fn get_native_interface(&self) -> *mut sys::JNIEnv {
         self.internal
+    }
+
+    /// Returns the Java VM interface.
+    pub fn get_java_vm(&self) -> Result<JavaVM> {
+        let mut raw = ptr::null_mut();
+        unsafe {
+            // TODO: Handle errors
+            let _ = jni_unchecked!(self.internal, GetJavaVM, &mut raw);
+            JavaVM::from_raw(raw)
+        }
+        // ...
     }
 }
 
