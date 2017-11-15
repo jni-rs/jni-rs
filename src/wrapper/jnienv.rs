@@ -298,6 +298,23 @@ impl<'a> JNIEnv<'a> {
         })
     }
 
+    /// Creates a new local reference frame, in which at least a given number of local
+    /// references can be created.
+    ///
+    /// Contrary to the `PushLocalFrame` from the `JNI` this function returns `Err` instead
+    /// of a negative value on failure.
+    pub fn push_local_frame(&self, capacity: i32) -> Result<()> {
+        // `PushLocalFrame` returns `jint`, but we don't need it.
+        Ok(jni_void_call!(self.internal, PushLocalFrame, capacity))
+    }
+
+    /// Pops off the current local reference frame, frees all the local references.
+    ///
+    /// Note that resulting `JObject` can be `NULL` if `result` is `NULL`.
+    pub fn pop_local_frame(&self, result: JObject) -> Result<JObject> {
+        Ok(jni_call!(self.internal, PopLocalFrame, result.into_inner()))
+    }
+
     /// Allocates a new object from a class descriptor without running a
     /// constructor.
     pub fn alloc_object<T>(&self, class: T) -> Result<JObject>
