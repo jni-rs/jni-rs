@@ -276,7 +276,11 @@ impl<'a> JNIEnv<'a> {
         Ok(local)
     }
 
-    /// Creates a new auto-deleted local reference
+    /// Creates a new auto-deleted local reference.
+    ///
+    /// See also `push_local_frame`/`pop_local_frame` methods that can be more convenient
+    /// when you create a bounded number of local references in a method but can't rely on
+    /// automatic de-allocation (e.g., in case of recursion or just deep call stacks).
     pub fn auto_local(&'a self, obj: JObject<'a>) -> AutoLocal<'a> {
         AutoLocal::new(self, obj)
     }
@@ -291,6 +295,9 @@ impl<'a> JNIEnv<'a> {
     /// references are automatically freed after the native method returns to Java,
     /// excessive allocation of local references may cause the VM to run out of memory
     /// during the execution of a native method.
+    ///
+    /// In most cases it is better to use `AutoLocal` (see `auto_local` method) or
+    /// `push_local_frame`/`pop_local_frame` instead of direct `delete_local_ref` calls.
     pub fn delete_local_ref(&self, obj: JObject) -> Result<()> {
         non_null!(obj, "delete_local_ref obj argument");
         Ok(unsafe {
@@ -301,14 +308,17 @@ impl<'a> JNIEnv<'a> {
     /// Creates a new local reference frame, in which at least a given number of local
     /// references can be created.
     ///
-    /// Contrary to the `PushLocalFrame` from the `JNI` this function returns `Err` instead
-    /// of a negative value on failure.
+    /// Returns `Err` on failure, with a pending `OutOfMemoryError`.
+    ///
+    /// See also `auto_local` method and `AutoLocal` type - that approach can be more
+    /// convenient in loops.
     pub fn push_local_frame(&self, capacity: i32) -> Result<()> {
         // `PushLocalFrame` returns `jint`, but we don't need it.
         Ok(jni_void_call!(self.internal, PushLocalFrame, capacity))
     }
 
-    /// Pops off the current local reference frame, frees all the local references.
+    /// Pops off the current local reference frame, frees all the local references allocated
+    /// on the current stack frame.
     ///
     /// Note that resulting `JObject` can be `NULL` if `result` is `NULL`.
     pub fn pop_local_frame(&self, result: JObject) -> Result<JObject> {
