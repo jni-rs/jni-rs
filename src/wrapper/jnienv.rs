@@ -310,6 +310,9 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Returns `Err` on failure, with a pending `OutOfMemoryError`.
     ///
+    /// Prefer to use `with_local_frame` instead of direct `push_local_frame`/
+    /// `pop_local_frame` calls.
+    ///
     /// See also `auto_local` method and `AutoLocal` type - that approach can be more
     /// convenient in loops.
     pub fn push_local_frame(&self, capacity: i32) -> Result<()> {
@@ -323,6 +326,23 @@ impl<'a> JNIEnv<'a> {
     /// Note that resulting `JObject` can be `NULL` if `result` is `NULL`.
     pub fn pop_local_frame(&self, result: JObject) -> Result<JObject> {
         Ok(jni_call!(self.internal, PopLocalFrame, result.into_inner()))
+    }
+
+    /// Provides a convenient way to use `push_local_frame` by automatically calling
+    /// `pop_local_frame` function.
+    pub fn with_local_frame<F>(&self, capacity: i32, f: F) -> Result<JObject>
+        where
+            F: Fn() -> Result<JObject<'a>>,
+    {
+        self.push_local_frame(capacity)?;
+        let res = f();
+        match res {
+            Ok(obj) => self.pop_local_frame(obj),
+            Err(e) => {
+                self.pop_local_frame(JObject::null())?;
+                Err(e)
+            }
+        }
     }
 
     /// Allocates a new object from a class descriptor without running a
