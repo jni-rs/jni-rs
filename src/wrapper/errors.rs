@@ -8,13 +8,13 @@ error_chain!{
     errors {
         WrongJValueType(cast: &'static str, actual: &'static str) {
             description("Invalid JValue type cast")
-            display("invaid JValue type cast: {}. actual type: {}",
+            display("Invalid JValue type cast: {}. Actual type: {}",
                     cast,
                     actual)
         }
         InvalidCtorReturn {
-            description("Invalid contructor return type (must be void)")
-            display("Invalid contructor return type (must be void)")
+            description("Invalid constructor return type (must be void)")
+            display("Invalid constructor return type (must be void)")
         }
         InvalidArgList {
             description("Invalid number of arguments passed to java method")
