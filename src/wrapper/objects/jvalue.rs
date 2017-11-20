@@ -50,7 +50,7 @@ impl<'a> JValue<'a> {
             },
         };
         trace!("converted {:?} to jvalue {:?}", self, unsafe {
-            ::std::mem::transmute::<_, usize>(val)
+            ::std::mem::transmute::<_, u64>(val)
         });
         val
     }
