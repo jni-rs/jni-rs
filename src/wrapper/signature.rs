@@ -46,7 +46,7 @@ pub enum JavaType {
 impl JavaType {
     /// Parse a type string into a JavaType enum.
     pub fn from_str(s: &str) -> Result<JavaType> {
-        Ok(match parser(parse_type).parse(s).map(|res| res.0) {
+        Ok(match parser(parse_type).parse(State::new(s)).map(|res| res.0) {
             Ok(sig) => sig,
             Err(e) => return Err(format_error_message(&e, s).into()),
         })
@@ -77,7 +77,7 @@ pub struct TypeSignature {
 impl TypeSignature {
     /// Parse a signature string into a TypeSignature enum.
     pub fn from_str<S: AsRef<str>>(s: S) -> Result<TypeSignature> {
-        Ok(match parser(parse_sig).parse(s.as_ref()).map(|res| res.0) {
+        Ok(match parser(parse_sig).parse(State::new(s.as_ref())).map(|res| res.0) {
             Ok(JavaType::Method(sig)) => *sig,
             Err(e) => return Err(format_error_message(&e, s.as_ref()).into()),
             _ => unreachable!(),
