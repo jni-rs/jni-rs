@@ -325,7 +325,9 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Note that resulting `JObject` can be `NULL` if `result` is `NULL`.
     pub fn pop_local_frame(&self, result: JObject) -> Result<JObject> {
-        Ok(jni_call!(self.internal, PopLocalFrame, result.into_inner()))
+        Ok(unsafe {
+            jni_unchecked!(self.internal, PopLocalFrame, result.into_inner()).into()
+        })
     }
 
     /// Provides a convenient way to use `push_local_frame` by automatically calling
