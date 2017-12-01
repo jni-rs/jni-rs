@@ -1619,6 +1619,11 @@ impl<'a> JNIEnv<'a> {
             JavaVM::from_raw(raw)
         }
     }
+
+    /// Ensures that at least a given number of local references can be created in the current thread.
+    pub fn ensure_local_capacity(&self, capacity: jint) -> Result<()> {
+        Ok(jni_void_call!(self.internal, EnsureLocalCapacity, capacity))
+    }
 }
 
 /// Guard for a lock on a java object. This gets returned from the `lock_obj`
