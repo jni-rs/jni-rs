@@ -134,7 +134,7 @@ pub extern "system" fn Java_HelloWorld_asyncComputation(
     // Then we need to detach it from the `JNIEnv` it was created from, because
     // `GlobalRef` is not `Send`. We will then re-attach it to the right `JNIEnv`
     // once inside the thread.
-    let callback = callback.detach();
+    let callback = callback.detach().unwrap();
 
     // Use channel to prevent the Java program to finish before the thread
     // has chance to start.
