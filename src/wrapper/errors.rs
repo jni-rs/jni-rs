@@ -1,6 +1,8 @@
 #![allow(unused_doc_comment)]
 #![allow(missing_docs)]
 
+use sys;
+
 error_chain!{
     foreign_links {
     }
@@ -48,9 +50,17 @@ error_chain!{
             description("mutex already locked")
             display("mutex already locked")
         }
-        Detached {
+        JavaVMMethodNotFound(name: &'static str) {
+            description("Method pointer null in JavaVM")
+            display("JavaVM null method pointer for {}", name)
+        }
+        ThreadDetached {
             description("Current thread is not attached to the java VM")
             display("Current thread is not attached to the java VM")
+        }
+        Other(error: sys::jint) {
+            description("JNI error")
+            display("JNI error: {}", error)
         }
     }
 }
@@ -58,6 +68,14 @@ error_chain!{
 impl<T> From<::std::sync::TryLockError<T>> for Error {
     fn from(_: ::std::sync::TryLockError<T>) -> Self {
         ErrorKind::TryLock.into()
+    }
+}
+
+pub fn jni_error_code_to_result(code: sys::jint) -> Result<()> {
+    match code {
+        sys::JNI_OK => Ok(()),
+        sys::JNI_EDETACHED => Err(Error::from(ErrorKind::ThreadDetached)),
+        _ => Err(Error::from(ErrorKind::Other(code))),
     }
 }
 

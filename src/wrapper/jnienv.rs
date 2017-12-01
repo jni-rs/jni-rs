@@ -1614,11 +1614,10 @@ impl<'a> JNIEnv<'a> {
     pub fn get_java_vm(&self) -> Result<JavaVM> {
         let mut raw = ptr::null_mut();
         unsafe {
-            // TODO: Handle errors
-            let _ = jni_unchecked!(self.internal, GetJavaVM, &mut raw);
+            let res = jni_unchecked!(self.internal, GetJavaVM, &mut raw);
+            jni_error_code_to_result(res)?;
             JavaVM::from_raw(raw)
         }
-        // ...
     }
 }
 

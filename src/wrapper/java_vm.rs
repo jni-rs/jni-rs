@@ -14,7 +14,7 @@ unsafe impl Sync for JavaVM {}
 
 impl JavaVM {
     /// Create a JavaVM from a raw pointer.
-    pub fn from_raw(ptr: *mut sys::JavaVM) -> Result<Self> {
+    pub unsafe fn from_raw(ptr: *mut sys::JavaVM) -> Result<Self> {
         non_null!(ptr, "from_raw ptr argument");
         Ok(JavaVM(ptr))
     }
@@ -25,8 +25,9 @@ impl JavaVM {
     pub fn attach_current_thread(&self) -> Result<AttachGuard> {
         let mut ptr = ptr::null_mut();
         unsafe {
-            // TODO: Handle errors
-            let _ = jni_unchecked!(self.0, AttachCurrentThread, &mut ptr, ptr::null_mut());
+            let res = java_vm_unchecked!(self.0, AttachCurrentThread, &mut ptr, ptr::null_mut());
+            jni_error_code_to_result(res)?;
+
             let env = JNIEnv::from_raw(ptr as *mut sys::JNIEnv)?;
             Ok(AttachGuard {
                 java_vm: self,
@@ -39,13 +40,14 @@ impl JavaVM {
     pub fn attach_current_thread_as_daemon(&self) -> Result<JNIEnv> {
         let mut ptr = ptr::null_mut();
         unsafe {
-            // TODO: Handle errors
-            let _ = jni_unchecked!(
+            let res = java_vm_unchecked!(
                 self.0,
                 AttachCurrentThreadAsDaemon,
                 &mut ptr,
                 ptr::null_mut()
             );
+            jni_error_code_to_result(res)?;
+
             JNIEnv::from_raw(ptr as *mut sys::JNIEnv)
         }
     }
@@ -55,12 +57,10 @@ impl JavaVM {
     pub fn get_env(&self) -> Result<JNIEnv> {
         let mut ptr = ptr::null_mut();
         unsafe {
-            let res = jni_unchecked!(self.0, GetEnv, &mut ptr, sys::JNI_VERSION_1_1);
-            match res {
-                sys::JNI_OK => JNIEnv::from_raw(ptr as *mut sys::JNIEnv),
-                sys::JNI_EDETACHED => Err(Error::from(ErrorKind::Detached)),
-                _ => unreachable!(),
-            }
+            let res = java_vm_unchecked!(self.0, GetEnv, &mut ptr, sys::JNI_VERSION_1_1);
+            jni_error_code_to_result(res)?;
+
+            JNIEnv::from_raw(ptr as *mut sys::JNIEnv)
         }
     }
 }
@@ -76,7 +76,7 @@ pub struct AttachGuard<'a> {
 impl<'a> AttachGuard<'a> {
     fn detach(&mut self) -> Result<()> {
         unsafe {
-            jni_unchecked!(self.java_vm.0, DetachCurrentThread);
+            java_vm_unchecked!(self.java_vm.0, DetachCurrentThread);
         }
 
         Ok(())

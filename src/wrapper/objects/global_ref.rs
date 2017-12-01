@@ -111,7 +111,7 @@ impl DetachedGlobalRef {
                 let _ = self.attach_impl(&env);
                 Ok(())
             }
-            Err(Error(ErrorKind::Detached, _)) => {
+            Err(Error(ErrorKind::ThreadDetached, _)) => {
                 let env = self.vm.attach_current_thread()?;
                 let _ = self.attach_impl(&env);
                 Ok(())
