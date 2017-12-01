@@ -49,6 +49,20 @@ impl JavaVM {
             JNIEnv::from_raw(ptr as *mut sys::JNIEnv)
         }
     }
+
+    /// Get the `JNIEnv` associated with the current thread, or `ErrorKind::Detached`
+    /// if the current thread is not attached to the java VM.
+    pub fn get_env(&self) -> Result<JNIEnv> {
+        let mut ptr = ptr::null_mut();
+        unsafe {
+            let res = jni_unchecked!(self.0, GetEnv, &mut ptr, sys::JNI_VERSION_1_1);
+            match res {
+                sys::JNI_OK => JNIEnv::from_raw(ptr as *mut sys::JNIEnv),
+                sys::JNI_EDETACHED => Err(Error::from(ErrorKind::Detached)),
+                _ => unreachable!(),
+            }
+        }
+    }
 }
 
 /// A RAII implementation of scoped guard which detaches the current thread

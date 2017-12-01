@@ -48,6 +48,10 @@ error_chain!{
             description("mutex already locked")
             display("mutex already locked")
         }
+        Detached {
+            description("Current thread is not attached to the java VM")
+            display("Current thread is not attached to the java VM")
+        }
     }
 }
 
