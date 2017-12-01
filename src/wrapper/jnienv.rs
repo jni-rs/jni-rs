@@ -15,6 +15,7 @@ use sys::{self, jarray, jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, js
           jvalue, jbooleanArray, jbyteArray, jcharArray, jdoubleArray, jfloatArray, jintArray,
           jlongArray, jobjectArray, jshortArray};
 use std::os::raw::{c_char, c_void};
+use std::ptr;
 
 use strings::JNIString;
 use strings::JavaStr;
@@ -37,6 +38,8 @@ use descriptors::Desc;
 use signature::TypeSignature;
 use signature::JavaType;
 use signature::Primitive;
+
+use JavaVM;
 
 /// FFI-compatible JNIEnv struct. You can safely use this as the JNIEnv argument
 /// to exported methods that will be called by java. This is where most of the
@@ -325,7 +328,9 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Note that resulting `JObject` can be `NULL` if `result` is `NULL`.
     pub fn pop_local_frame(&self, result: JObject) -> Result<JObject> {
-        Ok(jni_call!(self.internal, PopLocalFrame, result.into_inner()))
+        Ok(unsafe {
+            jni_unchecked!(self.internal, PopLocalFrame, result.into_inner()).into()
+        })
     }
 
     /// Provides a convenient way to use `push_local_frame` by automatically calling
@@ -1603,6 +1608,21 @@ impl<'a> JNIEnv<'a> {
     /// Returns underlying `sys::JNIEnv` interface.
     pub fn get_native_interface(&self) -> *mut sys::JNIEnv {
         self.internal
+    }
+
+    /// Returns the Java VM interface.
+    pub fn get_java_vm(&self) -> Result<JavaVM> {
+        let mut raw = ptr::null_mut();
+        unsafe {
+            let res = jni_unchecked!(self.internal, GetJavaVM, &mut raw);
+            jni_error_code_to_result(res)?;
+            JavaVM::from_raw(raw)
+        }
+    }
+
+    /// Ensures that at least a given number of local references can be created in the current thread.
+    pub fn ensure_local_capacity(&self, capacity: jint) -> Result<()> {
+        Ok(jni_void_call!(self.internal, EnsureLocalCapacity, capacity))
     }
 }
 

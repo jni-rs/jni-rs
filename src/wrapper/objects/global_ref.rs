@@ -1,10 +1,11 @@
 use std::convert::From;
+use std::mem;
 
+use JavaVM;
+use JNIEnv;
 use errors::*;
-
 use objects::JObject;
-
-use sys::{jobject, JNIEnv};
+use sys::{self, jobject};
 
 /// A global JVM reference. These are "pinned" by the garbage collector and are
 /// guaranteed to not get collected until released. Thus, this is allowed to
@@ -12,7 +13,7 @@ use sys::{jobject, JNIEnv};
 /// since it requires a pointer to the `JNIEnv` to do anything useful with it.
 pub struct GlobalRef {
     obj: JObject<'static>,
-    env: *mut JNIEnv,
+    env: *mut sys::JNIEnv,
 }
 
 impl<'a> From<&'a GlobalRef> for JObject<'a> {
@@ -24,7 +25,7 @@ impl<'a> From<&'a GlobalRef> for JObject<'a> {
 impl GlobalRef {
     /// Create a new global reference object. This assumes that
     /// `CreateGlobalRef` has already been called.
-    pub unsafe fn new(env: *mut JNIEnv, obj: jobject) -> Self {
+    pub unsafe fn new(env: *mut sys::JNIEnv, obj: jobject) -> Self {
         GlobalRef {
             obj: JObject::from(obj),
             env: env,
@@ -46,6 +47,21 @@ impl GlobalRef {
     pub fn as_obj<'a>(&'a self) -> JObject<'a> {
         self.obj
     }
+
+    /// Detach the global ref from the JNI environment to send it across thread boundaries.
+    pub fn detach(self) -> Result<DetachedGlobalRef> {
+        let env = unsafe { JNIEnv::from_raw(self.env)? };
+        let vm = env.get_java_vm()?;
+
+        let res = DetachedGlobalRef {
+            obj: self.obj,
+            vm: vm,
+        };
+
+        mem::forget(self); // prevent dropping the reference.
+
+        Ok(res)
+    }
 }
 
 impl Drop for GlobalRef {
@@ -54,6 +70,69 @@ impl Drop for GlobalRef {
         match res {
             Ok(()) => {}
             Err(e) => debug!("error dropping global ref: {:#?}", e),
+        }
+    }
+}
+
+/// A detached global JVM reference that can be sent across threads. To do
+/// anything useful with it, it must be `attach`ed first.
+pub struct DetachedGlobalRef {
+    obj: JObject<'static>,
+    vm: JavaVM,
+}
+
+unsafe impl Send for DetachedGlobalRef {}
+
+impl DetachedGlobalRef {
+    /// Creates a new detached global reference. This assumes that `CreateGlobalRef`
+    /// has alrady been called.
+    pub unsafe fn new(vm: JavaVM, obj: sys::jobject) -> Self {
+        DetachedGlobalRef {
+            obj: JObject::from(obj),
+            vm,
+        }
+    }
+
+    /// Attach this ref to a `JNIEnv` to produce `GlobalRef`.
+    pub fn attach(self, env: &JNIEnv) -> GlobalRef {
+        let res = self.attach_impl(env);
+        mem::forget(self);
+        res
+    }
+
+    /// Unwrap to the internal JNI type.
+    pub fn into_inner(self) -> sys::jobject {
+        self.obj.into_inner()
+    }
+
+    fn drop_impl(&self) -> Result<()> {
+        match self.vm.get_env() {
+            Ok(env) => {
+                let _ = self.attach_impl(&env);
+                Ok(())
+            }
+            Err(Error(ErrorKind::ThreadDetached, _)) => {
+                let env = self.vm.attach_current_thread()?;
+                let _ = self.attach_impl(&env);
+                Ok(())
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    fn attach_impl(&self, env: &JNIEnv) -> GlobalRef {
+        GlobalRef {
+            obj: self.obj,
+            env: env.get_native_interface(),
+        }
+    }
+}
+
+impl Drop for DetachedGlobalRef {
+    fn drop(&mut self) {
+        match self.drop_impl() {
+            Ok(()) => {}
+            Err(e) => debug!("error dropping detached global ref: {:#?}", e),
         }
     }
 }

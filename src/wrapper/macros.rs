@@ -102,3 +102,29 @@ macro_rules! catch {
         (|| $b)()
     };
 }
+
+macro_rules! java_vm_method {
+    ( $jnienv:expr, $name:tt ) => ({
+        trace!("looking up JavaVM method {}", stringify!($name));
+        let env = $jnienv;
+        match deref!(deref!(env, "JavaVM"), "*JavaVM").$name {
+            Some(meth) => {
+                trace!("found JavaVM method");
+                meth
+            },
+            None => {
+                trace!("JavaVM method not defined, returning error");
+                return Err($crate::errors::Error::from(
+                    $crate::errors::ErrorKind::JavaVMMethodNotFound(
+                        stringify!($name))).into())},
+        }
+    })
+}
+
+macro_rules! java_vm_unchecked {
+    ( $java_vm:expr, $name:tt $(, $args:expr )* ) => ({
+        trace!("calling unchecked JavaVM method: {}", stringify!($name));
+        let res = java_vm_method!($java_vm, $name)($java_vm, $($args),*);
+        res
+    })
+}

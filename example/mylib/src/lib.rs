@@ -7,12 +7,16 @@ use jni::JNIEnv;
 // These objects are what you should use as arguments to your native function.
 // They carry extra lifetime information to prevent them escaping this context
 // and getting used after being GC'd.
-use jni::objects::{JClass, JString, JObject, GlobalRef};
+use jni::objects::{GlobalRef, JClass, JObject, JString};
 
 // This is just a pointer. We'll be returning it from our function.
 // We can't return one of the objects with lifetime information because the
 // lifetime checker won't let us.
 use jni::sys::{jint, jlong, jstring};
+
+use std::thread;
+use std::time::Duration;
+use std::sync::mpsc;
 
 // This keeps rust from "mangling" the name and making it unique for this crate.
 #[no_mangle]
@@ -24,7 +28,7 @@ pub extern "system" fn Java_HelloWorld_hello(env: JNIEnv,
                                              // static method. Not going to be
                                              // used, but still needs to have
                                              // an argument slot
-                                             class: JClass,
+                                             _class: JClass,
                                              input: JString)
                                              -> jstring {
     // First, we have to get the string out of java. Check out the `strings`
@@ -109,6 +113,58 @@ pub unsafe extern "system" fn Java_HelloWorld_counterDestroy(
     counter_ptr: jlong
 ){
     let _boxed_counter = Box::from_raw(counter_ptr as *mut Counter);
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub extern "system" fn Java_HelloWorld_asyncComputation(
+    env: JNIEnv,
+    _class: JClass,
+    callback: JObject,
+) {
+    // `JNIEnv` cannot be sent across thread boundaries. To be able to use JNI
+    // functions in other threads, we must first obtain the `JavaVM` interface
+    // which, unlike `JNIEnv` is `Send`.
+    let jvm = env.get_java_vm().unwrap();
+
+    // We need to obtain global reference to the `callback` object before sending
+    // it to the thread, to prevent it from being collected by the GC.
+    let callback = env.new_global_ref(callback).unwrap();
+
+    // Then we need to detach it from the `JNIEnv` it was created from, because
+    // `GlobalRef` is not `Send`. We will then re-attach it to the right `JNIEnv`
+    // once inside the thread.
+    let callback = callback.detach().unwrap();
+
+    // Use channel to prevent the Java program to finish before the thread
+    // has chance to start.
+    let (tx, rx) = mpsc::channel();
+
+    let _ = thread::spawn(move || {
+        // Signal that the thread has started.
+        tx.send(()).unwrap();
+
+        // Use the `JavaVM` interface to attach a `JNIEnv` to the current thread.
+        let env = jvm.attach_current_thread().unwrap();
+
+        // Then attach the detached `callback` global ref to this  newly obtained
+        // `JNIEnv`, producing `GlobalRef` which we can use normally.
+        let callback = callback.attach(&*env);
+        let callback = callback.as_obj();
+
+        for i in 0..11 {
+            let progress = (i * 10) as jint;
+            // Now we can use all available `JNIEnv` functionality normally.
+            env.call_method(callback, "asyncCallback", "(I)V", &[progress.into()])
+                .unwrap();
+            thread::sleep(Duration::from_millis(100));
+        }
+
+        // The current thread is detached automatically when `env` goes out of scope.
+    });
+
+    // Wait until the thread has started.
+    rx.recv().unwrap();
 }
 
 #[cfg(test)]
