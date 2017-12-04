@@ -51,6 +51,7 @@ use objects::JFieldID;
 use objects::JMap;
 use objects::JMethodID;
 use objects::JObject;
+use objects::JStaticFieldID;
 use objects::JStaticMethodID;
 use objects::JString;
 use objects::JThrowable;
@@ -508,6 +509,50 @@ impl<'a> JNIEnv<'a> {
             Ok(jni_call!(
                 self.internal,
                 GetFieldID,
+                class.into_inner(),
+                ffi_name.as_ptr(),
+                ffi_sig.as_ptr()
+            ))
+        });
+
+        match res {
+            Ok(m) => Ok(m),
+            Err(e) => match e.kind() {
+                &ErrorKind::NullPtr(_) => {
+                    let name: String = ffi_name.into();
+                    let sig: String = ffi_sig.into();
+                    return Err(ErrorKind::FieldNotFound(name, sig).into());
+                }
+                _ => return Err(e),
+            },
+        }
+    }
+
+    /// Look up the static field ID for a class/name/type combination.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let field_id = env.get_static_field_id("com/my/Class", "intField", "I");
+    /// ```
+    pub fn get_static_field_id<'c, T, U, V>(
+        &self,
+        class: T,
+        name: U,
+        sig: V,
+    ) -> Result<JStaticFieldID<'a>>
+    where
+        T: Desc<'a, JClass<'c>>,
+        U: Into<JNIString>,
+        V: Into<JNIString>,
+    {
+        let class = class.lookup(self)?;
+        let ffi_name = name.into();
+        let ffi_sig = sig.into();
+
+        let res: Result<JStaticFieldID> = catch!({
+            Ok(jni_call!(
+                self.internal,
+                GetStaticFieldID,
                 class.into_inner(),
                 ffi_name.as_ptr(),
                 ffi_sig.as_ptr()
@@ -1535,6 +1580,87 @@ impl<'a> JNIEnv<'a> {
         let res = unsafe { self.set_field_unsafe(obj, (&class, name, ty), val) };
 
         res
+    }
+
+    /// Get a static field without checking the provided type against the actual
+    /// field.
+    #[allow(unused_unsafe)]
+    pub unsafe fn get_static_field_unsafe<T, U>(
+        &self,
+        class: T,
+        field: U,
+        ty: JavaType,
+    ) -> Result<JValue>
+    where
+        T: Desc<'a, JClass<'a>>,
+        U: Desc<'a, JStaticFieldID<'a>>,
+    {
+        let class = class.lookup(self)?.into_inner();
+
+        let field_id = field.lookup(self)?.into_inner();
+
+        // TODO clean this up
+        Ok(match ty {
+            JavaType::Object(_) | JavaType::Array(_) => {
+                let obj: JObject = jni_call!(self.internal, GetStaticObjectField, class, field_id);
+                obj.into()
+            }
+            // JavaType::Object
+            JavaType::Method(_) => {
+                return Err(ErrorKind::WrongJValueType("Method", "see java field").into())
+            }
+            JavaType::Primitive(p) => {
+                let v: JValue = match p {
+                    Primitive::Boolean => {
+                        (jni_unchecked!(self.internal, GetStaticBooleanField, class, field_id)
+                            == sys::JNI_TRUE)
+                            .into()
+                    }
+                    Primitive::Char => {
+                        jni_unchecked!(self.internal, GetStaticCharField, class, field_id).into()
+                    }
+                    Primitive::Short => {
+                        jni_unchecked!(self.internal, GetStaticShortField, class, field_id).into()
+                    }
+                    Primitive::Int => {
+                        jni_unchecked!(self.internal, GetStaticIntField, class, field_id).into()
+                    }
+                    Primitive::Long => {
+                        jni_unchecked!(self.internal, GetStaticLongField, class, field_id).into()
+                    }
+                    Primitive::Float => {
+                        jni_unchecked!(self.internal, GetStaticFloatField, class, field_id).into()
+                    }
+                    Primitive::Double => {
+                        jni_unchecked!(self.internal, GetStaticDoubleField, class, field_id).into()
+                    }
+                    Primitive::Byte => {
+                        jni_unchecked!(self.internal, GetStaticByteField, class, field_id).into()
+                    }
+                    Primitive::Void => {
+                        return Err(ErrorKind::WrongJValueType("void", "see java field").into());
+                    }
+                };
+                v.into()
+            } // JavaType::Primitive
+        }) // match ty
+    }
+
+    /// Get a static field. Requires a class lookup and a field id lookup
+    /// internally.
+    pub fn get_static_field<T, U, V>(&self, class: T, field: U, sig: V) -> Result<JValue>
+    where
+        T: Desc<'a, JClass<'a>>,
+        U: Into<JNIString>,
+        V: Into<JNIString> + AsRef<str>,
+    {
+        let ty = JavaType::from_str(sig.as_ref())?;
+
+        // go ahead and look up the class since it's already Copy,
+        // and we'll need that for the next call.
+        let class = class.lookup(self)?;
+
+        unsafe { self.get_static_field_unsafe(class, (class, field, sig), ty) }
     }
 
     /// Surrenders ownership of a rust object to Java. Requires an object with a
