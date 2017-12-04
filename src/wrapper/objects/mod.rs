@@ -11,6 +11,9 @@ pub use self::jstaticmethodid::*;
 mod jfieldid;
 pub use self::jfieldid::*;
 
+mod jstaticfieldid;
+pub use self::jstaticfieldid::*;
+
 mod jobject;
 pub use self::jobject::*;
 
