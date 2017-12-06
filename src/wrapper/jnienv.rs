@@ -191,8 +191,8 @@ impl<'a> JNIEnv<'a> {
     /// thrown. An exception is in this state from the time it gets thrown and
     /// not caught in a java function until `exception_clear` is called.
     pub fn exception_occurred(&self) -> Result<JThrowable> {
-        let throwable = jni_call!(self.internal, ExceptionOccurred);
-        Ok(throwable)
+        let throwable = unsafe { jni_unchecked!(self.internal, ExceptionOccurred) };
+        Ok(JThrowable::from(throwable))
     }
 
     /// Print exception information to the console.
