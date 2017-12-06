@@ -11,7 +11,8 @@ use JNIEnv;
 /// the foreign method exits, but it's possible that they may reach the
 /// JVM-imposed limit before that happens.
 ///
-/// This wrapper provides automatic local ref deletion when it goes out of scope.
+/// This wrapper provides automatic local ref deletion when it goes out of
+/// scope.
 ///
 /// NOTE: This comes with some potential safety risks. DO NOT use this to wrap
 /// something unless you're SURE it won't be used after this wrapper gets
@@ -33,8 +34,10 @@ impl<'a> AutoLocal<'a> {
 
     /// Forget the wrapper, returning the original object.
     ///
-    /// This prevents `delete_local_ref` from being called when the `AutoLocal` gets
-    /// dropped. You must either remember to delete the local ref manually, or be
+    /// This prevents `delete_local_ref` from being called when the `AutoLocal`
+    /// gets
+    /// dropped. You must either remember to delete the local ref manually, or
+    /// be
     /// ok with it getting deleted once the foreign method returns.
     pub fn forget(self) -> JObject<'a> {
         let obj = self.obj;

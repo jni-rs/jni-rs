@@ -1,11 +1,14 @@
 use std::convert::From;
 use std::mem;
 
-use JavaVM;
 use JNIEnv;
+use JavaVM;
 use errors::*;
 use objects::JObject;
-use sys::{self, jobject};
+use sys::{
+    self,
+    jobject,
+};
 
 /// A global JVM reference. These are "pinned" by the garbage collector and are
 /// guaranteed to not get collected until released. Thus, this is allowed to
@@ -48,7 +51,8 @@ impl GlobalRef {
         self.obj
     }
 
-    /// Detach the global ref from the JNI environment to send it across thread boundaries.
+    /// Detach the global ref from the JNI environment to send it across thread
+    /// boundaries.
     pub fn detach(self) -> Result<DetachedGlobalRef> {
         let env = unsafe { JNIEnv::from_raw(self.env)? };
         let vm = env.get_java_vm()?;
@@ -84,7 +88,8 @@ pub struct DetachedGlobalRef {
 unsafe impl Send for DetachedGlobalRef {}
 
 impl DetachedGlobalRef {
-    /// Creates a new detached global reference. This assumes that `CreateGlobalRef`
+    /// Creates a new detached global reference. This assumes that
+    /// `CreateGlobalRef`
     /// has alrady been called.
     pub unsafe fn new(vm: JavaVM, obj: sys::jobject) -> Self {
         DetachedGlobalRef {

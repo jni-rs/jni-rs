@@ -2,7 +2,11 @@ use std::os::raw::c_char;
 
 use std::ffi;
 
-use std::borrow::{Borrow, Cow, ToOwned};
+use std::borrow::{
+    Borrow,
+    Cow,
+    ToOwned,
+};
 
 use cesu8::from_java_cesu8;
 use cesu8::to_java_cesu8;

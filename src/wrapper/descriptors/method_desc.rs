@@ -2,9 +2,9 @@ use errors::*;
 
 use descriptors::Desc;
 
+use objects::JClass;
 use objects::JMethodID;
 use objects::JStaticMethodID;
-use objects::JClass;
 
 use strings::JNIString;
 

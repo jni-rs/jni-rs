@@ -1,10 +1,10 @@
-use errors::*;
 use JNIEnv;
+use errors::*;
 
 use sys;
 
-use std::ptr;
 use std::ops::Deref;
+use std::ptr;
 
 /// The invocation API.
 pub struct JavaVM(*mut sys::JavaVM);
@@ -52,7 +52,8 @@ impl JavaVM {
         }
     }
 
-    /// Get the `JNIEnv` associated with the current thread, or `ErrorKind::Detached`
+    /// Get the `JNIEnv` associated with the current thread, or
+    /// `ErrorKind::Detached`
     /// if the current thread is not attached to the java VM.
     pub fn get_env(&self) -> Result<JNIEnv> {
         let mut ptr = ptr::null_mut();

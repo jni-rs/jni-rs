@@ -2,7 +2,12 @@ use errors::*;
 
 use descriptors::Desc;
 
-use objects::{JClass, JObject, JThrowable, JValue};
+use objects::{
+    JClass,
+    JObject,
+    JThrowable,
+    JValue,
+};
 
 use strings::JNIString;
 

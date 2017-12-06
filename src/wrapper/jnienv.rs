@@ -11,33 +11,56 @@ use std::sync::MutexGuard;
 
 use errors::*;
 
-use sys::{self, jarray, jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jshort, jsize,
-          jvalue, jbooleanArray, jbyteArray, jcharArray, jdoubleArray, jfloatArray, jintArray,
-          jlongArray, jobjectArray, jshortArray};
-use std::os::raw::{c_char, c_void};
+use std::os::raw::{
+    c_char,
+    c_void,
+};
 use std::ptr;
+use sys::{
+    self,
+    jarray,
+    jboolean,
+    jbyte,
+    jchar,
+    jdouble,
+    jfloat,
+    jint,
+    jlong,
+    jshort,
+    jsize,
+    jvalue,
+    jbooleanArray,
+    jbyteArray,
+    jcharArray,
+    jdoubleArray,
+    jfloatArray,
+    jintArray,
+    jlongArray,
+    jobjectArray,
+    jshortArray,
+};
 
 use strings::JNIString;
 use strings::JavaStr;
 
-use objects::JMap;
-use objects::JValue;
-use objects::JClass;
-use objects::JObject;
+use objects::AutoLocal;
+use objects::GlobalRef;
 use objects::JByteBuffer;
+use objects::JClass;
+use objects::JFieldID;
+use objects::JMap;
+use objects::JMethodID;
+use objects::JObject;
+use objects::JStaticMethodID;
 use objects::JString;
 use objects::JThrowable;
-use objects::JMethodID;
-use objects::JStaticMethodID;
-use objects::JFieldID;
-use objects::GlobalRef;
-use objects::AutoLocal;
+use objects::JValue;
 
 use descriptors::Desc;
 
-use signature::TypeSignature;
 use signature::JavaType;
 use signature::Primitive;
+use signature::TypeSignature;
 
 use JavaVM;
 
@@ -281,9 +304,12 @@ impl<'a> JNIEnv<'a> {
 
     /// Creates a new auto-deleted local reference.
     ///
-    /// See also `push_local_frame`/`pop_local_frame` methods that can be more convenient
-    /// when you create a bounded number of local references in a method but can't rely on
-    /// automatic de-allocation (e.g., in case of recursion or just deep call stacks).
+    /// See also `push_local_frame`/`pop_local_frame` methods that can be more
+    /// convenient
+    /// when you create a bounded number of local references in a method but
+    /// can't rely on
+    /// automatic de-allocation (e.g., in case of recursion or just deep call
+    /// stacks).
     pub fn auto_local(&'a self, obj: JObject<'a>) -> AutoLocal<'a> {
         AutoLocal::new(self, obj)
     }
@@ -291,16 +317,24 @@ impl<'a> JNIEnv<'a> {
 
     /// Deletes the local reference.
     ///
-    /// Local references are valid for the duration of a native method call. They are
-    /// freed automatically after the native method returns. Each local reference costs
-    /// some amount of Java Virtual Machine resource. Programmers need to make sure that
-    /// native methods do not excessively allocate local references. Although local
-    /// references are automatically freed after the native method returns to Java,
-    /// excessive allocation of local references may cause the VM to run out of memory
+    /// Local references are valid for the duration of a native method call.
+    /// They are
+    /// freed automatically after the native method returns. Each local
+    /// reference costs
+    /// some amount of Java Virtual Machine resource. Programmers need to make
+    /// sure that
+    /// native methods do not excessively allocate local references. Although
+    /// local
+    /// references are automatically freed after the native method returns to
+    /// Java,
+    /// excessive allocation of local references may cause the VM to run out of
+    /// memory
     /// during the execution of a native method.
     ///
-    /// In most cases it is better to use `AutoLocal` (see `auto_local` method) or
-    /// `push_local_frame`/`pop_local_frame` instead of direct `delete_local_ref` calls.
+    /// In most cases it is better to use `AutoLocal` (see `auto_local` method)
+    /// or
+    /// `push_local_frame`/`pop_local_frame` instead of direct
+    /// `delete_local_ref` calls.
     pub fn delete_local_ref(&self, obj: JObject) -> Result<()> {
         non_null!(obj, "delete_local_ref obj argument");
         Ok(unsafe {
@@ -308,7 +342,8 @@ impl<'a> JNIEnv<'a> {
         })
     }
 
-    /// Creates a new local reference frame, in which at least a given number of local
+    /// Creates a new local reference frame, in which at least a given number
+    /// of local
     /// references can be created.
     ///
     /// Returns `Err` on failure, with a pending `OutOfMemoryError`.
@@ -316,14 +351,16 @@ impl<'a> JNIEnv<'a> {
     /// Prefer to use `with_local_frame` instead of direct `push_local_frame`/
     /// `pop_local_frame` calls.
     ///
-    /// See also `auto_local` method and `AutoLocal` type - that approach can be more
+    /// See also `auto_local` method and `AutoLocal` type - that approach can
+    /// be more
     /// convenient in loops.
     pub fn push_local_frame(&self, capacity: i32) -> Result<()> {
         // `PushLocalFrame` returns `jint`, but we don't need it.
         Ok(jni_void_call!(self.internal, PushLocalFrame, capacity))
     }
 
-    /// Pops off the current local reference frame, frees all the local references allocated
+    /// Pops off the current local reference frame, frees all the local
+    /// references allocated
     /// on the current stack frame.
     ///
     /// Note that resulting `JObject` can be `NULL` if `result` is `NULL`.
@@ -333,11 +370,12 @@ impl<'a> JNIEnv<'a> {
         })
     }
 
-    /// Provides a convenient way to use `push_local_frame` by automatically calling
+    /// Provides a convenient way to use `push_local_frame` by automatically
+    /// calling
     /// `pop_local_frame` function.
     pub fn with_local_frame<F>(&self, capacity: i32, f: F) -> Result<JObject>
-        where
-            F: Fn() -> Result<JObject<'a>>,
+    where
+        F: Fn() -> Result<JObject<'a>>,
     {
         self.push_local_frame(capacity)?;
         let res = f();
@@ -800,7 +838,8 @@ impl<'a> JNIEnv<'a> {
         self.new_object_by_id(class, method_id, ctor_args)
     }
 
-    /// Create a new object using a constructor. Arguments aren't checked because
+    /// Create a new object using a constructor. Arguments aren't checked
+    /// because
     /// of the `JMethodID` usage.
     pub fn new_object_by_id<'c, T>(
         &self,
@@ -885,7 +924,8 @@ impl<'a> JNIEnv<'a> {
     /// Construct a new array holding objects in class `element_class`.
     /// All elements are initially set to `initial_element`.
     ///
-    /// This function returns a local reference, that must not be allocated excessively.
+    /// This function returns a local reference, that must not be allocated
+    /// excessively.
     /// See [Java documentation][1] for details.
     /// [1]: https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/design.html#global_and_local_references
     pub fn new_object_array<T>(
@@ -1620,7 +1660,8 @@ impl<'a> JNIEnv<'a> {
         }
     }
 
-    /// Ensures that at least a given number of local references can be created in the current thread.
+    /// Ensures that at least a given number of local references can be created
+    /// in the current thread.
     pub fn ensure_local_capacity(&self, capacity: jint) -> Result<()> {
         Ok(jni_void_call!(self.internal, EnsureLocalCapacity, capacity))
     }

@@ -1,5 +1,5 @@
-use errors::*;
 use combine::*;
+use errors::*;
 
 /// A primitive java type. These are the things that can be represented without
 /// an object.
@@ -46,10 +46,12 @@ pub enum JavaType {
 impl JavaType {
     /// Parse a type string into a JavaType enum.
     pub fn from_str(s: &str) -> Result<JavaType> {
-        Ok(match parser(parse_type).parse(State::new(s)).map(|res| res.0) {
-            Ok(sig) => sig,
-            Err(e) => return Err(format_error_message(&e, s).into()),
-        })
+        Ok(
+            match parser(parse_type).parse(State::new(s)).map(|res| res.0) {
+                Ok(sig) => sig,
+                Err(e) => return Err(format_error_message(&e, s).into()),
+            },
+        )
     }
 }
 
@@ -77,7 +79,10 @@ pub struct TypeSignature {
 impl TypeSignature {
     /// Parse a signature string into a TypeSignature enum.
     pub fn from_str<S: AsRef<str>>(s: S) -> Result<TypeSignature> {
-        Ok(match parser(parse_sig).parse(State::new(s.as_ref())).map(|res| res.0) {
+        Ok(match parser(parse_sig)
+            .parse(State::new(s.as_ref()))
+            .map(|res| res.0)
+        {
             Ok(JavaType::Method(sig)) => *sig,
             Err(e) => return Err(format_error_message(&e, s.as_ref()).into()),
             _ => unreachable!(),
@@ -184,14 +189,14 @@ mod test {
 
     #[test]
     fn test_parser_invalid_signature() {
-        let signature = "()Ljava/lang/List";  // no semicolon
+        let signature = "()Ljava/lang/List"; // no semicolon
         let res = JavaType::from_str(signature);
 
         match res {
             Ok(any) => {
                 panic!("Unexpected result: {}", any);
             }
-            Err (err) => {
+            Err(err) => {
                 let error_message = err.to_string();
                 assert!(error_message.contains("Input: ()Ljava/lang/List"));
             }

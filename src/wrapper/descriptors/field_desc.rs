@@ -2,8 +2,8 @@ use errors::*;
 
 use descriptors::Desc;
 
-use objects::JFieldID;
 use objects::JClass;
+use objects::JFieldID;
 
 use strings::JNIString;
 

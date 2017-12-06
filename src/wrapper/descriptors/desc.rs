@@ -1,5 +1,5 @@
-use errors::*;
 use JNIEnv;
+use errors::*;
 
 /// Trait for things that can be looked up through the JNI via a descriptor.
 /// This will be something like the fully-qualified class name
