@@ -24,5 +24,6 @@ default-features = false
 version = "0.11.0"
 
 [features]
+invocation = []
 backtrace = ["error-chain/backtrace"]
 default = ["backtrace"]

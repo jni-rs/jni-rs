@@ -6,6 +6,9 @@ use sys;
 use std::ptr;
 use std::ops::Deref;
 
+#[cfg(feature = "invocation")]
+use InitArgs;
+
 /// The invocation API.
 pub struct JavaVM(*mut sys::JavaVM);
 
@@ -13,6 +16,25 @@ unsafe impl Send for JavaVM {}
 unsafe impl Sync for JavaVM {}
 
 impl JavaVM {
+    /// Launch a new JavaVM using the provided init args
+    #[cfg(feature = "invocation")]
+    pub fn new(args: InitArgs) -> Result<(Self, JNIEnv<'static>)> {
+        use std::os::raw::c_void;
+
+        let mut ptr: *mut sys::JavaVM = ::std::ptr::null_mut();
+        let mut env: *mut sys::JNIEnv = ::std::ptr::null_mut();
+
+        jni_error_code_to_result(unsafe {
+            sys::JNI_CreateJavaVM(
+                &mut ptr as *mut _,
+                &mut env as *mut *mut sys::JNIEnv as *mut *mut c_void,
+                args.inner_ptr(),
+            )
+        })?;
+
+        unsafe { Ok((Self::from_raw(ptr)?, JNIEnv::from_raw(env)?)) }
+    }
+
     /// Create a JavaVM from a raw pointer.
     pub unsafe fn from_raw(ptr: *mut sys::JavaVM) -> Result<Self> {
         non_null!(ptr, "from_raw ptr argument");
