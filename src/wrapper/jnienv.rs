@@ -64,6 +64,7 @@ use signature::Primitive;
 use signature::TypeSignature;
 
 use JavaVM;
+use JNIVersion;
 
 /// FFI-compatible JNIEnv struct. You can safely use this as the JNIEnv argument
 /// to exported methods that will be called by java. This is where most of the
@@ -102,8 +103,8 @@ impl<'a> JNIEnv<'a> {
     /// will need to be checked against constants from the sys module.
     ///
     /// TODO: convert this to something more usable.
-    pub fn get_version(&self) -> Result<jint> {
-        Ok(unsafe { jni_unchecked!(self.internal, GetVersion) })
+    pub fn get_version(&self) -> Result<JNIVersion> {
+        Ok(unsafe { jni_unchecked!(self.internal, GetVersion) }.into())
     }
 
     /// Define a new java class. See the JNI docs for more details - I've never

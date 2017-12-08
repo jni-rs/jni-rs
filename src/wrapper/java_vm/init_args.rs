@@ -2,10 +2,13 @@ use std::os::raw::c_void;
 
 use std::ffi::CString;
 
-use sys::{jint, JNI_VERSION_1_1, JavaVMInitArgs, JavaVMOption};
+use sys::{JavaVMInitArgs, JavaVMOption};
+
+use JNIVersion;
 
 error_chain! {
     errors {
+        /// Opt string had internal null
         NullOptString(opt: String) {
             display("internal null in option: {}", opt)
             description("internal null in option string")
@@ -13,6 +16,7 @@ error_chain! {
     }
 }
 
+/// Builder for JavaVM InitArgs
 pub struct InitArgsBuilder {
     opts: Vec<String>,
     ignore_unrecognized: bool,
@@ -24,16 +28,20 @@ impl Default for InitArgsBuilder {
         InitArgsBuilder {
             opts: vec![],
             ignore_unrecognized: false,
-            version: JNI_VERSION_1_1,
+            version: JNIVersion::V1.into(),
         }
     }
 }
 
 impl InitArgsBuilder {
+    /// Create a new default InitArgsBuilder
     pub fn new() -> Self {
         Default::default()
     }
 
+    /// Add an option to the init args
+    ///
+    /// The `vfprintf`, `abort`, and `exit` options are unsupported at this time.
     pub fn option(self, opt_string: &str) -> Self {
         let mut s = self;
 
@@ -47,23 +55,33 @@ impl InitArgsBuilder {
         s
     }
 
-    pub fn version(self, version: jint) -> Self {
+    /// Set JNI version for the init args
+    ///
+    /// Default: V1
+    pub fn version(self, version: JNIVersion) -> Self {
         let mut s = self;
-        s.version = version;
+        s.version = version.into();
         s
     }
 
+    /// Set the `ignoreUnrecognized` init arg flag
+    ///
+    /// Default: `false`
     pub fn ignore_unrecognized(self, ignore: bool) -> Self {
         let mut s = self;
         s.ignore_unrecognized = ignore;
         s
     }
 
+    /// Build the `InitArgs`
+    ///
+    /// This will check for internal nulls in the option strings and will return
+    /// an error if one is found.
     pub fn build(self) -> Result<InitArgs> {
         let mut opts = Vec::with_capacity(self.opts.len());
         for opt in self.opts {
             let option_string =
-                CString::new(opt.as_str()).map_err(|e| ErrorKind::NullOptString(opt))?;
+                CString::new(opt.as_str()).map_err(|_| ErrorKind::NullOptString(opt))?;
             let jvm_opt = JavaVMOption {
                 optionString: option_string.into_raw(),
                 extraInfo: ::std::ptr::null_mut(),
@@ -83,6 +101,7 @@ impl InitArgsBuilder {
     }
 }
 
+/// JavaVM InitArgs
 pub struct InitArgs {
     inner: JavaVMInitArgs,
     opts: Vec<JavaVMOption>,

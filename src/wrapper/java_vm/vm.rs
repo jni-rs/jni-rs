@@ -18,21 +18,24 @@ unsafe impl Sync for JavaVM {}
 impl JavaVM {
     /// Launch a new JavaVM using the provided init args
     #[cfg(feature = "invocation")]
-    pub fn new(args: InitArgs) -> Result<(Self, JNIEnv<'static>)> {
+    pub fn new(args: InitArgs) -> Result<Self> {
         use std::os::raw::c_void;
 
         let mut ptr: *mut sys::JavaVM = ::std::ptr::null_mut();
         let mut env: *mut sys::JNIEnv = ::std::ptr::null_mut();
 
-        jni_error_code_to_result(unsafe {
-            sys::JNI_CreateJavaVM(
+        unsafe {
+            jni_error_code_to_result(sys::JNI_CreateJavaVM(
                 &mut ptr as *mut _,
                 &mut env as *mut *mut sys::JNIEnv as *mut *mut c_void,
                 args.inner_ptr(),
-            )
-        })?;
+            ))?;
 
-        unsafe { Ok((Self::from_raw(ptr)?, JNIEnv::from_raw(env)?)) }
+            let vm = Self::from_raw(ptr)?;
+            java_vm_unchecked!(vm.0, DetachCurrentThread);
+
+            Ok(vm)
+        }
     }
 
     /// Create a JavaVM from a raw pointer.
