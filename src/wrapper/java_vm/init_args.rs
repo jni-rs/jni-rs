@@ -66,6 +66,10 @@ impl InitArgsBuilder {
 
     /// Set the `ignoreUnrecognized` init arg flag
     ///
+    /// If ignoreUnrecognized is true, JavaVM::new ignores all unrecognized option strings that
+    /// begin with "-X" or "_". If ignoreUnrecognized is false, JavaVM::new returns Err as soon as
+    /// it encounters any unrecognized option strings.
+    ///
     /// Default: `false`
     pub fn ignore_unrecognized(self, ignore: bool) -> Self {
         let mut s = self;

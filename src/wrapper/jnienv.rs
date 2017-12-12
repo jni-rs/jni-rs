@@ -99,10 +99,8 @@ impl<'a> JNIEnv<'a> {
             lifetime: PhantomData,
         })
     }
-    /// Get the java version that we're being executed from. This is encoded and
-    /// will need to be checked against constants from the sys module.
-    ///
-    /// TODO: convert this to something more usable.
+
+    /// Get the java version that we're being executed from.
     pub fn get_version(&self) -> Result<JNIVersion> {
         Ok(unsafe { jni_unchecked!(self.internal, GetVersion) }.into())
     }
