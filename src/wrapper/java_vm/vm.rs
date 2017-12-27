@@ -10,6 +10,7 @@ use std::ptr;
 use InitArgs;
 
 /// The invocation API.
+#[derive(Clone)]
 pub struct JavaVM(*mut sys::JavaVM);
 
 unsafe impl Send for JavaVM {}
