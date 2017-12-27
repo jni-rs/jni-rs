@@ -105,6 +105,22 @@ impl DetachedGlobalRef {
         res
     }
 
+    /// A temporary workaround for access to an object
+    pub fn as_obj<'a>(&'a self) -> JObject<'a> {
+        self.obj
+    }
+
+    /// A temporary workaround for `newGlobalRef` not destroing instance of `DetachedGlobalRef`
+    pub fn clone_global_ref(&self, env: &JNIEnv) -> Result<DetachedGlobalRef> {
+        let tmp = env.new_global_ref(self.obj)?;
+        let new = DetachedGlobalRef {
+            obj: tmp.obj,
+            vm: self.vm.clone(),
+        };
+        mem::forget(tmp);
+        Ok(new)
+    }
+
     /// Unwrap to the internal JNI type.
     pub fn into_inner(self) -> sys::jobject {
         self.obj.into_inner()
