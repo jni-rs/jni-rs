@@ -44,6 +44,7 @@ use strings::JNIString;
 use strings::JavaStr;
 
 use objects::AutoLocal;
+use objects::AttachedGlobalRef;
 use objects::GlobalRef;
 use objects::JByteBuffer;
 use objects::JClass;
@@ -284,10 +285,21 @@ impl<'a> JNIEnv<'a> {
     /// Turns an object into a global ref. This has the benefit of removing the
     /// lifetime bounds since it's guaranteed to not get GC'd by java. It
     /// releases the GC pin upon being dropped.
+    pub fn new_global_ref_attached(&self, obj: JObject) -> Result<AttachedGlobalRef> {
+        non_null!(obj, "new_global_ref obj argument");
+        let new_ref: JObject = jni_call!(self.internal, NewGlobalRef, obj.into_inner());
+        let global = unsafe { AttachedGlobalRef::new(self.internal, new_ref.into_inner()) };
+        Ok(global)
+    }
+
+
+    /// Turns an object into a global ref. This has the benefit of removing the
+    /// lifetime bounds since it's guaranteed to not get GC'd by java. It
+    /// releases the GC pin upon being dropped.
     pub fn new_global_ref(&self, obj: JObject) -> Result<GlobalRef> {
         non_null!(obj, "new_global_ref obj argument");
         let new_ref: JObject = jni_call!(self.internal, NewGlobalRef, obj.into_inner());
-        let global = unsafe { GlobalRef::new(self.internal, new_ref.into_inner()) };
+        let global = unsafe { GlobalRef::new(self.get_java_vm()?, new_ref.into_inner()) };
         Ok(global)
     }
 
