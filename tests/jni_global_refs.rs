@@ -10,6 +10,7 @@ use jni::{InitArgsBuilder, JNIEnv, JNIVersion, JavaVM};
 use jni::errors::Result;
 use jni::objects::AutoLocal;
 use jni::objects::JValue;
+use jni::sys::jint;
 
 
 pub fn jvm() -> &'static Arc<JavaVM> {
@@ -57,7 +58,10 @@ fn unwrap<T>(env: &JNIEnv, res: Result<T>) -> T {
 
 #[test]
 pub fn global_ref_works_in_other_threads() {
+    const ITERS_PER_THREAD: usize = 10_000;
+
     let env = jvm().attach_current_thread().unwrap();
+    let mut join_handlers = Vec::new();
 
     let atomic_integer = {
         let local_ref = AutoLocal::new(&env, unwrap(&env, env.new_object(
@@ -68,36 +72,33 @@ pub fn global_ref_works_in_other_threads() {
         unwrap(&env, env.new_global_ref(local_ref.as_obj()))
     };
 
-    let barrier = Arc::new(Barrier::new(2));
+    // Test with a different number of threads (from 2 to 8)
+    for thread_num in 2..9 {
+        let barrier = Arc::new(Barrier::new(thread_num));
 
-    let jh1 = {
-        let barrier = barrier.clone();
-        let mut atomic_integer = atomic_integer.clone();
-        spawn(move || {
-            let env = jvm().attach_current_thread().unwrap();
-            barrier.wait();
-            for _ in 0..10000 {
-                unwrap(&env, unwrap(&env, env.call_method(
-                    atomic_integer.as_obj(), "addAndGet", "(I)I", &[JValue::from(-1)])).i());
-            }
-        })
-    };
-    let jh2 = {
-        let mut atomic_integer = atomic_integer.clone();
-        let barrier = barrier.clone();
-        spawn(move || {
-            let env = jvm().attach_current_thread().unwrap();
-            barrier.wait();
-            for _ in 0..10000 + 1 {
-                unwrap(&env, unwrap(&env, env.call_method(
-                    atomic_integer.as_obj(), "addAndGet", "(I)I", &[JValue::from(1)])).i());
-            }
-        })
-    };
-    jh1.join().unwrap();
-    jh2.join().unwrap();
-    assert_eq!(1, unwrap(&env, unwrap(&env, env.call_method(
-        atomic_integer.as_obj(), "get", "()I", &[])).i()));
+        for _ in 0..thread_num {
+            let barrier = barrier.clone();
+            let mut atomic_integer = atomic_integer.clone();
+
+            let jh = spawn(move || {
+                let env = jvm().attach_current_thread().unwrap();
+                barrier.wait();
+                for _ in 0..ITERS_PER_THREAD {
+                    unwrap(&env, unwrap(&env, env.call_method(
+                        atomic_integer.as_obj(), "incrementAndGet", "()I", &[])).i());
+                }
+            });
+            join_handlers.push(jh);
+        };
+
+        for jh in join_handlers.drain(..) {
+            jh.join().unwrap();
+        }
+
+        let expected = (ITERS_PER_THREAD * thread_num) as jint;
+        assert_eq!(expected, unwrap(&env, unwrap(&env, env.call_method(
+            atomic_integer.as_obj(), "getAndSet", "(I)I", &[JValue::from(0)])).i()));
+    }
 }
 
 
@@ -111,19 +112,22 @@ pub fn attached_detached_global_refs_works() {
         &[JValue::from(0)]
     )));
 
+    // Test several global refs to the same object work
     let global_ref_1 = unwrap(&env, env.new_global_ref_attached(local_ref.as_obj()));
-
     {
         let global_ref_2 = unwrap(&env, env.new_global_ref_attached(local_ref.as_obj()));
         assert_eq!(1, unwrap(&env, unwrap(&env, env.call_method(
-            global_ref_2.as_obj(), "addAndGet", "(I)I", &[JValue::from(1)])).i()));
+            global_ref_2.as_obj(), "incrementAndGet", "()I", &[])).i()));
+
+        // Test detached & re-attached global ref works
         let global_ref_2 = unwrap(&env, global_ref_2.detach());
         let global_ref_2 = global_ref_2.attach(&env);
         assert_eq!(2, unwrap(&env, unwrap(&env, env.call_method(
-            global_ref_2.as_obj(), "addAndGet", "(I)I", &[JValue::from(1)])).i()));
+            global_ref_2.as_obj(), "incrementAndGet", "()I", &[])).i()));
+
+        // Test the first global ref unaffected by another global ref to the same object detached
         unwrap(&env, global_ref_2.detach());
     }
-
     assert_eq!(3, unwrap(&env, unwrap(&env, env.call_method(
-        global_ref_1.as_obj(), "addAndGet", "(I)I", &[JValue::from(1)])).i()));
+        global_ref_1.as_obj(), "incrementAndGet", "()I", &[])).i()));
 }

@@ -36,7 +36,7 @@ impl<'a> From<&'a GlobalRef> for JObject<'a> {
 impl GlobalRef {
     /// Creates a new global reference. This assumes that `NewGlobalRef`
     /// has already been called.
-    pub unsafe fn new(vm: JavaVM, obj: sys::jobject) -> Self {
+    pub(crate) unsafe fn new(vm: JavaVM, obj: sys::jobject) -> Self {
         GlobalRef {
             inner: Arc::new(GlobalRefGuard::new(vm, obj)),
         }
@@ -55,7 +55,7 @@ impl GlobalRef {
 impl GlobalRefGuard {
     /// Creates a new global reference. This assumes that `NewGlobalRef`
     /// has already been called.
-    pub unsafe fn new(vm: JavaVM, obj: sys::jobject) -> Self {
+    unsafe fn new(vm: JavaVM, obj: sys::jobject) -> Self {
         GlobalRefGuard {
             obj: JObject::from(obj),
             vm,
