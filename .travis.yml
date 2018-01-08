@@ -8,19 +8,16 @@ matrix:
   allow_failures:
     - rust: nightly
 
-jdk:
-  - oraclejdk8
-
-env:
-  global:
-    - JAVA_HOME=/usr/lib/jvm/java-8-oracle
-    - LD_LIBRARY_PATH=$JAVA_HOME/jre/lib/amd64/server
-
 before_script:
   - export RUST_BACKTRACE=1
-  - echo $JAVA_HOME
-  - echo $LD_LIBRARY_PATH
 
 script:
   - cargo build
-  - cargo test --features=backtrace,invocation
+
+  - # Run all tests with Java 8 (the current LTS release).
+  - jdk_switcher use oraclejdk8
+  - ./run_integration_tests.sh
+
+  - # Run all tests with Java 9 (the latest release).
+  - jdk_switcher use oraclejdk9
+  - ./run_integration_tests.sh
