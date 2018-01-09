@@ -80,6 +80,11 @@ impl Drop for AttachedGlobalRef {
 
 /// A detached global JVM reference that can be sent across threads. To do
 /// anything useful with it, it must be `attach`ed first.
+///
+/// Note that the native thread must be `attach`ed to the jni thread (this is so when you have
+/// an instance of `JNIEnv`) when instance of `DetachedGlobalRef` is dropped. If the current
+/// thread is not attached `DetachedGlobalRef` will implicitly `attach` and `detach` by itself,
+/// but this can significantly affect performance. If this happens, a warning will be generated.
 pub struct DetachedGlobalRef {
     obj: JObject<'static>,
     vm: JavaVM,
@@ -116,6 +121,7 @@ impl DetachedGlobalRef {
                 Ok(())
             }
             Err(Error(ErrorKind::ThreadDetached, _)) => {
+                warn!("`DetachedGlobalRef` attaches JNI-thread while dropping its instance.");
                 let env = self.vm.attach_current_thread()?;
                 let _ = self.attach_impl(&env);
                 Ok(())
