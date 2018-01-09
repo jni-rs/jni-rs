@@ -11,6 +11,11 @@ use sys;
 /// A global JVM reference. These are "pinned" by the garbage collector and are
 /// guaranteed to not get collected until released. Thus, this is allowed to
 /// outlive the `JNIEnv` that it came from and can be used in other threads.
+///
+/// Note that the native thread must be `attach`ed to the jni thread (this is so when you have
+/// an instance of `JNIEnv`) when the last instance of `GlobalRef` is dropped. If the current
+/// thread is not attached `GlobalRef` will implicitly `attach` and `detach` by itself, but this
+/// can significantly affect performance. If this happens, a warning will be generated.
 #[derive(Clone)]
 pub struct GlobalRef {
     inner: Arc<GlobalRefGuard>
@@ -84,9 +89,12 @@ impl Drop for GlobalRefGuard {
 
         let res = match self.vm.get_env() {
             Ok(env) => drop_impl(&env, self.as_obj()),
-            Err(_) => self.vm
-                .attach_current_thread()
-                .and_then(|env| drop_impl(&env, self.as_obj())),
+            Err(_) => {
+                warn!("`GlobalRef` attaches JNI-thread while dropping its instance.");
+                self.vm
+                    .attach_current_thread()
+                    .and_then(|env| drop_impl(&env, self.as_obj()))
+            }
         };
 
         if let Err(err) = res  {
