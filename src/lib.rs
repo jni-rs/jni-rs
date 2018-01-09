@@ -171,6 +171,9 @@ extern crate combine;
 extern crate cesu8;
 
 mod wrapper {
+    mod version;
+    pub use self::version::*;
+
     #[macro_use]
     mod macros;
 

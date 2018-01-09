@@ -19,10 +19,14 @@ combine = "2.5.2"
 jni-sys = "0.3.0"
 log = "0.3.8"
 
+[build-dependencies]
+walkdir = "2"
+
 [dependencies.error-chain]
 default-features = false
 version = "0.11.0"
 
 [features]
+invocation = []
 backtrace = ["error-chain/backtrace"]
 default = ["backtrace"]

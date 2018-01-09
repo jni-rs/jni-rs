@@ -6,40 +6,42 @@
     },
     "tasks": [
         {
-            "taskName": "cargo build",
             "type": "shell",
+            "label": "cargo build",
             "command": "cargo",
             "args": [
-                "build"
+                "build",
+                "--features",
+                "invocation"
             ],
-            "group": "build",
-            "problemMatcher": "$rustc"
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
         },
         {
-            "taskName": "cargo run",
             "type": "shell",
+            "label": "cargo test",
             "command": "cargo",
             "args": [
-                "run"
+                "test",
+                "--features",
+                "invocation"
             ],
-            "problemMatcher": "$rustc"
-        },
-        {
-            "taskName": "cargo test",
-            "type": "shell",
-            "command": "cargo",
-            "args": [
-                "test"
-            ],
-            "group": "test",
-            "problemMatcher": "$rustc"
-        },
-        {
-            "taskName": "cargo clean",
-            "type": "shell",
-            "command": "cargo",
-            "args": [
-                "clean"
+            "options": {
+                "env": {
+                    "LD_LIBRARY_PATH": "/usr/lib/jvm/default/jre/lib/amd64/server"
+                }
+            },
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                "$rustc"
             ]
         }
     ]
