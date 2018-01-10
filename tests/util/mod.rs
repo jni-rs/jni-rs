@@ -9,7 +9,6 @@ pub fn jvm() -> &'static Arc<JavaVM> {
     static mut JVM: Option<Arc<JavaVM>> = None;
     static INIT: Once = ONCE_INIT;
 
-
     INIT.call_once(|| {
         let jvm_args = InitArgsBuilder::new()
             .version(JNIVersion::V8)
@@ -41,6 +40,7 @@ pub fn print_exception(env: &JNIEnv) {
     }
 }
 
+#[allow(dead_code)]
 pub fn unwrap<T>(env: &JNIEnv, res: Result<T>) -> T {
     res.unwrap_or_else(|e| {
         print_exception(&env);

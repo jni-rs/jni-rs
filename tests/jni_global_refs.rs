@@ -10,14 +10,15 @@ use jni::objects::JValue;
 use jni::sys::jint;
 
 mod util;
-use util::*;
+use util::{jvm, unwrap};
 
 
 #[test]
 pub fn global_ref_works_in_other_threads() {
     const ITERS_PER_THREAD: usize = 10_000;
 
-    let env = jvm().attach_current_thread().unwrap();
+    let env = jvm().attach_current_thread()
+        .expect("failed to attach jvm thread");
     let mut join_handlers = Vec::new();
 
     let atomic_integer = {
