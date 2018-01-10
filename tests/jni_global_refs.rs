@@ -100,34 +100,3 @@ pub fn global_ref_works_in_other_threads() {
             atomic_integer.as_obj(), "getAndSet", "(I)I", &[JValue::from(0)])).i()));
     }
 }
-
-
-#[test]
-pub fn attached_detached_global_refs_works() {
-    let env = jvm().attach_current_thread().unwrap();
-
-    let local_ref = AutoLocal::new(&env, unwrap(&env, env.new_object(
-        "java/util/concurrent/atomic/AtomicInteger",
-        "(I)V",
-        &[JValue::from(0)]
-    )));
-
-    // Test several global refs to the same object work
-    let global_ref_1 = unwrap(&env, env.new_global_ref_attached(local_ref.as_obj()));
-    {
-        let global_ref_2 = unwrap(&env, env.new_global_ref_attached(local_ref.as_obj()));
-        assert_eq!(1, unwrap(&env, unwrap(&env, env.call_method(
-            global_ref_2.as_obj(), "incrementAndGet", "()I", &[])).i()));
-
-        // Test detached & re-attached global ref works
-        let global_ref_2 = unwrap(&env, global_ref_2.detach());
-        let global_ref_2 = global_ref_2.attach(&env);
-        assert_eq!(2, unwrap(&env, unwrap(&env, env.call_method(
-            global_ref_2.as_obj(), "incrementAndGet", "()I", &[])).i()));
-
-        // Test the first global ref unaffected by another global ref to the same object detached
-        unwrap(&env, global_ref_2.detach());
-    }
-    assert_eq!(3, unwrap(&env, unwrap(&env, env.call_method(
-        global_ref_1.as_obj(), "incrementAndGet", "()I", &[])).i()));
-}
