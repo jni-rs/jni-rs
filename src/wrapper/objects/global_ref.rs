@@ -12,6 +12,14 @@ use sys;
 /// guaranteed to not get collected until released. Thus, this is allowed to
 /// outlive the `JNIEnv` that it came from and can be used in other threads.
 ///
+/// `GlobalRef` can be cloned to use _the same_ global reference in different
+/// contexts. If you want to create yet another global ref to the same java object
+/// you may call `JNIEnv#new_global_ref` just like you do when create `GlobalRef`
+/// from a local reference.
+///
+/// Underlying global reference will be dropped, when the last instance
+/// of `GlobalRef` leaves its scope.
+///
 /// It is _recommended_ that a native thread that drops the global reference is attached
 /// to the Java thread (i.e., has an instance of `JNIEnv`). If the native thread is *not* attached,
 /// the `GlobalRef#drop` will print a warning and implicitly `attach` and `detach` it, which
@@ -42,9 +50,9 @@ impl<'a> From<&'a GlobalRef> for JObject<'a> {
 impl GlobalRef {
     /// Creates a new global reference. This assumes that `NewGlobalRef`
     /// has already been called.
-    pub(crate) unsafe fn new(vm: JavaVM, obj: sys::jobject) -> Self {
+    pub unsafe fn from_raw(vm: JavaVM, obj: sys::jobject) -> Self {
         GlobalRef {
-            inner: Arc::new(GlobalRefGuard::new(vm, obj)),
+            inner: Arc::new(GlobalRefGuard::from_raw(vm, obj)),
         }
     }
 
@@ -59,9 +67,9 @@ impl GlobalRef {
 
 
 impl GlobalRefGuard {
-    /// Creates a new global reference. This assumes that `NewGlobalRef`
+    /// Creates a new global reference guard. This assumes that `NewGlobalRef`
     /// has already been called.
-    unsafe fn new(vm: JavaVM, obj: sys::jobject) -> Self {
+    unsafe fn from_raw(vm: JavaVM, obj: sys::jobject) -> Self {
         GlobalRefGuard {
             obj: JObject::from(obj),
             vm,
