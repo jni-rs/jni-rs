@@ -2,7 +2,6 @@ use strings::JNIString;
 
 use objects::{
     AutoLocal,
-    AttachedGlobalRef,
     GlobalRef,
     JClass,
     JObject,
@@ -26,13 +25,6 @@ where
 impl<'a, 'b> Desc<'a, JClass<'a>> for JObject<'b> {
     fn lookup(self, env: &JNIEnv<'a>) -> Result<JClass<'a>> {
         env.get_object_class(self)
-    }
-}
-
-/// This conversion assumes that the `AttachedGlobalRef` is a pointer to a class object.
-impl<'a, 'b> Desc<'a, JClass<'b>> for &'b AttachedGlobalRef {
-    fn lookup(self, _: &JNIEnv<'a>) -> Result<JClass<'b>> {
-        Ok(self.as_obj().into())
     }
 }
 
