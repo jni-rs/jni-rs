@@ -8,10 +8,7 @@ use jni::objects::JValue;
 use jni::sys::jint;
 
 mod util;
-use util::*;
-
-
-const VALUE: jint = 42;
+use util::{jvm, unwrap};
 
 
 /// The specification does not provide what should happen when a deleted reference is accessed.
@@ -30,7 +27,10 @@ const VALUE: jint = 42;
 
 #[test]
 pub fn global_ref_is_dropped() {
-    let env = jvm().attach_current_thread().unwrap();
+    const VALUE: jint = 42;
+
+    let env = jvm().attach_current_thread()
+        .expect("failed to attach jvm thread");;
 
     let global_obj = {
         let local_ref = AutoLocal::new(&env, unwrap(&env, env.new_object(
