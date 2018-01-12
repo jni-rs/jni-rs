@@ -63,13 +63,25 @@ fn find_java_home() -> Option<PathBuf> {
     };
 
     let paths = path.split(path_sep);
-    let (mut exe_path, mut exe_meta): (PathBuf, _) = paths
+    let (mut exe_path, mut exe_meta): (PathBuf, _) = match paths
         .filter_map(|p| symlink_metadata(p).map(|m| (p.into(), m)).ok())
-        .nth(0)?;
+        .nth(0)
+    {
+        Some(v) => v,
+        None => return None,
+    };
 
     while exe_meta.file_type().is_symlink() {
-        exe_path = ::std::fs::read_link(&exe_path).ok()?;
-        exe_meta = symlink_metadata(&exe_path).ok()?;
+        match (
+            ::std::fs::read_link(&exe_path).ok(),
+            symlink_metadata(&exe_path).ok(),
+        ) {
+            (Some(p), Some(m)) => {
+                exe_path = p;
+                exe_meta = m;
+            }
+            _ => return None,
+        }
     }
 
     exe_path.parent().and_then(|p| p.parent()).map(Into::into)
