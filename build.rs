@@ -51,7 +51,10 @@ fn find_libjvm<S: AsRef<Path>>(path: S) -> Option<PathBuf> {
 }
 
 fn find_java_home() -> Option<PathBuf> {
-    let path = env::var("PATH").ok()?;
+    let path = match env::var("PATH").ok() {
+        Some(p) => p,
+        None => return None,
+    };
 
     let path_sep = if cfg!(target_os = "windows") {
         ";"
