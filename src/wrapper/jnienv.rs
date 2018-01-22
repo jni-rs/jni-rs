@@ -375,7 +375,7 @@ impl<'a> JNIEnv<'a> {
     /// `pop_local_frame` function.
     pub fn with_local_frame<F>(&self, capacity: i32, f: F) -> Result<JObject>
     where
-        F: Fn() -> Result<JObject<'a>>,
+        F: FnOnce() -> Result<JObject<'a>>,
     {
         self.push_local_frame(capacity)?;
         let res = f();
