@@ -287,7 +287,7 @@ impl<'a> JNIEnv<'a> {
     pub fn new_global_ref(&self, obj: JObject) -> Result<GlobalRef> {
         non_null!(obj, "new_global_ref obj argument");
         let new_ref: JObject = jni_call!(self.internal, NewGlobalRef, obj.into_inner());
-        let global = unsafe { GlobalRef::new(self.get_java_vm()?, new_ref.into_inner()) };
+        let global = unsafe { GlobalRef::from_raw(self.get_java_vm()?, new_ref.into_inner()) };
         Ok(global)
     }
 

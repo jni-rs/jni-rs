@@ -3,36 +3,16 @@ extern crate error_chain;
 extern crate jni;
 
 use error_chain::ChainedError;
-use jni::{InitArgsBuilder, JNIEnv, JNIVersion, JavaVM};
 use jni::objects::JObject;
 use jni::objects::JValue;
 
-fn print_exception(env: &JNIEnv) {
-    let exception_occurred = env.exception_check()
-        .unwrap_or_else(|e| panic!(format!("{:?}", e)));
-    if exception_occurred {
-        env.exception_describe()
-            .unwrap_or_else(|e| panic!(format!("{:?}", e)));
-    }
-}
+mod util;
+use util::{jvm, print_exception};
+
 
 #[test]
 fn test_java_integers() {
-    let jvm_args = InitArgsBuilder::new()
-        .version(JNIVersion::V8)
-        .option("-Xcheck:jni")
-        .option("-Xdebug")
-        .build()
-        .unwrap_or_else(|e| {
-            panic!(format!("{}", e.display_chain().to_string()));
-        });
-
-    let jvm = JavaVM::new(jvm_args).unwrap_or_else(|e| {
-        panic!(format!("{}", e.display_chain().to_string()));
-    });
-
-
-    let env = jvm.attach_current_thread()
+    let env = jvm().attach_current_thread()
         .expect("failed to attach jvm thread");
 
     let array_length = 50;
@@ -63,8 +43,8 @@ fn test_java_integers() {
 
             Ok(JObject::null())
         }).unwrap_or_else(|e| {
-                print_exception(&env);
-                panic!(format!("{}", e.display_chain().to_string()));
-            });
+            print_exception(&env);
+            panic!(format!("{}", e.display_chain().to_string()));
+        });
     }
 }
