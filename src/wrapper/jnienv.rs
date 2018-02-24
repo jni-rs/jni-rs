@@ -169,6 +169,24 @@ impl<'a> JNIEnv<'a> {
         )
     }
 
+    /// Tests whether an object is an instance of a class.
+    pub fn is_instance_of<T>(&self, object: JObject<'a>, class: T) -> Result<bool>
+    where
+        T: Desc<'a, JClass<'a>>,
+    {
+        let class = class.lookup(self)?;
+        Ok(
+            unsafe {
+                jni_unchecked!(
+                    self.internal,
+                    IsInstanceOf,
+                    object.into_inner(),
+                    class.into_inner()
+                )
+            } == sys::JNI_TRUE,
+        )
+    }
+
     /// Raise an exception from an existing object. This will continue being
     /// thrown in java unless `exception_clear` is called.
     ///
