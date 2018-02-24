@@ -117,13 +117,9 @@
 //! // conventions.
 //! #[allow(non_snake_case)]
 //! pub extern "system" fn Java_HelloWorld_hello(env: JNIEnv,
-//! // this is the class that owns
-//! our
-//! // static method. Not going to
-//! be
-//! // used, but still needs to
-//! have an
-//!                                              // argument slot
+//! // This is the class that owns our static method. It's not going to be used,
+//! // but still must be present to match the expected signature of a static
+//! // native method.
 //!                                              class: JClass,
 //!                                              input: JString)
 //!                                              -> jstring {
