@@ -1,7 +1,7 @@
 use std::sync::{Arc, Once, ONCE_INIT};
 
 use error_chain::ChainedError;
-use jni::{InitArgsBuilder, JNIEnv, JNIVersion, JavaVM};
+use jni::{AttachGuard, InitArgsBuilder, JNIEnv, JNIVersion, JavaVM};
 use jni::errors::Result;
 
 
@@ -15,13 +15,10 @@ pub fn jvm() -> &'static Arc<JavaVM> {
             .option("-Xcheck:jni")
             .option("-Xdebug")
             .build()
-            .unwrap_or_else(|e| {
-                panic!(format!("{}", e.display_chain().to_string()));
-            });
+            .unwrap_or_else(|e| panic!("{}", e.display_chain().to_string()));
 
-        let jvm = JavaVM::new(jvm_args).unwrap_or_else(|e| {
-            panic!(format!("{}", e.display_chain().to_string()));
-        });
+        let jvm = JavaVM::new(jvm_args)
+            .unwrap_or_else(|e| panic!("{}", e.display_chain().to_string()));
 
         unsafe {
             JVM = Some(Arc::new(jvm));
@@ -31,12 +28,16 @@ pub fn jvm() -> &'static Arc<JavaVM> {
     unsafe { JVM.as_ref().unwrap() }
 }
 
+pub fn attach_current_jvm_thread() -> AttachGuard<'static> {
+    jvm().attach_current_thread().expect("failed to attach jvm thread")
+}
+
 pub fn print_exception(env: &JNIEnv) {
     let exception_occurred = env.exception_check()
-        .unwrap_or_else(|e| panic!(format!("{:?}", e)));
+        .unwrap_or_else(|e| panic!("{:?}", e));
     if exception_occurred {
         env.exception_describe()
-            .unwrap_or_else(|e| panic!(format!("{:?}", e)));
+            .unwrap_or_else(|e| panic!("{:?}", e));
     }
 }
 
@@ -44,7 +45,6 @@ pub fn print_exception(env: &JNIEnv) {
 pub fn unwrap<T>(env: &JNIEnv, res: Result<T>) -> T {
     res.unwrap_or_else(|e| {
         print_exception(&env);
-        panic!(format!("{}", e.display_chain().to_string()));
+        panic!("{}", e.display_chain().to_string());
     })
 }
-
