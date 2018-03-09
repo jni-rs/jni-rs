@@ -28,7 +28,7 @@ pub fn jvm() -> &'static Arc<JavaVM> {
     unsafe { JVM.as_ref().unwrap() }
 }
 
-pub fn attach_current_jvm_thread() -> AttachGuard<'static> {
+pub fn attach_current_thread() -> AttachGuard<'static> {
     jvm().attach_current_thread().expect("failed to attach jvm thread")
 }
 
