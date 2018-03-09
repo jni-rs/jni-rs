@@ -7,12 +7,12 @@ use jni::objects::JObject;
 use jni::objects::JValue;
 
 mod util;
-use util::{attach_current_jvm_thread, print_exception};
+use util::{attach_current_thread, print_exception};
 
 
 #[test]
 fn test_java_integers() {
-    let env = attach_current_jvm_thread();
+    let env = attach_current_thread();
 
     let array_length = 50;
 

@@ -169,12 +169,13 @@ impl<'a> JNIEnv<'a> {
         )
     }
 
-    /// Tests whether an object is an instance of a class.
+    /// Returns true if the object reference can be cast to the given type.
     ///
-    /// _NB: Unlike the operator `isinstanceof`, function `IsInstanceOf` *returns `true`*
+    /// _NB: Unlike the operator `instanceof`, function `IsInstanceOf` *returns `true`*
     /// for all classes *if `object` is `null`.*_
     ///
-    /// https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#IsInstanceOf
+    /// See [JNI documentation](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#IsInstanceOf)
+    /// for details.
     pub fn is_instance_of<T>(&self, object: JObject<'a>, class: T) -> Result<bool>
     where
         T: Desc<'a, JClass<'a>>,
