@@ -131,11 +131,6 @@ pub extern "system" fn Java_HelloWorld_asyncComputation(
     // it to the thread, to prevent it from being collected by the GC.
     let callback = env.new_global_ref(callback).unwrap();
 
-    // Then we need to detach it from the `JNIEnv` it was created from, because
-    // `GlobalRef` is not `Send`. We will then re-attach it to the right `JNIEnv`
-    // once inside the thread.
-    let callback = callback.detach().unwrap();
-
     // Use channel to prevent the Java program to finish before the thread
     // has chance to start.
     let (tx, rx) = mpsc::channel();
@@ -147,9 +142,7 @@ pub extern "system" fn Java_HelloWorld_asyncComputation(
         // Use the `JavaVM` interface to attach a `JNIEnv` to the current thread.
         let env = jvm.attach_current_thread().unwrap();
 
-        // Then attach the detached `callback` global ref to this  newly obtained
-        // `JNIEnv`, producing `GlobalRef` which we can use normally.
-        let callback = callback.attach(&*env);
+        // Then use the `callback` with this newly obtained `JNIEnv`.
         let callback = callback.as_obj();
 
         for i in 0..11 {
