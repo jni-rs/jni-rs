@@ -65,6 +65,8 @@ error_chain!{
     }
 }
 
+unsafe impl Sync for Error {}
+
 impl<T> From<::std::sync::TryLockError<T>> for Error {
     fn from(_: ::std::sync::TryLockError<T>) -> Self {
         ErrorKind::TryLock.into()
