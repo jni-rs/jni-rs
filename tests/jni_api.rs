@@ -11,6 +11,19 @@ use util::{attach_current_thread, unwrap};
 static ARRAYLIST_CLASS: &str = "java/util/ArrayList";
 static EXCEPTION_CLASS: &str = "java/lang/Exception";
 static ARITHMETIC_EXCEPTION_CLASS: &str = "java/lang/ArithmeticException";
+static STRING_CLASS: &str = "java/lang/String";
+
+#[test]
+pub fn call_method_returning_null() {
+    let env = attach_current_thread();
+    // Create an Exception with no message
+    let obj = AutoLocal::new(&env, unwrap(&env, env.new_object(EXCEPTION_CLASS, "()V", &[])));
+    // Call Throwable#getMessage must return null
+    let message = unwrap(&env, env.call_method(obj.as_obj(), "getMessage", "()Ljava/lang/String;", &[]));
+    let message_ref = env.auto_local(unwrap(&env, message.l()));
+
+    assert!(message_ref.as_obj().is_null());
+}
 
 #[test]
 pub fn is_instance_of_same_class() {
