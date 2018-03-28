@@ -48,6 +48,7 @@ use objects::GlobalRef;
 use objects::JByteBuffer;
 use objects::JClass;
 use objects::JFieldID;
+use objects::JList;
 use objects::JMap;
 use objects::JMethodID;
 use objects::JObject;
@@ -63,8 +64,8 @@ use signature::JavaType;
 use signature::Primitive;
 use signature::TypeSignature;
 
-use JavaVM;
 use JNIVersion;
+use JavaVM;
 
 /// FFI-compatible JNIEnv struct. You can safely use this as the JNIEnv argument
 /// to exported methods that will be called by java. This is where most of the
@@ -157,16 +158,14 @@ impl<'a> JNIEnv<'a> {
     {
         let class1 = class1.lookup(self)?;
         let class2 = class2.lookup(self)?;
-        Ok(
-            unsafe {
-                jni_unchecked!(
-                    self.internal,
-                    IsAssignableFrom,
-                    class1.into_inner(),
-                    class2.into_inner()
-                )
-            } == sys::JNI_TRUE,
-        )
+        Ok(unsafe {
+            jni_unchecked!(
+                self.internal,
+                IsAssignableFrom,
+                class1.into_inner(),
+                class2.into_inner()
+            )
+        } == sys::JNI_TRUE)
     }
 
     /// Raise an exception from an existing object. This will continue being
@@ -314,7 +313,6 @@ impl<'a> JNIEnv<'a> {
         AutoLocal::new(self, obj)
     }
 
-
     /// Deletes the local reference.
     ///
     /// Local references are valid for the duration of a native method call.
@@ -365,9 +363,7 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Note that resulting `JObject` can be `NULL` if `result` is `NULL`.
     pub fn pop_local_frame(&self, result: JObject) -> Result<JObject> {
-        Ok(unsafe {
-            jni_unchecked!(self.internal, PopLocalFrame, result.into_inner()).into()
-        })
+        Ok(unsafe { jni_unchecked!(self.internal, PopLocalFrame, result.into_inner()).into() })
     }
 
     /// Provides a convenient way to use `push_local_frame` by automatically
@@ -436,9 +432,8 @@ impl<'a> JNIEnv<'a> {
     ///
     /// # Example
     /// ```rust,ignore
-    /// let method_id: JMethodID = env.get_method_id(
-    ///     "java/lang/String", "substring", "(II)Ljava/lang/String;",
-    /// );
+    /// let method_id: JMethodID =
+    ///     env.get_method_id("java/lang/String", "substring", "(II)Ljava/lang/String;");
     /// ```
     pub fn get_method_id<'c, T, U, V>(&self, class: T, name: U, sig: V) -> Result<JMethodID<'a>>
     where
@@ -462,9 +457,8 @@ impl<'a> JNIEnv<'a> {
     ///
     /// # Example
     /// ```rust,ignore
-    /// let method_id: JMethodID = env.get_static_method_id(
-    ///     "java/lang/String", "valueOf", "(I)Ljava/lang/String;",
-    /// );
+    /// let method_id: JMethodID =
+    ///     env.get_static_method_id("java/lang/String", "valueOf", "(I)Ljava/lang/String;");
     /// ```
     pub fn get_static_method_id<'c, T, U, V>(
         &self,
@@ -906,6 +900,14 @@ impl<'a> JNIEnv<'a> {
             ctor_id.into_inner(),
             jni_args
         ))
+    }
+
+    /// Cast a JObject to a JString. This won't throw exceptions or return errors
+    /// in the event that the object isn't actually a list, but the methods on
+    /// the resulting map object will.
+    pub fn get_list(&self, obj: JObject<'a>) -> Result<JList> {
+        non_null!(obj, "get_list obj argument");
+        JList::from_env(self, obj)
     }
 
     /// Cast a JObject to a JMap. This won't throw exceptions or return errors
