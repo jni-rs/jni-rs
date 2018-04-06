@@ -29,6 +29,9 @@ pub use self::jstring::*;
 mod jmap;
 pub use self::jmap::*;
 
+mod jlist;
+pub use self::jlist::*;
+
 mod jbytebuffer;
 pub use self::jbytebuffer::*;
 
