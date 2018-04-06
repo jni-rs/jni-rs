@@ -710,7 +710,8 @@ impl<'a> JNIEnv<'a> {
         Ok(match ret {
             JavaType::Object(_) | JavaType::Array(_) => {
                 let obj: JObject =
-                    jni_call!(self.internal, CallObjectMethodA, obj, method_id, jni_args);
+                    jni_non_null_call!(self.internal, CallObjectMethodA, obj, method_id, jni_args)
+                        .into();
                 obj.into()
             }
             // JavaType::Object
