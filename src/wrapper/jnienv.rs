@@ -168,6 +168,30 @@ impl<'a> JNIEnv<'a> {
         } == sys::JNI_TRUE)
     }
 
+    /// Returns true if the object reference can be cast to the given type.
+    ///
+    /// _NB: Unlike the operator `instanceof`, function `IsInstanceOf` *returns `true`*
+    /// for all classes *if `object` is `null`.*_
+    ///
+    /// See [JNI documentation](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#IsInstanceOf)
+    /// for details.
+    pub fn is_instance_of<T>(&self, object: JObject<'a>, class: T) -> Result<bool>
+    where
+        T: Desc<'a, JClass<'a>>,
+    {
+        let class = class.lookup(self)?;
+        Ok(
+            unsafe {
+                jni_unchecked!(
+                    self.internal,
+                    IsInstanceOf,
+                    object.into_inner(),
+                    class.into_inner()
+                )
+            } == sys::JNI_TRUE,
+        )
+    }
+
     /// Raise an exception from an existing object. This will continue being
     /// thrown in java unless `exception_clear` is called.
     ///
@@ -286,7 +310,7 @@ impl<'a> JNIEnv<'a> {
     pub fn new_global_ref(&self, obj: JObject) -> Result<GlobalRef> {
         non_null!(obj, "new_global_ref obj argument");
         let new_ref: JObject = jni_call!(self.internal, NewGlobalRef, obj.into_inner());
-        let global = unsafe { GlobalRef::new(self.get_java_vm()?, new_ref.into_inner()) };
+        let global = unsafe { GlobalRef::from_raw(self.get_java_vm()?, new_ref.into_inner()) };
         Ok(global)
     }
 
@@ -371,7 +395,7 @@ impl<'a> JNIEnv<'a> {
     /// `pop_local_frame` function.
     pub fn with_local_frame<F>(&self, capacity: i32, f: F) -> Result<JObject>
     where
-        F: Fn() -> Result<JObject<'a>>,
+        F: FnOnce() -> Result<JObject<'a>>,
     {
         self.push_local_frame(capacity)?;
         let res = f();
