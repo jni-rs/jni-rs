@@ -4,7 +4,7 @@ use errors::*;
 /// A primitive java type. These are the things that can be represented without
 /// an object.
 #[allow(missing_docs)]
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone, Copy)]
 pub enum Primitive {
     Boolean, // Z
     Byte,    // B
@@ -35,7 +35,7 @@ impl ::std::fmt::Display for Primitive {
 
 /// Enum representing any java type in addition to method signatures.
 #[allow(missing_docs)]
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 pub enum JavaType {
     Primitive(Primitive),
     Object(String),
@@ -70,7 +70,7 @@ impl ::std::fmt::Display for JavaType {
 /// like `(Ljava/lang/String;)Z`. Used by the `call_(object|static)_method`
 /// functions on jnienv to ensure safety.
 #[allow(missing_docs)]
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 pub struct TypeSignature {
     pub args: Vec<JavaType>,
     pub ret: JavaType,
