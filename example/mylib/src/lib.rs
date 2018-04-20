@@ -12,7 +12,7 @@ use jni::objects::{GlobalRef, JClass, JObject, JString};
 // This is just a pointer. We'll be returning it from our function.
 // We can't return one of the objects with lifetime information because the
 // lifetime checker won't let us.
-use jni::sys::{jint, jlong, jstring};
+use jni::sys::{jint, jlong, jstring, jbyteArray};
 
 use std::thread;
 use std::time::Duration;
@@ -40,9 +40,24 @@ pub extern "system" fn Java_HelloWorld_hello(env: JNIEnv,
     // in the `strings` module.
     let output = env.new_string(format!("Hello, {}!", input))
         .expect("Couldn't create java string!");
-
     // Finally, extract the raw pointer to return.
     output.into_inner()
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub extern "system" fn Java_HelloWorld_helloByte(env: JNIEnv,
+                                             _class: JClass,
+                                             input: jbyteArray)
+                                             -> jbyteArray {
+    // First, we have to get the byte[] out of java.
+    let _input = env.convert_byte_array(input).unwrap();
+
+    // Then we have to create a new java byte[] to return.
+    let buf = [1; 2000];
+    let output = env.byte_array_from_slice(&buf).unwrap();
+    // Finally, extract the raw pointer to return.
+    output
 }
 
 #[no_mangle]

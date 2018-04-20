@@ -17,6 +17,14 @@ JNIEXPORT jstring JNICALL Java_HelloWorld_hello
 
 /*
  * Class:     HelloWorld
+ * Method:    helloByte
+ * Signature: ([B)[B
+ */
+JNIEXPORT jbyteArray JNICALL Java_HelloWorld_helloByte
+  (JNIEnv *, jclass, jbyteArray);
+
+/*
+ * Class:     HelloWorld
  * Method:    factAndCallMeBack
  * Signature: (ILHelloWorld;)V
  */

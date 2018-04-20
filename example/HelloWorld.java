@@ -1,5 +1,6 @@
 class HelloWorld {
     private static native String hello(String input);
+    private static native byte[] helloByte(byte[] input);
     private static native void factAndCallMeBack(int n, HelloWorld callback);
 
     private static native long counterNew(HelloWorld callback);
@@ -13,8 +14,12 @@ class HelloWorld {
     }
 
     public static void main(String[] args) {
+
         String output = HelloWorld.hello("josh");
         System.out.println(output);
+        byte[] outputByte = HelloWorld.helloByte("byte".getBytes());
+        System.out.println(outputByte);
+
 
         HelloWorld.factAndCallMeBack(6, new HelloWorld());
 
