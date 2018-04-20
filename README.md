@@ -8,6 +8,12 @@
 
 See the [docs](https://docs.rs/jni) for more details.
 
+# Example
+```
+cd example
+make
+```
+
 ## License
 
 Licensed under either of
