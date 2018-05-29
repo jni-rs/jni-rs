@@ -1,26 +1,74 @@
+branches:
+  only:
+    - master
+
+dist: trusty
+sudo: false
+
 language: rust
-rust:
-    - stable
-    - beta
-    - nightly
+jdk:
+  - oraclejdk8
+
+cache:
+  directories:
+  - "$HOME/.cargo"
+  - "$HOME/.local"
+  - "$TRAVIS_BUILD_DIR/target"
 
 matrix:
   allow_failures:
     - rust: nightly
 
-jdk:
-  - oraclejdk8
-
 env:
   global:
     - JAVA_HOME=/usr/lib/jvm/java-8-oracle
     - LD_LIBRARY_PATH=$JAVA_HOME/jre/lib/amd64/server
+    - CLIPPY_VERS=0.0.205
+    - RUST_BACKTRACE=1
 
-before_script:
-  - export RUST_BACKTRACE=1
-  - echo $JAVA_HOME
-  - echo $LD_LIBRARY_PATH
+install:
+- |
+  if [[ "$FEATURE" == "clippy" ]]; then
+    cargo clippy --version | grep $CLIPPY_VERS || cargo install clippy --force --vers $CLIPPY_VERS
+  fi
+- |
+  cargo install --list
+  env
+- |
+  cd $TRAVIS_BUILD_DIR && cargo update
 
-script:
-  - cargo build
-  - cargo test --features=backtrace,invocation
+script: skip
+
+jobs:
+  include:
+  - stage: clippy
+    env:
+    - FEATURE=clippy
+    rust: nightly-2018-05-26
+    script:
+    - cargo clippy --color=always --verbose -- -D warnings
+
+  - stage: test
+    rust: 1.21.0
+    script:
+    - cargo test --features=backtrace,invocation --verbose --all
+
+  - stage: test
+    rust: stable
+    script:
+    - cargo test --features=backtrace,invocation --verbose --all
+
+  - stage: test
+    rust: beta
+    script:
+    - cargo test --features=backtrace,invocation --verbose --all
+
+  - stage: test
+    rust: nightly-2018-05-13
+    script:
+    - cargo test --features=backtrace,invocation --verbose --all
+
+  - stage: test
+    rust: nightly
+    script:
+    - cargo test --features=backtrace,invocation --verbose --all
