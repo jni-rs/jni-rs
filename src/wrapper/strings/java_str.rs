@@ -27,8 +27,8 @@ impl<'a> JavaStr<'a> {
         let ptr = unsafe { env.get_string_utf_chars(obj)? };
         let java_str = JavaStr {
             internal: ptr,
-            env: env,
-            obj: obj,
+            env,
+            obj,
         };
         Ok(java_str)
     }

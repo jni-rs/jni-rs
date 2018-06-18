@@ -60,7 +60,7 @@ impl GlobalRef {
     ///
     /// This borrows the ref and prevents it from being dropped as long as the
     /// JObject sticks around.
-    pub fn as_obj<'a>(&'a self) -> JObject<'a> {
+    pub fn as_obj(&self) -> JObject {
         self.inner.as_obj()
     }
 }
@@ -80,7 +80,7 @@ impl GlobalRefGuard {
     ///
     /// This borrows the ref and prevents it from being dropped as long as the
     /// JObject sticks around.
-    pub fn as_obj<'a>(&'a self) -> JObject<'a> {
+    pub fn as_obj(&self) -> JObject {
         self.obj
     }
 }

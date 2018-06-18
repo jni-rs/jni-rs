@@ -93,7 +93,7 @@ impl TypeSignature {
 impl ::std::fmt::Display for TypeSignature {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         write!(f, "(")?;
-        for a in self.args.iter() {
+        for a in &self.args {
             write!(f, "{}", a)?;
         }
         write!(f, ")")?;
@@ -122,7 +122,7 @@ fn parse_primitive<S: Stream<Item = char>>(input: S) -> ParseResult<JavaType, S>
         .or(long)
         .or(short)
         .or(void))
-        .map(|ty| JavaType::Primitive(ty))
+        .map(JavaType::Primitive)
         .parse_stream(input)
 }
 
@@ -138,7 +138,7 @@ fn parse_object<S: Stream<Item = char>>(input: S) -> ParseResult<JavaType, S> {
     let end = token(';');
     let obj = between(marker, end, many1(satisfy(|c| c != ';')));
 
-    obj.map(|name| JavaType::Object(name)).parse_stream(input)
+    obj.map(JavaType::Object).parse_stream(input)
 }
 
 fn parse_type<S: Stream<Item = char>>(input: S) -> ParseResult<JavaType, S> {

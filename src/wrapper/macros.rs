@@ -55,8 +55,7 @@ macro_rules! check_exception {
 macro_rules! jni_unchecked {
     ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
         trace!("calling unchecked jni method: {}", stringify!($name));
-        let res = jni_method!($jnienv, $name)($jnienv, $($args),*);
-        res
+        jni_method!($jnienv, $name)($jnienv, $($args),*)
     })
 }
 
@@ -99,7 +98,10 @@ macro_rules! catch {
         (move || $b)()
     };
     ( $b:block ) => {
-        (|| $b)()
+        {
+            let b = || $b;
+            b()
+        }
     };
 }
 
@@ -124,7 +126,6 @@ macro_rules! java_vm_method {
 macro_rules! java_vm_unchecked {
     ( $java_vm:expr, $name:tt $(, $args:expr )* ) => ({
         trace!("calling unchecked JavaVM method: {}", stringify!($name));
-        let res = java_vm_method!($java_vm, $name)($java_vm, $($args),*);
-        res
+        java_vm_method!($java_vm, $name)($java_vm, $($args),*)
     })
 }

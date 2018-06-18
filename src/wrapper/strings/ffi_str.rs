@@ -28,7 +28,7 @@ impl ::std::ops::Deref for JNIString {
     type Target = JNIStr;
 
     fn deref(&self) -> &Self::Target {
-        unsafe { ::std::mem::transmute(self.internal.as_bytes_with_nul()) }
+        unsafe { &*(self.internal.as_bytes_with_nul() as *const [u8] as *const JNIStr) }
     }
 }
 
@@ -59,7 +59,7 @@ impl<'a> From<&'a JNIStr> for Cow<'a, str> {
             Ok(s) => s,
             Err(e) => {
                 debug!("error decoding java cesu8: {:#?}", e);
-                String::from_utf8_lossy(bytes).into()
+                String::from_utf8_lossy(bytes)
             }
         }
     }
@@ -83,7 +83,7 @@ impl JNIStr {
     /// Construct a reference to a `JNIStr` from a pointer. Equivalent to
     /// `CStr::from_ptr`.
     pub unsafe fn from_ptr<'a>(ptr: *const c_char) -> &'a JNIStr {
-        ::std::mem::transmute(ffi::CStr::from_ptr(ptr))
+        &*(ffi::CStr::from_ptr(ptr) as *const ffi::CStr as *const JNIStr)
     }
 }
 

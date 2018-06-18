@@ -438,17 +438,10 @@ impl<'a> JNIEnv<'a> {
 
         let res: Result<R> = catch!({ get_method(&class, &ffi_name, &sig) });
 
-        match res {
-            Ok(m) => Ok(m),
-            Err(e) => match e.kind() {
-                &ErrorKind::NullPtr(_) => {
-                    let name: String = ffi_name.into();
-                    let sig: String = sig.into();
-                    return Err(ErrorKind::MethodNotFound(name, sig).into());
-                }
-                _ => return Err(e),
-            },
-        }
+        res.map_err(|e| match *e.kind() {
+            ErrorKind::NullPtr(_) => ErrorKind::MethodNotFound(ffi_name.into(), sig.into()).into(),
+            _ => e,
+        })
     }
 
     /// Look up a method by class descriptor, name, and
@@ -532,17 +525,12 @@ impl<'a> JNIEnv<'a> {
             ))
         });
 
-        match res {
-            Ok(m) => Ok(m),
-            Err(e) => match e.kind() {
-                &ErrorKind::NullPtr(_) => {
-                    let name: String = ffi_name.into();
-                    let sig: String = ffi_sig.into();
-                    return Err(ErrorKind::FieldNotFound(name, sig).into());
-                }
-                _ => return Err(e),
+        res.map_err(|e| match *e.kind() {
+            ErrorKind::NullPtr(_) => {
+                ErrorKind::FieldNotFound(ffi_name.into(), ffi_sig.into()).into()
             },
-        }
+            _ => e,
+        })
     }
 
     /// Look up the static field ID for a class/name/type combination.
@@ -576,17 +564,12 @@ impl<'a> JNIEnv<'a> {
             ))
         });
 
-        match res {
-            Ok(m) => Ok(m),
-            Err(e) => match e.kind() {
-                &ErrorKind::NullPtr(_) => {
-                    let name: String = ffi_name.into();
-                    let sig: String = ffi_sig.into();
-                    return Err(ErrorKind::FieldNotFound(name, sig).into());
-                }
-                _ => return Err(e),
-            },
-        }
+        res.map_err(|e| match *e.kind() {
+            ErrorKind::NullPtr(_) => {
+                ErrorKind::FieldNotFound(ffi_name.into(), ffi_sig.into()).into()
+            }
+            _ => e,
+        })
     }
 
     /// Get the class for an object.
@@ -830,9 +813,7 @@ impl<'a> JNIEnv<'a> {
 
         let class = self.auto_local(self.get_object_class(obj)?.into());
 
-        let res = unsafe { self.call_method_unsafe(obj, (&class, name, sig), parsed.ret, args) };
-
-        res
+        unsafe { self.call_method_unsafe(obj, (&class, name, sig), parsed.ret, args) }
     }
 
     /// Calls a static method safely. This comes with a number of
@@ -1603,9 +1584,7 @@ impl<'a> JNIEnv<'a> {
 
         let class = self.auto_local(self.get_object_class(obj)?.into());
 
-        let res = unsafe { self.set_field_unsafe(obj, (&class, name, ty), val) };
-
-        res
+        unsafe { self.set_field_unsafe(obj, (&class, name, ty), val) }
     }
 
     /// Get a static field without checking the provided type against the actual
