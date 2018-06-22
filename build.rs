@@ -19,20 +19,34 @@ use platform::{
 
 fn main() {
     if cfg!(feature = "invocation") {
-        let libjvm_path = env::var("JAVA_HOME").ok()
+        let (java_home, libjvm_path) = env::var("JAVA_HOME").ok()
             .and_then(find_libjvm_in_java_home)
-            .or_else(find_java_home)
-            .and_then(find_libjvm_in_java_home)
+            .or_else(|| {
+                find_java_home()
+                    .and_then(find_libjvm_in_java_home)
+            })
+            .map_or((None, None), |found| (Some(found.0), Some(found.1)));
+
+        let libjvm_path = libjvm_path
             .or_else(find_libjvm_in_library_paths)
             .unwrap_or_else(|| panic!("Failed to find {}. Try setting JAVA_HOME", LIBJVM_NAME));
 
         println!("cargo:rustc-link-search=native={}", libjvm_path.display());
         println!("cargo:rustc-link-lib=dylib=jvm");
+        if cfg!(windows) {
+            if let Some(java_home) = java_home {
+                let lib_path = java_home.join("lib");
+                println!("cargo:rustc-link-search={}", lib_path.display());
+            } else {
+                println!("Failed to set `jdk/lib` search path. \
+                    If linker failed, try setting JAVA_HOME.");
+            }
+        }
     }
 }
 
-fn find_libjvm_in_java_home<S: AsRef<Path>>(path: S) -> Option<PathBuf> {
-    let walker = walkdir::WalkDir::new(path).follow_links(true);
+fn find_libjvm_in_java_home<S: AsRef<Path>>(path: S) -> Option<(PathBuf, PathBuf)> {
+    let walker = walkdir::WalkDir::new(path.as_ref()).follow_links(true);
     let libjvm_name = ffi::OsString::from(LIBJVM_NAME);
 
     for entry in walker {
@@ -42,7 +56,8 @@ fn find_libjvm_in_java_home<S: AsRef<Path>>(path: S) -> Option<PathBuf> {
         };
 
         if entry.file_name() == libjvm_name {
-            return entry.path().parent().map(Into::into);
+            return entry.path().parent()
+                .map(|libjvm_path| (path.as_ref().into(), libjvm_path.into()));
         }
     }
 
