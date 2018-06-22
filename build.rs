@@ -81,12 +81,12 @@ fn find_libjvm_in_library_paths() -> Option<PathBuf> {
 
 fn check_lib_paths<P: AsRef<str>>(paths: P) -> Option<PathBuf> {
     paths.as_ref().split(PATHS_SEP)
-        .filter(|p| is_lib_path(p))
+        .filter(|p| is_jvm_lib_path(p))
         .flat_map(follow_symlinks)
         .next()
 }
 
-fn is_lib_path<P: AsRef<Path>>(path: P) -> bool {
+fn is_jvm_lib_path<P: AsRef<Path>>(path: P) -> bool {
     path.as_ref().join(LIBJVM_NAME).is_file()
 }
 
