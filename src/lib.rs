@@ -170,6 +170,9 @@ mod wrapper {
     mod version;
     pub use self::version::*;
 
+    /// A platform specific code.
+    pub mod platform;
+
     #[macro_use]
     mod macros;
 

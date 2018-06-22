@@ -1,5 +1,8 @@
 extern crate walkdir;
 
+#[path = "src/wrapper/platform.rs"]
+mod platform;
+
 use std::env;
 use std::ffi;
 use std::fs;
@@ -8,22 +11,11 @@ use std::path::{
     PathBuf,
 };
 
-#[cfg(windows)]
-const LIBJVM_NAME: &str = "jvm.dll";
-#[cfg(all(unix, any(target_os = "macos", target_os = "ios")))]
-const LIBJVM_NAME: &str = "libjvm.dylib";
-#[cfg(all(unix, not(any(target_os = "macos", target_os = "ios"))))]
-const LIBJVM_NAME: &str = "libjvm.so";
-
-#[cfg(windows)]
-const JAVA_EXE_NAME: &str = "java.exe";
-#[cfg(not(windows))]
-const JAVA_EXE_NAME: &str = "java";
-
-#[cfg(windows)]
-const PATHS_SEP: &str = ";";
-#[cfg(not(windows))]
-const PATHS_SEP: &str = ":";
+use platform::{
+    JAVA_EXE_NAME,
+    LIBJVM_NAME,
+    PATHS_SEP,
+};
 
 fn main() {
     if cfg!(feature = "invocation") {
