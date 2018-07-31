@@ -45,7 +45,7 @@
 //! haven't written our native code yet.
 //!
 //! To do that, first we need the name and type signature that our rust function
-//! needs to adhere to. Luckily, java comes with a utility to generate that for
+//! needs to adhere to. Luckily, java comes with an utility to generate that for
 //! you! Run `javah HelloWorld` and you'll get a `HelloWorld.h` output to your
 //! directory. It should look something like this:
 //!
@@ -79,7 +79,7 @@
 //! ### The Rust side
 //!
 //! Create your crate with `cargo new mylib`. This will create a directory
-//! `mylib` that has everything needed to build an basic crate with `cargo`. We
+//! `mylib` that has everything needed to build a basic crate with `cargo`. We
 //! need to make a couple of changes to `Cargo.toml` before we do anything else.
 //!
 //! * Under `[dependencies]`, add `jni = { git =
@@ -150,6 +150,33 @@
 //! different linker/loader semantics, but on Linux, you can simply `export
 //! LD_LIBRARY_PATH=/path/to/mylib/target/debug`. Now, you should get the
 //! expected output `Hello, josh!` from your java class.
+//!
+//! If you build with the `invocation` feature, there is yet another dependency:
+//! `libjvm` (`libjvm.so`, `libjvm.dylib`, `jvm.dll` depending on target platform).
+//!
+//! During build time jni-rs checks the `JAVA_HOME` environment variable
+//! and tries to find there libjvm. If this failes, jni-rs tries to ask java
+//! (`java -XshowSettings:properties -version 2>&1 | grep 'java.home'`).
+//! If this failes, jni-rs tries to find the jvm library in system paths
+//! (`LD_LIBRARY_PATH` on *nix, `PATH` on Windows).
+//! On Windows additionally needed path to `jvm.lib`.
+//!
+//! After all this can fail, since a default JAVA_HOME can point to and
+//! `LD_LIBRARY_PATH` can lead to a facade hard links or copies of executables
+//! in a place where is no JDK. The easiest way to fix these link errors is to
+//! explicitly set `JAVA_HOME` with a proper path to the installed JDK.
+//!
+//! At runtime an binary executable or dynamic library authomatically tries
+//! to load and link to JVM at startup. As with `mylib` above, the path to JVM
+//! should be configured with `LD_LIBRARY_PATH`/`PATH`, depending on platform.
+//!
+//! If you are using a recent Mac OS with System Integrity Protection (SIP) enabled
+//! you will find that sometimes `LD_LIBRARY_PATH` "disappears". The system
+//! resets it every time you start a new shell. This scenario is typical when you
+//! build/run your application using tools such as Maven. There are some workarounds.
+//! You can create special shell script that will configure the environment
+//! immediately before run, for example, cargo. Or you can set `RUSTFLAGS` with
+//! the rpath option: `-C link-arg=-Wl,-rpath,${JAVA_LIB_DIR}`.
 
 /// Bindgen-generated definitions. Mirrors `jni.h` and `jni_md.h`.
 extern crate jni_sys;
