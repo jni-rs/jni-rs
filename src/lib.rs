@@ -84,7 +84,7 @@
 //!
 //! * Under `[dependencies]`, add `jni = { git =
 //!   "https://github.com/prevoty/jni-rs" }`
-//! * Add a new `[lib]` section and under it, `crate_type = ["dylib"]`.
+//! * Add a new `[lib]` section and under it, `crate_type = ["cdylib"]`.
 //!
 //! Now, if you run `cargo build` from inside the crate directory, you should
 //! see a `libmylib.so` (if you're on linux/OSX) in the `target/debug`
