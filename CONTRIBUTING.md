@@ -56,9 +56,9 @@ adding `--release` flag.
     extern crate jni;
     use jni::*;
   ```
-  Integration tests typically require running JVM, so you should add 
+  Integration tests typically require running a JVM, so you should add 
   `#![cfg(feature = "invocation")]` at the top of the file. You can use helper
-  methods from [util module](tests/util/mod.rs) to rum JVM.
+  methods from [util module](tests/util/mod.rs) to run JVM.
 * Doc tests are rarely used, but they allow to efficiently test some functionality
   by providing an example of its usage. Consult 
   [Rust documentation](https://doc.rust-lang.org/beta/rustdoc/documentation-tests.html)
