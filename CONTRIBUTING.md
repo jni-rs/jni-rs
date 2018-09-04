@@ -59,6 +59,10 @@ adding `--release` flag.
   Integration tests typically require running a JVM, so you should add 
   `#![cfg(feature = "invocation")]` at the top of the file. You can use helper
   methods from [util module](tests/util/mod.rs) to run JVM.
+  
+  Keep in mind, that only one JVM can be run per process. Therefore, tests that
+  need to launch it with different parameters have to be placed in different 
+  source files. `Cargo` runs tests from different modules in parallel.
 * Doc tests are rarely used, but they allow to efficiently test some functionality
   by providing an example of its usage. Consult 
   [Rust documentation](https://doc.rust-lang.org/beta/rustdoc/documentation-tests.html)
