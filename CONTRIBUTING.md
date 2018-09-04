@@ -90,6 +90,8 @@ $ cargo fmt --all -- --write-mode=check
 ```
 
 Every public entry of the API must be thoroughly documented and covered with tests if it is possible.
+You can use [JNI specification](https://docs.oracle.com/javase/10/docs/specs/jni/index.html) as 
+a reference for how to write detailed documentation.
 
 To open local documentation of the project, you can use the following command:
 
