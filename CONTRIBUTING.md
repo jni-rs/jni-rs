@@ -93,6 +93,8 @@ Every public entry of the API must be thoroughly documented and covered with tes
 You can use [JNI specification](https://docs.oracle.com/javase/10/docs/specs/jni/index.html) as 
 a reference for how to write detailed documentation.
 
+Do not forget to update project guides and tutorials along with documentation.
+
 To open local documentation of the project, you can use the following command:
 
 ```$sh
