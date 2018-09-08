@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/prevoty/jni-rs.svg?branch=develop)](https://travis-ci.org/prevoty/jni-rs)
+[![Build Status](https://travis-ci.org/jni-rs/jni-rs.svg?branch=master)](https://travis-ci.org/jni-rs/jni-rs)
 [![Docs](https://docs.rs/jni/badge.svg)](https://docs.rs/jni)
 [![Crates.io](https://img.shields.io/crates/v/jni.svg)](https://crates.io/crates/jni)
 
