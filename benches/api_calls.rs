@@ -198,6 +198,36 @@ mod tests {
         });
     }
 
+    /// A benchmark measuring Push/PopLocalFrame overhead.
+    ///
+    /// Such operations are *required* if one attaches a long-running
+    /// native thread to the JVM because there is no 'return-from-native-method'
+    /// event when created local references are freed, hence no way for
+    /// the JVM to know that the local references are no longer used in the native code.
+    #[bench]
+    fn jni_noop_with_local_frame(b: &mut Bencher) {
+        // Local frame size actually doesn't matter since JVM does not preallocate anything.
+        const LOCAL_FRAME_SIZE: i32 = 32;
+        let env = VM.attach_current_thread().unwrap();
+        b.iter(|| {
+            env.with_local_frame(LOCAL_FRAME_SIZE, || Ok(JObject::null()))
+                .unwrap()
+        });
+    }
+
+    /// A benchmark of the overhead of attaching and detaching a native thread.
+    ///
+    /// TL;DR: It is HUGE — two orders of magnitude higher than calling a single
+    /// Java method using unchecked APIs (e.g., `jni_call_static_unsafe`).
+    ///
+    #[bench]
+    fn jvm_noop_attach_detach_native_thread(b: &mut Bencher) {
+        b.iter(|| {
+            let env = VM.attach_current_thread().unwrap();
+            black_box(&env);
+        });
+    }
+
     #[bench]
     fn native_arc(b: &mut Bencher) {
         let env = VM.attach_current_thread().unwrap();
