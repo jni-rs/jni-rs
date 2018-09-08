@@ -44,6 +44,11 @@ impl JavaVM {
         Ok(JavaVM(ptr))
     }
 
+    /// Returns underlying `sys::JavaVM` interface.
+    pub fn get_java_vm_pointer(&self) -> *mut sys::JavaVM {
+        self.0
+    }
+
     /// Attaches the current thread to a Java VM. The resulting `AttachGuard`
     /// can be dereferenced to a `JNIEnv` and automatically detaches the thread
     /// when dropped.
