@@ -217,7 +217,7 @@ mod tests {
 
     /// A benchmark of the overhead of attaching and detaching a native thread.
     ///
-    /// TL;DR: It is HUGE — two orders of magnitude higher than calling a single
+    /// It is *huge* — two orders of magnitude higher than calling a single
     /// Java method using unchecked APIs (e.g., `jni_call_static_unsafe`).
     ///
     #[bench]
