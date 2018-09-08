@@ -1,4 +1,4 @@
-#![feature(invocation)]
+#![cfg(feature = "invocation")]
 #![feature(test)]
 
 extern crate test;
