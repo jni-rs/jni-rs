@@ -94,6 +94,26 @@ mod tests {
         b.iter(|| jni_abs_safe(&env, -3));
     }
 
+    /// A benchmark of a leak-free way to call methods creating local
+    /// references (e.g., call_static_method which performs a lookup
+    /// of a class by its name and does not free the reference
+    /// to the Class object
+    /// (see https://github.com/jni-rs/jni-rs/issues/109)
+    #[bench]
+    fn jni_call_static_method_safe_in_frame(b: &mut Bencher) {
+        let env = VM.attach_current_thread().unwrap();
+        const LOCAL_FRAME_SIZE: i32 = 32;
+
+        b.iter(|| {
+            // todo: Can we make env.with_local_frame support returning a non-object type?
+            env.push_local_frame(LOCAL_FRAME_SIZE).unwrap();
+            let res = jni_abs_safe(&env, -3);
+            env.pop_local_frame(JObject::null()).unwrap();
+
+            res
+        });
+    }
+
     #[bench]
     fn jni_call_static_method_unsafe_str(b: &mut Bencher) {
         let env = VM.attach_current_thread().unwrap();
