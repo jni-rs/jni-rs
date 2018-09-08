@@ -1,4 +1,5 @@
 use combine::*;
+use combine::stream::state::State;
 use errors::*;
 
 /// A primitive java type. These are the things that can be represented without
@@ -102,7 +103,9 @@ impl ::std::fmt::Display for TypeSignature {
     }
 }
 
-fn parse_primitive<S: Stream<Item = char>>(input: S) -> ParseResult<JavaType, S> {
+fn parse_primitive<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S> 
+    where S::Error: ParseError<char, S::Range, S::Position>
+{
     let boolean = token('Z').map(|_| Primitive::Boolean);
     let byte = token('B').map(|_| Primitive::Byte);
     let char_type = token('C').map(|_| Primitive::Char);
@@ -126,14 +129,18 @@ fn parse_primitive<S: Stream<Item = char>>(input: S) -> ParseResult<JavaType, S>
         .parse_stream(input)
 }
 
-fn parse_array<S: Stream<Item = char>>(input: S) -> ParseResult<JavaType, S> {
+fn parse_array<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S> 
+    where S::Error: ParseError<char, S::Range, S::Position>
+{
     let marker = token('[');
     (marker, parser(parse_type))
         .map(|(_, ty)| JavaType::Array(Box::new(ty)))
         .parse_stream(input)
 }
 
-fn parse_object<S: Stream<Item = char>>(input: S) -> ParseResult<JavaType, S> {
+fn parse_object<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S> 
+    where S::Error: ParseError<char, S::Range, S::Position>
+{
     let marker = token('L');
     let end = token(';');
     let obj = between(marker, end, many1(satisfy(|c| c != ';')));
@@ -141,7 +148,9 @@ fn parse_object<S: Stream<Item = char>>(input: S) -> ParseResult<JavaType, S> {
     obj.map(|name| JavaType::Object(name)).parse_stream(input)
 }
 
-fn parse_type<S: Stream<Item = char>>(input: S) -> ParseResult<JavaType, S> {
+fn parse_type<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S> 
+    where S::Error: ParseError<char, S::Range, S::Position>
+{
     parser(parse_primitive)
         .or(parser(parse_array))
         .or(parser(parse_object))
@@ -149,11 +158,15 @@ fn parse_type<S: Stream<Item = char>>(input: S) -> ParseResult<JavaType, S> {
         .parse_stream(input)
 }
 
-fn parse_args<S: Stream<Item = char>>(input: S) -> ParseResult<Vec<JavaType>, S> {
+fn parse_args<S: Stream<Item = char>>(input: &mut S) -> ParseResult<Vec<JavaType>, S> 
+    where S::Error: ParseError<char, S::Range, S::Position>
+{
     between(token('('), token(')'), many(parser(parse_type))).parse_stream(input)
 }
 
-fn parse_sig<S: Stream<Item = char>>(input: S) -> ParseResult<JavaType, S> {
+fn parse_sig<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S> 
+    where S::Error: ParseError<char, S::Range, S::Position>
+{
     (parser(parse_args), parser(parse_type))
         .map(|(a, r)| TypeSignature { args: a, ret: r })
         .map(|sig| JavaType::Method(Box::new(sig)))
