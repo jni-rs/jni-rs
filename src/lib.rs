@@ -45,8 +45,8 @@
 //! haven't written our native code yet.
 //!
 //! To do that, first we need the name and type signature that our Rust function
-//! needs to adhere to. Luckily, Java comes with a utility to generate that for
-//! you! Run `javah HelloWorld` and you'll get a `HelloWorld.h` output to your
+//! needs to adhere to. Luckily, the Java compiler can generate that for you!
+//! Run `javac -h . HelloWorld` and you'll get a `HelloWorld.h` output to your
 //! directory. It should look something like this:
 //!
 //! ```c
