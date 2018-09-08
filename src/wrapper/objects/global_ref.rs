@@ -57,12 +57,12 @@ impl Deref for GlobalRef {
 }
 
 impl GlobalRef {
-    /// Creates a new wrapper for a global reference.
+    /// Creates a [`GlobalRef`] that wraps a pre-existing global reference given as a `raw` [`jobject`]
     ///
     /// # Safety
     ///
     /// Expects a valid raw global reference that should be created with `NewGlobalRef` JNI function.
-    pub(crate) unsafe fn from_raw(vm: JavaVM, raw_global_ref: sys::jobject) -> Self {
+    pub unsafe fn from_raw(vm: JavaVM, raw_global_ref: sys::jobject) -> Self {
         GlobalRef {
             inner: Arc::new(GlobalRefGuard::from_raw(vm, raw_global_ref)),
         }
