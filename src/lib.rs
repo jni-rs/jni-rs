@@ -149,6 +149,42 @@
 //! different linker/loader semantics, but on Linux, you can simply `export
 //! LD_LIBRARY_PATH=/path/to/mylib/target/debug`. Now, you should get the
 //! expected output `Hello, josh!` from your Java class.
+//!
+//! ## See Also
+//!
+//! ### Examples
+//! - [Example project][jni-rs-example]
+//! - Our [integration tests][jni-rs-its] and [benchmarks][jni-rs-benches]
+//!
+//! ### JNI Documentation
+//! - [Java Native Interface Specification][jni-spec]
+//! - [JNI tips][jni-tips] — general tips on JNI development and some Android-specific
+//!
+//! ### Open-Source Users
+//! - The Servo browser engine Android [port][users-servo]
+//! - The Exonum framework [Java Binding][users-ejb]
+//! - MaidSafe [Java Binding][users-maidsafe]
+//!
+//! ### Other Projects Simplifying Java and Rust Communication
+//! - Consider [JNR][projects-jnr] if you just need to use a native library with C interface
+//! - Watch OpenJDK [Project Panama][projects-panama] which aims to enable using native libraries
+//!   with no JNI code
+//! - Consider [GraalVM][projects-graalvm] — a recently released VM that gives zero-cost
+//!   interoperability between various languages (including Java and [Rust][graalvm-rust] compiled
+//!   into LLVM-bitcode)
+//!
+//! [jni-spec]: https://docs.oracle.com/javase/10/docs/specs/jni/index.html
+//! [jni-tips]: https://developer.android.com/training/articles/perf-jni
+//! [jni-rs-example]: https://github.com/jni-rs/jni-rs/tree/master/example
+//! [jni-rs-its]: https://github.com/jni-rs/jni-rs/tree/master/tests
+//! [jni-rs-benches]: https://github.com/jni-rs/jni-rs/tree/master/benches
+//! [users-servo]: https://github.com/servo/servo/tree/master/ports/libsimpleservo
+//! [users-ejb]: https://github.com/exonum/exonum-java-binding/tree/master/exonum-java-binding-core
+//! [users-maidsafe]: https://github.com/maidsafe/safe_client_libs/tree/master/safe_app_jni
+//! [projects-jnr]: https://github.com/jnr/jnr-ffi/
+//! [projects-graalvm]: http://www.graalvm.org/docs/why-graal/#for-java-programs
+//! [graalvm-rust]: http://www.graalvm.org/docs/reference-manual/languages/llvm/#running-rust
+//! [projects-panama]: http://openjdk.java.net/projects/panama/
 
 /// Bindgen-generated definitions. Mirrors `jni.h` and `jni_md.h`.
 extern crate jni_sys;
