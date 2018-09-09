@@ -1,4 +1,5 @@
 #![cfg(feature = "invocation")]
+extern crate env_logger;
 extern crate error_chain;
 extern crate jni;
 
@@ -56,4 +57,22 @@ pub fn global_ref_works_in_other_threads() {
         assert_eq!(expected, unwrap(&env, unwrap(&env, env.call_method(
             atomic_integer.as_obj(), "getAndSet", "(I)I", &[JValue::from(0)])).i()));
     }
+}
+
+#[test]
+pub fn global_ref_drop_must_work_in_case_of_pending_exception() {
+    let _ = env_logger::try_init();
+    let env = attach_current_thread();
+    {
+        // Create a new global ref to a string.
+        let s = env.new_string("Foo").unwrap();
+        let s = env.new_global_ref(s.into()).unwrap();
+
+        // Throw a new exception
+        env.throw_new("java/lang/RuntimeException", "Test Exception").unwrap();
+    } // A global ref drop must not cause errors
+    // fixme: remove this test as it doesn't assert on anything — you can see
+    //   it fail in logs only.
+
+    env.exception_clear().unwrap();
 }
