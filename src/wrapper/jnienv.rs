@@ -971,8 +971,8 @@ impl<'a> JNIEnv<'a> {
     #[allow(unused_unsafe)]
     pub unsafe fn release_string_utf_chars(&self, obj: JString, arr: *const c_char) -> Result<()> {
         non_null!(obj, "release_string_utf_chars obj argument");
+        // todo: use sth like 'jni_exception_safe_call'?
         jni_unchecked!(self.internal, ReleaseStringUTFChars, obj.into_inner(), arr);
-        check_exception!(self.internal);
         Ok(())
     }
 

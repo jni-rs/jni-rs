@@ -90,8 +90,8 @@ impl Drop for GlobalRefGuard {
         fn drop_impl(env: &JNIEnv, global_ref: JObject) -> Result<()> {
             let internal = env.get_native_interface();
             unsafe {
+                // todo: use sth like 'jni_exception_safe_call'?
                 jni_unchecked!(internal, DeleteGlobalRef, global_ref.into_inner());
-                check_exception!(internal);
             }
             Ok(())
         }
