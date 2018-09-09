@@ -373,8 +373,11 @@ impl<'a> JNIEnv<'a> {
     /// be more
     /// convenient in loops.
     pub fn push_local_frame(&self, capacity: i32) -> Result<()> {
-        // `PushLocalFrame` returns `jint`, but we don't need it.
-        Ok(jni_void_call!(self.internal, PushLocalFrame, capacity))
+        // fixme: shall we move jni_error_code_to_result to jni_checking_error_code?
+        let res = unsafe {
+            jni_unchecked!(self.internal, PushLocalFrame, capacity)
+        };
+        jni_error_code_to_result(res)
     }
 
     /// Pops off the current local reference frame, frees all the local
