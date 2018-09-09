@@ -94,6 +94,18 @@ pub fn push_local_frame_pending_exception() {
 }
 
 #[test]
+pub fn push_local_frame_too_many_refs() {
+    let env = attach_current_thread();
+
+    // Try to push a new local frame with a ridiculous size
+    let frame_size = i32::max_value();
+    env.push_local_frame(frame_size)
+        .expect_err("push_local_frame(2B) must Err");
+
+    env.pop_local_frame(JObject::null()).unwrap();
+}
+
+#[test]
 pub fn with_local_frame() {
     let env = attach_current_thread();
 
