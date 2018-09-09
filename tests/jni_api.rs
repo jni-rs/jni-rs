@@ -11,7 +11,7 @@ use util::{attach_current_thread, unwrap};
 static ARRAYLIST_CLASS: &str = "java/util/ArrayList";
 static EXCEPTION_CLASS: &str = "java/lang/Exception";
 static ARITHMETIC_EXCEPTION_CLASS: &str = "java/lang/ArithmeticException";
-static STRING_CLASS: &str = "java/lang/String";
+static INTEGER_CLASS: &str = "java/lang/Integer";
 
 #[test]
 pub fn call_method_returning_null() {
@@ -60,4 +60,16 @@ pub fn is_instance_of_null() {
     assert!(unwrap(&env, env.is_instance_of(obj, ARRAYLIST_CLASS)));
     assert!(unwrap(&env, env.is_instance_of(obj, EXCEPTION_CLASS)));
     assert!(unwrap(&env, env.is_instance_of(obj, ARITHMETIC_EXCEPTION_CLASS)));
+}
+
+#[test]
+pub fn get_static_public_field() {
+    let env = attach_current_thread();
+
+    let min_int_value = env.get_static_field(INTEGER_CLASS, "MIN_VALUE", "I")
+        .unwrap()
+        .i()
+        .unwrap();
+
+    assert_eq!(min_int_value, i32::min_value());
 }
