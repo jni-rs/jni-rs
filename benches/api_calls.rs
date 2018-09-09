@@ -1,4 +1,4 @@
-#![feature(invocation)]
+#![cfg(feature = "invocation")]
 #![feature(test)]
 
 extern crate test;
@@ -187,6 +187,21 @@ mod tests {
         env.delete_local_ref(obj).unwrap();
 
         b.iter(|| env.new_global_ref(global_ref.as_obj()).unwrap());
+    }
+
+    /// Checks the overhead of checking if exception has occurred.
+    ///
+    /// Such checks are required each time a Java method is called, but
+    /// can be omitted if we call a JNI method that returns an error status.
+    ///
+    /// See also #58
+    #[bench]
+    fn jni_check_exception(b: &mut Bencher) {
+        let env = VM.attach_current_thread().unwrap();
+
+        b.iter(|| {
+            env.exception_check().unwrap()
+        });
     }
 
     #[bench]
