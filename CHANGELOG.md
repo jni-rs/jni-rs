@@ -15,6 +15,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+- `JavaVM#get_java_vm_pointer` to retrieve a JavaVM pointer (#98)
+- This changelog and other project documents (#106)
+
+### Changed
+- The project is moved to an organization (#104)
+- Updated versions of dependencies (#105)
+- Improved project documents (#107)
+
+### Fixed
+- crate type of a shared library with native methods 
+  must be `cdylib` (#100)
+
 ## [0.10.1]
 - No changes has been made to the Changelog until this release.
 
