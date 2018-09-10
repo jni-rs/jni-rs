@@ -24,7 +24,7 @@ at your option.
 
 ### Contribution
 
-For guide, see [CONTRIBUTING.md].
+For guide, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Unless you explicitly state otherwise, any contribution intentionally
 submitted for inclusion in the work by you, as defined in the
