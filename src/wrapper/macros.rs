@@ -1,3 +1,24 @@
+macro_rules! jni_call {
+    ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
+        let res = jni_non_null_call!($jnienv, $name $(, $args)*);
+        non_null!(res, concat!(stringify!($name), " result")).into()
+    })
+}
+
+macro_rules! jni_non_null_call {
+    ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
+        trace!("calling checked jni method: {}", stringify!($name));
+        #[allow(unused_unsafe)]
+        unsafe {
+            trace!("entering unsafe");
+            let res = jni_method!($jnienv, $name)($jnienv, $($args),*);
+            check_exception!($jnienv);
+            trace!("exiting unsafe");
+            res
+        }
+    })
+}
+
 macro_rules! non_null {
     ( $obj:expr, $ctx:expr ) => {
         if $obj.is_null() {
@@ -8,14 +29,25 @@ macro_rules! non_null {
     }
 }
 
-macro_rules! deref {
-    ( $obj:expr, $ctx:expr ) => {
-        if $obj.is_null() {
-            return Err($crate::errors::ErrorKind::NullDeref($ctx).into());
-        } else {
-            *$obj
+macro_rules! jni_void_call {
+    ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
+        trace!("calling checked jni method: {}", stringify!($name));
+        #[allow(unused_unsafe)]
+        unsafe {
+            trace!("entering unsafe");
+            jni_method!($jnienv, $name)($jnienv, $($args),*);
+            check_exception!($jnienv);
+            trace!("exiting unsafe");
         }
-    };
+    })
+}
+
+macro_rules! jni_unchecked {
+    ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
+        trace!("calling unchecked jni method: {}", stringify!($name));
+        let res = jni_method!($jnienv, $name)($jnienv, $($args),*);
+        res
+    })
 }
 
 macro_rules! jni_method {
@@ -52,48 +84,6 @@ macro_rules! check_exception {
     }
 }
 
-macro_rules! jni_unchecked {
-    ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
-        trace!("calling unchecked jni method: {}", stringify!($name));
-        let res = jni_method!($jnienv, $name)($jnienv, $($args),*);
-        res
-    })
-}
-
-macro_rules! jni_non_null_call {
-    ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
-        trace!("calling checked jni method: {}", stringify!($name));
-        #[allow(unused_unsafe)]
-        unsafe {
-            trace!("entering unsafe");
-            let res = jni_method!($jnienv, $name)($jnienv, $($args),*);
-            check_exception!($jnienv);
-            trace!("exiting unsafe");
-            res
-        }
-    })
-}
-
-macro_rules! jni_void_call {
-    ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
-        trace!("calling checked jni method: {}", stringify!($name));
-        #[allow(unused_unsafe)]
-        unsafe {
-            trace!("entering unsafe");
-            jni_method!($jnienv, $name)($jnienv, $($args),*);
-            check_exception!($jnienv);
-            trace!("exiting unsafe");
-        }
-    })
-}
-
-macro_rules! jni_call {
-    ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
-        let res = jni_non_null_call!($jnienv, $name $(, $args)*);
-        non_null!(res, concat!(stringify!($name), " result")).into()
-    })
-}
-
 macro_rules! catch {
     ( move $b:block ) => {
         (move || $b)()
@@ -101,6 +91,14 @@ macro_rules! catch {
     ( $b:block ) => {
         (|| $b)()
     };
+}
+
+macro_rules! java_vm_unchecked {
+    ( $java_vm:expr, $name:tt $(, $args:expr )* ) => ({
+        trace!("calling unchecked JavaVM method: {}", stringify!($name));
+        let res = java_vm_method!($java_vm, $name)($java_vm, $($args),*);
+        res
+    })
 }
 
 macro_rules! java_vm_method {
@@ -121,10 +119,12 @@ macro_rules! java_vm_method {
     })
 }
 
-macro_rules! java_vm_unchecked {
-    ( $java_vm:expr, $name:tt $(, $args:expr )* ) => ({
-        trace!("calling unchecked JavaVM method: {}", stringify!($name));
-        let res = java_vm_method!($java_vm, $name)($java_vm, $($args),*);
-        res
-    })
+macro_rules! deref {
+    ( $obj:expr, $ctx:expr ) => {
+        if $obj.is_null() {
+            return Err($crate::errors::ErrorKind::NullDeref($ctx).into());
+        } else {
+            *$obj
+        }
+    };
 }
