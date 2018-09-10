@@ -1,11 +1,14 @@
-macro_rules! jni_call {
+// A JNI call that is expected to return a non-null pointer when successful.
+// If a null pointer is returned, it is converted to an Err.
+macro_rules! jni_non_null_call {
     ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
-        let res = jni_non_null_call!($jnienv, $name $(, $args)*);
+        let res = jni_non_void_call!($jnienv, $name $(, $args)*);
         non_null!(res, concat!(stringify!($name), " result")).into()
     })
 }
 
-macro_rules! jni_non_null_call {
+// A non-void JNI call. May return anything — primitives, references, error codes.
+macro_rules! jni_non_void_call {
     ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
         trace!("calling checked jni method: {}", stringify!($name));
         #[allow(unused_unsafe)]

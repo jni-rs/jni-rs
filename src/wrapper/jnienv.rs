@@ -114,7 +114,7 @@ impl<'a> JNIEnv<'a> {
     {
         non_null!(loader, "define_class loader argument");
         let name = name.into();
-        let class = jni_call!(
+        let class = jni_non_null_call!(
             self.internal,
             DefineClass,
             name.as_ptr(),
@@ -136,7 +136,7 @@ impl<'a> JNIEnv<'a> {
         S: Into<JNIString>,
     {
         let name = name.into();
-        let class = jni_call!(self.internal, FindClass, name.as_ptr());
+        let class = jni_non_null_call!(self.internal, FindClass, name.as_ptr());
         Ok(class)
     }
 
@@ -147,7 +147,7 @@ impl<'a> JNIEnv<'a> {
         T: Desc<'a, JClass<'a>>,
     {
         let class = class.lookup(self)?;
-        Ok(jni_call!(self.internal, GetSuperclass, class.into_inner()))
+        Ok(jni_non_null_call!(self.internal, GetSuperclass, class.into_inner()))
     }
 
     /// Tests whether class1 is assignable from class2.
@@ -309,7 +309,7 @@ impl<'a> JNIEnv<'a> {
     /// releases the GC pin upon being dropped.
     pub fn new_global_ref(&self, obj: JObject) -> Result<GlobalRef> {
         non_null!(obj, "new_global_ref obj argument");
-        let new_ref: JObject = jni_call!(self.internal, NewGlobalRef, obj.into_inner());
+        let new_ref: JObject = jni_non_null_call!(self.internal, NewGlobalRef, obj.into_inner());
         let global = unsafe { GlobalRef::from_raw(self.get_java_vm()?, new_ref.into_inner()) };
         Ok(global)
     }
@@ -321,7 +321,7 @@ impl<'a> JNIEnv<'a> {
     /// want.
     pub fn new_local_ref<T>(&self, obj: JObject) -> Result<JObject> {
         non_null!(obj, "new_local_ref obj argument");
-        let local: JObject = jni_call!(self.internal, NewLocalRef, obj.into_inner());
+        let local: JObject = jni_non_null_call!(self.internal, NewLocalRef, obj.into_inner());
         Ok(local)
     }
 
@@ -415,7 +415,7 @@ impl<'a> JNIEnv<'a> {
         T: Desc<'a, JClass<'a>>,
     {
         let class = class.lookup(self)?;
-        Ok(jni_call!(self.internal, AllocObject, class.into_inner()))
+        Ok(jni_non_null_call!(self.internal, AllocObject, class.into_inner()))
     }
 
     /// Common functionality for finding methods.
@@ -466,7 +466,7 @@ impl<'a> JNIEnv<'a> {
         V: Into<JNIString>,
     {
         self.get_method_id_base(class, name, sig, |class, name, sig| {
-            Ok(jni_call!(
+            Ok(jni_non_null_call!(
                 self.internal,
                 GetMethodID,
                 class.into_inner(),
@@ -496,7 +496,7 @@ impl<'a> JNIEnv<'a> {
         V: Into<JNIString>,
     {
         self.get_method_id_base(class, name, sig, |class, name, sig| {
-            Ok(jni_call!(
+            Ok(jni_non_null_call!(
                 self.internal,
                 GetStaticMethodID,
                 class.into_inner(),
@@ -523,7 +523,7 @@ impl<'a> JNIEnv<'a> {
         let ffi_sig = sig.into();
 
         let res: Result<JFieldID> = catch!({
-            Ok(jni_call!(
+            Ok(jni_non_null_call!(
                 self.internal,
                 GetFieldID,
                 class.into_inner(),
@@ -567,7 +567,7 @@ impl<'a> JNIEnv<'a> {
         let ffi_sig = sig.into();
 
         let res: Result<JStaticFieldID> = catch!({
-            Ok(jni_call!(
+            Ok(jni_non_null_call!(
                 self.internal,
                 GetStaticFieldID,
                 class.into_inner(),
@@ -591,7 +591,7 @@ impl<'a> JNIEnv<'a> {
 
     /// Get the class for an object.
     pub fn get_object_class(&self, obj: JObject) -> Result<JClass<'a>> {
-        Ok(jni_call!(self.internal, GetObjectClass, obj.into_inner()))
+        Ok(jni_non_null_call!(self.internal, GetObjectClass, obj.into_inner()))
     }
 
     /// Call a static method in an unsafe manner. This does nothing to check
@@ -623,7 +623,7 @@ impl<'a> JNIEnv<'a> {
         // TODO clean this up
         Ok(match ret {
             JavaType::Object(_) | JavaType::Array(_) => {
-                let obj: JObject = jni_call!(
+                let obj: JObject = jni_non_null_call!(
                     self.internal,
                     CallStaticObjectMethodA,
                     class,
@@ -734,7 +734,7 @@ impl<'a> JNIEnv<'a> {
         Ok(match ret {
             JavaType::Object(_) | JavaType::Array(_) => {
                 let obj: JObject =
-                    jni_non_null_call!(self.internal, CallObjectMethodA, obj, method_id, jni_args)
+                    jni_non_void_call!(self.internal, CallObjectMethodA, obj, method_id, jni_args)
                         .into();
                 obj.into()
             }
@@ -742,7 +742,7 @@ impl<'a> JNIEnv<'a> {
             JavaType::Method(_) => unimplemented!(),
             JavaType::Primitive(p) => {
                 let v: JValue = match p {
-                    Primitive::Boolean => (jni_non_null_call!(
+                    Primitive::Boolean => (jni_non_void_call!(
                         self.internal,
                         CallBooleanMethodA,
                         obj,
@@ -751,10 +751,10 @@ impl<'a> JNIEnv<'a> {
                     ) == sys::JNI_TRUE)
                         .into(),
                     Primitive::Char => {
-                        jni_non_null_call!(self.internal, CallCharMethodA, obj, method_id, jni_args)
+                        jni_non_void_call!(self.internal, CallCharMethodA, obj, method_id, jni_args)
                             .into()
                     }
-                    Primitive::Short => jni_non_null_call!(
+                    Primitive::Short => jni_non_void_call!(
                         self.internal,
                         CallShortMethodA,
                         obj,
@@ -762,21 +762,21 @@ impl<'a> JNIEnv<'a> {
                         jni_args
                     ).into(),
                     Primitive::Int => {
-                        jni_non_null_call!(self.internal, CallIntMethodA, obj, method_id, jni_args)
+                        jni_non_void_call!(self.internal, CallIntMethodA, obj, method_id, jni_args)
                             .into()
                     }
                     Primitive::Long => {
-                        jni_non_null_call!(self.internal, CallLongMethodA, obj, method_id, jni_args)
+                        jni_non_void_call!(self.internal, CallLongMethodA, obj, method_id, jni_args)
                             .into()
                     }
-                    Primitive::Float => jni_non_null_call!(
+                    Primitive::Float => jni_non_void_call!(
                         self.internal,
                         CallFloatMethodA,
                         obj,
                         method_id,
                         jni_args
                     ).into(),
-                    Primitive::Double => jni_non_null_call!(
+                    Primitive::Double => jni_non_void_call!(
                         self.internal,
                         CallDoubleMethodA,
                         obj,
@@ -784,7 +784,7 @@ impl<'a> JNIEnv<'a> {
                         jni_args
                     ).into(),
                     Primitive::Byte => {
-                        jni_non_null_call!(self.internal, CallByteMethodA, obj, method_id, jni_args)
+                        jni_non_void_call!(self.internal, CallByteMethodA, obj, method_id, jni_args)
                             .into()
                     }
                     Primitive::Void => {
@@ -918,7 +918,7 @@ impl<'a> JNIEnv<'a> {
         let jni_args: Vec<jvalue> = ctor_args.into_iter().map(|v| v.to_jni()).collect();
         let jni_args = jni_args.as_ptr();
 
-        Ok(jni_call!(
+        Ok(jni_non_null_call!(
             self.internal,
             NewObjectA,
             class.into_inner(),
@@ -959,7 +959,7 @@ impl<'a> JNIEnv<'a> {
     #[allow(unused_unsafe)]
     pub unsafe fn get_string_utf_chars(&self, obj: JString) -> Result<*const c_char> {
         non_null!(obj, "get_string_utf_chars obj argument");
-        let ptr: *const c_char = jni_call!(
+        let ptr: *const c_char = jni_non_null_call!(
             self.internal,
             GetStringUTFChars,
             obj.into_inner(),
@@ -982,7 +982,7 @@ impl<'a> JNIEnv<'a> {
     /// format.
     pub fn new_string<S: Into<JNIString>>(&self, from: S) -> Result<JString<'a>> {
         let ffi_str = from.into();
-        Ok(jni_call!(self.internal, NewStringUTF, ffi_str.as_ptr()))
+        Ok(jni_non_null_call!(self.internal, NewStringUTF, ffi_str.as_ptr()))
     }
 
     /// Get the length of a java array
@@ -1009,7 +1009,7 @@ impl<'a> JNIEnv<'a> {
         T: Desc<'a, JClass<'a>>,
     {
         let class = element_class.lookup(self)?;
-        Ok(jni_call!(
+        Ok(jni_non_null_call!(
             self.internal,
             NewObjectArray,
             length,
@@ -1021,7 +1021,7 @@ impl<'a> JNIEnv<'a> {
     /// Returns an element of the `jobjectArray` array.
     pub fn get_object_array_element(&self, array: jobjectArray, index: jsize) -> Result<JObject> {
         non_null!(array, "get_object_array_element array argument");
-        Ok(jni_call!(
+        Ok(jni_non_null_call!(
             self.internal,
             GetObjectArrayElement,
             array,
@@ -1066,7 +1066,7 @@ impl<'a> JNIEnv<'a> {
     /// Converts a java byte array to a rust vector of bytes.
     pub fn convert_byte_array(&self, array: jbyteArray) -> Result<Vec<u8>> {
         non_null!(array, "convert_byte_array array argument");
-        let length = jni_non_null_call!(self.internal, GetArrayLength, array);
+        let length = jni_non_void_call!(self.internal, GetArrayLength, array);
         let mut vec = vec![0u8; length as usize];
         unsafe {
             jni_unchecked!(
@@ -1084,49 +1084,49 @@ impl<'a> JNIEnv<'a> {
 
     /// Create a new java boolean array of supplied length.
     pub fn new_boolean_array(&self, length: jsize) -> Result<jbooleanArray> {
-        let array: jbooleanArray = jni_call!(self.internal, NewBooleanArray, length);
+        let array: jbooleanArray = jni_non_null_call!(self.internal, NewBooleanArray, length);
         Ok(array)
     }
 
     /// Create a new java byte array of supplied length.
     pub fn new_byte_array(&self, length: jsize) -> Result<jbyteArray> {
-        let array: jbyteArray = jni_call!(self.internal, NewByteArray, length);
+        let array: jbyteArray = jni_non_null_call!(self.internal, NewByteArray, length);
         Ok(array)
     }
 
     /// Create a new java char array of supplied length.
     pub fn new_char_array(&self, length: jsize) -> Result<jcharArray> {
-        let array: jcharArray = jni_call!(self.internal, NewCharArray, length);
+        let array: jcharArray = jni_non_null_call!(self.internal, NewCharArray, length);
         Ok(array)
     }
 
     /// Create a new java short array of supplied length.
     pub fn new_short_array(&self, length: jsize) -> Result<jshortArray> {
-        let array: jshortArray = jni_call!(self.internal, NewShortArray, length);
+        let array: jshortArray = jni_non_null_call!(self.internal, NewShortArray, length);
         Ok(array)
     }
 
     /// Create a new java int array of supplied length.
     pub fn new_int_array(&self, length: jsize) -> Result<jintArray> {
-        let array: jintArray = jni_call!(self.internal, NewIntArray, length);
+        let array: jintArray = jni_non_null_call!(self.internal, NewIntArray, length);
         Ok(array)
     }
 
     /// Create a new java long array of supplied length.
     pub fn new_long_array(&self, length: jsize) -> Result<jlongArray> {
-        let array: jlongArray = jni_call!(self.internal, NewLongArray, length);
+        let array: jlongArray = jni_non_null_call!(self.internal, NewLongArray, length);
         Ok(array)
     }
 
     /// Create a new java float array of supplied length.
     pub fn new_float_array(&self, length: jsize) -> Result<jfloatArray> {
-        let array: jfloatArray = jni_call!(self.internal, NewFloatArray, length);
+        let array: jfloatArray = jni_non_null_call!(self.internal, NewFloatArray, length);
         Ok(array)
     }
 
     /// Create a new java double array of supplied length.
     pub fn new_double_array(&self, length: jsize) -> Result<jdoubleArray> {
-        let array: jdoubleArray = jni_call!(self.internal, NewDoubleArray, length);
+        let array: jdoubleArray = jni_non_null_call!(self.internal, NewDoubleArray, length);
         Ok(array)
     }
 
@@ -1459,7 +1459,7 @@ impl<'a> JNIEnv<'a> {
         // TODO clean this up
         Ok(match ty {
             JavaType::Object(_) | JavaType::Array(_) => {
-                let obj: JObject = jni_call!(self.internal, GetObjectField, obj, field);
+                let obj: JObject = jni_non_null_call!(self.internal, GetObjectField, obj, field);
                 obj.into()
             }
             // JavaType::Object
@@ -1628,7 +1628,7 @@ impl<'a> JNIEnv<'a> {
         // TODO clean this up
         Ok(match ty {
             JavaType::Object(_) | JavaType::Array(_) => {
-                let obj: JObject = jni_call!(self.internal, GetStaticObjectField, class, field_id);
+                let obj: JObject = jni_non_null_call!(self.internal, GetStaticObjectField, class, field_id);
                 obj.into()
             }
             // JavaType::Object
