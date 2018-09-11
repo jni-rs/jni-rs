@@ -15,6 +15,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+- `push_local_frame`, `delete_global_ref` and `release_string_utf_chars`
+no longer check for exceptions as they are 
+[safe](https://docs.oracle.com/javase/10/docs/specs/jni/design.html#exception-handling)
+to call if there is a pending exception (#114):
+  - `push_local_frame` will now work in case of pending exceptions — as
+  the spec requires; and fail in case of allocation errors
+  - `delete_global_ref` and `release_string_utf_chars` won't print incorrect
+  log messages
+
 ## [0.10.2]
 
 ### Added
