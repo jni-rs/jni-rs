@@ -1,4 +1,3 @@
-#![allow(unused_doc_comment)]
 #![allow(missing_docs)]
 
 use sys;
