@@ -1,5 +1,6 @@
 // A JNI call that is expected to return a non-null pointer when successful.
 // If a null pointer is returned, it is converted to an Err.
+// Returns Err if there is a pending exception after the call.
 macro_rules! jni_non_null_call {
     ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
         let res = jni_non_void_call!($jnienv, $name $(, $args)*);
@@ -8,6 +9,7 @@ macro_rules! jni_non_null_call {
 }
 
 // A non-void JNI call. May return anything — primitives, references, error codes.
+// Returns Err if there is a pending exception after the call.
 macro_rules! jni_non_void_call {
     ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
         trace!("calling checked jni method: {}", stringify!($name));
@@ -32,6 +34,8 @@ macro_rules! non_null {
     }
 }
 
+// A void JNI call.
+// Returns Err if there is a pending exception after the call.
 macro_rules! jni_void_call {
     ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
         trace!("calling checked jni method: {}", stringify!($name));
@@ -45,6 +49,8 @@ macro_rules! jni_void_call {
     })
 }
 
+// A JNI call that does not check for exceptions or verify
+// error codes (if any).
 macro_rules! jni_unchecked {
     ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
         trace!("calling unchecked jni method: {}", stringify!($name));
