@@ -10,7 +10,7 @@
 //! Naturally, any ffi-related project is going to require some code in both
 //! languages that we're trying to make communicate. Java requires all native
 //! methods to adhere to the Java Native Interface (JNI), so we first have to
-//! define our function signature from java, and then we can write Rust that
+//! define our function signature from Java, and then we can write Rust that
 //! will adhere to it.
 //!
 //! ### The Java side
@@ -30,7 +30,7 @@
 //!         System.loadLibrary("mylib");
 //!     }
 //!
-//!     // The rest is just regular ol' java!
+//!     // The rest is just regular ol' Java!
 //!     public static void main(String[] args) {
 //!         String output = HelloWorld.hello("josh");
 //!         System.out.println(output);
@@ -44,9 +44,9 @@
 //! java.lang.UnsatisfiedLinkError: no mylib in java.library.path` since we
 //! haven't written our native code yet.
 //!
-//! To do that, first we need the name and type signature that our rust function
-//! needs to adhere to. Luckily, java comes with a utility to generate that for
-//! you! Run `javah HelloWorld` and you'll get a `HelloWorld.h` output to your
+//! To do that, first we need the name and type signature that our Rust function
+//! needs to adhere to. Luckily, the Java compiler can generate that for you!
+//! Run `javac -h . HelloWorld` and you'll get a `HelloWorld.h` output to your
 //! directory. It should look something like this:
 //!
 //! ```c
@@ -82,8 +82,7 @@
 //! `mylib` that has everything needed to build an basic crate with `cargo`. We
 //! need to make a couple of changes to `Cargo.toml` before we do anything else.
 //!
-//! * Under `[dependencies]`, add `jni = { git =
-//!   "https://github.com/prevoty/jni-rs" }`
+//! * Under `[dependencies]`, add `jni = "0.10.2"`
 //! * Add a new `[lib]` section and under it, `crate_type = ["cdylib"]`.
 //!
 //! Now, if you run `cargo build` from inside the crate directory, you should
@@ -110,7 +109,7 @@
 //! // lifetime checker won't let us.
 //! use jni::sys::jstring;
 //!
-//! // This keeps rust from "mangling" the name and making it unique for this
+//! // This keeps Rust from "mangling" the name and making it unique for this
 //! // crate.
 //! #[no_mangle]
 //! // This turns off linter warnings because the name doesn't conform to
@@ -123,12 +122,12 @@
 //!                                              class: JClass,
 //!                                              input: JString)
 //!                                              -> jstring {
-//!     // First, we have to get the string out of java. Check out the `strings`
+//!     // First, we have to get the string out of Java. Check out the `strings`
 //!     // module for more info on how this works.
 //!     let input: String =
 //!         env.get_string(input).expect("Couldn't get java string!").into();
 //!
-//!     // Then we have to create a new java string to return. Again, more info
+//!     // Then we have to create a new Java string to return. Again, more info
 //!     // in the `strings` module.
 //!     let output = env.new_string(format!("Hello, {}!", input))
 //!         .expect("Couldn't create java string!");
@@ -143,13 +142,49 @@
 //!
 //! ### Final steps
 //!
-//! That's it! Build your crate and try to run your java class again.
+//! That's it! Build your crate and try to run your Java class again.
 //!
-//! ... Same error as before you say? Well that's because java is looking for
+//! ... Same error as before you say? Well that's because JVM is looking for
 //! `mylib` in all the wrong places. This will differ by platform thanks to
 //! different linker/loader semantics, but on Linux, you can simply `export
 //! LD_LIBRARY_PATH=/path/to/mylib/target/debug`. Now, you should get the
-//! expected output `Hello, josh!` from your java class.
+//! expected output `Hello, josh!` from your Java class.
+//!
+//! ## See Also
+//!
+//! ### Examples
+//! - [Example project][jni-rs-example]
+//! - Our [integration tests][jni-rs-its] and [benchmarks][jni-rs-benches]
+//!
+//! ### JNI Documentation
+//! - [Java Native Interface Specification][jni-spec]
+//! - [JNI tips][jni-tips] — general tips on JNI development and some Android-specific
+//!
+//! ### Open-Source Users
+//! - The Servo browser engine Android [port][users-servo]
+//! - The Exonum framework [Java Binding][users-ejb]
+//! - MaidSafe [Java Binding][users-maidsafe]
+//!
+//! ### Other Projects Simplifying Java and Rust Communication
+//! - Consider [JNR][projects-jnr] if you just need to use a native library with C interface
+//! - Watch OpenJDK [Project Panama][projects-panama] which aims to enable using native libraries
+//!   with no JNI code
+//! - Consider [GraalVM][projects-graalvm] — a recently released VM that gives zero-cost
+//!   interoperability between various languages (including Java and [Rust][graalvm-rust] compiled
+//!   into LLVM-bitcode)
+//!
+//! [jni-spec]: https://docs.oracle.com/javase/10/docs/specs/jni/index.html
+//! [jni-tips]: https://developer.android.com/training/articles/perf-jni
+//! [jni-rs-example]: https://github.com/jni-rs/jni-rs/tree/master/example
+//! [jni-rs-its]: https://github.com/jni-rs/jni-rs/tree/master/tests
+//! [jni-rs-benches]: https://github.com/jni-rs/jni-rs/tree/master/benches
+//! [users-servo]: https://github.com/servo/servo/tree/master/ports/libsimpleservo
+//! [users-ejb]: https://github.com/exonum/exonum-java-binding/tree/master/exonum-java-binding-core
+//! [users-maidsafe]: https://github.com/maidsafe/safe_client_libs/tree/master/safe_app_jni
+//! [projects-jnr]: https://github.com/jnr/jnr-ffi/
+//! [projects-graalvm]: http://www.graalvm.org/docs/why-graal/#for-java-programs
+//! [graalvm-rust]: http://www.graalvm.org/docs/reference-manual/languages/llvm/#running-rust
+//! [projects-panama]: http://openjdk.java.net/projects/panama/
 
 /// Bindgen-generated definitions. Mirrors `jni.h` and `jni_md.h`.
 extern crate jni_sys;

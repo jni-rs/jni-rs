@@ -10,7 +10,7 @@ keywords = [
 ]
 license = "MIT/Apache-2.0"
 name = "jni"
-repository = "https://github.com/prevoty/jni-rs"
+repository = "https://github.com/jni-rs/jni-rs"
 version = "0.10.2"
 
 [dependencies]
