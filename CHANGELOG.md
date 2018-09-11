@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Improved project documents (#107)
 
 ### Fixed
-- crate type of a shared library with native methods 
+- Crate type of a shared library with native methods 
   must be `cdylib` (#100)
 
 ## [0.10.1]
