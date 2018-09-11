@@ -327,12 +327,10 @@ impl<'a> JNIEnv<'a> {
 
     /// Creates a new auto-deleted local reference.
     ///
-    /// See also `push_local_frame`/`pop_local_frame` methods that can be more
-    /// convenient
+    /// See also `with_local_frame` method that can be more convenient
     /// when you create a bounded number of local references in a method but
-    /// can't rely on
-    /// automatic de-allocation (e.g., in case of recursion or just deep call
-    /// stacks).
+    /// can't rely on automatic de-allocation (e.g., in case of recursion
+    /// or just deep call stacks).
     pub fn auto_local(&'a self, obj: JObject<'a>) -> AutoLocal<'a> {
         AutoLocal::new(self, obj)
     }
@@ -354,9 +352,7 @@ impl<'a> JNIEnv<'a> {
     /// during the execution of a native method.
     ///
     /// In most cases it is better to use `AutoLocal` (see `auto_local` method)
-    /// or
-    /// `push_local_frame`/`pop_local_frame` instead of direct
-    /// `delete_local_ref` calls.
+    /// or `with_local_frame` instead of direct `delete_local_ref` calls.
     pub fn delete_local_ref(&self, obj: JObject) -> Result<()> {
         non_null!(obj, "delete_local_ref obj argument");
         Ok(unsafe {
