@@ -17,7 +17,7 @@
         <project.build.headersDirectory>${project.build.directory}/native-headers</project.build.headersDirectory>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <nativeLibPath>${project.basedir}/../java-testlib/target/debug</nativeLibPath>
+        <nativeLibPath>${project.basedir}/../target/debug</nativeLibPath>
         <assertj.version>3.11.1</assertj.version>
         <junit.jupiter.version>5.3.1</junit.jupiter.version>
         <java.compiler.release>1.8</java.compiler.release>

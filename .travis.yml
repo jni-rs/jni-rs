@@ -22,5 +22,11 @@ before_script:
   - echo $LD_LIBRARY_PATH
 
 script:
-  - cargo build
+  # Build all Rust artefacts
+  - cargo build --all
   - cargo test --features=backtrace,invocation
+  # Run Java ITs
+  - mvn verify
+  # Build and run the example project
+  - cd example
+  - make java_run
