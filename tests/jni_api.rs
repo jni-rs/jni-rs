@@ -1,7 +1,6 @@
 #![cfg(feature = "invocation")]
 
 extern crate error_chain;
-extern crate env_logger;
 extern crate jni;
 
 use jni::objects::{AutoLocal, JObject};
@@ -129,27 +128,6 @@ pub fn with_local_frame_pending_exception() {
     env.with_local_frame(16, || {
         Ok(JObject::null())
     }).expect("JNIEnv#with_local_frame must work in case of pending exception");
-
-    env.exception_clear().unwrap();
-}
-
-
-// fixme: remove this test as it doesn't assert on anything — you can see
-//   it fail in logs only (or use a recording logger and assert
-//   on logged messages — fragile).
-#[test]
-pub fn java_str_drop_must_work_in_case_of_pending_exception() {
-    let _ = env_logger::try_init();
-    let env = attach_current_thread();
-    {
-        // Create a new global ref to a string.
-        let s = env.new_string("Foo").unwrap();
-
-        let s = env.get_string(s).unwrap();
-
-        // Throw a new exception
-        env.throw_new("java/lang/RuntimeException", "Test Exception").unwrap();
-    } // A JavaStr ref drop must not cause errors
 
     env.exception_clear().unwrap();
 }

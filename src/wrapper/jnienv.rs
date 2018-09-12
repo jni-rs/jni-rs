@@ -373,7 +373,7 @@ impl<'a> JNIEnv<'a> {
     /// be more
     /// convenient in loops.
     pub fn push_local_frame(&self, capacity: i32) -> Result<()> {
-        // fixme: shall we move jni_error_code_to_result to jni_checking_error_code?
+        // This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
         let res = unsafe {
             jni_unchecked!(self.internal, PushLocalFrame, capacity)
         };
@@ -386,6 +386,7 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Note that resulting `JObject` can be `NULL` if `result` is `NULL`.
     pub fn pop_local_frame(&self, result: JObject) -> Result<JObject> {
+        // This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
         Ok(unsafe { jni_unchecked!(self.internal, PopLocalFrame, result.into_inner()).into() })
     }
 
@@ -971,7 +972,7 @@ impl<'a> JNIEnv<'a> {
     #[allow(unused_unsafe)]
     pub unsafe fn release_string_utf_chars(&self, obj: JString, arr: *const c_char) -> Result<()> {
         non_null!(obj, "release_string_utf_chars obj argument");
-        // todo: use sth like 'jni_exception_safe_call'?
+        // This method is safe to call in case of pending exceptions (see the chapter 2 of the spec)
         jni_unchecked!(self.internal, ReleaseStringUTFChars, obj.into_inner(), arr);
         Ok(())
     }
