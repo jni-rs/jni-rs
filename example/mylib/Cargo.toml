@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Josh Chase <josh@prevoty.com>"]
 
 [dependencies]
-jni = { path = "../../" }
+jni = { path = "../../jni" }
 
 [lib]
 crate_type = ["cdylib"]

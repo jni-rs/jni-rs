@@ -33,7 +33,7 @@ adding `--release` flag.
 ### Categories of Tests
 
 * Unit tests are typically placed at the bottom of their module file.
-  E.g. [unit tests of signature module](src/wrapper/signature.rs). Tests are wrapped
+  E.g. [unit tests of signature module](jni/src/wrapper/signature.rs). Tests are wrapped
   in private module with `test` attribute:
   
   ```rust
@@ -47,7 +47,7 @@ adding `--release` flag.
     // More tests...
   }
   ```
-* Integration tests are in [tests directory](tests). They use the same pattern as 
+* Integration tests are in [tests directory](jni/tests). They use the same pattern as 
   unit tests, but split into several files instead of private modules.
   Integration tests use `jni-rs` as every other Rust application - by importing 
   library using `extern crate` keyword.
@@ -58,7 +58,7 @@ adding `--release` flag.
   ```
   Integration tests typically require running a JVM, so you should add 
   `#![cfg(feature = "invocation")]` at the top of the file. You can use helper
-  methods from [util module](tests/util/mod.rs) to run JVM.
+  methods from [util module](jni/tests/util/mod.rs) to run JVM.
   
   Keep in mind, that only one JVM can be run per process. Therefore, tests that
   need to launch it with different parameters have to be placed in different 

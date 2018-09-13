@@ -1,39 +1,6 @@
-[package]
-authors = ["Josh Chase <josh@prevoty.com>"]
-description = "Rust bindings to the JNI"
-documentation = "https://docs.rs/jni"
-homepage = "https://docs.rs/jni"
-keywords = [
-    "ffi",
-    "jni",
-    "java",
-]
-license = "MIT/Apache-2.0"
-name = "jni"
-repository = "https://github.com/jni-rs/jni-rs"
-version = "0.10.2"
-
 [workspace]
-members = ["example/mylib", "java-testlib"]
-
-[dependencies]
-cesu8 = "1.1.0"
-combine = "3.4.1"
-jni-sys = "0.3.0"
-log = "0.4.4"
-
-[build-dependencies]
-walkdir = "2"
-
-[dependencies.error-chain]
-default-features = false
-version = "0.12.0"
-
-[dev-dependencies]
-lazy_static = "1"
-
-
-[features]
-invocation = []
-backtrace = ["error-chain/backtrace"]
-default = ["backtrace"]
+members = [
+  "jni",
+  "java-testlib",
+  "example/mylib"
+]

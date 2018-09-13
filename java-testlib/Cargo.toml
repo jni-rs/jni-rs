@@ -4,9 +4,8 @@ version = "0.1.0"
 authors = ["Dmitry Timofeev <dmittimofeev@ya.ru>"]
 description = "A library with implementations of native Java methods from java-tests"
 
-# fixme: Could we do a workspace to avoid rebuilding?
 [dependencies]
-jni = { path = "../" }
+jni = { path = "../jni" }
 
 [lib]
 crate_type = ["cdylib"]
