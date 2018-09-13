@@ -70,6 +70,14 @@ adding `--release` flag.
 
 ### Running Tests
 
+As most tests require to load `jvm` shared library, you need 
+to set the environment variable specifying its location on your platform.
+On MacOS/Linux, you can set `LD_LIBRARY_PATH` with
+
+```$sh
+$ source build_profile  # You need to run it only once
+```
+ 
 To run all tests, you should execute the following command:
 
 ```$sh

@@ -1,26 +1,24 @@
 language: rust
 rust:
-    - stable
-    - beta
-    - nightly
+  - stable
+  - beta
+  - nightly
+
+jdk:
+  - openjdk11
 
 matrix:
+  include:
+    - name: "OracleJDK 8/stable Rust"
+      rust: stable
+      jdk: oraclejdk8
   allow_failures:
     - rust: nightly
 
-jdk:
-  - oraclejdk8
-
-env:
-  global:
-    - JAVA_HOME=/usr/lib/jvm/java-8-oracle
-    - LD_LIBRARY_PATH=$JAVA_HOME/jre/lib/amd64/server
-
 before_script:
   - export RUST_BACKTRACE=1
-  - echo $JAVA_HOME
-  - echo $LD_LIBRARY_PATH
 
 script:
+  - . build_profile
   - cargo build
   - cargo test --features=backtrace,invocation
