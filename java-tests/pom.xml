@@ -79,6 +79,14 @@
             </plugin>
 
             <plugin>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>2.22.0</version>
+                <configuration>
+                    <excludedGroups>integration</excludedGroups>
+                </configuration>
+            </plugin>
+
+            <plugin>
                 <artifactId>maven-failsafe-plugin</artifactId>
                 <version>2.22.0</version>
                 <configuration>
@@ -87,9 +95,10 @@
                         -Xcheck:jni
                     </argLine>
                     <includes>
-                        <!--fixme: This configuration is fragile.-->
                         <include>**/*Test.java</include>
                     </includes>
+                    <!-- Include only integration tests. -->
+                    <groups>integration</groups>
                 </configuration>
                 <executions>
                     <execution>
