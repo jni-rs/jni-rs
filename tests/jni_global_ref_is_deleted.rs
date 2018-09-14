@@ -26,6 +26,7 @@ use util::{attach_current_thread, unwrap};
 /// *To avoid race condition this test routine should remain in a separate binary file.*
 
 #[test]
+#[ignore]  // JVM 10+ just aborts the process.
 pub fn global_ref_is_dropped() {
     const VALUE: jint = 42;
 
