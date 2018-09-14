@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+- `JavaVM#attach_current_thread_as_daemon` now returns `JNIEnv` wrapped in
+  `AttachGuard` which automatically detaches the thread when it gets out of the scope.
+
 ## [0.10.2]
 
 ### Added

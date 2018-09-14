@@ -1,5 +1,5 @@
-use JNIEnv;
 use errors::*;
+use JNIEnv;
 
 use sys;
 
@@ -67,7 +67,7 @@ impl JavaVM {
     }
 
     /// Attaches the current thread to a Java VM as a daemon.
-    pub fn attach_current_thread_as_daemon(&self) -> Result<JNIEnv> {
+    pub fn attach_current_thread_as_daemon(&self) -> Result<AttachGuard> {
         let mut ptr = ptr::null_mut();
         unsafe {
             let res = java_vm_unchecked!(
@@ -78,7 +78,11 @@ impl JavaVM {
             );
             jni_error_code_to_result(res)?;
 
-            JNIEnv::from_raw(ptr as *mut sys::JNIEnv)
+            let env = JNIEnv::from_raw(ptr as *mut sys::JNIEnv)?;
+            Ok(AttachGuard {
+                java_vm: self,
+                env: env,
+            })
         }
     }
 
