@@ -5,6 +5,7 @@ Cargo.lock
 **/*.rs.bk
 
 ## Java
+maven-target/
 *.class
 
 ## IntelliJ

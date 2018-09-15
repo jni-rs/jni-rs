@@ -13,6 +13,10 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
   </properties>
 
+  <build>
+    <directory>${project.basedir}/maven-target</directory>
+  </build>
+
   <modules>
     <module>java-tests</module>
   </modules>
