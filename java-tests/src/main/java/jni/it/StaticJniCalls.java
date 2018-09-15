@@ -1,6 +1,6 @@
 package jni.it;
 
-public class StaticCalls {
+public class StaticJniCalls {
 
   static {
     LibraryLoader.loadLibrary();

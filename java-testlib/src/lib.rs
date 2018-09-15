@@ -7,9 +7,9 @@ use jni::JNIEnv;
 
 #[no_mangle]
 #[allow(non_snake_case)]
-pub extern "system" fn Java_jni_it_StaticCalls_abs(_env: JNIEnv,
-                                                   _class: JClass,
-                                                   x: jint) -> jint {
+pub extern "system" fn Java_jni_it_StaticJniCalls_abs(_env: JNIEnv,
+                                                      _class: JClass,
+                                                      x: jint) -> jint {
     x.abs()
 }
 

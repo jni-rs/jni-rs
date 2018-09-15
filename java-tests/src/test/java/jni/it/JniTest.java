@@ -11,6 +11,6 @@ class JniTest {
   @ParameterizedTest
   @ValueSource(ints = {Integer.MIN_VALUE + 1, -1, 0, 1, Integer.MAX_VALUE})
   void absStaticIntCall(int x) {
-    assertThat(StaticCalls.abs(x)).isEqualTo(Math.abs(x));
+    assertThat(StaticJniCalls.abs(x)).isEqualTo(Math.abs(x));
   }
 }
