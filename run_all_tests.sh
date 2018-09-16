@@ -4,6 +4,9 @@
 # Fail immediately in case of errors and/or unset variables
 set -eu -o pipefail
 
+# Set required environment variables:
+source tests_profile.sh
+
 # Run all Rust tests
 #
 # --all-features is used to enable 'invocation' and 'backtrace' feature in 'jni'
