@@ -16,17 +16,24 @@ env:
     - JAVA_HOME=/usr/lib/jvm/java-8-oracle
     - LD_LIBRARY_PATH=$JAVA_HOME/jre/lib/amd64/server
 
+cache:
+  directories:
+  - "${HOME}/.m2"
+
 before_script:
   - export RUST_BACKTRACE=1
   - echo $JAVA_HOME
   - echo $LD_LIBRARY_PATH
 
 script:
-  # Build all Rust artefacts
+  # Build all Rust artifacts
   - cargo build --all
-  - cargo test --features=backtrace,invocation
+  # Run Rust tests
+  - cargo test --all-features
+  ## If we are on nightly — test the benchmarks
+  - test "${TRAVIS_RUST_VERSION}" == 'nightly' && cargo test --benches --all-features || true
   # Run Java ITs
   - mvn verify
-  # Build and run the example project
+  # Run the example project
   - cd example
   - make java_run
