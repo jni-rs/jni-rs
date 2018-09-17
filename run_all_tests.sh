@@ -14,5 +14,5 @@ source tests_profile.sh
 # https://github.com/rust-lang/cargo/issues/5364
 cargo test --all-features
 
-# Run Java integration tests. Since benchmarks do not have tests, we skip them.
-mvn verify --projects java-tests --also-make
+# Run Java integration tests. Since benchmarks do not have tests, skip them.
+./mvnw verify --projects java-tests --also-make
