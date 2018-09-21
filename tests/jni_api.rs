@@ -73,3 +73,73 @@ pub fn get_static_public_field() {
 
     assert_eq!(min_int_value, i32::min_value());
 }
+
+#[test]
+pub fn pop_local_frame_pending_exception() {
+    let env = attach_current_thread();
+
+    env.push_local_frame(16).unwrap();
+
+    env.throw_new("java/lang/RuntimeException", "Test Exception").unwrap();
+
+    // Pop the local frame with a pending exception
+    env.pop_local_frame(JObject::null())
+        .expect("JNIEnv#pop_local_frame must work in case of pending exception");
+
+    env.exception_clear().unwrap();
+}
+
+#[test]
+pub fn push_local_frame_pending_exception() {
+    let env = attach_current_thread();
+
+    env.throw_new("java/lang/RuntimeException", "Test Exception").unwrap();
+
+    // Push a new local frame with a pending exception
+    env.push_local_frame(16)
+        .expect("JNIEnv#push_local_frame must work in case of pending exception");
+
+    env.exception_clear().unwrap();
+
+    env.pop_local_frame(JObject::null()).unwrap();
+}
+
+#[test]
+pub fn push_local_frame_too_many_refs() {
+    let env = attach_current_thread();
+
+    // Try to push a new local frame with a ridiculous size
+    let frame_size = i32::max_value();
+    env.push_local_frame(frame_size)
+        .expect_err("push_local_frame(2B) must Err");
+
+    env.pop_local_frame(JObject::null()).unwrap();
+}
+
+#[test]
+pub fn with_local_frame() {
+    let env = attach_current_thread();
+
+    let s = env.with_local_frame(16, || {
+        let res = env.new_string("Test").unwrap();
+        Ok(res.into())
+    }).unwrap();
+
+    let s = env.get_string(s.into())
+        .expect("The object returned from the local frame must remain valid");
+    assert_eq!(s.to_str().unwrap(), "Test");
+}
+
+#[test]
+pub fn with_local_frame_pending_exception() {
+    let env = attach_current_thread();
+
+    env.throw_new("java/lang/RuntimeException", "Test Exception").unwrap();
+
+    // Try to allocate a frame of locals
+    env.with_local_frame(16, || {
+        Ok(JObject::null())
+    }).expect("JNIEnv#with_local_frame must work in case of pending exception");
+
+    env.exception_clear().unwrap();
+}
