@@ -25,6 +25,12 @@ to call if there is a pending exception (#124):
   - `delete_global_ref` and `release_string_utf_chars` won't print incorrect
   log messages
 
+- Rename some macros to better express their intent (see #123):
+  - Rename `jni_call` to `jni_non_null_call` as it checks the return value
+  to be non-null.
+  - Rename `jni_non_null_call` (which may return nulls) to `jni_non_void_call`.
+
+
 ## [0.10.2]
 
 ### Added
