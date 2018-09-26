@@ -94,7 +94,7 @@ impl TypeSignature {
 impl ::std::fmt::Display for TypeSignature {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         write!(f, "(")?;
-        for a in self.args.iter() {
+        for a in &self.args {
             write!(f, "{}", a)?;
         }
         write!(f, ")")?;
@@ -103,7 +103,7 @@ impl ::std::fmt::Display for TypeSignature {
     }
 }
 
-fn parse_primitive<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S> 
+fn parse_primitive<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S>
     where S::Error: ParseError<char, S::Range, S::Position>
 {
     let boolean = token('Z').map(|_| Primitive::Boolean);
@@ -125,11 +125,11 @@ fn parse_primitive<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaTyp
         .or(long)
         .or(short)
         .or(void))
-        .map(|ty| JavaType::Primitive(ty))
+        .map(JavaType::Primitive)
         .parse_stream(input)
 }
 
-fn parse_array<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S> 
+fn parse_array<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S>
     where S::Error: ParseError<char, S::Range, S::Position>
 {
     let marker = token('[');
@@ -138,17 +138,17 @@ fn parse_array<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S
         .parse_stream(input)
 }
 
-fn parse_object<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S> 
+fn parse_object<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S>
     where S::Error: ParseError<char, S::Range, S::Position>
 {
     let marker = token('L');
     let end = token(';');
     let obj = between(marker, end, many1(satisfy(|c| c != ';')));
 
-    obj.map(|name| JavaType::Object(name)).parse_stream(input)
+    obj.map(JavaType::Object).parse_stream(input)
 }
 
-fn parse_type<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S> 
+fn parse_type<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S>
     where S::Error: ParseError<char, S::Range, S::Position>
 {
     parser(parse_primitive)
@@ -158,13 +158,13 @@ fn parse_type<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S>
         .parse_stream(input)
 }
 
-fn parse_args<S: Stream<Item = char>>(input: &mut S) -> ParseResult<Vec<JavaType>, S> 
+fn parse_args<S: Stream<Item = char>>(input: &mut S) -> ParseResult<Vec<JavaType>, S>
     where S::Error: ParseError<char, S::Range, S::Position>
 {
     between(token('('), token(')'), many(parser(parse_type))).parse_stream(input)
 }
 
-fn parse_sig<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S> 
+fn parse_sig<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S>
     where S::Error: ParseError<char, S::Range, S::Position>
 {
     (parser(parse_args), parser(parse_type))

@@ -77,8 +77,8 @@ impl<'a> JList<'a> {
 
         match result {
             Ok(val) => Ok(Some(val.l()?)),
-            Err(e) => match e.kind() {
-                &ErrorKind::NullPtr(_) => Ok(None),
+            Err(e) => match *e.kind() {
+                ErrorKind::NullPtr(_) => Ok(None),
                 _ => Err(e),
             },
         }
@@ -127,8 +127,8 @@ impl<'a> JList<'a> {
 
         match result {
             Ok(val) => Ok(Some(val.l()?)),
-            Err(e) => match e.kind() {
-                &ErrorKind::NullPtr(_) => Ok(None),
+            Err(e) => match *e.kind() {
+                ErrorKind::NullPtr(_) => Ok(None),
                 _ => Err(e),
             },
         }
