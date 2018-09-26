@@ -59,7 +59,7 @@ impl<'a> From<&'a JNIStr> for Cow<'a, str> {
             Ok(s) => s,
             Err(e) => {
                 debug!("error decoding java cesu8: {:#?}", e);
-                String::from_utf8_lossy(bytes).into()
+                String::from_utf8_lossy(bytes)
             }
         }
     }

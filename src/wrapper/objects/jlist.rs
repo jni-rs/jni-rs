@@ -54,12 +54,12 @@ impl<'a> JList<'a> {
 
         Ok(JList {
             internal: obj,
-            get: get,
-            add: add,
-            add_idx: add_idx,
-            remove: remove,
-            size: size,
-            env: env,
+            get,
+            add,
+            add_idx,
+            remove,
+            size,
+            env,
         })
     }
 
@@ -168,8 +168,8 @@ impl<'a> JList<'a> {
 
         match result {
             Ok(val) => Ok(Some(val.l()?)),
-            Err(e) => match e.kind() {
-                &ErrorKind::NullPtr(_) => Ok(None),
+            Err(e) => match *e.kind() {
+                ErrorKind::NullPtr(_) => Ok(None),
                 _ => Err(e),
             },
         }
