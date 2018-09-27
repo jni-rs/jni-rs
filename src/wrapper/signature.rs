@@ -103,7 +103,7 @@ impl ::std::fmt::Display for TypeSignature {
     }
 }
 
-fn parse_primitive<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S> 
+fn parse_primitive<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S>
     where S::Error: ParseError<char, S::Range, S::Position>
 {
     let boolean = token('Z').map(|_| Primitive::Boolean);
@@ -129,7 +129,7 @@ fn parse_primitive<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaTyp
         .parse_stream(input)
 }
 
-fn parse_array<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S> 
+fn parse_array<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S>
     where S::Error: ParseError<char, S::Range, S::Position>
 {
     let marker = token('[');
@@ -138,7 +138,7 @@ fn parse_array<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S
         .parse_stream(input)
 }
 
-fn parse_object<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S> 
+fn parse_object<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S>
     where S::Error: ParseError<char, S::Range, S::Position>
 {
     let marker = token('L');
@@ -148,7 +148,7 @@ fn parse_object<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, 
     obj.map(JavaType::Object).parse_stream(input)
 }
 
-fn parse_type<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S> 
+fn parse_type<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S>
     where S::Error: ParseError<char, S::Range, S::Position>
 {
     parser(parse_primitive)
@@ -158,13 +158,13 @@ fn parse_type<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S>
         .parse_stream(input)
 }
 
-fn parse_args<S: Stream<Item = char>>(input: &mut S) -> ParseResult<Vec<JavaType>, S> 
+fn parse_args<S: Stream<Item = char>>(input: &mut S) -> ParseResult<Vec<JavaType>, S>
     where S::Error: ParseError<char, S::Range, S::Position>
 {
     between(token('('), token(')'), many(parser(parse_type))).parse_stream(input)
 }
 
-fn parse_sig<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S> 
+fn parse_sig<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S>
     where S::Error: ParseError<char, S::Range, S::Position>
 {
     (parser(parse_args), parser(parse_type))
