@@ -49,12 +49,10 @@ impl FromStr for JavaType {
     type Err = String;
 
     fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
-        Ok(
-            match parser(parse_type).parse(State::new(s)).map(|res| res.0) {
-                Ok(sig) => sig,
-                Err(e) => return Err(format_error_message(&e, s)),
-            },
-        )
+        parser(parse_type)
+            .parse(State::new(s))
+            .map(|res| res.0)
+            .map_err(|e| format_error_message(&e, s))
     }
 }
 
