@@ -29,7 +29,7 @@ impl<'a> AutoLocal<'a> {
     /// called on the object. While wrapped, the object can be accessed via
     /// the `Deref` impl.
     pub fn new(env: &'a JNIEnv<'a>, obj: JObject<'a>) -> Self {
-        AutoLocal { obj: obj, env: env }
+        AutoLocal { obj, env }
     }
 
     /// Forget the wrapper, returning the original object.

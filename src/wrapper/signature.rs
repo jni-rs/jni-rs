@@ -1,6 +1,7 @@
 use combine::*;
 use combine::stream::state::State;
 use errors::*;
+use std::str::FromStr;
 
 /// A primitive java type. These are the things that can be represented without
 /// an object.
@@ -44,13 +45,14 @@ pub enum JavaType {
     Method(Box<TypeSignature>),
 }
 
-impl JavaType {
-    /// Parse a type string into a JavaType enum.
-    pub fn from_str(s: &str) -> Result<JavaType> {
+impl FromStr for JavaType {
+    type Err = String;
+
+    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
         Ok(
             match parser(parse_type).parse(State::new(s)).map(|res| res.0) {
                 Ok(sig) => sig,
-                Err(e) => return Err(format_error_message(&e, s).into()),
+                Err(e) => return Err(format_error_message(&e, s)),
             },
         )
     }
@@ -94,7 +96,7 @@ impl TypeSignature {
 impl ::std::fmt::Display for TypeSignature {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         write!(f, "(")?;
-        for a in self.args.iter() {
+        for a in &self.args {
             write!(f, "{}", a)?;
         }
         write!(f, ")")?;
@@ -125,7 +127,7 @@ fn parse_primitive<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaTyp
         .or(long)
         .or(short)
         .or(void))
-        .map(|ty| JavaType::Primitive(ty))
+        .map(JavaType::Primitive)
         .parse_stream(input)
 }
 
@@ -145,7 +147,7 @@ fn parse_object<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, 
     let end = token(';');
     let obj = between(marker, end, many1(satisfy(|c| c != ';')));
 
-    obj.map(|name| JavaType::Object(name)).parse_stream(input)
+    obj.map(JavaType::Object).parse_stream(input)
 }
 
 fn parse_type<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S> 

@@ -46,7 +46,6 @@ impl<'a> From<&'a GlobalRef> for JObject<'a> {
     }
 }
 
-
 impl GlobalRef {
     /// Creates a new global reference. This assumes that `NewGlobalRef`
     /// has already been called.
@@ -60,11 +59,10 @@ impl GlobalRef {
     ///
     /// This borrows the ref and prevents it from being dropped as long as the
     /// JObject sticks around.
-    pub fn as_obj<'a>(&'a self) -> JObject<'a> {
+    pub fn as_obj(&self) -> JObject {
         self.inner.as_obj()
     }
 }
-
 
 impl GlobalRefGuard {
     /// Creates a new global reference guard. This assumes that `NewGlobalRef`
@@ -80,7 +78,7 @@ impl GlobalRefGuard {
     ///
     /// This borrows the ref and prevents it from being dropped as long as the
     /// JObject sticks around.
-    pub fn as_obj<'a>(&'a self) -> JObject<'a> {
+    pub fn as_obj(&self) -> JObject {
         self.obj
     }
 }

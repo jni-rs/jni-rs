@@ -56,11 +56,11 @@ impl<'a> JMap<'a> {
 
         Ok(JMap {
             internal: obj,
-            class: class,
-            get: get,
-            put: put,
-            remove: remove,
-            env: env,
+            class,
+            get,
+            put,
+            remove,
+            env,
         })
     }
 
@@ -78,8 +78,8 @@ impl<'a> JMap<'a> {
 
         match result {
             Ok(val) => Ok(Some(val.l()?)),
-            Err(e) => match e.kind() {
-                &ErrorKind::NullPtr(_) => Ok(None),
+            Err(e) => match *e.kind() {
+                ErrorKind::NullPtr(_) => Ok(None),
                 _ => Err(e),
             },
         }
@@ -99,8 +99,8 @@ impl<'a> JMap<'a> {
 
         match result {
             Ok(val) => Ok(Some(val.l()?)),
-            Err(e) => match e.kind() {
-                &ErrorKind::NullPtr(_) => Ok(None),
+            Err(e) => match *e.kind() {
+                ErrorKind::NullPtr(_) => Ok(None),
                 _ => Err(e),
             },
         }
@@ -120,8 +120,8 @@ impl<'a> JMap<'a> {
 
         match result {
             Ok(val) => Ok(Some(val.l()?)),
-            Err(e) => match e.kind() {
-                &ErrorKind::NullPtr(_) => Ok(None),
+            Err(e) => match *e.kind() {
+                ErrorKind::NullPtr(_) => Ok(None),
                 _ => Err(e),
             },
         }
@@ -167,11 +167,11 @@ impl<'a> JMap<'a> {
 
         Ok(JMapIter {
             map: &self,
-            has_next: has_next,
-            next: next,
-            get_key: get_key,
-            get_value: get_value,
-            iter: iter,
+            has_next,
+            next,
+            get_key,
+            get_value,
+            iter,
         })
     }
 }
