@@ -1,4 +1,6 @@
 #![warn(missing_docs)]
+// TODO: fix `catch!` macro (see issue #132)
+#![cfg_attr(feature = "cargo-clippy", allow(redundant_closure_call))]
 
 //! # Safe JNI Bindings in Rust
 //!

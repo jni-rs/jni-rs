@@ -444,9 +444,9 @@ impl<'a> JNIEnv<'a> {
                 &ErrorKind::NullPtr(_) => {
                     let name: String = ffi_name.into();
                     let sig: String = sig.into();
-                    return Err(ErrorKind::MethodNotFound(name, sig).into());
+                    Err(ErrorKind::MethodNotFound(name, sig).into())
                 }
-                _ => return Err(e),
+                _ => Err(e),
             },
         }
     }
@@ -538,9 +538,9 @@ impl<'a> JNIEnv<'a> {
                 &ErrorKind::NullPtr(_) => {
                     let name: String = ffi_name.into();
                     let sig: String = ffi_sig.into();
-                    return Err(ErrorKind::FieldNotFound(name, sig).into());
+                    Err(ErrorKind::FieldNotFound(name, sig).into())
                 }
-                _ => return Err(e),
+                _ => Err(e),
             },
         }
     }
@@ -582,9 +582,9 @@ impl<'a> JNIEnv<'a> {
                 &ErrorKind::NullPtr(_) => {
                     let name: String = ffi_name.into();
                     let sig: String = ffi_sig.into();
-                    return Err(ErrorKind::FieldNotFound(name, sig).into());
+                    Err(ErrorKind::FieldNotFound(name, sig).into())
                 }
-                _ => return Err(e),
+                _ => Err(e),
             },
         }
     }
@@ -830,9 +830,7 @@ impl<'a> JNIEnv<'a> {
 
         let class = self.auto_local(self.get_object_class(obj)?.into());
 
-        let res = unsafe { self.call_method_unsafe(obj, (&class, name, sig), parsed.ret, args) };
-
-        res
+        unsafe { self.call_method_unsafe(obj, (&class, name, sig), parsed.ret, args) }
     }
 
     /// Calls a static method safely. This comes with a number of
@@ -1603,9 +1601,7 @@ impl<'a> JNIEnv<'a> {
 
         let class = self.auto_local(self.get_object_class(obj)?.into());
 
-        let res = unsafe { self.set_field_unsafe(obj, (&class, name, ty), val) };
-
-        res
+        unsafe { self.set_field_unsafe(obj, (&class, name, ty), val) }
     }
 
     /// Get a static field without checking the provided type against the actual
