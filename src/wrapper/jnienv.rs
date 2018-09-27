@@ -1049,16 +1049,15 @@ impl<'a> JNIEnv<'a> {
     pub fn byte_array_from_slice(&self, buf: &[u8]) -> Result<jbyteArray> {
         let length = buf.len() as i32;
         let bytes: jbyteArray = self.new_byte_array(length)?;
-        unsafe {
-            jni_unchecked!(
-                self.internal,
-                SetByteArrayRegion,
-                bytes,
-                0,
-                length,
-                buf.as_ptr() as *const i8
-            );
-        }
+
+        jni_void_call!(
+            self.internal,
+            SetByteArrayRegion,
+            bytes,
+            0,
+            length,
+            buf.as_ptr() as *const i8
+        );
         Ok(bytes)
     }
 
@@ -1625,6 +1624,7 @@ impl<'a> JNIEnv<'a> {
         // TODO clean this up
         Ok(match ty {
             JavaType::Object(_) | JavaType::Array(_) => {
+                // TODO: does it really require jni_non_null_call here?
                 let obj: JObject = jni_non_null_call!(self.internal, GetStaticObjectField, class, field_id);
                 obj.into()
             }

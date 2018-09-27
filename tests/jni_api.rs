@@ -184,3 +184,19 @@ pub fn call_static_method_wrong_arg() {
     assert!(env.exception_check().unwrap());
     env.exception_clear().unwrap();
 }
+
+#[test]
+pub fn java_byte_array_from_slice() {
+    let env = attach_current_thread();
+    let buf: &[u8] = &[1, 2, 3];
+    let java_array = env.byte_array_from_slice(buf)
+        .expect("JNIEnv#byte_array_from_slice must create a java array from slice");
+    let obj = AutoLocal::new(&env, JObject::from(java_array));
+
+    assert!(!obj.as_obj().is_null());
+    let mut res: [i8; 3] = [0; 3];
+    env.get_byte_array_region(java_array, 0, &mut res).unwrap();
+    assert_eq!(res[0], 1);
+    assert_eq!(res[1], 2);
+    assert_eq!(res[2], 3);
+}
