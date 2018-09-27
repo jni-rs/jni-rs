@@ -3,7 +3,8 @@
 extern crate error_chain;
 extern crate jni;
 
-use jni::objects::{AutoLocal, JObject};
+use jni::objects::{AutoLocal, JObject, JValue};
+use jni::sys::jint;
 
 mod util;
 use util::{attach_current_thread, unwrap};
@@ -12,6 +13,11 @@ static ARRAYLIST_CLASS: &str = "java/util/ArrayList";
 static EXCEPTION_CLASS: &str = "java/lang/Exception";
 static ARITHMETIC_EXCEPTION_CLASS: &str = "java/lang/ArithmeticException";
 static INTEGER_CLASS: &str = "java/lang/Integer";
+static CLASS_MATH: &str = "java/lang/Math";
+static METHOD_MATH_ABS: &str = "abs";
+static METHOD_MATH_TO_INT: &str = "toIntExact";
+static SIG_MATH_ABS: &str = "(I)I";
+static SIG_MATH_TO_INT: &str = "(J)I";
 
 #[test]
 pub fn call_method_returning_null() {
@@ -141,5 +147,40 @@ pub fn with_local_frame_pending_exception() {
         Ok(JObject::null())
     }).expect("JNIEnv#with_local_frame must work in case of pending exception");
 
+    env.exception_clear().unwrap();
+}
+
+#[test]
+pub fn call_static_method_ok() {
+    let env = attach_current_thread();
+
+    let x = JValue::from(-10);
+    let val: jint = env.call_static_method(CLASS_MATH, METHOD_MATH_ABS, SIG_MATH_ABS, &[x])
+        .expect("JNIEnv#call_static_method_unsafe should return JValue").i().unwrap();
+
+    assert_eq!(val, 10);
+}
+
+#[test]
+pub fn call_static_method_throws() {
+    let env = attach_current_thread();
+
+    let x = JValue::Long(4_000_000_000);
+    env.call_static_method(CLASS_MATH, METHOD_MATH_TO_INT, SIG_MATH_TO_INT, &[x])
+        .expect_err("JNIEnv#call_static_method_unsafe should return error");
+
+    assert!(env.exception_check().unwrap());
+    env.exception_clear().unwrap();
+}
+
+#[test]
+pub fn call_static_method_wrong_arg() {
+    let env = attach_current_thread();
+
+    let x = JValue::Double(4.56789123);
+    env.call_static_method(CLASS_MATH, METHOD_MATH_TO_INT, SIG_MATH_TO_INT, &[x])
+        .expect_err("JNIEnv#call_static_method_unsafe should return error");
+
+    assert!(env.exception_check().unwrap());
     env.exception_clear().unwrap();
 }
