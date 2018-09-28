@@ -3,10 +3,12 @@
 extern crate error_chain;
 extern crate jni;
 
+use std::str::FromStr;
 use jni::{
     errors::ErrorKind,
     objects::{AutoLocal, JObject, JValue},
     sys::jint,
+    signature::JavaType,
 };
 
 mod util;
@@ -76,6 +78,25 @@ pub fn get_static_public_field() {
     let env = attach_current_thread();
 
     let min_int_value = env.get_static_field(INTEGER_CLASS, "MIN_VALUE", "I")
+        .unwrap()
+        .i()
+        .unwrap();
+
+    assert_eq!(min_int_value, i32::min_value());
+}
+
+#[test]
+pub fn get_static_public_field_by_id() {
+    let env = attach_current_thread();
+
+    // One can't pass a JavaType::Primitive(Primitive::Int) to
+    //   `get_static_field_id` unfortunately: #137
+    let field_type = "I";
+    let field_id = env.get_static_field_id(INTEGER_CLASS, "MIN_VALUE", field_type)
+        .unwrap();
+
+    let field_type = JavaType::from_str(field_type).unwrap();
+    let min_int_value = env.get_static_field_unchecked(INTEGER_CLASS, field_id, field_type)
         .unwrap()
         .i()
         .unwrap();
