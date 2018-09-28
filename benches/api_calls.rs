@@ -41,9 +41,7 @@ fn jni_call_static_unsafe<'c, C>(env: &JNIEnv<'c>, class: C, method_id: JStaticM
 {
     let x = JValue::from(x);
     let ret = JavaType::Primitive(Primitive::Int);
-    let v = unsafe {
-        env.call_static_method_unsafe(class, method_id, ret, &[x]).unwrap()
-    };
+    let v = env.call_static_method_unsafe(class, method_id, ret, &[x]).unwrap();
     v.i().unwrap()
 }
 

@@ -66,14 +66,12 @@ impl<'a> JList<'a> {
     /// Look up the value for a key. Returns `Some` if it's found and `None` if
     /// a null pointer would be returned.
     pub fn get(&self, idx: jint) -> Result<Option<JObject>> {
-        let result = unsafe {
-            self.env.call_method_unsafe(
-                self.internal,
-                self.get,
-                JavaType::Object("java/lang/Object".into()),
-                &[idx.into()],
-            )
-        };
+        let result = self.env.call_method_unsafe(
+            self.internal,
+            self.get,
+            JavaType::Object("java/lang/Object".into()),
+            &[idx.into()],
+        );
 
         match result {
             Ok(val) => Ok(Some(val.l()?)),
@@ -86,14 +84,12 @@ impl<'a> JList<'a> {
 
     /// Append an element to the list
     pub fn add(&self, value: JObject<'a>) -> Result<()> {
-        let result = unsafe {
-            self.env.call_method_unsafe(
-                self.internal,
-                self.add,
-                JavaType::Primitive(Primitive::Boolean),
-                &[value.into()],
-            )
-        };
+        let result = self.env.call_method_unsafe(
+            self.internal,
+            self.add,
+            JavaType::Primitive(Primitive::Boolean),
+            &[value.into()],
+        );
 
         let _ = result?;
         Ok(())
@@ -101,14 +97,12 @@ impl<'a> JList<'a> {
 
     /// Insert an element at a specific index
     pub fn insert(&self, idx: jint, value: JObject<'a>) -> Result<()> {
-        let result = unsafe {
-            self.env.call_method_unsafe(
-                self.internal,
-                self.add_idx,
-                JavaType::Primitive(Primitive::Void),
-                &[idx.into(), value.into()],
-            )
-        };
+        let result = self.env.call_method_unsafe(
+            self.internal,
+            self.add_idx,
+            JavaType::Primitive(Primitive::Void),
+            &[idx.into(), value.into()],
+        );
 
         let _ = result?;
         Ok(())
@@ -116,14 +110,12 @@ impl<'a> JList<'a> {
 
     /// Remove an element from the list by index
     pub fn remove(&self, idx: jint) -> Result<Option<JObject<'a>>> {
-        let result = unsafe {
-            self.env.call_method_unsafe(
-                self.internal,
-                self.remove,
-                JavaType::Object("java/lang/Object".into()),
-                &[idx.into()],
-            )
-        };
+        let result = self.env.call_method_unsafe(
+            self.internal,
+            self.remove,
+            JavaType::Object("java/lang/Object".into()),
+            &[idx.into()],
+        );
 
         match result {
             Ok(val) => Ok(Some(val.l()?)),
@@ -136,14 +128,12 @@ impl<'a> JList<'a> {
 
     /// Get the size of the list
     pub fn size(&self) -> Result<jint> {
-        let result = unsafe {
-            self.env.call_method_unsafe(
-                self.internal,
-                self.size,
-                JavaType::Primitive(Primitive::Int),
-                &[],
-            )
-        };
+        let result = self.env.call_method_unsafe(
+            self.internal,
+            self.size,
+            JavaType::Primitive(Primitive::Int),
+            &[],
+        );
 
         result.and_then(|v| v.i())
     }
@@ -157,14 +147,12 @@ impl<'a> JList<'a> {
             return Ok(None);
         }
 
-        let result = unsafe {
-            self.env.call_method_unsafe(
-                self.internal,
-                self.remove,
-                JavaType::Object("java/lang/Object".into()),
-                &[(size - 1).into()],
-            )
-        };
+        let result = self.env.call_method_unsafe(
+            self.internal,
+            self.remove,
+            JavaType::Object("java/lang/Object".into()),
+            &[(size - 1).into()],
+        );
 
         match result {
             Ok(val) => Ok(Some(val.l()?)),
