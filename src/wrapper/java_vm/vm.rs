@@ -53,17 +53,23 @@ impl JavaVM {
     /// can be dereferenced to a `JNIEnv` and automatically detaches the thread
     /// when dropped.
     pub fn attach_current_thread(&self) -> Result<AttachGuard> {
-        let mut ptr = ptr::null_mut();
-        unsafe {
-            let res = java_vm_unchecked!(self.0, AttachCurrentThread, &mut ptr, ptr::null_mut());
-            jni_error_code_to_result(res)?;
+        let (env, requires_detach) = match self.get_env() {
+            Ok(env) => (env, false),
+            Err(_) => unsafe {
+                let mut ptr = ptr::null_mut();
+                let res = java_vm_unchecked!(self.0, AttachCurrentThread, &mut ptr, ptr::null_mut());
+                jni_error_code_to_result(res)?;
 
-            let env = JNIEnv::from_raw(ptr as *mut sys::JNIEnv)?;
-            Ok(AttachGuard {
-                java_vm: self,
-                env: env,
-            })
-        }
+                let env = JNIEnv::from_raw(ptr as *mut sys::JNIEnv)?;
+                (env, true)
+            },
+        };
+
+        Ok(AttachGuard {
+            java_vm: self,
+            env,
+            requires_detach,
+        })
     }
 
     /// Attaches the current thread to a Java VM as a daemon.
@@ -102,12 +108,15 @@ impl JavaVM {
 pub struct AttachGuard<'a> {
     java_vm: &'a JavaVM,
     env: JNIEnv<'a>,
+    requires_detach: bool,
 }
 
 impl<'a> AttachGuard<'a> {
     fn detach(&mut self) -> Result<()> {
-        unsafe {
-            java_vm_unchecked!(self.java_vm.0, DetachCurrentThread);
+        if self.requires_detach {
+            unsafe {
+                java_vm_unchecked!(self.java_vm.0, DetachCurrentThread);
+            }
         }
 
         Ok(())
@@ -124,9 +133,8 @@ impl<'a> Deref for AttachGuard<'a> {
 
 impl<'a> Drop for AttachGuard<'a> {
     fn drop(&mut self) {
-        match self.detach() {
-            Ok(()) => (),
-            Err(e) => debug!("error detaching current thread: {:#?}", e),
+        if let Err(e) = self.detach() {
+            debug!("error detaching current thread: {:#?}", e);
         }
     }
 }
