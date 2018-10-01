@@ -13,14 +13,16 @@ macro_rules! jni_non_null_call {
 macro_rules! jni_non_void_call {
     ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
         trace!("calling checked jni method: {}", stringify!($name));
+        trace!("entering unsafe");
+
         #[allow(unused_unsafe)]
-        unsafe {
-            trace!("entering unsafe");
-            let res = jni_method!($jnienv, $name)($jnienv, $($args),*);
-            check_exception!($jnienv);
-            trace!("exiting unsafe");
-            res
-        }
+        let res = unsafe {
+            jni_method!($jnienv, $name)($jnienv, $($args),*)
+        };
+
+        check_exception!($jnienv);
+        trace!("exiting unsafe");
+        res
     })
 }
 
@@ -39,13 +41,15 @@ macro_rules! non_null {
 macro_rules! jni_void_call {
     ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
         trace!("calling checked jni method: {}", stringify!($name));
+        trace!("entering unsafe");
+
         #[allow(unused_unsafe)]
         unsafe {
-            trace!("entering unsafe");
-            jni_method!($jnienv, $name)($jnienv, $($args),*);
-            check_exception!($jnienv);
-            trace!("exiting unsafe");
-        }
+            jni_method!($jnienv, $name)($jnienv, $($args),*)
+        };
+
+        check_exception!($jnienv);
+        trace!("exiting unsafe");
     })
 }
 
@@ -54,7 +58,11 @@ macro_rules! jni_void_call {
 macro_rules! jni_unchecked {
     ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
         trace!("calling unchecked jni method: {}", stringify!($name));
-        jni_method!($jnienv, $name)($jnienv, $($args),*)
+
+        #[allow(unused_unsafe)]
+        unsafe {
+            jni_method!($jnienv, $name)($jnienv, $($args),*)
+        }
     })
 }
 
@@ -63,9 +71,9 @@ macro_rules! jni_method {
         trace!("looking up jni method {}", stringify!($name));
         let env = $jnienv;
         match deref!(deref!(env, "JNIEnv"), "*JNIEnv").$name {
-            Some(meth) => {
+            Some(method) => {
                 trace!("found jni method");
-                meth
+                method
             },
             None => {
                 trace!("jnienv method not defined, returning error");
@@ -80,7 +88,7 @@ macro_rules! check_exception {
     ( $jnienv:expr ) => {
         trace!("checking for exception");
         #[allow(unused_unsafe)]
-        let check = unsafe {
+        let check = {
             jni_unchecked!($jnienv, ExceptionCheck)
         } == $crate::sys::JNI_TRUE;
         if check {
@@ -131,7 +139,8 @@ macro_rules! deref {
         if $obj.is_null() {
             return Err($crate::errors::ErrorKind::NullDeref($ctx).into());
         } else {
-            *$obj
+            #[allow(unused_unsafe)]
+            unsafe { *$obj }
         }
     };
 }
