@@ -51,7 +51,7 @@ impl JavaVM {
 
     /// Attaches the current thread to a Java VM. The resulting `AttachGuard`
     /// can be dereferenced to a `JNIEnv` and automatically detaches the thread
-    /// when dropped.
+    /// when dropped. Calling this for a thread that is already attached is a no-op.
     pub fn attach_current_thread(&self) -> Result<AttachGuard> {
         let (env, requires_detach) = match self.get_env() {
             Ok(env) => (env, false),
@@ -134,7 +134,7 @@ impl<'a> Deref for AttachGuard<'a> {
 impl<'a> Drop for AttachGuard<'a> {
     fn drop(&mut self) {
         if let Err(e) = self.detach() {
-            debug!("error detaching current thread: {:#?}", e);
+            warn!("Error detaching current thread: {:#?}", e);
         }
     }
 }
