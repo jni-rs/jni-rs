@@ -35,13 +35,13 @@ fn jni_abs_safe(env: &JNIEnv, x: jint) -> jint {
     v.i().unwrap()
 }
 
-fn jni_call_static_unsafe<'c, C>(env: &JNIEnv<'c>, class: C, method_id: JStaticMethodID<'c>, x: jint) -> jint
+fn jni_call_static_unchecked<'c, C>(env: &JNIEnv<'c>, class: C, method_id: JStaticMethodID<'c>, x: jint) -> jint
     where
         C: Desc<'c, JClass<'c>>,
 {
     let x = JValue::from(x);
     let ret = JavaType::Primitive(Primitive::Int);
-    let v = env.call_static_method_unsafe(class, method_id, ret, &[x]).unwrap();
+    let v = env.call_static_method_unchecked(class, method_id, ret, &[x]).unwrap();
     v.i().unwrap()
 }
 
@@ -50,13 +50,13 @@ fn jni_hash_safe(env: &JNIEnv, obj: JObject) -> jint {
     v.i().unwrap()
 }
 
-fn jni_call_unsafe<'m, M>(env: &JNIEnv<'m>, obj: JObject, method_id: M) -> jint
+fn jni_call_unchecked<'m, M>(env: &JNIEnv<'m>, obj: JObject, method_id: M) -> jint
     where
         M: Desc<'m, JMethodID<'m>>,
 {
     let ret = JavaType::Primitive(Primitive::Int);
     let v = unsafe {
-        env.call_method_unsafe(obj, method_id, ret, &[]).unwrap()
+        env.call_method_unchecked(obj, method_id, ret, &[]).unwrap()
     };
     v.i().unwrap()
 }
@@ -93,21 +93,21 @@ mod tests {
     }
 
     #[bench]
-    fn jni_call_static_method_unsafe_str(b: &mut Bencher) {
+    fn jni_call_static_method_unchecked_str(b: &mut Bencher) {
         let env = VM.attach_current_thread().unwrap();
         let class = CLASS_MATH;
         let method_id = env.get_static_method_id(class, METHOD_MATH_ABS, SIG_MATH_ABS).unwrap();
 
-        b.iter(|| jni_call_static_unsafe(&env, class, method_id, -3));
+        b.iter(|| jni_call_static_unchecked(&env, class, method_id, -3));
     }
 
     #[bench]
-    fn jni_call_static_method_unsafe_jclass(b: &mut Bencher) {
+    fn jni_call_static_method_unchecked_jclass(b: &mut Bencher) {
         let env = VM.attach_current_thread().unwrap();
         let class: JClass = CLASS_MATH.lookup(&env).unwrap();
         let method_id = env.get_static_method_id(class, METHOD_MATH_ABS, SIG_MATH_ABS).unwrap();
 
-        b.iter(|| jni_call_static_unsafe(&env, class, method_id, -3));
+        b.iter(|| jni_call_static_unchecked(&env, class, method_id, -3));
     }
 
     #[bench]
@@ -120,14 +120,14 @@ mod tests {
     }
 
     #[bench]
-    fn jni_call_object_method_unsafe(b: &mut Bencher) {
+    fn jni_call_object_method_unchecked(b: &mut Bencher) {
         let env = VM.attach_current_thread().unwrap();
         let s = env.new_string("").unwrap();
         let obj = black_box(JObject::from(s));
         let method_id = env.get_method_id(
             obj, METHOD_OBJECT_HASH_CODE, SIG_OBJECT_HASH_CODE).unwrap();
 
-        b.iter(|| jni_call_unsafe(&env, obj, method_id));
+        b.iter(|| jni_call_unchecked(&env, obj, method_id));
     }
 
     #[bench]
@@ -148,7 +148,7 @@ mod tests {
         let ctor_id = env.get_method_id(class, METHOD_CTOR, SIG_OBJECT_CTOR).unwrap();
 
         b.iter(|| {
-            let obj = env.new_object_by_id(class, ctor_id, &[]).unwrap();
+            let obj = env.new_object_by_id_unchecked(class, ctor_id, &[]).unwrap();
             env.delete_local_ref(obj).unwrap();
         });
     }
@@ -171,7 +171,7 @@ mod tests {
         let ctor_id = env.get_method_id(class, METHOD_CTOR, SIG_OBJECT_CTOR).unwrap();
 
         b.iter(|| {
-            let obj = env.new_object_by_id(class, ctor_id, &[]).unwrap();
+            let obj = env.new_object_by_id_unchecked(class, ctor_id, &[]).unwrap();
             env.delete_local_ref(obj).unwrap();
         });
     }
@@ -231,7 +231,7 @@ mod tests {
     /// A benchmark of the overhead of attaching and detaching a native thread.
     ///
     /// It is *huge* — two orders of magnitude higher than calling a single
-    /// Java method using unchecked APIs (e.g., `jni_call_static_unsafe`).
+    /// Java method using unchecked APIs (e.g., `jni_call_static_unchecked`).
     ///
     #[bench]
     fn jvm_noop_attach_detach_native_thread(b: &mut Bencher) {

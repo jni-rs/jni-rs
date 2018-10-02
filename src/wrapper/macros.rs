@@ -15,7 +15,6 @@ macro_rules! jni_non_void_call {
         trace!("calling checked jni method: {}", stringify!($name));
         trace!("entering unsafe");
 
-        #[allow(unused_unsafe)]
         let res = unsafe {
             jni_method!($jnienv, $name)($jnienv, $($args),*)
         };
@@ -43,7 +42,6 @@ macro_rules! jni_void_call {
         trace!("calling checked jni method: {}", stringify!($name));
         trace!("entering unsafe");
 
-        #[allow(unused_unsafe)]
         unsafe {
             jni_method!($jnienv, $name)($jnienv, $($args),*)
         };
@@ -59,7 +57,6 @@ macro_rules! jni_unchecked {
     ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
         trace!("calling unchecked jni method: {}", stringify!($name));
 
-        #[allow(unused_unsafe)]
         unsafe {
             jni_method!($jnienv, $name)($jnienv, $($args),*)
         }
@@ -87,7 +84,6 @@ macro_rules! jni_method {
 macro_rules! check_exception {
     ( $jnienv:expr ) => {
         trace!("checking for exception");
-        #[allow(unused_unsafe)]
         let check = {
             jni_unchecked!($jnienv, ExceptionCheck)
         } == $crate::sys::JNI_TRUE;

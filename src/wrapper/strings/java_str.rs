@@ -24,7 +24,7 @@ impl<'a> JavaStr<'a> {
     /// Build a `JavaStr` from an object and a reference to the environment. You
     /// probably want to use `JNIEnv::get_string` instead.
     pub fn from_env(env: &'a JNIEnv<'a>, obj: JString<'a>) -> Result<Self> {
-        let ptr = unsafe { env.get_string_utf_chars(obj)? };
+        let ptr = env.get_string_utf_chars(obj)?;
         let java_str = JavaStr {
             internal: ptr,
             env,
@@ -69,7 +69,7 @@ impl<'a> From<JavaStr<'a>> for String {
 
 impl<'a> Drop for JavaStr<'a> {
     fn drop(&mut self) {
-        match unsafe { self.env.release_string_utf_chars(self.obj, self.internal) } {
+        match self.env.release_string_utf_chars(self.obj, self.internal) {
             Ok(()) => {}
             Err(e) => warn!("error dropping java str: {}", e),
         }
