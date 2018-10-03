@@ -3,8 +3,11 @@
 extern crate error_chain;
 extern crate jni;
 
-use jni::objects::{AutoLocal, JObject, JValue};
-use jni::sys::jint;
+use jni::{
+    errors::ErrorKind,
+    objects::{AutoLocal, JObject, JValue},
+    sys::jint,
+};
 
 mod util;
 use util::{attach_current_thread, unwrap};
@@ -13,11 +16,11 @@ static ARRAYLIST_CLASS: &str = "java/util/ArrayList";
 static EXCEPTION_CLASS: &str = "java/lang/Exception";
 static ARITHMETIC_EXCEPTION_CLASS: &str = "java/lang/ArithmeticException";
 static INTEGER_CLASS: &str = "java/lang/Integer";
-static CLASS_MATH: &str = "java/lang/Math";
-static METHOD_MATH_ABS: &str = "abs";
-static METHOD_MATH_TO_INT: &str = "toIntExact";
-static SIG_MATH_ABS: &str = "(I)I";
-static SIG_MATH_TO_INT: &str = "(J)I";
+static MATH_CLASS: &str = "java/lang/Math";
+static MATH_ABS_METHOD_NAME: &str = "abs";
+static MATH_TO_INT_METHOD_NAME: &str = "toIntExact";
+static MATH_ABS_SIGNATURE: &str = "(I)I";
+static MATH_TO_INT_SIGNATURE: &str = "(J)I";
 
 #[test]
 pub fn call_method_returning_null() {
@@ -155,7 +158,7 @@ pub fn call_static_method_ok() {
     let env = attach_current_thread();
 
     let x = JValue::from(-10);
-    let val: jint = env.call_static_method(CLASS_MATH, METHOD_MATH_ABS, SIG_MATH_ABS, &[x])
+    let val: jint = env.call_static_method(MATH_CLASS, MATH_ABS_METHOD_NAME, MATH_ABS_SIGNATURE, &[x])
         .expect("JNIEnv#call_static_method_unsafe should return JValue").i().unwrap();
 
     assert_eq!(val, 10);
@@ -166,9 +169,14 @@ pub fn call_static_method_throws() {
     let env = attach_current_thread();
 
     let x = JValue::Long(4_000_000_000);
-    env.call_static_method(CLASS_MATH, METHOD_MATH_TO_INT, SIG_MATH_TO_INT, &[x])
-        .expect_err("JNIEnv#call_static_method_unsafe should return error");
+    let is_java_exception = env
+        .call_static_method(MATH_CLASS, MATH_TO_INT_METHOD_NAME, MATH_TO_INT_SIGNATURE, &[x])
+        .map_err(|error| match error.0 {
+            ErrorKind::JavaException => true,
+            _ => false,
+        }).expect_err("JNIEnv#call_static_method_unsafe should return error");
 
+    assert!(is_java_exception, "ErrorKind::JavaException expected as error");
     assert!(env.exception_check().unwrap());
     env.exception_clear().unwrap();
 }
@@ -178,7 +186,7 @@ pub fn call_static_method_wrong_arg() {
     let env = attach_current_thread();
 
     let x = JValue::Double(4.56789123);
-    env.call_static_method(CLASS_MATH, METHOD_MATH_TO_INT, SIG_MATH_TO_INT, &[x])
+    env.call_static_method(MATH_CLASS, MATH_TO_INT_METHOD_NAME, MATH_TO_INT_SIGNATURE, &[x])
         .expect_err("JNIEnv#call_static_method_unsafe should return error");
 
     assert!(env.exception_check().unwrap());

@@ -592,7 +592,7 @@ impl<'a> JNIEnv<'a> {
     /// Get the class for an object.
     pub fn get_object_class(&self, obj: JObject) -> Result<JClass<'a>> {
         non_null!(obj, "get_object_class");
-        Ok(jni_non_null_call!(self.internal, GetObjectClass, obj.into_inner()))
+        Ok(unsafe { jni_unchecked!(self.internal, GetObjectClass, obj.into_inner()).into() })
     }
 
     /// Call a static method in an unsafe manner. This does nothing to check
@@ -624,14 +624,13 @@ impl<'a> JNIEnv<'a> {
         // TODO clean this up
         Ok(match ret {
             JavaType::Object(_) | JavaType::Array(_) => {
-                // TODO shouldn't it be a non_void instead of non_null here?
-                let obj: JObject = jni_non_null_call!(
+                let obj: JObject = jni_non_void_call!(
                     self.internal,
                     CallStaticObjectMethodA,
                     class,
                     method_id,
                     jni_args
-                );
+                ).into();
                 obj.into()
             }
             // JavaType::Object
@@ -1051,14 +1050,16 @@ impl<'a> JNIEnv<'a> {
         let length = buf.len() as i32;
         let bytes: jbyteArray = self.new_byte_array(length)?;
 
-        jni_void_call!(
-            self.internal,
-            SetByteArrayRegion,
-            bytes,
-            0,
-            length,
-            buf.as_ptr() as *const i8
-        );
+        unsafe {
+            jni_unchecked!(
+                self.internal,
+                SetByteArrayRegion,
+                bytes,
+                0,
+                length,
+                buf.as_ptr() as *const i8
+            );
+        }
         Ok(bytes)
     }
 
