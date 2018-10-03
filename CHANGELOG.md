@@ -30,6 +30,8 @@ to call if there is a pending exception (#124):
   to be non-null.
   - Rename `jni_non_null_call` (which may return nulls) to `jni_non_void_call`.
 
+### Fixed
+- The issue with early detaching of a thread by nested AttachGuard. (#139)
 
 ## [0.10.2]
 
