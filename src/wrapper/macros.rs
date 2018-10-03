@@ -13,14 +13,12 @@ macro_rules! jni_non_null_call {
 macro_rules! jni_non_void_call {
     ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
         trace!("calling checked jni method: {}", stringify!($name));
-        trace!("entering unsafe");
 
         let res = unsafe {
             jni_method!($jnienv, $name)($jnienv, $($args),*)
         };
 
         check_exception!($jnienv);
-        trace!("exiting unsafe");
         res
     })
 }
@@ -40,14 +38,12 @@ macro_rules! non_null {
 macro_rules! jni_void_call {
     ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
         trace!("calling checked jni method: {}", stringify!($name));
-        trace!("entering unsafe");
 
         unsafe {
             jni_method!($jnienv, $name)($jnienv, $($args),*)
         };
 
         check_exception!($jnienv);
-        trace!("exiting unsafe");
     })
 }
 
