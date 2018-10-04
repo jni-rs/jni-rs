@@ -7,6 +7,8 @@ install:
   - set RUST_BACKTRACE=1
   - rustc -vV
   - cargo -vV
+  # For build 
+  - ps: Copy-Item -Path C:\Progra~1\Java\jdk1.8.0\lib\jvm.lib -Destination C:\Progra~1\Java\jdk1.8.0\jre\bin\server\jvm.lib
 
 build: false
 
