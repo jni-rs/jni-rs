@@ -208,3 +208,23 @@ pub fn java_byte_array_from_slice() {
     assert_eq!(res[1], 2);
     assert_eq!(res[2], 3);
 }
+
+#[test]
+pub fn get_object_class() {
+    let env = attach_current_thread();
+    let string = env.new_string("test").unwrap();
+    let result = env.get_object_class(string.into());
+    assert!(result.is_ok());
+    assert!(!result.unwrap().is_null());
+}
+
+#[test]
+pub fn get_object_class_null_arg() {
+    let env = attach_current_thread();
+    let null_obj = JObject::null();
+    let result = env.get_object_class(null_obj).map_err(|error| match *error.kind() {
+        ErrorKind::NullPtr(_) => true,
+        _ => false,
+    }).expect_err("JNIEnv#get_object_class should return error for null argument");
+    assert!(result, "ErrorKind::NullPtr expected as error");
+}
