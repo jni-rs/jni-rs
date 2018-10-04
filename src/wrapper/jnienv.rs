@@ -1625,8 +1625,8 @@ impl<'a> JNIEnv<'a> {
         // TODO clean this up
         Ok(match ty {
             JavaType::Object(_) | JavaType::Array(_) => {
-                // TODO: does it really require jni_non_null_call here?
-                let obj: JObject = jni_non_null_call!(self.internal, GetStaticObjectField, class, field_id);
+                let obj: JObject =
+                    jni_non_void_call!(self.internal, GetStaticObjectField, class, field_id).into();
                 obj.into()
             }
             // JavaType::Object
