@@ -30,10 +30,15 @@ to call if there is a pending exception (#124):
   to be non-null.
   - Rename `jni_non_null_call` (which may return nulls) to `jni_non_void_call`.
 
+- `from_str` method of the `JavaType` has been replaced by the `FromStr`
+  implementation
+
 - Improvements in macro usage for JNI methods calls. (#136):
   - `call_static_method_unsafe` and `get_static_field_unsafe` methods are allowed to return NULL object.
   - Added checking for pending exception to the `call_static_method_unsafe` method (eliminated WARNING messages in log). 
 
+### Fixed
+- The issue with early detaching of a thread by nested AttachGuard. (#139)
 
 ## [0.10.2]
 

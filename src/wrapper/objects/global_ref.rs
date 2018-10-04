@@ -46,7 +46,6 @@ impl<'a> From<&'a GlobalRef> for JObject<'a> {
     }
 }
 
-
 impl GlobalRef {
     /// Creates a new global reference. This assumes that `NewGlobalRef`
     /// has already been called.
@@ -64,7 +63,6 @@ impl GlobalRef {
         self.inner.as_obj()
     }
 }
-
 
 impl GlobalRefGuard {
     /// Creates a new global reference guard. This assumes that `NewGlobalRef`

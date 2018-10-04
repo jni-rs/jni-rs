@@ -1,13 +1,9 @@
 use std::str;
-
 use std::marker::PhantomData;
-
 use std::iter::IntoIterator;
-
 use std::slice;
-
-use std::sync::Mutex;
-use std::sync::MutexGuard;
+use std::sync::{Mutex, MutexGuard};
+use std::str::FromStr;
 
 use errors::*;
 

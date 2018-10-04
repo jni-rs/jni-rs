@@ -1,6 +1,7 @@
 use combine::*;
 use combine::stream::state::State;
 use errors::*;
+use std::str::FromStr;
 
 /// A primitive java type. These are the things that can be represented without
 /// an object.
@@ -44,15 +45,14 @@ pub enum JavaType {
     Method(Box<TypeSignature>),
 }
 
-impl JavaType {
-    /// Parse a type string into a JavaType enum.
-    pub fn from_str(s: &str) -> Result<JavaType> {
-        Ok(
-            match parser(parse_type).parse(State::new(s)).map(|res| res.0) {
-                Ok(sig) => sig,
-                Err(e) => return Err(format_error_message(&e, s).into()),
-            },
-        )
+impl FromStr for JavaType {
+    type Err = String;
+
+    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
+        parser(parse_type)
+            .parse(State::new(s))
+            .map(|res| res.0)
+            .map_err(|e| format_error_message(&e, s))
     }
 }
 
