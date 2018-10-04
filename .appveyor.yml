@@ -12,4 +12,4 @@ build: false
 
 test_script:
   - cargo build
-  - cargo test --features=backtrace,invocation --test java_integers
+  - cargo test --features=backtrace
