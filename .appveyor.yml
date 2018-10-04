@@ -14,5 +14,4 @@ build: false
 
 test_script:
   - cargo build
-  - cargo test --features=backtrace
-  - cargo test --features=invocation
+  - cargo test --features backtrace,invocation
