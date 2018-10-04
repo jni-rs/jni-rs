@@ -1,0 +1,22 @@
+os: Visual Studio 2017
+
+environment:
+  # Workaround for the issue https://github.com/briansmith/ring/issues/648
+  CL: "/wd5045"
+
+install:
+  - appveyor DownloadFile https://win.rustup.rs/ -FileName rustup-init.exe
+  - rustup-init -yv --default-toolchain stable --default-host x86_64-pc-windows-msvc
+  - set PATH=%PATH%;%USERPROFILE%\.cargo\bin
+  - set RUST_BACKTRACE=1
+  - rustc -vV
+  - cargo -vV
+
+build: false
+
+test_script:
+  - cargo test --all
+
+cache:
+  - '%USERPROFILE%\.cargo -> Cargo.toml'
+  - target -> Cargo.toml
