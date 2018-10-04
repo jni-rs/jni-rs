@@ -15,7 +15,3 @@ build: false
 test_script:
   - cargo build
   - cargo test --features=backtrace,invocation
-
-cache:
-  - '%USERPROFILE%\.cargo -> Cargo.toml'
-  - target -> Cargo.toml
