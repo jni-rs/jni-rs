@@ -9,7 +9,6 @@ install:
   - cargo -vV
   - ps: Copy-Item -Path C:\Progra~1\Java\jdk1.8.0\lib\jvm.lib -Destination C:\Progra~1\Java\jdk1.8.0\jre\bin\server\jvm.lib
 
-
 build: false
 
 test_script:
