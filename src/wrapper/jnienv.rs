@@ -1049,7 +1049,6 @@ impl<'a> JNIEnv<'a> {
     pub fn byte_array_from_slice(&self, buf: &[u8]) -> Result<jbyteArray> {
         let length = buf.len() as i32;
         let bytes: jbyteArray = self.new_byte_array(length)?;
-
         unsafe {
             jni_unchecked!(
                 self.internal,
