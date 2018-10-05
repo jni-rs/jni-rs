@@ -90,12 +90,22 @@ use JavaVM;
 ///
 /// Some of the methods come in two versions: checked (e.g. `call_method`) and
 /// unchecked (e.g. `call_method_unchecked`). Under the hood, checked methods
-/// perform some check to ensure the validity of provided signatures, names
+/// perform some checks to ensure the validity of provided signatures, names
 /// and arguments, and then call the corresponding unchecked method.
 ///
-/// Therefore, in case of intensive method calls (for instance, when calling
-/// Java methods repeatedly in a loop), it's more effective to use unchecked
-/// methods and avoid expensive safety checks.
+/// Checked methods are more flexible as they allow passing class names
+/// and method/field descriptors as strings and may perform lookups
+/// of class objects and method/field ids for you, also performing
+/// all the needed precondition checks. However, these lookup operations
+/// are expensive, so if you need to call the same method (or access
+/// the same field) multiple times, it is
+/// [recommended](https://docs.oracle.com/en/java/javase/11/docs/specs/jni/design.html#accessing-fields-and-methods)
+/// to cache the instance of the class and the method/field id, e.g.
+///   - in loops
+///   - when calling the same Java callback repeatedly.
+///
+/// If you do not cache references to classes and method/field ids,
+/// you will *not* benefit from the unchecked methods.
 ///
 /// Calling unchecked methods with invalid arguments and/or invalid class and
 /// method descriptors may lead to segmentation fault.
