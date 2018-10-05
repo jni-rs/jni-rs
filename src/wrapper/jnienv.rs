@@ -72,6 +72,8 @@ use JavaVM;
 /// magic happens. All methods on this object are wrappers around JNI functions,
 /// so the documentation on their behavior is still pretty applicable.
 ///
+/// # Exception handling
+///
 /// Since we're calling into the JVM with this, many methods also have the
 /// potential to cause an exception to get thrown. If this is the case, an `Err`
 /// result will be returned with the error kind `JavaException`. Note that this
@@ -83,6 +85,20 @@ use JavaVM;
 /// argument is passed to a method or when a null would be returned. Where
 /// applicable, the null error is changed to a more applicable error type, such
 /// as `MethodNotFound`.
+///
+/// # Checked and unchecked methods
+///
+/// Some of the methods come in two versions: checked (e.g. `call_method`) and
+/// unchecked (e.g. `call_method_unchecked`). Under the hood, checked methods
+/// perform some check to ensure the validity of provided signatures, names
+/// and arguments, and then call the corresponding unchecked method.
+///
+/// Therefore, in case of intensive method calls (for instance, when calling
+/// Java methods repeatedly in a loop), it's more effective to use unchecked
+/// methods and avoid expensive safety checks.
+///
+/// Calling unchecked methods with invalid arguments and/or invalid class and
+/// method descriptors may lead to segmentation fault.
 #[repr(C)]
 pub struct JNIEnv<'a> {
     internal: *mut sys::JNIEnv,
