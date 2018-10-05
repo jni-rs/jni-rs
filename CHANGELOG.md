@@ -32,6 +32,8 @@ to call if there is a pending exception (#124):
 
 - `from_str` method of the `JavaType` has been replaced by the `FromStr`
   implementation
+  
+- Implemented Sync for GlobalRef (#102).
 
 - Improvements in macro usage for JNI methods calls. (#136):
   - `call_static_method_unsafe` and `get_static_field_unsafe` methods are allowed to return NULL object.

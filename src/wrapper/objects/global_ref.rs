@@ -38,6 +38,7 @@ struct GlobalRefGuard {
 
 
 unsafe impl Send for GlobalRef {}
+unsafe impl Sync for GlobalRef {}
 
 
 impl<'a> From<&'a GlobalRef> for JObject<'a> {
