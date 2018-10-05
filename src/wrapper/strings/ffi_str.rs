@@ -8,8 +8,9 @@ use std::borrow::{
     ToOwned,
 };
 
-use cesu8::from_java_cesu8;
-use cesu8::to_java_cesu8;
+use cesu8::{from_java_cesu8, to_java_cesu8};
+
+use wrapper::strings::ffi_str;
 
 /// Wrapper for `std::ffi::CString` that also takes care of encoding between
 /// UTF-8 and Java's Modified UTF-8. As with `CString`, this implements `Deref`
@@ -28,7 +29,7 @@ impl ::std::ops::Deref for JNIString {
     type Target = JNIStr;
 
     fn deref(&self) -> &Self::Target {
-        unsafe { ::std::mem::transmute(self.internal.as_bytes_with_nul()) }
+        unsafe { &*(self.internal.as_bytes_with_nul() as *const [u8] as *const ffi_str::JNIStr) }
     }
 }
 
@@ -83,7 +84,7 @@ impl JNIStr {
     /// Construct a reference to a `JNIStr` from a pointer. Equivalent to
     /// `CStr::from_ptr`.
     pub unsafe fn from_ptr<'a>(ptr: *const c_char) -> &'a JNIStr {
-        ::std::mem::transmute(ffi::CStr::from_ptr(ptr))
+        &*(ffi::CStr::from_ptr(ptr) as *const ffi::CStr as *const ffi_str::JNIStr)
     }
 }
 

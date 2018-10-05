@@ -1,13 +1,9 @@
 use std::str;
-
 use std::marker::PhantomData;
-
 use std::iter::IntoIterator;
-
 use std::slice;
-
-use std::sync::Mutex;
-use std::sync::MutexGuard;
+use std::sync::{Mutex, MutexGuard};
+use std::str::FromStr;
 
 use errors::*;
 
@@ -606,7 +602,8 @@ impl<'a> JNIEnv<'a> {
 
     /// Get the class for an object.
     pub fn get_object_class(&self, obj: JObject) -> Result<JClass<'a>> {
-        Ok(jni_non_null_call!(self.internal, GetObjectClass, obj.into_inner()))
+        non_null!(obj, "get_object_class");
+        Ok(unsafe { jni_unchecked!(self.internal, GetObjectClass, obj.into_inner()).into() })
     }
 
     /// Call a static method in an unsafe manner. This does nothing to check
@@ -637,13 +634,13 @@ impl<'a> JNIEnv<'a> {
         // TODO clean this up
         Ok(match ret {
             JavaType::Object(_) | JavaType::Array(_) => {
-                let obj: JObject = jni_non_null_call!(
+                let obj: JObject = jni_non_void_call!(
                     self.internal,
                     CallStaticObjectMethodA,
                     class,
                     method_id,
                     jni_args
-                );
+                ).into();
                 obj.into()
             }
             // JavaType::Object
@@ -1634,7 +1631,8 @@ impl<'a> JNIEnv<'a> {
         // TODO clean this up
         Ok(match ty {
             JavaType::Object(_) | JavaType::Array(_) => {
-                let obj: JObject = jni_non_null_call!(self.internal, GetStaticObjectField, class, field_id);
+                let obj: JObject =
+                    jni_non_void_call!(self.internal, GetStaticObjectField, class, field_id).into();
                 obj.into()
             }
             // JavaType::Object

@@ -38,6 +38,7 @@ struct GlobalRefGuard {
 
 
 unsafe impl Send for GlobalRef {}
+unsafe impl Sync for GlobalRef {}
 
 
 impl<'a> From<&'a GlobalRef> for JObject<'a> {
@@ -45,7 +46,6 @@ impl<'a> From<&'a GlobalRef> for JObject<'a> {
         other.as_obj()
     }
 }
-
 
 impl GlobalRef {
     /// Creates a new global reference. This assumes that `NewGlobalRef`
@@ -64,7 +64,6 @@ impl GlobalRef {
         self.inner.as_obj()
     }
 }
-
 
 impl GlobalRefGuard {
     /// Creates a new global reference guard. This assumes that `NewGlobalRef`

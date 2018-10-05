@@ -3,7 +3,11 @@
 extern crate error_chain;
 extern crate jni;
 
-use jni::objects::{AutoLocal, JObject};
+use jni::{
+    errors::ErrorKind,
+    objects::{AutoLocal, JObject, JValue},
+    sys::jint,
+};
 
 mod util;
 use util::{attach_current_thread, unwrap};
@@ -12,6 +16,11 @@ static ARRAYLIST_CLASS: &str = "java/util/ArrayList";
 static EXCEPTION_CLASS: &str = "java/lang/Exception";
 static ARITHMETIC_EXCEPTION_CLASS: &str = "java/lang/ArithmeticException";
 static INTEGER_CLASS: &str = "java/lang/Integer";
+static MATH_CLASS: &str = "java/lang/Math";
+static MATH_ABS_METHOD_NAME: &str = "abs";
+static MATH_TO_INT_METHOD_NAME: &str = "toIntExact";
+static MATH_ABS_SIGNATURE: &str = "(I)I";
+static MATH_TO_INT_SIGNATURE: &str = "(J)I";
 
 #[test]
 pub fn call_method_returning_null() {
@@ -142,4 +151,80 @@ pub fn with_local_frame_pending_exception() {
     }).expect("JNIEnv#with_local_frame must work in case of pending exception");
 
     env.exception_clear().unwrap();
+}
+
+#[test]
+pub fn call_static_method_ok() {
+    let env = attach_current_thread();
+
+    let x = JValue::from(-10);
+    let val: jint = env.call_static_method(MATH_CLASS, MATH_ABS_METHOD_NAME, MATH_ABS_SIGNATURE, &[x])
+        .expect("JNIEnv#call_static_method_unsafe should return JValue").i().unwrap();
+
+    assert_eq!(val, 10);
+}
+
+#[test]
+pub fn call_static_method_throws() {
+    let env = attach_current_thread();
+
+    let x = JValue::Long(4_000_000_000);
+    let is_java_exception = env
+        .call_static_method(MATH_CLASS, MATH_TO_INT_METHOD_NAME, MATH_TO_INT_SIGNATURE, &[x])
+        .map_err(|error| match error.0 {
+            ErrorKind::JavaException => true,
+            _ => false,
+        }).expect_err("JNIEnv#call_static_method_unsafe should return error");
+
+    assert!(is_java_exception, "ErrorKind::JavaException expected as error");
+    assert!(env.exception_check().unwrap());
+    env.exception_clear().unwrap();
+}
+
+#[test]
+pub fn call_static_method_wrong_arg() {
+    let env = attach_current_thread();
+
+    let x = JValue::Double(4.56789123);
+    env.call_static_method(MATH_CLASS, MATH_TO_INT_METHOD_NAME, MATH_TO_INT_SIGNATURE, &[x])
+        .expect_err("JNIEnv#call_static_method_unsafe should return error");
+
+    assert!(env.exception_check().unwrap());
+    env.exception_clear().unwrap();
+}
+
+#[test]
+pub fn java_byte_array_from_slice() {
+    let env = attach_current_thread();
+    let buf: &[u8] = &[1, 2, 3];
+    let java_array = env.byte_array_from_slice(buf)
+        .expect("JNIEnv#byte_array_from_slice must create a java array from slice");
+    let obj = AutoLocal::new(&env, JObject::from(java_array));
+
+    assert!(!obj.as_obj().is_null());
+    let mut res: [i8; 3] = [0; 3];
+    env.get_byte_array_region(java_array, 0, &mut res).unwrap();
+    assert_eq!(res[0], 1);
+    assert_eq!(res[1], 2);
+    assert_eq!(res[2], 3);
+}
+
+#[test]
+pub fn get_object_class() {
+    let env = attach_current_thread();
+    let string = env.new_string("test").unwrap();
+    let result = env.get_object_class(string.into());
+    assert!(result.is_ok());
+    assert!(!result.unwrap().is_null());
+}
+
+#[test]
+pub fn get_object_class_null_arg() {
+    let env = attach_current_thread();
+    let null_obj = JObject::null();
+    let result = env.get_object_class(null_obj).map_err(|error| match *error.kind() {
+        ErrorKind::NullPtr(_) => true,
+        _ => false,
+    }).expect_err("JNIEnv#get_object_class should return error for null argument");
+    assert!(result, "ErrorKind::NullPtr expected as error");
 }
