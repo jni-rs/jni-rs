@@ -32,6 +32,8 @@ to call if there is a pending exception (#124):
 
 - `from_str` method of the `JavaType` has been replaced by the `FromStr`
   implementation
+  
+- Implemented Sync for GlobalRef (#102).
 
 ### Fixed
 - The issue with early detaching of a thread by nested AttachGuard. (#139)
