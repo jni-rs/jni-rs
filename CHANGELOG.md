@@ -35,6 +35,10 @@ to call if there is a pending exception (#124):
   
 - Implemented Sync for GlobalRef (#102).
 
+- Improvements in macro usage for JNI methods calls. (#136):
+  - `call_static_method_unsafe` and `get_static_field_unsafe` methods are allowed to return NULL object.
+  - Added checking for pending exception to the `call_static_method_unsafe` method (eliminated WARNING messages in log). 
+
 ### Fixed
 - The issue with early detaching of a thread by nested AttachGuard. (#139)
 

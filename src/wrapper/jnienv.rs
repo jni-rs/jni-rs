@@ -587,7 +587,8 @@ impl<'a> JNIEnv<'a> {
 
     /// Get the class for an object.
     pub fn get_object_class(&self, obj: JObject) -> Result<JClass<'a>> {
-        Ok(jni_non_null_call!(self.internal, GetObjectClass, obj.into_inner()))
+        non_null!(obj, "get_object_class");
+        Ok(unsafe { jni_unchecked!(self.internal, GetObjectClass, obj.into_inner()).into() })
     }
 
     /// Call a static method in an unsafe manner. This does nothing to check
@@ -619,20 +620,20 @@ impl<'a> JNIEnv<'a> {
         // TODO clean this up
         Ok(match ret {
             JavaType::Object(_) | JavaType::Array(_) => {
-                let obj: JObject = jni_non_null_call!(
+                let obj: JObject = jni_non_void_call!(
                     self.internal,
                     CallStaticObjectMethodA,
                     class,
                     method_id,
                     jni_args
-                );
+                ).into();
                 obj.into()
             }
             // JavaType::Object
             JavaType::Method(_) => unimplemented!(),
             JavaType::Primitive(p) => {
                 let v: JValue = match p {
-                    Primitive::Boolean => (jni_unchecked!(
+                    Primitive::Boolean => (jni_non_void_call!(
                         self.internal,
                         CallStaticBooleanMethodA,
                         class,
@@ -640,56 +641,56 @@ impl<'a> JNIEnv<'a> {
                         jni_args
                     ) == sys::JNI_TRUE)
                         .into(),
-                    Primitive::Char => jni_unchecked!(
+                    Primitive::Char => jni_non_void_call!(
                         self.internal,
                         CallStaticCharMethodA,
                         class,
                         method_id,
                         jni_args
                     ).into(),
-                    Primitive::Short => jni_unchecked!(
+                    Primitive::Short => jni_non_void_call!(
                         self.internal,
                         CallStaticShortMethodA,
                         class,
                         method_id,
                         jni_args
                     ).into(),
-                    Primitive::Int => jni_unchecked!(
+                    Primitive::Int => jni_non_void_call!(
                         self.internal,
                         CallStaticIntMethodA,
                         class,
                         method_id,
                         jni_args
                     ).into(),
-                    Primitive::Long => jni_unchecked!(
+                    Primitive::Long => jni_non_void_call!(
                         self.internal,
                         CallStaticLongMethodA,
                         class,
                         method_id,
                         jni_args
                     ).into(),
-                    Primitive::Float => jni_unchecked!(
+                    Primitive::Float => jni_non_void_call!(
                         self.internal,
                         CallStaticFloatMethodA,
                         class,
                         method_id,
                         jni_args
                     ).into(),
-                    Primitive::Double => jni_unchecked!(
+                    Primitive::Double => jni_non_void_call!(
                         self.internal,
                         CallStaticDoubleMethodA,
                         class,
                         method_id,
                         jni_args
                     ).into(),
-                    Primitive::Byte => jni_unchecked!(
+                    Primitive::Byte => jni_non_void_call!(
                         self.internal,
                         CallStaticByteMethodA,
                         class,
                         method_id,
                         jni_args
                     ).into(),
-                    Primitive::Void => jni_unchecked!(
+                    Primitive::Void => jni_non_void_call!(
                         self.internal,
                         CallStaticVoidMethodA,
                         class,
@@ -1620,7 +1621,8 @@ impl<'a> JNIEnv<'a> {
         // TODO clean this up
         Ok(match ty {
             JavaType::Object(_) | JavaType::Array(_) => {
-                let obj: JObject = jni_non_null_call!(self.internal, GetStaticObjectField, class, field_id);
+                let obj: JObject =
+                    jni_non_void_call!(self.internal, GetStaticObjectField, class, field_id).into();
                 obj.into()
             }
             // JavaType::Object
