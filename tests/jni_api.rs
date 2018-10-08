@@ -228,3 +228,13 @@ pub fn get_object_class_null_arg() {
     }).expect_err("JNIEnv#get_object_class should return error for null argument");
     assert!(result, "ErrorKind::NullPtr expected as error");
 }
+
+#[test]
+pub fn new_direct_byte_buffer() {
+    let env = attach_current_thread();
+    let mut vec: Vec<u8> = vec![0, 1, 2, 3];
+    let buf = vec.as_mut_slice();
+    let result = env.new_direct_byte_buffer(buf);
+    assert!(result.is_ok());
+    assert!(!result.unwrap().is_null());
+}

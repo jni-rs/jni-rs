@@ -274,14 +274,12 @@ impl<'a> JNIEnv<'a> {
 
     /// Create a new instance of a direct java.nio.ByteBuffer.
     pub fn new_direct_byte_buffer(&self, data: &mut [u8]) -> Result<JByteBuffer> {
-        let obj = unsafe {
-            jni_unchecked!(
-                self.internal,
-                NewDirectByteBuffer,
-                data.as_mut_ptr() as *mut c_void,
-                data.len() as jlong
-            )
-        };
+        let obj: JObject = jni_non_null_call!(
+            self.internal,
+            NewDirectByteBuffer,
+            data.as_mut_ptr() as *mut c_void,
+            data.len() as jlong
+        );
         Ok(JByteBuffer::from(obj))
     }
 
