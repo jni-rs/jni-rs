@@ -238,3 +238,22 @@ pub fn new_direct_byte_buffer() {
     assert!(result.is_ok());
     assert!(!result.unwrap().is_null());
 }
+
+#[test]
+pub fn get_direct_buffer_capacity_ok() {
+    let env = attach_current_thread();
+    let mut vec: Vec<u8> = vec![0, 1, 2, 3];
+    let buf = vec.as_mut_slice();
+    let result = env.new_direct_byte_buffer(buf).unwrap();
+    assert!(!result.is_null());
+
+    let capacity = env.get_direct_buffer_capacity(result).unwrap();
+    assert_eq!(capacity, 4);
+}
+
+#[test]
+pub fn get_direct_buffer_capacity_wrong_arg() {
+    let env = attach_current_thread();
+    let capacity = env.get_direct_buffer_capacity(JObject::null().into());
+    assert!(capacity.is_err());
+}

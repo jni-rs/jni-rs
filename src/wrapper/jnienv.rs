@@ -296,7 +296,10 @@ impl<'a> JNIEnv<'a> {
     pub fn get_direct_buffer_capacity(&self, buf: JByteBuffer) -> Result<jlong> {
         let capacity =
             unsafe { jni_unchecked!(self.internal, GetDirectBufferCapacity, buf.into_inner()) };
-        Ok(capacity)
+        match capacity {
+            -1 => Err(Error::from(ErrorKind::Other(sys::JNI_ERR))),
+            _ => Ok(capacity),
+        }
     }
 
     /// Turns an object into a global ref. This has the benefit of removing the
