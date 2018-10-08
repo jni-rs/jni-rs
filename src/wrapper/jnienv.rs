@@ -79,6 +79,7 @@ use JavaVM;
 /// argument is passed to a method or when a null would be returned. Where
 /// applicable, the null error is changed to a more applicable error type, such
 /// as `MethodNotFound`.
+#[derive(Clone)]
 #[repr(C)]
 pub struct JNIEnv<'a> {
     internal: *mut sys::JNIEnv,
