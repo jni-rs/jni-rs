@@ -257,3 +257,30 @@ pub fn get_direct_buffer_capacity_wrong_arg() {
     let capacity = env.get_direct_buffer_capacity(JObject::null().into());
     assert!(capacity.is_err());
 }
+
+#[test]
+pub fn get_direct_buffer_address_ok() {
+    let env = attach_current_thread();
+    let mut vec: Vec<u8> = vec![0, 1, 2, 3];
+    let buf = vec.as_mut_slice();
+    let result = env.new_direct_byte_buffer(buf).unwrap();
+    assert!(!result.is_null());
+
+    let dest_buffer = env.get_direct_buffer_address(result).unwrap();
+    assert_eq!(buf, dest_buffer);
+}
+
+#[test]
+pub fn get_direct_buffer_address_wrong_arg() {
+    let env = attach_current_thread();
+    let wrong_obj: JObject = env.new_string("wrong").unwrap().into();
+    let result = env.get_direct_buffer_address(wrong_obj.into());
+    assert!(result.is_err());
+}
+
+#[test]
+pub fn get_direct_buffer_address_null_arg() {
+    let env = attach_current_thread();
+    let result = env.get_direct_buffer_address(JObject::null().into());
+    assert!(result.is_err());
+}

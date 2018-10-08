@@ -286,8 +286,10 @@ impl<'a> JNIEnv<'a> {
     /// Returns the starting address of the memory of the direct
     /// java.nio.ByteBuffer.
     pub fn get_direct_buffer_address(&self, buf: JByteBuffer) -> Result<&mut [u8]> {
+        non_null!(buf, "get_direct_buffer_address argument");
         let ptr: *mut c_void =
             unsafe { jni_unchecked!(self.internal, GetDirectBufferAddress, buf.into_inner()) };
+        non_null!(ptr, "get_direct_buffer_address return value");
         let capacity = self.get_direct_buffer_capacity(buf)?;
         unsafe { Ok(slice::from_raw_parts_mut(ptr as *mut u8, capacity as usize)) }
     }
