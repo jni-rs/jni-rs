@@ -152,6 +152,29 @@
 //! LD_LIBRARY_PATH=/path/to/mylib/target/debug`. Now, you should get the
 //! expected output `Hello, josh!` from your Java class.
 //!
+//! If you build with the `invocation` feature, there is yet another dependency:
+//! `libjvm` (`libjvm.so`, `libjvm.dylib`, `jvm.dll` depending on target platform).
+//!
+//! During build time jni-rs checks the `JAVA_HOME` environment variable
+//! and tries to find there libjvm. If this failes, jni-rs tries to ask java
+//! (`java -XshowSettings:properties -version 2>&1 | grep 'java.home'`).
+//! On Windows additionally needed path to `jvm.lib`.
+//!
+//! If you encountered error messages when building, first check your `JAVA_HOME`
+//! and make sure it points to a correct JDK location.
+//!
+//! At runtime a binary executable or a dynamic library authomatically tries
+//! to load and link to JVM at startup. As with `mylib` above, the path to JVM
+//! should be configured with `LD_LIBRARY_PATH`/`PATH`, depending on platform.
+//!
+//! If you are using a recent Mac OS with System Integrity Protection (SIP) enabled
+//! you will find that sometimes `LD_LIBRARY_PATH` "disappears". The system
+//! resets it every time you start a new shell. This scenario is typical when you
+//! build/run your application using tools such as Maven. There are some workarounds.
+//! You can create special shell script that will configure the environment
+//! immediately before run, for example, cargo. Or you can set `RUSTFLAGS` with
+//! the rpath option: `-C link-arg=-Wl,-rpath,${JAVA_LIB_DIR}`./!
+//!
 //! ## See Also
 //!
 //! ### Examples

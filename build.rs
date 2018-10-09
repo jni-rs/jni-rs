@@ -18,13 +18,18 @@ fn main() {
     if cfg!(feature = "invocation") {
         let java_home = match env::var("JAVA_HOME") {
             Ok(java_home) => PathBuf::from(java_home),
-            Err(_) => find_java_home().expect("Failed to find Java home directory. Try setting JAVA_HOME")
+            Err(_) => find_java_home()
+                .expect("Failed to find Java home directory. \
+                         Try setting JAVA_HOME")
         };
 
-        let libjvm_path = find_libjvm(&java_home).expect("Failed to find libjvm.so. Check JAVA_HOME");
+        let libjvm_path = find_libjvm(&java_home)
+            .expect("Failed to find libjvm.so. Check JAVA_HOME");
 
         println!("cargo:rustc-link-search=native={}", libjvm_path.display());
 
+        // On Windows, we need additional file called `jvm.lib`
+        // and placed inside `JAVA_HOME\lib` directory.
         if cfg!(windows) {
             let lib_path = java_home.join("lib");
             println!("cargo:rustc-link-search={}", lib_path.display());
