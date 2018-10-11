@@ -395,6 +395,17 @@ fn get_super_class_wrong() {
     assert_pending_java_exception(&env);
 }
 
+#[test]
+fn convert_byte_array() {
+    let env = attach_current_thread();
+    let src: Vec<u8> = vec![1, 2, 3, 4];
+    let java_byte_array = env.byte_array_from_slice(&src).unwrap();
+
+    let dest = env.convert_byte_array(java_byte_array);
+    assert!(dest.is_ok());
+    assert_eq!(dest.unwrap(), src);
+}
+
 // Helper method that asserts that result is Error and the cause is JavaException.
 fn assert_exception(res: Result<jobject, Error>, expect_message: &str) {
     assert!(res.is_err());
