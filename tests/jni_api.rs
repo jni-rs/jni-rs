@@ -5,7 +5,7 @@ extern crate jni;
 
 use jni::{
     errors::{Error, ErrorKind},
-    objects::{AutoLocal, JObject, JValue},
+    objects::{AutoLocal, JByteBuffer, JObject, JValue},
     sys::{jint, jobject, jsize},
     JNIEnv,
 };
@@ -253,7 +253,8 @@ pub fn get_direct_buffer_capacity_ok() {
 #[test]
 pub fn get_direct_buffer_capacity_wrong_arg() {
     let env = attach_current_thread();
-    let capacity = env.get_direct_buffer_capacity(JObject::null().into());
+    let wrong_obj = JByteBuffer::from(env.new_string("wrong").unwrap().into_inner());
+    let capacity = env.get_direct_buffer_capacity(wrong_obj);
     assert!(capacity.is_err());
 }
 
@@ -331,47 +332,47 @@ pub fn new_primitive_array_wrong() {
 
     let result = env.new_boolean_array(WRONG_SIZE);
     assert!(result.is_err());
-    assert_error(result, "JNIEnv#new_boolean_array should throw exception");
+    assert_exception(result, "JNIEnv#new_boolean_array should throw exception");
     assert_pending_java_exception(&env);
 
     let result = env.new_byte_array(WRONG_SIZE);
     assert!(result.is_err());
-    assert_error(result, "JNIEnv#new_byte_array should throw exception");
+    assert_exception(result, "JNIEnv#new_byte_array should throw exception");
     assert_pending_java_exception(&env);
 
     let result = env.new_char_array(WRONG_SIZE);
     assert!(result.is_err());
-    assert_error(result, "JNIEnv#new_char_array should throw exception");
+    assert_exception(result, "JNIEnv#new_char_array should throw exception");
     assert_pending_java_exception(&env);
 
     let result = env.new_short_array(WRONG_SIZE);
     assert!(result.is_err());
-    assert_error(result, "JNIEnv#new_short_array should throw exception");
+    assert_exception(result, "JNIEnv#new_short_array should throw exception");
     assert_pending_java_exception(&env);
 
     let result = env.new_int_array(WRONG_SIZE);
     assert!(result.is_err());
-    assert_error(result, "JNIEnv#new_int_array should throw exception");
+    assert_exception(result, "JNIEnv#new_int_array should throw exception");
     assert_pending_java_exception(&env);
 
     let result = env.new_long_array(WRONG_SIZE);
     assert!(result.is_err());
-    assert_error(result, "JNIEnv#new_long_array should throw exception");
+    assert_exception(result, "JNIEnv#new_long_array should throw exception");
     assert_pending_java_exception(&env);
 
     let result = env.new_float_array(WRONG_SIZE);
     assert!(result.is_err());
-    assert_error(result, "JNIEnv#new_float_array should throw exception");
+    assert_exception(result, "JNIEnv#new_float_array should throw exception");
     assert_pending_java_exception(&env);
 
     let result = env.new_double_array(WRONG_SIZE);
     assert!(result.is_err());
-    assert_error(result, "JNIEnv#new_double_array should throw exception");
+    assert_exception(result, "JNIEnv#new_double_array should throw exception");
     assert_pending_java_exception(&env);
 }
 
 // Helper method that asserts that result is Error and the cause is JavaException.
-fn assert_error(res: Result<jobject, Error>, expect_message: &str) {
+fn assert_exception(res: Result<jobject, Error>, expect_message: &str) {
     assert!(res.is_err());
     assert!(res.map_err(|error| match *error.kind() {
         ErrorKind::JavaException => true,

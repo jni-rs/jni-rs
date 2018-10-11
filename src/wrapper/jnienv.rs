@@ -1081,12 +1081,6 @@ impl<'a> JNIEnv<'a> {
         Ok(vec)
     }
 
-    // NB: Oracle doc states that the family of New<PrimitiveType>Array routines does not throw any
-    // exception but just return NULL in case of error. In fact, if one calls any of this functions
-    // with negative value as an argument for the length of array it ends up with the pending
-    // java.lang.NegativeArraySizeException exception. That's why we use macro that checks for
-    // exceptions and NULL.
-    // ??? Wouldn't it be more optimal to check for negative argument before calling managed code???
     /// Create a new java boolean array of supplied length.
     pub fn new_boolean_array(&self, length: jsize) -> Result<jbooleanArray> {
         let array: jbooleanArray = jni_non_null_call!(self.internal, NewBooleanArray, length);
