@@ -371,6 +371,30 @@ pub fn new_primitive_array_wrong() {
     assert_pending_java_exception(&env);
 }
 
+#[test]
+fn get_super_class_ok() {
+    let env = attach_current_thread();
+    let result = env.get_superclass(ARRAYLIST_CLASS);
+    assert!(result.is_ok());
+    assert!(!result.unwrap().is_null());
+}
+
+#[test]
+fn get_super_class_null() {
+    let env = attach_current_thread();
+    let class = env.get_superclass("java/lang/Object").unwrap();
+    assert!(class.is_null());
+}
+
+#[test]
+fn get_super_class_wrong() {
+    let env = attach_current_thread();
+    // this triggers the "java.lang.ClassNotFoundException" (even if spec says it doesn't throw)
+    let result = env.get_superclass("");
+    assert!(result.is_err());
+    assert_pending_java_exception(&env);
+}
+
 // Helper method that asserts that result is Error and the cause is JavaException.
 fn assert_exception(res: Result<jobject, Error>, expect_message: &str) {
     assert!(res.is_err());
@@ -385,3 +409,4 @@ fn assert_pending_java_exception(env: &JNIEnv) {
     assert!(env.exception_check().unwrap());
     env.exception_clear().unwrap();
 }
+
