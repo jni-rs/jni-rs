@@ -45,6 +45,8 @@ to call if there is a pending exception (#124):
   - Added checking for pending exception to the `call_static_method_unchecked` 
   method (eliminated WARNING messages in log)
 
+- Implemented Clone for JNIEnv (#147).
+
 ### Fixed
 - The issue with early detaching of a thread by nested AttachGuard. (#139)
 
