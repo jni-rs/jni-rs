@@ -387,15 +387,6 @@ fn get_super_class_null() {
 }
 
 #[test]
-fn get_super_class_wrong() {
-    let env = attach_current_thread();
-    // this triggers the "java.lang.ClassNotFoundException" (even if spec says it doesn't throw)
-    let result = env.get_superclass("");
-    assert!(result.is_err());
-    assert_pending_java_exception(&env);
-}
-
-#[test]
 fn convert_byte_array() {
     let env = attach_current_thread();
     let src: Vec<u8> = vec![1, 2, 3, 4];
