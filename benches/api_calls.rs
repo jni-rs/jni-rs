@@ -148,7 +148,7 @@ mod tests {
         let ctor_id = env.get_method_id(class, METHOD_CTOR, SIG_OBJECT_CTOR).unwrap();
 
         b.iter(|| {
-            let obj = env.new_object_by_id_unchecked(class, ctor_id, &[]).unwrap();
+            let obj = env.new_object_unchecked(class, ctor_id, &[]).unwrap();
             env.delete_local_ref(obj).unwrap();
         });
     }
@@ -171,7 +171,7 @@ mod tests {
         let ctor_id = env.get_method_id(class, METHOD_CTOR, SIG_OBJECT_CTOR).unwrap();
 
         b.iter(|| {
-            let obj = env.new_object_by_id_unchecked(class, ctor_id, &[]).unwrap();
+            let obj = env.new_object_unchecked(class, ctor_id, &[]).unwrap();
             env.delete_local_ref(obj).unwrap();
         });
     }

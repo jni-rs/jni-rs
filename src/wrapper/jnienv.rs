@@ -908,13 +908,13 @@ impl<'a> JNIEnv<'a> {
 
         let method_id: JMethodID = (class, ctor_sig).lookup(self)?;
 
-        self.new_object_by_id_unchecked(class, method_id, ctor_args)
+        self.new_object_unchecked(class, method_id, ctor_args)
     }
 
     /// Create a new object using a constructor. Arguments aren't checked
     /// because
     /// of the `JMethodID` usage.
-    pub fn new_object_by_id_unchecked<'c, T>(
+    pub fn new_object_unchecked<'c, T>(
         &self,
         class: T,
         ctor_id: JMethodID,
