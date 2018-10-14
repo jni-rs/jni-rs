@@ -1,3 +1,17 @@
+//! This build script is used to link with `jvm` dynamic library when
+//! `invocation` feature is enabled.
+//!
+//! To do so, we look for `JAVA_HOME` environment variable.
+//! * If it exists, we recursively search for `jvm` library file inside `JAVA_HOME` directory.
+//! * If it is not set, we use the following commmand to find actual JVM home directory:
+//!   ```bash
+//!   java -XshowSettings:properties -version | grep 'java.home'
+//!   ```
+//!   Then, we search for `jvm` as we have `JAVA_HOME`.
+//!
+//! On Windows, we also need to find `jvm.lib` file which is used while linking
+//! at build time. This file is typically placed in `$JAVA_HOME/lib` directory.
+
 extern crate walkdir;
 
 use std::env;
@@ -39,6 +53,9 @@ fn main() {
     }
 }
 
+/// To find Java home directory, we call
+/// `java -XshowSettings:properties -version` command and parse its output to
+/// find the line `java.home=<some path>`.
 fn find_java_home() -> Option<PathBuf> {
     Command::new("java")
         .arg("-XshowSettings:properties")

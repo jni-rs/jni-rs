@@ -152,20 +152,28 @@
 //! LD_LIBRARY_PATH=/path/to/mylib/target/debug`. Now, you should get the
 //! expected output `Hello, josh!` from your Java class.
 //!
-//! If you build with the `invocation` feature, there is yet another dependency:
-//! `libjvm` (`libjvm.so`, `libjvm.dylib`, `jvm.dll` depending on target platform).
+//! # Launching JVM from Rust
 //!
-//! During build time jni-rs checks the `JAVA_HOME` environment variable
-//! and tries to find there libjvm. If this failes, jni-rs tries to ask java
-//! (`java -XshowSettings:properties -version 2>&1 | grep 'java.home'`).
-//! On Windows additionally needed path to `jvm.lib`.
+//! If you need to use the part of the [Invocation API]
+//! that allows to launch a JVM
+//! from a native process, you must enable `invocation` feature.
+//! The application will require linking to the dynamic `jvm`
+//! library, which is distributed with the JVM.
 //!
-//! If you encountered error messages when building, first check your `JAVA_HOME`
-//! and make sure it points to a correct JDK location.
+//! During build time, the JVM installation path is determined:
+//! 1. By `JAVA_HOME` environment variable, if it is set.
+//! 2. Otherwise — from `java` output.
 //!
-//! At runtime a binary executable or a dynamic library authomatically tries
-//! to load and link to JVM at startup. As with `mylib` above, the path to JVM
-//! should be configured with `LD_LIBRARY_PATH`/`PATH`, depending on platform.
+//! For more information - see documentation in [build.rs](https://github.com/jni-rs/jni-rs/tree/master/build.rs).
+//! It is recommended to set `JAVA_HOME` to have reproducible builds, especially, in case of multiple VMs installed.
+//!
+//! At application run time, you must specify the path
+//! to the `jvm` library so that the loader can locate it.
+//! * On **Windows**, append the path to `jvm.dll` to `PATH` environment variable.
+//! * On **MacOS**, append the path to `libjvm.dylib` to `LD_LIBRARY_PATH` environment variable.
+//! * On **Linux**, append the path to `libjvm.so` to `LD_LIBRARY_PATH` environment variable.
+//!
+//! The exact relative path to `jvm` library is version-specific.
 //!
 //! If you are using a recent Mac OS with System Integrity Protection (SIP) enabled
 //! you will find that sometimes `LD_LIBRARY_PATH` "disappears". The system
@@ -173,7 +181,7 @@
 //! build/run your application using tools such as Maven. There are some workarounds.
 //! You can create special shell script that will configure the environment
 //! immediately before run, for example, cargo. Or you can set `RUSTFLAGS` with
-//! the rpath option: `-C link-arg=-Wl,-rpath,${JAVA_LIB_DIR}`./!
+//! the rpath option: `-C link-arg=-Wl,-rpath,${JAVA_LIB_DIR}`
 //!
 //! ## See Also
 //!
@@ -198,6 +206,7 @@
 //!   interoperability between various languages (including Java and [Rust][graalvm-rust] compiled
 //!   into LLVM-bitcode)
 //!
+//! [Invocation API]: https://docs.oracle.com/javase/7/docs/technotes/guides/jni/spec/invocation.html
 //! [jni-spec]: https://docs.oracle.com/javase/10/docs/specs/jni/index.html
 //! [jni-tips]: https://developer.android.com/training/articles/perf-jni
 //! [jni-rs-example]: https://github.com/jni-rs/jni-rs/tree/master/example
