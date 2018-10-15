@@ -164,7 +164,6 @@
 //! 1. By `JAVA_HOME` environment variable, if it is set.
 //! 2. Otherwise — from `java` output.
 //!
-//! For more information - see documentation in [build.rs](https://github.com/jni-rs/jni-rs/tree/master/build.rs).
 //! It is recommended to set `JAVA_HOME` to have reproducible builds, especially, in case of multiple VMs installed.
 //!
 //! At application run time, you must specify the path
@@ -175,13 +174,7 @@
 //!
 //! The exact relative path to `jvm` library is version-specific.
 //!
-//! If you are using a recent Mac OS with System Integrity Protection (SIP) enabled
-//! you will find that sometimes `LD_LIBRARY_PATH` "disappears". The system
-//! resets it every time you start a new shell. This scenario is typical when you
-//! build/run your application using tools such as Maven. There are some workarounds.
-//! You can create special shell script that will configure the environment
-//! immediately before run, for example, cargo. Or you can set `RUSTFLAGS` with
-//! the rpath option: `-C link-arg=-Wl,-rpath,${JAVA_LIB_DIR}`
+//! For more information - see documentation in [build.rs](https://github.com/jni-rs/jni-rs/tree/master/build.rs).
 //!
 //! ## See Also
 //!
@@ -206,7 +199,7 @@
 //!   interoperability between various languages (including Java and [Rust][graalvm-rust] compiled
 //!   into LLVM-bitcode)
 //!
-//! [Invocation API]: https://docs.oracle.com/javase/7/docs/technotes/guides/jni/spec/invocation.html
+//! [Invocation API]: https://docs.oracle.com/en/java/javase/11/docs/specs/jni/invocation.html
 //! [jni-spec]: https://docs.oracle.com/javase/10/docs/specs/jni/index.html
 //! [jni-tips]: https://developer.android.com/training/articles/perf-jni
 //! [jni-rs-example]: https://github.com/jni-rs/jni-rs/tree/master/example
