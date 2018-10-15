@@ -841,7 +841,6 @@ impl<'a> JNIEnv<'a> {
 
         let class = self.auto_local(self.get_object_class(obj)?.into());
 
-        // TODO come up with solution about methods naming/joining (used to be unsafe)
         self.call_method_unchecked(obj, (&class, name, sig), parsed.ret, args)
     }
 
@@ -877,7 +876,6 @@ impl<'a> JNIEnv<'a> {
         // and we'll need that for the next call.
         let class = class.lookup(self)?;
 
-        // TODO come up with solution about methods naming/joining (used to be unsafe)
         self.call_static_method_unchecked(class, (class, name, sig), parsed.ret, args)
     }
 
