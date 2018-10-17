@@ -152,7 +152,7 @@
 //! LD_LIBRARY_PATH=/path/to/mylib/target/debug`. Now, you should get the
 //! expected output `Hello, josh!` from your Java class.
 //!
-//! # Launching JVM from Rust
+//! ## Launching JVM from Rust
 //!
 //! If you need to use the part of the [Invocation API]
 //! that allows to launch a JVM
