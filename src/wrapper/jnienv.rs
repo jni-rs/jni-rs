@@ -1068,15 +1068,17 @@ impl<'a> JNIEnv<'a> {
         non_null!(array, "convert_byte_array array argument");
         let length = jni_non_void_call!(self.internal, GetArrayLength, array);
         let mut vec = vec![0u8; length as usize];
-        jni_void_call!(
-            self.internal,
-            GetByteArrayRegion,
-            array,
-            0,
-            length,
-            vec.as_mut_ptr() as *mut i8
-        );
-
+        unsafe {
+            jni_unchecked!(
+                self.internal,
+                GetByteArrayRegion,
+                array,
+                0,
+                length,
+                vec.as_mut_ptr() as *mut i8
+            );
+        }
+        check_exception!(self.internal);
         Ok(vec)
     }
 
