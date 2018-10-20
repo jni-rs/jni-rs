@@ -5,7 +5,7 @@ extern crate jni;
 
 use std::str::FromStr;
 use jni::{
-    errors::ErrorKind,
+    errors::{Error, ErrorKind},
     objects::{AutoLocal, JByteBuffer, JObject, JValue},
     signature::JavaType,
     sys::{jint, jobject, jsize},

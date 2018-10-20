@@ -610,7 +610,7 @@ impl<'a> JNIEnv<'a> {
     /// Get the class for an object.
     pub fn get_object_class(&self, obj: JObject) -> Result<JClass<'a>> {
         non_null!(obj, "get_object_class");
-        Ok(unsafe { jni_unchecked!(self.internal, GetObjectClass, obj.into_inner()).into() })
+        Ok(jni_unchecked!(self.internal, GetObjectClass, obj.into_inner()).into())
     }
 
     /// Call a static method in an unsafe manner. This does nothing to check
