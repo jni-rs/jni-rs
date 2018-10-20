@@ -68,6 +68,8 @@ use JavaVM;
 /// magic happens. All methods on this object are wrappers around JNI functions,
 /// so the documentation on their behavior is still pretty applicable.
 ///
+/// # Exception handling
+///
 /// Since we're calling into the JVM with this, many methods also have the
 /// potential to cause an exception to get thrown. If this is the case, an `Err`
 /// result will be returned with the error kind `JavaException`. Note that this
@@ -79,6 +81,30 @@ use JavaVM;
 /// argument is passed to a method or when a null would be returned. Where
 /// applicable, the null error is changed to a more applicable error type, such
 /// as `MethodNotFound`.
+///
+/// # Checked and unchecked methods
+///
+/// Some of the methods come in two versions: checked (e.g. `call_method`) and
+/// unchecked (e.g. `call_method_unchecked`). Under the hood, checked methods
+/// perform some checks to ensure the validity of provided signatures, names
+/// and arguments, and then call the corresponding unchecked method.
+///
+/// Checked methods are more flexible as they allow passing class names
+/// and method/field descriptors as strings and may perform lookups
+/// of class objects and method/field ids for you, also performing
+/// all the needed precondition checks. However, these lookup operations
+/// are expensive, so if you need to call the same method (or access
+/// the same field) multiple times, it is
+/// [recommended](https://docs.oracle.com/en/java/javase/11/docs/specs/jni/design.html#accessing-fields-and-methods)
+/// to cache the instance of the class and the method/field id, e.g.
+///   - in loops
+///   - when calling the same Java callback repeatedly.
+///
+/// If you do not cache references to classes and method/field ids,
+/// you will *not* benefit from the unchecked methods.
+///
+/// Calling unchecked methods with invalid arguments and/or invalid class and
+/// method descriptors may lead to segmentation fault.
 #[derive(Clone)]
 #[repr(C)]
 pub struct JNIEnv<'a> {
@@ -100,7 +126,7 @@ impl<'a> JNIEnv<'a> {
 
     /// Get the java version that we're being executed from.
     pub fn get_version(&self) -> Result<JNIVersion> {
-        Ok(unsafe { jni_unchecked!(self.internal, GetVersion) }.into())
+        Ok(jni_unchecked!(self.internal, GetVersion).into())
     }
 
     /// Define a new java class. See the JNI docs for more details - I've never
@@ -156,14 +182,12 @@ impl<'a> JNIEnv<'a> {
     {
         let class1 = class1.lookup(self)?;
         let class2 = class2.lookup(self)?;
-        Ok(unsafe {
-            jni_unchecked!(
+        Ok(jni_unchecked!(
                 self.internal,
                 IsAssignableFrom,
                 class1.into_inner(),
                 class2.into_inner()
-            )
-        } == sys::JNI_TRUE)
+            ) == sys::JNI_TRUE)
     }
 
     /// Returns true if the object reference can be cast to the given type.
@@ -178,15 +202,12 @@ impl<'a> JNIEnv<'a> {
         T: Desc<'a, JClass<'a>>,
     {
         let class = class.lookup(self)?;
-        Ok(
-            unsafe {
-                jni_unchecked!(
-                    self.internal,
-                    IsInstanceOf,
-                    object.into_inner(),
-                    class.into_inner()
-                )
-            } == sys::JNI_TRUE,
+        Ok(jni_unchecked!(
+                self.internal,
+                IsInstanceOf,
+                object.into_inner(),
+                class.into_inner()
+            ) == sys::JNI_TRUE,
         )
     }
 
@@ -208,7 +229,7 @@ impl<'a> JNIEnv<'a> {
         E: Desc<'a, JThrowable<'a>>,
     {
         let throwable = obj.lookup(self)?;
-        let res: i32 = unsafe { jni_unchecked!(self.internal, Throw, throwable.into_inner()) };
+        let res: i32 = jni_unchecked!(self.internal, Throw, throwable.into_inner());
         if res < 0 {
             Err(format!("throw failed with code {}", res).into())
         } else {
@@ -235,13 +256,13 @@ impl<'a> JNIEnv<'a> {
     /// thrown. An exception is in this state from the time it gets thrown and
     /// not caught in a java function until `exception_clear` is called.
     pub fn exception_occurred(&self) -> Result<JThrowable> {
-        let throwable = unsafe { jni_unchecked!(self.internal, ExceptionOccurred) };
+        let throwable = jni_unchecked!(self.internal, ExceptionOccurred);
         Ok(JThrowable::from(throwable))
     }
 
     /// Print exception information to the console.
     pub fn exception_describe(&self) -> Result<()> {
-        unsafe { jni_unchecked!(self.internal, ExceptionDescribe) };
+        jni_unchecked!(self.internal, ExceptionDescribe);
         Ok(())
     }
 
@@ -249,7 +270,7 @@ impl<'a> JNIEnv<'a> {
     /// called, the exception will continue being thrown when control is
     /// returned to java.
     pub fn exception_clear(&self) -> Result<()> {
-        unsafe { jni_unchecked!(self.internal, ExceptionClear) };
+        jni_unchecked!(self.internal, ExceptionClear);
         Ok(())
     }
 
@@ -258,7 +279,7 @@ impl<'a> JNIEnv<'a> {
     pub fn fatal_error<S: Into<JNIString>>(&self, msg: S) -> ! {
         let msg = msg.into();
         let res: Result<()> = catch!({
-            unsafe { jni_unchecked!(self.internal, FatalError, msg.as_ptr()) }
+            jni_unchecked!(self.internal, FatalError, msg.as_ptr());
             unreachable!()
         });
 
@@ -269,7 +290,7 @@ impl<'a> JNIEnv<'a> {
     /// `exception_occurred` in that it doesn't return the actual thrown
     /// exception.
     pub fn exception_check(&self) -> Result<bool> {
-        let check = unsafe { jni_unchecked!(self.internal, ExceptionCheck) } == sys::JNI_TRUE;
+        let check = jni_unchecked!(self.internal, ExceptionCheck) == sys::JNI_TRUE;
         Ok(check)
     }
 
@@ -289,7 +310,7 @@ impl<'a> JNIEnv<'a> {
     pub fn get_direct_buffer_address(&self, buf: JByteBuffer) -> Result<&mut [u8]> {
         non_null!(buf, "get_direct_buffer_address argument");
         let ptr: *mut c_void =
-            unsafe { jni_unchecked!(self.internal, GetDirectBufferAddress, buf.into_inner()) };
+            jni_unchecked!(self.internal, GetDirectBufferAddress, buf.into_inner());
         non_null!(ptr, "get_direct_buffer_address return value");
         let capacity = self.get_direct_buffer_capacity(buf)?;
         unsafe { Ok(slice::from_raw_parts_mut(ptr as *mut u8, capacity as usize)) }
@@ -298,7 +319,7 @@ impl<'a> JNIEnv<'a> {
     /// Returns the capacity of the direct java.nio.ByteBuffer.
     pub fn get_direct_buffer_capacity(&self, buf: JByteBuffer) -> Result<jlong> {
         let capacity =
-            unsafe { jni_unchecked!(self.internal, GetDirectBufferCapacity, buf.into_inner()) };
+            jni_unchecked!(self.internal, GetDirectBufferCapacity, buf.into_inner());
         match capacity {
             -1 => Err(Error::from(ErrorKind::Other(sys::JNI_ERR))),
             _ => Ok(capacity),
@@ -356,9 +377,7 @@ impl<'a> JNIEnv<'a> {
     /// or `with_local_frame` instead of direct `delete_local_ref` calls.
     pub fn delete_local_ref(&self, obj: JObject) -> Result<()> {
         non_null!(obj, "delete_local_ref obj argument");
-        Ok(unsafe {
-            jni_unchecked!(self.internal, DeleteLocalRef, obj.into_inner());
-        })
+        Ok(jni_unchecked!(self.internal, DeleteLocalRef, obj.into_inner()))
     }
 
     /// Creates a new local reference frame, in which at least a given number
@@ -375,9 +394,7 @@ impl<'a> JNIEnv<'a> {
     /// convenient in loops.
     pub fn push_local_frame(&self, capacity: i32) -> Result<()> {
         // This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
-        let res = unsafe {
-            jni_unchecked!(self.internal, PushLocalFrame, capacity)
-        };
+        let res = jni_unchecked!(self.internal, PushLocalFrame, capacity);
         jni_error_code_to_result(res)
     }
 
@@ -388,7 +405,7 @@ impl<'a> JNIEnv<'a> {
     /// Note that resulting `JObject` can be `NULL` if `result` is `NULL`.
     pub fn pop_local_frame(&self, result: JObject) -> Result<JObject> {
         // This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
-        Ok(unsafe { jni_unchecked!(self.internal, PopLocalFrame, result.into_inner()).into() })
+        Ok(jni_unchecked!(self.internal, PopLocalFrame, result.into_inner()).into())
     }
 
     /// Provides a convenient way to use `push_local_frame` by automatically
@@ -602,8 +619,7 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Under the hood, this simply calls the `CallStatic<Type>MethodA` method
     /// with the provided arguments.
-    #[allow(unused_unsafe)]
-    pub unsafe fn call_static_method_unsafe<T, U>(
+    pub fn call_static_method_unchecked<T, U>(
         &self,
         class: T,
         method_id: U,
@@ -714,8 +730,7 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Under the hood, this simply calls the `Call<Type>MethodA` method with
     /// the provided arguments.
-    #[allow(unused_unsafe)]
-    pub unsafe fn call_method_unsafe<T>(
+    pub fn call_method_unchecked<T>(
         &self,
         obj: JObject,
         method_id: T,
@@ -807,7 +822,7 @@ impl<'a> JNIEnv<'a> {
     /// * Looks up the JClass for the given object.
     /// * Looks up the JMethodID for the class/name/signature combination
     /// * Ensures that the number of args matches the signature
-    /// * Calls `call_method_unsafe` with the verified safe arguments.
+    /// * Calls `call_method_unchecked` with the verified safe arguments.
     ///
     /// Note: this may cause a java exception if the arguments are the wrong
     /// type, in addition to if the method itself throws.
@@ -832,7 +847,7 @@ impl<'a> JNIEnv<'a> {
 
         let class = self.auto_local(self.get_object_class(obj)?.into());
 
-        unsafe { self.call_method_unsafe(obj, (&class, name, sig), parsed.ret, args) }
+        self.call_method_unchecked(obj, (&class, name, sig), parsed.ret, args)
     }
 
     /// Calls a static method safely. This comes with a number of
@@ -842,7 +857,7 @@ impl<'a> JNIEnv<'a> {
     ///   type
     /// * Looks up the JMethodID for the class/name/signature combination
     /// * Ensures that the number of args matches the signature
-    /// * Calls `call_method_unsafe` with the verified safe arguments.
+    /// * Calls `call_method_unchecked` with the verified safe arguments.
     ///
     /// Note: this may cause a java exception if the arguments are the wrong
     /// type, in addition to if the method itself throws.
@@ -867,7 +882,7 @@ impl<'a> JNIEnv<'a> {
         // and we'll need that for the next call.
         let class = class.lookup(self)?;
 
-        unsafe { self.call_static_method_unsafe(class, (class, name, sig), parsed.ret, args) }
+        self.call_static_method_unchecked(class, (class, name, sig), parsed.ret, args)
     }
 
     /// Create a new object using a constructor. This is done safely using
@@ -898,13 +913,13 @@ impl<'a> JNIEnv<'a> {
 
         let method_id: JMethodID = (class, ctor_sig).lookup(self)?;
 
-        self.new_object_by_id(class, method_id, ctor_args)
+        self.new_object_unchecked(class, method_id, ctor_args)
     }
 
     /// Create a new object using a constructor. Arguments aren't checked
     /// because
     /// of the `JMethodID` usage.
-    pub fn new_object_by_id<'c, T>(
+    pub fn new_object_unchecked<'c, T>(
         &self,
         class: T,
         ctor_id: JMethodID,
@@ -953,11 +968,13 @@ impl<'a> JNIEnv<'a> {
         JavaStr::from_env(self, obj)
     }
 
-    /// Get a pointer to the character array beneath a JString. This is in
-    /// Java's modified UTF-8 and will leak memory if `release_string_utf_chars`
-    /// is never called.
-    #[allow(unused_unsafe)]
-    pub unsafe fn get_string_utf_chars(&self, obj: JString) -> Result<*const c_char> {
+    /// Get a pointer to the character array beneath a JString.
+    ///
+    /// Array contains Java's modified UTF-8.
+    ///
+    /// # Attention
+    /// This will leak memory if `release_string_utf_chars` is never called.
+    pub fn get_string_utf_chars(&self, obj: JString) -> Result<*const c_char> {
         non_null!(obj, "get_string_utf_chars obj argument");
         let ptr: *const c_char = jni_non_null_call!(
             self.internal,
@@ -969,8 +986,7 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Unpin the array returned by `get_string_utf_chars`.
-    #[allow(unused_unsafe)]
-    pub unsafe fn release_string_utf_chars(&self, obj: JString, arr: *const c_char) -> Result<()> {
+    pub fn release_string_utf_chars(&self, obj: JString, arr: *const c_char) -> Result<()> {
         non_null!(obj, "release_string_utf_chars obj argument");
         // This method is safe to call in case of pending exceptions (see the chapter 2 of the spec)
         jni_unchecked!(self.internal, ReleaseStringUTFChars, obj.into_inner(), arr);
@@ -988,7 +1004,7 @@ impl<'a> JNIEnv<'a> {
     /// Get the length of a java array
     pub fn get_array_length(&self, array: jarray) -> Result<jsize> {
         non_null!(array, "get_array_length array argument");
-        let len: jsize = unsafe { jni_unchecked!(self.internal, GetArrayLength, array) };
+        let len: jsize = jni_unchecked!(self.internal, GetArrayLength, array);
         Ok(len)
     }
 
@@ -1050,16 +1066,14 @@ impl<'a> JNIEnv<'a> {
     pub fn byte_array_from_slice(&self, buf: &[u8]) -> Result<jbyteArray> {
         let length = buf.len() as i32;
         let bytes: jbyteArray = self.new_byte_array(length)?;
-        unsafe {
-            jni_unchecked!(
-                self.internal,
-                SetByteArrayRegion,
-                bytes,
-                0,
-                length,
-                buf.as_ptr() as *const i8
-            );
-        }
+        jni_unchecked!(
+            self.internal,
+            SetByteArrayRegion,
+            bytes,
+            0,
+            length,
+            buf.as_ptr() as *const i8
+        );
         Ok(bytes)
     }
 
@@ -1068,16 +1082,14 @@ impl<'a> JNIEnv<'a> {
         non_null!(array, "convert_byte_array array argument");
         let length = jni_non_void_call!(self.internal, GetArrayLength, array);
         let mut vec = vec![0u8; length as usize];
-        unsafe {
-            jni_unchecked!(
-                self.internal,
-                GetByteArrayRegion,
-                array,
-                0,
-                length,
-                vec.as_mut_ptr() as *mut i8
-            );
-        }
+        jni_unchecked!(
+            self.internal,
+            GetByteArrayRegion,
+            array,
+            0,
+            length,
+            vec.as_mut_ptr() as *mut i8
+        );
         check_exception!(self.internal);
         Ok(vec)
     }
@@ -1446,8 +1458,7 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Get a field without checking the provided type against the actual field.
-    #[allow(unused_unsafe)]
-    pub unsafe fn get_field_unsafe<T>(&self, obj: JObject, field: T, ty: JavaType) -> Result<JValue>
+    pub fn get_field_unchecked<T>(&self, obj: JObject, field: T, ty: JavaType) -> Result<JValue>
     where
         T: Desc<'a, JFieldID<'a>>,
     {
@@ -1495,12 +1506,12 @@ impl<'a> JNIEnv<'a> {
                     }
                 };
                 v.into()
-            } // JavaType::Primitive
-        }) // match parsed.ret
+            }
+        })
     }
 
     /// Set a field without any type checking.
-    pub unsafe fn set_field_unsafe<T>(&self, obj: JObject, field: T, val: JValue) -> Result<()>
+    pub fn set_field_unchecked<T>(&self, obj: JObject, field: T, val: JValue) -> Result<()>
     where
         T: Desc<'a, JFieldID<'a>>,
     {
@@ -1560,7 +1571,7 @@ impl<'a> JNIEnv<'a> {
 
         let field_id: JFieldID = (&class, name, ty).lookup(self)?;
 
-        unsafe { self.get_field_unsafe(obj, field_id, parsed) }
+        self.get_field_unchecked(obj, field_id, parsed)
     }
 
     /// Set a field. Does the same lookups as `get_field` and ensures that the
@@ -1603,13 +1614,12 @@ impl<'a> JNIEnv<'a> {
 
         let class = self.auto_local(self.get_object_class(obj)?.into());
 
-        unsafe { self.set_field_unsafe(obj, (&class, name, ty), val) }
+        self.set_field_unchecked(obj, (&class, name, ty), val)
     }
 
     /// Get a static field without checking the provided type against the actual
     /// field.
-    #[allow(unused_unsafe)]
-    pub unsafe fn get_static_field_unsafe<T, U>(
+    pub fn get_static_field_unchecked<T, U>(
         &self,
         class: T,
         field: U,
@@ -1667,8 +1677,8 @@ impl<'a> JNIEnv<'a> {
                     }
                 };
                 v.into()
-            } // JavaType::Primitive
-        }) // match ty
+            }
+        })
     }
 
     /// Get a static field. Requires a class lookup and a field id lookup
@@ -1685,7 +1695,7 @@ impl<'a> JNIEnv<'a> {
         // and we'll need that for the next call.
         let class = class.lookup(self)?;
 
-        unsafe { self.get_static_field_unsafe(class, (class, field, sig), ty) }
+        self.get_static_field_unchecked(class, (class, field, sig), ty)
     }
 
     /// Surrenders ownership of a rust object to Java. Requires an object with a
@@ -1699,7 +1709,7 @@ impl<'a> JNIEnv<'a> {
     /// will point to invalid memory and will likely attempt to be deallocated
     /// again.
     #[allow(unused_variables)]
-    pub unsafe fn set_rust_field<S, T>(&self, obj: JObject, field: S, rust_object: T) -> Result<()>
+    pub fn set_rust_field<S, T>(&self, obj: JObject, field: S, rust_object: T) -> Result<()>
     where
         S: AsRef<str>,
         T: Send + 'static,
@@ -1711,7 +1721,7 @@ impl<'a> JNIEnv<'a> {
 
         // Check to see if we've already set this value. If it's not null, that
         // means that we're going to leak memory if it gets overwritten.
-        let field_ptr = self.get_field_unsafe(obj, field_id, JavaType::Primitive(Primitive::Long))?
+        let field_ptr = self.get_field_unchecked(obj, field_id, JavaType::Primitive(Primitive::Long))?
             .j()? as *mut Mutex<T>;
         if !field_ptr.is_null() {
             return Err(format!("field already set: {}", field.as_ref()).into());
@@ -1720,7 +1730,7 @@ impl<'a> JNIEnv<'a> {
         let mbox = Box::new(::std::sync::Mutex::new(rust_object));
         let ptr: *mut Mutex<T> = Box::into_raw(mbox);
 
-        self.set_field_unsafe(obj, field_id, (ptr as ::sys::jlong).into())
+        self.set_field_unchecked(obj, field_id, (ptr as ::sys::jlong).into())
     }
 
     /// Gets a lock on a Rust value that's been given to a Java object. Java
@@ -1728,7 +1738,7 @@ impl<'a> JNIEnv<'a> {
     /// called at some point. Checks for a null pointer, but assumes that the
     /// data it ponts to is valid for T.
     #[allow(unused_variables)]
-    pub unsafe fn get_rust_field<S, T>(&self, obj: JObject, field: S) -> Result<MutexGuard<T>>
+    pub fn get_rust_field<S, T>(&self, obj: JObject, field: S) -> Result<MutexGuard<T>>
     where
         S: Into<JNIString>,
         T: Send + 'static,
@@ -1737,7 +1747,10 @@ impl<'a> JNIEnv<'a> {
 
         let ptr = self.get_field(obj, field, "J")?.j()? as *mut Mutex<T>;
         non_null!(ptr, "rust value from Java");
-        Ok((*ptr).lock().unwrap())
+        unsafe {
+            // dereferencing is safe, because we checked it for null
+            Ok((*ptr).lock().unwrap())
+        }
     }
 
     /// Take a Rust field back from Java. Makes sure that the pointer is
@@ -1747,7 +1760,7 @@ impl<'a> JNIEnv<'a> {
     /// This will return an error in the event that there's an outstanding lock
     /// on the object.
     #[allow(unused_variables)]
-    pub unsafe fn take_rust_field<S, T>(&self, obj: JObject, field: S) -> Result<T>
+    pub fn take_rust_field<S, T>(&self, obj: JObject, field: S) -> Result<T>
     where
         S: AsRef<str>,
         T: Send + 'static,
@@ -1758,19 +1771,21 @@ impl<'a> JNIEnv<'a> {
         let mbox = {
             let guard = self.lock_obj(obj)?;
 
-            let ptr = self.get_field_unsafe(obj, field_id, JavaType::Primitive(Primitive::Long))?
+            let ptr = self.get_field_unchecked(obj, field_id, JavaType::Primitive(Primitive::Long))?
                 .j()? as *mut Mutex<T>;
 
             non_null!(ptr, "rust value from Java");
 
-            let mbox = Box::from_raw(ptr);
+            let mbox = unsafe {
+                Box::from_raw(ptr)
+            };
 
             // attempt to acquire the lock. This prevents us from consuming the
             // mutex if there's an outstanding lock. No one else will be able to
             // get a new one as long as we're in the guarded scope.
             let _ = mbox.try_lock()?;
 
-            self.set_field_unsafe(
+            self.set_field_unchecked(
                 obj,
                 field_id,
                 (::std::ptr::null_mut::<()>() as sys::jlong).into(),
@@ -1785,9 +1800,7 @@ impl<'a> JNIEnv<'a> {
     /// Lock a Java object. The MonitorGuard that this returns is responsible
     /// for ensuring that it gets unlocked.
     pub fn lock_obj(&self, obj: JObject) -> Result<MonitorGuard<'a>> {
-        unsafe {
-            let _ = jni_unchecked!(self.internal, MonitorEnter, obj.into_inner());
-        }
+        let _ = jni_unchecked!(self.internal, MonitorEnter, obj.into_inner());
 
         Ok(MonitorGuard {
             obj: obj.into_inner(),
@@ -1804,11 +1817,9 @@ impl<'a> JNIEnv<'a> {
     /// Returns the Java VM interface.
     pub fn get_java_vm(&self) -> Result<JavaVM> {
         let mut raw = ptr::null_mut();
-        unsafe {
-            let res = jni_unchecked!(self.internal, GetJavaVM, &mut raw);
-            jni_error_code_to_result(res)?;
-            JavaVM::from_raw(raw)
-        }
+        let res = jni_unchecked!(self.internal, GetJavaVM, &mut raw);
+        jni_error_code_to_result(res)?;
+        unsafe { JavaVM::from_raw(raw) }
     }
 
     /// Ensures that at least a given number of local references can be created
@@ -1829,7 +1840,7 @@ pub struct MonitorGuard<'a> {
 impl<'a> Drop for MonitorGuard<'a> {
     fn drop(&mut self) {
         let res: Result<()> = catch!({
-            unsafe { jni_unchecked!(self.env, MonitorExit, self.obj) };
+            jni_unchecked!(self.env, MonitorExit, self.obj);
             Ok(())
         });
 

@@ -4,6 +4,7 @@ install:
   - appveyor DownloadFile https://win.rustup.rs/ -FileName rustup-init.exe
   - rustup-init -y --default-toolchain stable --default-host x86_64-pc-windows-msvc
   - set PATH=%PATH%;%USERPROFILE%\.cargo\bin
+  - set PATH=%PATH%;C:\Program Files\Java\jdk1.8.0\jre\bin\server
   - set RUST_BACKTRACE=1
   - rustc -vV
   - cargo -vV
@@ -11,5 +12,4 @@ install:
 build: false
 
 test_script:
-  - cargo build
-  - cargo test --features backtrace
+  - cargo test --features invocation,backtrace
