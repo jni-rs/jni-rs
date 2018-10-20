@@ -1090,7 +1090,6 @@ impl<'a> JNIEnv<'a> {
             length,
             vec.as_mut_ptr() as *mut i8
         );
-        check_exception!(self.internal);
         Ok(vec)
     }
 
