@@ -329,10 +329,13 @@ impl<'a> JNIEnv<'a> {
     /// lifetime bounds since it's guaranteed to not get GC'd by java. It
     /// releases the GC pin upon being dropped.
     pub fn new_global_ref(&self, obj: JObject) -> Result<GlobalRef> {
-        non_null!(obj, "new_global_ref obj argument");
-        let new_ref: JObject = jni_non_null_call!(self.internal, NewGlobalRef, obj.into_inner());
-        let global = unsafe { GlobalRef::from_raw(self.get_java_vm()?, new_ref.into_inner()) };
-        Ok(global)
+        let new_ref: JObject = jni_unchecked!(self.internal, NewGlobalRef, obj.into_inner()).into();
+        if !new_ref.is_null() {
+            let global = unsafe { GlobalRef::from_raw(self.get_java_vm()?, new_ref.into_inner()) };
+            Ok(global)
+        } else {
+            Err(ErrorKind::NullPtr("new_global_ref").into())
+        }
     }
 
     /// Create a new local ref to an object.
@@ -341,8 +344,7 @@ impl<'a> JNIEnv<'a> {
     /// creates yet another reference to it, which is most likely not what you
     /// want.
     pub fn new_local_ref<T>(&self, obj: JObject) -> Result<JObject> {
-        non_null!(obj, "new_local_ref obj argument");
-        let local: JObject = jni_non_null_call!(self.internal, NewLocalRef, obj.into_inner());
+        let local: JObject = jni_unchecked!(self.internal, NewLocalRef, obj.into_inner()).into();
         Ok(local)
     }
 
@@ -375,7 +377,6 @@ impl<'a> JNIEnv<'a> {
     /// In most cases it is better to use `AutoLocal` (see `auto_local` method)
     /// or `with_local_frame` instead of direct `delete_local_ref` calls.
     pub fn delete_local_ref(&self, obj: JObject) -> Result<()> {
-        non_null!(obj, "delete_local_ref obj argument");
         Ok(jni_unchecked!(self.internal, DeleteLocalRef, obj.into_inner()))
     }
 

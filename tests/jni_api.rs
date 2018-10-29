@@ -418,6 +418,20 @@ fn convert_byte_array() {
     assert_eq!(dest.unwrap(), src);
 }
 
+#[test]
+fn local_ref_null() {
+    let env = attach_current_thread();
+    let null_obj = JObject::null();
+
+    let result = env.new_local_ref::<JObject>(null_obj);
+    assert!(result.is_ok());
+    assert!(result.unwrap().is_null());
+
+    // try to delete null reference
+    let result = env.delete_local_ref(null_obj);
+    assert!(result.is_ok());
+}
+
 // Helper method that asserts that result is Error and the cause is JavaException.
 fn assert_exception(res: Result<jobject, Error>, expect_message: &str) {
     assert!(res.is_err());
