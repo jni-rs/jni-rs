@@ -170,8 +170,7 @@ impl<'a> JNIEnv<'a> {
         T: Desc<'a, JClass<'a>>,
     {
         let class = class.lookup(self)?;
-        // GetSuperclass may return NULL for "java/lang/Object" and this is expected behavior
-        Ok(jni_non_void_call!(self.internal, GetSuperclass, class.into_inner()).into())
+        Ok(jni_non_null_call!(self.internal, GetSuperclass, class.into_inner()))
     }
 
     /// Tests whether class1 is assignable from class2.

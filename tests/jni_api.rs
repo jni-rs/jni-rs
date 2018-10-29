@@ -403,8 +403,8 @@ fn get_super_class_ok() {
 #[test]
 fn get_super_class_null() {
     let env = attach_current_thread();
-    let class = env.get_superclass("java/lang/Object").unwrap();
-    assert!(class.is_null());
+    let result = env.get_superclass("java/lang/Object");
+    assert!(result.is_err());
 }
 
 #[test]
@@ -432,4 +432,3 @@ fn assert_pending_java_exception(env: &JNIEnv) {
     assert!(env.exception_check().unwrap());
     env.exception_clear().unwrap();
 }
-
