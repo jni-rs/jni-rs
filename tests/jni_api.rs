@@ -432,6 +432,14 @@ fn local_ref_null() {
     assert!(result.is_ok());
 }
 
+#[test]
+fn new_global_ref_null() {
+    let env = attach_current_thread();
+    let null_obj = JObject::null();
+    let result = env.new_global_ref(null_obj);
+    assert!(result.is_err());
+}
+
 // Helper method that asserts that result is Error and the cause is JavaException.
 fn assert_exception(res: Result<jobject, Error>, expect_message: &str) {
     assert!(res.is_err());
