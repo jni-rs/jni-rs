@@ -437,7 +437,19 @@ fn new_global_ref_null() {
     let env = attach_current_thread();
     let null_obj = JObject::null();
     let result = env.new_global_ref(null_obj);
-    assert!(result.is_err());
+    assert!(result.is_ok());
+    assert!(result.unwrap().as_obj().is_null());
+}
+
+#[test]
+fn auto_local_null() {
+    let env = attach_current_thread();
+    let null_obj = JObject::null();
+    {
+        let auto_ref = AutoLocal::new(&env, null_obj);
+        assert!(auto_ref.as_obj().is_null());
+    }
+    assert!(null_obj.is_null());
 }
 
 // Helper method that asserts that result is Error and the cause is JavaException.

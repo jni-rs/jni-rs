@@ -330,12 +330,8 @@ impl<'a> JNIEnv<'a> {
     /// releases the GC pin upon being dropped.
     pub fn new_global_ref(&self, obj: JObject) -> Result<GlobalRef> {
         let new_ref: JObject = jni_unchecked!(self.internal, NewGlobalRef, obj.into_inner()).into();
-        if !new_ref.is_null() {
-            let global = unsafe { GlobalRef::from_raw(self.get_java_vm()?, new_ref.into_inner()) };
-            Ok(global)
-        } else {
-            Err(ErrorKind::NullPtr("new_global_ref").into())
-        }
+        let global = unsafe { GlobalRef::from_raw(self.get_java_vm()?, new_ref.into_inner()) };
+        Ok(global)
     }
 
     /// Create a new local ref to an object.
