@@ -1136,6 +1136,30 @@ impl<'a> JNIEnv<'a> {
         Ok(array)
     }
 
+    /// Calculate the correct buffer length to provide to the `Get*ArrayRegion()` and
+    /// `Set*ArrayRegion()` JNI functions, based on the array size, the start index, and the length
+    /// of the provided buffer.
+    fn proper_length_for_primitive_array_region(
+        &self,
+        array: jarray,
+        start: jsize,
+        buf_len: usize,
+    ) -> Result<jsize> {
+        let array_len: jsize = jni_unchecked!(self.internal, GetArrayLength, array);
+
+        // buffer length should fit in a `jsize`.
+        let usable_buf_len = usize::min(buf_len, jsize::max_value() as usize) as jsize;
+
+        let len = if start >= 0 && start <= array_len {
+            // `start` is a valid index into the array. Calculate a proper `len`.
+            jsize::min(usable_buf_len, array_len - start)
+        } else {
+            // The JVM will throw an `ArrayIndexOutOfBoundsException` due to `start`.
+            usable_buf_len
+        };
+        Ok(len)
+    }
+
     /// Copy elements of the java boolean array from the `start` index to the
     /// `buf` slice.
     pub fn get_boolean_array_region(
@@ -1145,12 +1169,13 @@ impl<'a> JNIEnv<'a> {
         buf: &mut [jboolean],
     ) -> Result<()> {
         non_null!(array, "get_boolean_array_region array argument");
+        let len = self.proper_length_for_primitive_array_region(array, start, buf.len())?;
         jni_void_call!(
             self.internal,
             GetBooleanArrayRegion,
             array,
             start,
-            buf.len() as jsize,
+            len,
             buf.as_mut_ptr()
         );
         Ok(())
@@ -1165,12 +1190,13 @@ impl<'a> JNIEnv<'a> {
         buf: &mut [jbyte],
     ) -> Result<()> {
         non_null!(array, "get_byte_array_region array argument");
+        let len = self.proper_length_for_primitive_array_region(array, start, buf.len())?;
         jni_void_call!(
             self.internal,
             GetByteArrayRegion,
             array,
             start,
-            buf.len() as jsize,
+            len,
             buf.as_mut_ptr()
         );
         Ok(())
@@ -1185,12 +1211,13 @@ impl<'a> JNIEnv<'a> {
         buf: &mut [jchar],
     ) -> Result<()> {
         non_null!(array, "get_char_array_region array argument");
+        let len = self.proper_length_for_primitive_array_region(array, start, buf.len())?;
         jni_void_call!(
             self.internal,
             GetCharArrayRegion,
             array,
             start,
-            buf.len() as jsize,
+            len,
             buf.as_mut_ptr()
         );
         Ok(())
@@ -1205,12 +1232,13 @@ impl<'a> JNIEnv<'a> {
         buf: &mut [jshort],
     ) -> Result<()> {
         non_null!(array, "get_short_array_region array argument");
+        let len = self.proper_length_for_primitive_array_region(array, start, buf.len())?;
         jni_void_call!(
             self.internal,
             GetShortArrayRegion,
             array,
             start,
-            buf.len() as jsize,
+            len,
             buf.as_mut_ptr()
         );
         Ok(())
@@ -1225,12 +1253,13 @@ impl<'a> JNIEnv<'a> {
         buf: &mut [jint],
     ) -> Result<()> {
         non_null!(array, "get_int_array_region array argument");
+        let len = self.proper_length_for_primitive_array_region(array, start, buf.len())?;
         jni_void_call!(
             self.internal,
             GetIntArrayRegion,
             array,
             start,
-            buf.len() as jsize,
+            len,
             buf.as_mut_ptr()
         );
         Ok(())
@@ -1245,12 +1274,13 @@ impl<'a> JNIEnv<'a> {
         buf: &mut [jlong],
     ) -> Result<()> {
         non_null!(array, "get_long_array_region array argument");
+        let len = self.proper_length_for_primitive_array_region(array, start, buf.len())?;
         jni_void_call!(
             self.internal,
             GetLongArrayRegion,
             array,
             start,
-            buf.len() as jsize,
+            len,
             buf.as_mut_ptr()
         );
         Ok(())
@@ -1265,12 +1295,13 @@ impl<'a> JNIEnv<'a> {
         buf: &mut [jfloat],
     ) -> Result<()> {
         non_null!(array, "get_float_array_region array argument");
+        let len = self.proper_length_for_primitive_array_region(array, start, buf.len())?;
         jni_void_call!(
             self.internal,
             GetFloatArrayRegion,
             array,
             start,
-            buf.len() as jsize,
+            len,
             buf.as_mut_ptr()
         );
         Ok(())
@@ -1285,12 +1316,13 @@ impl<'a> JNIEnv<'a> {
         buf: &mut [jdouble],
     ) -> Result<()> {
         non_null!(array, "get_double_array_region array argument");
+        let len = self.proper_length_for_primitive_array_region(array, start, buf.len())?;
         jni_void_call!(
             self.internal,
             GetDoubleArrayRegion,
             array,
             start,
-            buf.len() as jsize,
+            len,
             buf.as_mut_ptr()
         );
         Ok(())
@@ -1305,12 +1337,13 @@ impl<'a> JNIEnv<'a> {
         buf: &[jboolean],
     ) -> Result<()> {
         non_null!(array, "set_boolean_array_region array argument");
+        let len = self.proper_length_for_primitive_array_region(array, start, buf.len())?;
         jni_void_call!(
             self.internal,
             SetBooleanArrayRegion,
             array,
             start,
-            buf.len() as jsize,
+            len,
             buf.as_ptr()
         );
         Ok(())
@@ -1325,12 +1358,13 @@ impl<'a> JNIEnv<'a> {
         buf: &[jbyte],
     ) -> Result<()> {
         non_null!(array, "set_byte_array_region array argument");
+        let len = self.proper_length_for_primitive_array_region(array, start, buf.len())?;
         jni_void_call!(
             self.internal,
             SetByteArrayRegion,
             array,
             start,
-            buf.len() as jsize,
+            len,
             buf.as_ptr()
         );
         Ok(())
@@ -1345,12 +1379,13 @@ impl<'a> JNIEnv<'a> {
         buf: &[jchar],
     ) -> Result<()> {
         non_null!(array, "set_char_array_region array argument");
+        let len = self.proper_length_for_primitive_array_region(array, start, buf.len())?;
         jni_void_call!(
             self.internal,
             SetCharArrayRegion,
             array,
             start,
-            buf.len() as jsize,
+            len,
             buf.as_ptr()
         );
         Ok(())
@@ -1365,12 +1400,13 @@ impl<'a> JNIEnv<'a> {
         buf: &[jshort],
     ) -> Result<()> {
         non_null!(array, "set_short_array_region array argument");
+        let len = self.proper_length_for_primitive_array_region(array, start, buf.len())?;
         jni_void_call!(
             self.internal,
             SetShortArrayRegion,
             array,
             start,
-            buf.len() as jsize,
+            len,
             buf.as_ptr()
         );
         Ok(())
@@ -1380,12 +1416,13 @@ impl<'a> JNIEnv<'a> {
     /// `start` index.
     pub fn set_int_array_region(&self, array: jintArray, start: jsize, buf: &[jint]) -> Result<()> {
         non_null!(array, "set_int_array_region array argument");
+        let len = self.proper_length_for_primitive_array_region(array, start, buf.len())?;
         jni_void_call!(
             self.internal,
             SetIntArrayRegion,
             array,
             start,
-            buf.len() as jsize,
+            len,
             buf.as_ptr()
         );
         Ok(())
@@ -1400,12 +1437,13 @@ impl<'a> JNIEnv<'a> {
         buf: &[jlong],
     ) -> Result<()> {
         non_null!(array, "set_long_array_region array argument");
+        let len = self.proper_length_for_primitive_array_region(array, start, buf.len())?;
         jni_void_call!(
             self.internal,
             SetLongArrayRegion,
             array,
             start,
-            buf.len() as jsize,
+            len,
             buf.as_ptr()
         );
         Ok(())
@@ -1420,12 +1458,13 @@ impl<'a> JNIEnv<'a> {
         buf: &[jfloat],
     ) -> Result<()> {
         non_null!(array, "set_float_array_region array argument");
+        let len = self.proper_length_for_primitive_array_region(array, start, buf.len())?;
         jni_void_call!(
             self.internal,
             SetFloatArrayRegion,
             array,
             start,
-            buf.len() as jsize,
+            len,
             buf.as_ptr()
         );
         Ok(())
@@ -1440,12 +1479,13 @@ impl<'a> JNIEnv<'a> {
         buf: &[jdouble],
     ) -> Result<()> {
         non_null!(array, "set_double_array_region array argument");
+        let len = self.proper_length_for_primitive_array_region(array, start, buf.len())?;
         jni_void_call!(
             self.internal,
             SetDoubleArrayRegion,
             array,
             start,
-            buf.len() as jsize,
+            len,
             buf.as_ptr()
         );
         Ok(())
