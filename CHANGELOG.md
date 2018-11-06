@@ -42,11 +42,17 @@ to call if there is a pending exception (#124):
 
 - Implemented Sync for GlobalRef (#102).
 
-- Improvements in macro usage for JNI methods calls. (#136):
+- Improvements in macro usage for JNI methods calls (#136):
   - `call_static_method_unchecked` and `get_static_field_unchecked` methods are 
   allowed to return NULL object
   - Added checking for pending exception to the `call_static_method_unchecked` 
   method (eliminated WARNING messages in log)
+  
+-  Further improvements in macro usage for JNI method calls (#150):
+  - The new_global_ref() and new_local_ref() functions are allowed to work with NULL objects according to specification.
+  - Fixed the family of functions new_direct_byte_buffer(), get_direct_buffer_address() and get_direct_buffer_capacity()
+   by adding checking for null and error codes.
+  - Increased tests coverage for JNIEnv functions.
 
 - Implemented Clone for JNIEnv (#147).
 

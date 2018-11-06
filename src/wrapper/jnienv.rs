@@ -295,20 +295,22 @@ impl<'a> JNIEnv<'a> {
 
     /// Create a new instance of a direct java.nio.ByteBuffer.
     pub fn new_direct_byte_buffer(&self, data: &mut [u8]) -> Result<JByteBuffer> {
-        let obj = jni_unchecked!(
-                self.internal,
-                NewDirectByteBuffer,
-                data.as_mut_ptr() as *mut c_void,
-                data.len() as jlong
-            );
+        let obj: JObject = jni_non_null_call!(
+            self.internal,
+            NewDirectByteBuffer,
+            data.as_mut_ptr() as *mut c_void,
+            data.len() as jlong
+        );
         Ok(JByteBuffer::from(obj))
     }
 
     /// Returns the starting address of the memory of the direct
     /// java.nio.ByteBuffer.
     pub fn get_direct_buffer_address(&self, buf: JByteBuffer) -> Result<&mut [u8]> {
+        non_null!(buf, "get_direct_buffer_address argument");
         let ptr: *mut c_void =
             jni_unchecked!(self.internal, GetDirectBufferAddress, buf.into_inner());
+        non_null!(ptr, "get_direct_buffer_address return value");
         let capacity = self.get_direct_buffer_capacity(buf)?;
         unsafe { Ok(slice::from_raw_parts_mut(ptr as *mut u8, capacity as usize)) }
     }
@@ -317,15 +319,17 @@ impl<'a> JNIEnv<'a> {
     pub fn get_direct_buffer_capacity(&self, buf: JByteBuffer) -> Result<jlong> {
         let capacity =
             jni_unchecked!(self.internal, GetDirectBufferCapacity, buf.into_inner());
-        Ok(capacity)
+        match capacity {
+            -1 => Err(Error::from(ErrorKind::Other(sys::JNI_ERR))),
+            _ => Ok(capacity),
+        }
     }
 
     /// Turns an object into a global ref. This has the benefit of removing the
     /// lifetime bounds since it's guaranteed to not get GC'd by java. It
     /// releases the GC pin upon being dropped.
     pub fn new_global_ref(&self, obj: JObject) -> Result<GlobalRef> {
-        non_null!(obj, "new_global_ref obj argument");
-        let new_ref: JObject = jni_non_null_call!(self.internal, NewGlobalRef, obj.into_inner());
+        let new_ref: JObject = jni_unchecked!(self.internal, NewGlobalRef, obj.into_inner()).into();
         let global = unsafe { GlobalRef::from_raw(self.get_java_vm()?, new_ref.into_inner()) };
         Ok(global)
     }
@@ -336,8 +340,7 @@ impl<'a> JNIEnv<'a> {
     /// creates yet another reference to it, which is most likely not what you
     /// want.
     pub fn new_local_ref<T>(&self, obj: JObject) -> Result<JObject> {
-        non_null!(obj, "new_local_ref obj argument");
-        let local: JObject = jni_non_null_call!(self.internal, NewLocalRef, obj.into_inner());
+        let local: JObject = jni_unchecked!(self.internal, NewLocalRef, obj.into_inner()).into();
         Ok(local)
     }
 
@@ -370,7 +373,6 @@ impl<'a> JNIEnv<'a> {
     /// In most cases it is better to use `AutoLocal` (see `auto_local` method)
     /// or `with_local_frame` instead of direct `delete_local_ref` calls.
     pub fn delete_local_ref(&self, obj: JObject) -> Result<()> {
-        non_null!(obj, "delete_local_ref obj argument");
         Ok(jni_unchecked!(self.internal, DeleteLocalRef, obj.into_inner()))
     }
 
@@ -604,7 +606,7 @@ impl<'a> JNIEnv<'a> {
     /// Get the class for an object.
     pub fn get_object_class(&self, obj: JObject) -> Result<JClass<'a>> {
         non_null!(obj, "get_object_class");
-        Ok(unsafe { jni_unchecked!(self.internal, GetObjectClass, obj.into_inner()).into() })
+        Ok(jni_unchecked!(self.internal, GetObjectClass, obj.into_inner()).into())
     }
 
     /// Call a static method in an unsafe manner. This does nothing to check
@@ -1084,7 +1086,6 @@ impl<'a> JNIEnv<'a> {
             length,
             vec.as_mut_ptr() as *mut i8
         );
-        check_exception!(self.internal);
         Ok(vec)
     }
 

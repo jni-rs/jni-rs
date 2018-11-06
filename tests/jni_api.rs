@@ -5,10 +5,11 @@ extern crate jni;
 
 use std::str::FromStr;
 use jni::{
-    errors::ErrorKind,
-    objects::{AutoLocal, JObject, JValue},
-    sys::jint,
+    errors::{Error, ErrorKind},
+    objects::{AutoLocal, JByteBuffer, JObject, JValue},
     signature::JavaType,
+    sys::{jint, jobject, jsize},
+    JNIEnv,
 };
 
 mod util;
@@ -198,8 +199,7 @@ pub fn call_static_method_throws() {
         }).expect_err("JNIEnv#call_static_method_unsafe should return error");
 
     assert!(is_java_exception, "ErrorKind::JavaException expected as error");
-    assert!(env.exception_check().unwrap());
-    env.exception_clear().unwrap();
+    assert_pending_java_exception(&env);
 }
 
 #[test]
@@ -210,8 +210,7 @@ pub fn call_static_method_wrong_arg() {
     env.call_static_method(MATH_CLASS, MATH_TO_INT_METHOD_NAME, MATH_TO_INT_SIGNATURE, &[x])
         .expect_err("JNIEnv#call_static_method_unsafe should return error");
 
-    assert!(env.exception_check().unwrap());
-    env.exception_clear().unwrap();
+    assert_pending_java_exception(&env);
 }
 
 #[test]
@@ -248,4 +247,222 @@ pub fn get_object_class_null_arg() {
         _ => false,
     }).expect_err("JNIEnv#get_object_class should return error for null argument");
     assert!(result, "ErrorKind::NullPtr expected as error");
+}
+
+#[test]
+pub fn new_direct_byte_buffer() {
+    let env = attach_current_thread();
+    let mut vec: Vec<u8> = vec![0, 1, 2, 3];
+    let buf = vec.as_mut_slice();
+    let result = env.new_direct_byte_buffer(buf);
+    assert!(result.is_ok());
+    assert!(!result.unwrap().is_null());
+}
+
+#[test]
+pub fn get_direct_buffer_capacity_ok() {
+    let env = attach_current_thread();
+    let mut vec: Vec<u8> = vec![0, 1, 2, 3];
+    let buf = vec.as_mut_slice();
+    let result = env.new_direct_byte_buffer(buf).unwrap();
+    assert!(!result.is_null());
+
+    let capacity = env.get_direct_buffer_capacity(result).unwrap();
+    assert_eq!(capacity, 4);
+}
+
+#[test]
+pub fn get_direct_buffer_capacity_wrong_arg() {
+    let env = attach_current_thread();
+    let wrong_obj = JByteBuffer::from(env.new_string("wrong").unwrap().into_inner());
+    let capacity = env.get_direct_buffer_capacity(wrong_obj);
+    assert!(capacity.is_err());
+}
+
+#[test]
+pub fn get_direct_buffer_address_ok() {
+    let env = attach_current_thread();
+    let mut vec: Vec<u8> = vec![0, 1, 2, 3];
+    let buf = vec.as_mut_slice();
+    let result = env.new_direct_byte_buffer(buf).unwrap();
+    assert!(!result.is_null());
+
+    let dest_buffer = env.get_direct_buffer_address(result).unwrap();
+    assert_eq!(buf, dest_buffer);
+}
+
+#[test]
+pub fn get_direct_buffer_address_wrong_arg() {
+    let env = attach_current_thread();
+    let wrong_obj: JObject = env.new_string("wrong").unwrap().into();
+    let result = env.get_direct_buffer_address(wrong_obj.into());
+    assert!(result.is_err());
+}
+
+#[test]
+pub fn get_direct_buffer_address_null_arg() {
+    let env = attach_current_thread();
+    let result = env.get_direct_buffer_address(JObject::null().into());
+    assert!(result.is_err());
+}
+
+// Group test for testing the family of new_PRIMITIVE_array functions with correct arguments
+#[test]
+pub fn new_primitive_array_ok() {
+    let env = attach_current_thread();
+    const SIZE: jsize = 16;
+
+    let result = env.new_boolean_array(SIZE);
+    assert!(result.is_ok());
+    assert!(!result.unwrap().is_null());
+
+    let result = env.new_byte_array(SIZE);
+    assert!(result.is_ok());
+    assert!(!result.unwrap().is_null());
+
+    let result = env.new_char_array(SIZE);
+    assert!(result.is_ok());
+    assert!(!result.unwrap().is_null());
+
+    let result = env.new_short_array(SIZE);
+    assert!(result.is_ok());
+    assert!(!result.unwrap().is_null());
+
+    let result = env.new_int_array(SIZE);
+    assert!(result.is_ok());
+    assert!(!result.unwrap().is_null());
+
+    let result = env.new_long_array(SIZE);
+    assert!(result.is_ok());
+    assert!(!result.unwrap().is_null());
+
+    let result = env.new_float_array(SIZE);
+    assert!(result.is_ok());
+    assert!(!result.unwrap().is_null());
+
+    let result = env.new_double_array(SIZE);
+    assert!(result.is_ok());
+    assert!(!result.unwrap().is_null());
+}
+
+// Group test for testing the family of new_PRIMITIVE_array functions with wrong arguments
+#[test]
+pub fn new_primitive_array_wrong() {
+    let env = attach_current_thread();
+    const WRONG_SIZE: jsize = -1;
+
+    let result = env.new_boolean_array(WRONG_SIZE);
+    assert!(result.is_err());
+    assert_exception(result, "JNIEnv#new_boolean_array should throw exception");
+    assert_pending_java_exception(&env);
+
+    let result = env.new_byte_array(WRONG_SIZE);
+    assert!(result.is_err());
+    assert_exception(result, "JNIEnv#new_byte_array should throw exception");
+    assert_pending_java_exception(&env);
+
+    let result = env.new_char_array(WRONG_SIZE);
+    assert!(result.is_err());
+    assert_exception(result, "JNIEnv#new_char_array should throw exception");
+    assert_pending_java_exception(&env);
+
+    let result = env.new_short_array(WRONG_SIZE);
+    assert!(result.is_err());
+    assert_exception(result, "JNIEnv#new_short_array should throw exception");
+    assert_pending_java_exception(&env);
+
+    let result = env.new_int_array(WRONG_SIZE);
+    assert!(result.is_err());
+    assert_exception(result, "JNIEnv#new_int_array should throw exception");
+    assert_pending_java_exception(&env);
+
+    let result = env.new_long_array(WRONG_SIZE);
+    assert!(result.is_err());
+    assert_exception(result, "JNIEnv#new_long_array should throw exception");
+    assert_pending_java_exception(&env);
+
+    let result = env.new_float_array(WRONG_SIZE);
+    assert!(result.is_err());
+    assert_exception(result, "JNIEnv#new_float_array should throw exception");
+    assert_pending_java_exception(&env);
+
+    let result = env.new_double_array(WRONG_SIZE);
+    assert!(result.is_err());
+    assert_exception(result, "JNIEnv#new_double_array should throw exception");
+    assert_pending_java_exception(&env);
+}
+
+#[test]
+fn get_super_class_ok() {
+    let env = attach_current_thread();
+    let result = env.get_superclass(ARRAYLIST_CLASS);
+    assert!(result.is_ok());
+    assert!(!result.unwrap().is_null());
+}
+
+#[test]
+fn get_super_class_null() {
+    let env = attach_current_thread();
+    let result = env.get_superclass("java/lang/Object");
+    assert!(result.is_err());
+}
+
+#[test]
+fn convert_byte_array() {
+    let env = attach_current_thread();
+    let src: Vec<u8> = vec![1, 2, 3, 4];
+    let java_byte_array = env.byte_array_from_slice(&src).unwrap();
+
+    let dest = env.convert_byte_array(java_byte_array);
+    assert!(dest.is_ok());
+    assert_eq!(dest.unwrap(), src);
+}
+
+#[test]
+fn local_ref_null() {
+    let env = attach_current_thread();
+    let null_obj = JObject::null();
+
+    let result = env.new_local_ref::<JObject>(null_obj);
+    assert!(result.is_ok());
+    assert!(result.unwrap().is_null());
+
+    // try to delete null reference
+    let result = env.delete_local_ref(null_obj);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn new_global_ref_null() {
+    let env = attach_current_thread();
+    let null_obj = JObject::null();
+    let result = env.new_global_ref(null_obj);
+    assert!(result.is_ok());
+    assert!(result.unwrap().as_obj().is_null());
+}
+
+#[test]
+fn auto_local_null() {
+    let env = attach_current_thread();
+    let null_obj = JObject::null();
+    {
+        let auto_ref = AutoLocal::new(&env, null_obj);
+        assert!(auto_ref.as_obj().is_null());
+    }
+    assert!(null_obj.is_null());
+}
+
+// Helper method that asserts that result is Error and the cause is JavaException.
+fn assert_exception(res: Result<jobject, Error>, expect_message: &str) {
+    assert!(res.is_err());
+    assert!(res.map_err(|error| match *error.kind() {
+        ErrorKind::JavaException => true,
+        _ => false,
+    }).expect_err(expect_message));
+}
+
+// Helper method that asserts there is a pending Java exception and clears if any
+fn assert_pending_java_exception(env: &JNIEnv) {
+    assert!(env.exception_check().unwrap());
+    env.exception_clear().unwrap();
 }
