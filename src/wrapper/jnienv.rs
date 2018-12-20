@@ -248,7 +248,14 @@ impl<'a> JNIEnv<'a> {
         S: Into<JNIString>,
         T: Desc<'a, JClass<'a>>,
     {
-        self.throw((class, msg))
+        let class = class.lookup(self)?;
+        let msg = msg.into();
+        let res: i32 = jni_unchecked!(self.internal, ThrowNew, class.into_inner(), msg.as_ptr());
+        if res < 0 {
+            Err(format!("throw_new failed with code {}", res).into())
+        } else {
+            Ok(())
+        }
     }
 
     /// Check whether or not an exception is currently in the process of being

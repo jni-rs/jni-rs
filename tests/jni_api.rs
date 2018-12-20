@@ -452,6 +452,17 @@ fn auto_local_null() {
     assert!(null_obj.is_null());
 }
 
+
+#[test]
+pub fn throw_new() {
+    let env = attach_current_thread();
+
+    env.throw_new("java/lang/RuntimeException", "Test Exception")
+        .unwrap();
+    env.exception_occurred().unwrap();
+    env.exception_clear().unwrap();
+}
+
 // Helper method that asserts that result is Error and the cause is JavaException.
 fn assert_exception(res: Result<jobject, Error>, expect_message: &str) {
     assert!(res.is_err());
