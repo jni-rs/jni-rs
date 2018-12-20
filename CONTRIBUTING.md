@@ -86,7 +86,7 @@ Rust code follows the [Rust style guide](https://github.com/rust-lang-nursery/fm
 
 After installation, you can run it with
 ```$sh
-$ cargo fmt --all -- --write-mode=check
+$ cargo fmt --all -- --check
 ```
 
 Every public entry of the API must be thoroughly documented and covered with tests if it is possible.
