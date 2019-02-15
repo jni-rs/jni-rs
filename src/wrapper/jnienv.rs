@@ -167,8 +167,8 @@ impl<'a> JNIEnv<'a> {
         Ok(class)
     }
 
-    /// Get the superclass for a particular class. As with `find_class`, takes
-    /// a descriptor.
+    /// Returns the superclass for a particular class OR `JObject::null()` for `java.lang.Object` or
+    /// an interface. As with `find_class`, takes a descriptor.
     pub fn get_superclass<T>(&self, class: T) -> Result<JClass>
     where
         T: Desc<'a, JClass<'a>>,
