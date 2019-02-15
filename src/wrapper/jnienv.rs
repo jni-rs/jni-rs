@@ -76,9 +76,13 @@ use JavaVM;
 /// will _not_ clear the exception - it's up to the caller to decide whether to
 /// do so or to let it continue being thrown.
 ///
-/// Because null pointers are a thing in Java, this also converts them to an
-/// `Err` result with the kind `NullPtr`. This may occur when either a null
-/// argument is passed to a method or when a null would be returned. Where
+/// Handling null pointers is non-trivial. This may occur when either a null argument
+/// is passed to a method that requires non-null arguments or when a null would
+/// be returned. In the latter case method could return null as possible value
+/// (like `get_object_array_element`) or as indication of an error (e.g.
+/// `new_int_array` which never returns null if everything is OK). Only expected
+/// return values of null are converted to `JObject::null()`, in any other situation
+/// null pointers are converted to `Err` result with the kind `NullPtr`. Where
 /// applicable, the null error is changed to a more applicable error type, such
 /// as `MethodNotFound`.
 ///
