@@ -170,7 +170,7 @@ impl<'a> JNIEnv<'a> {
         T: Desc<'a, JClass<'a>>,
     {
         let class = class.lookup(self)?;
-        Ok(jni_non_null_call!(self.internal, GetSuperclass, class.into_inner()))
+        Ok(jni_non_void_call!(self.internal, GetSuperclass, class.into_inner()).into())
     }
 
     /// Tests whether class1 is assignable from class2.
@@ -1033,12 +1033,12 @@ impl<'a> JNIEnv<'a> {
     /// Returns an element of the `jobjectArray` array.
     pub fn get_object_array_element(&self, array: jobjectArray, index: jsize) -> Result<JObject> {
         non_null!(array, "get_object_array_element array argument");
-        Ok(jni_non_null_call!(
+        Ok(jni_non_void_call!(
             self.internal,
             GetObjectArrayElement,
             array,
             index
-        ))
+        ).into())
     }
 
     /// Sets an element of the `jobjectArray` array.
@@ -1465,7 +1465,7 @@ impl<'a> JNIEnv<'a> {
         // TODO clean this up
         Ok(match ty {
             JavaType::Object(_) | JavaType::Array(_) => {
-                let obj: JObject = jni_non_null_call!(self.internal, GetObjectField, obj, field);
+                let obj: JObject = jni_non_void_call!(self.internal, GetObjectField, obj, field).into();
                 obj.into()
             }
             // JavaType::Object
