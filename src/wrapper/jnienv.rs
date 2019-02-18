@@ -76,15 +76,17 @@ use JavaVM;
 /// will _not_ clear the exception - it's up to the caller to decide whether to
 /// do so or to let it continue being thrown.
 ///
-/// Handling null pointers is non-trivial. This may occur when either a null argument
-/// is passed to a method that requires non-null arguments or when a null would
-/// be returned. In the latter case method could return null as possible value
-/// (like `get_object_array_element`) or as indication of an error (e.g.
-/// `new_int_array` which never returns null if everything is OK). Only expected
-/// return values of null are converted to `JObject::null()`, in any other situation
-/// null pointers are converted to `Err` result with the kind `NullPtr`. Where
-/// applicable, the null error is changed to a more applicable error type, such
-/// as `MethodNotFound`.
+/// ## `null` Java references
+/// `null` Java references are handled by the following rules:
+///   - If a `null` Java reference is passed to a method that expects a non-`null` 
+///   argument, an `Err` result with the kind `NullPtr` is returned.
+///   - If a JNI function returns `null` to indicate an error (e.g. `new_int_array`),
+///     it is converted to `Err`/`NullPtr` or, where possible, to a more applicable 
+///     error type, such as `MethodNotFound`. If the JNI function also throws 
+///     an exception, the `JavaException` error kind will be preferred.
+///   - If a JNI function may return `null` Java reference as one of possible reference
+///     values (e.g., `get_object_array_element` or `get_field_unchecked`),
+///     it is converted to `JObject::null()`.
 ///
 /// # Checked and unchecked methods
 ///
