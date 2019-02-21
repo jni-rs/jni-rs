@@ -20,6 +20,7 @@ static EXCEPTION_CLASS: &str = "java/lang/Exception";
 static ARITHMETIC_EXCEPTION_CLASS: &str = "java/lang/ArithmeticException";
 static INTEGER_CLASS: &str = "java/lang/Integer";
 static MATH_CLASS: &str = "java/lang/Math";
+static STRING_CLASS: &str = "java/lang/String";
 static MATH_ABS_METHOD_NAME: &str = "abs";
 static MATH_TO_INT_METHOD_NAME: &str = "toIntExact";
 static MATH_ABS_SIGNATURE: &str = "(I)I";
@@ -404,7 +405,8 @@ fn get_super_class_ok() {
 fn get_super_class_null() {
     let env = attach_current_thread();
     let result = env.get_superclass("java/lang/Object");
-    assert!(result.is_err());
+    assert!(result.is_ok());
+    assert!(result.unwrap().is_null());
 }
 
 #[test]
@@ -450,6 +452,17 @@ fn auto_local_null() {
         assert!(auto_ref.as_obj().is_null());
     }
     assert!(null_obj.is_null());
+}
+
+#[test]
+fn get_object_array_element() {
+    let env = attach_current_thread();
+    let array = env.new_object_array(1, STRING_CLASS, JObject::null()).unwrap();
+    assert!(!array.is_null());
+    assert!(env.get_object_array_element(array, 0).unwrap().is_null());
+    let test_str = env.new_string("test").unwrap();
+    env.set_object_array_element(array,0,test_str.into()).unwrap();
+    assert!(!env.get_object_array_element(array, 0).unwrap().is_null());
 }
 
 // Helper method that asserts that result is Error and the cause is JavaException.

@@ -56,6 +56,9 @@ to call if there is a pending exception (#124):
 
 - Implemented Clone for JNIEnv (#147).
 
+- The get_superclass(), get_field_unchecked() and get_object_array_element() are allowed to return NULL object according
+ to the specification (#163). 
+
 ### Fixed
 - The issue with early detaching of a thread by nested AttachGuard. (#139)
 

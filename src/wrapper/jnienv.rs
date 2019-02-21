@@ -76,11 +76,17 @@ use JavaVM;
 /// will _not_ clear the exception - it's up to the caller to decide whether to
 /// do so or to let it continue being thrown.
 ///
-/// Because null pointers are a thing in Java, this also converts them to an
-/// `Err` result with the kind `NullPtr`. This may occur when either a null
-/// argument is passed to a method or when a null would be returned. Where
-/// applicable, the null error is changed to a more applicable error type, such
-/// as `MethodNotFound`.
+/// ## `null` Java references
+/// `null` Java references are handled by the following rules:
+///   - If a `null` Java reference is passed to a method that expects a non-`null` 
+///   argument, an `Err` result with the kind `NullPtr` is returned.
+///   - If a JNI function returns `null` to indicate an error (e.g. `new_int_array`),
+///     it is converted to `Err`/`NullPtr` or, where possible, to a more applicable 
+///     error type, such as `MethodNotFound`. If the JNI function also throws 
+///     an exception, the `JavaException` error kind will be preferred.
+///   - If a JNI function may return `null` Java reference as one of possible reference
+///     values (e.g., `get_object_array_element` or `get_field_unchecked`),
+///     it is converted to `JObject::null()`.
 ///
 /// # Checked and unchecked methods
 ///
@@ -163,14 +169,14 @@ impl<'a> JNIEnv<'a> {
         Ok(class)
     }
 
-    /// Get the superclass for a particular class. As with `find_class`, takes
-    /// a descriptor.
+    /// Returns the superclass for a particular class OR `JObject::null()` for `java.lang.Object` or
+    /// an interface. As with `find_class`, takes a descriptor.
     pub fn get_superclass<T>(&self, class: T) -> Result<JClass>
     where
         T: Desc<'a, JClass<'a>>,
     {
         let class = class.lookup(self)?;
-        Ok(jni_non_null_call!(self.internal, GetSuperclass, class.into_inner()))
+        Ok(jni_non_void_call!(self.internal, GetSuperclass, class.into_inner()).into())
     }
 
     /// Tests whether class1 is assignable from class2.
@@ -1033,12 +1039,12 @@ impl<'a> JNIEnv<'a> {
     /// Returns an element of the `jobjectArray` array.
     pub fn get_object_array_element(&self, array: jobjectArray, index: jsize) -> Result<JObject> {
         non_null!(array, "get_object_array_element array argument");
-        Ok(jni_non_null_call!(
+        Ok(jni_non_void_call!(
             self.internal,
             GetObjectArrayElement,
             array,
             index
-        ))
+        ).into())
     }
 
     /// Sets an element of the `jobjectArray` array.
@@ -1465,7 +1471,7 @@ impl<'a> JNIEnv<'a> {
         // TODO clean this up
         Ok(match ty {
             JavaType::Object(_) | JavaType::Array(_) => {
-                let obj: JObject = jni_non_null_call!(self.internal, GetObjectField, obj, field);
+                let obj: JObject = jni_non_void_call!(self.internal, GetObjectField, obj, field).into();
                 obj.into()
             }
             // JavaType::Object
