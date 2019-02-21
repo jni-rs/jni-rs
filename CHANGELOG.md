@@ -17,6 +17,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [0.11.0]
 
+### Highlights
+This release brings various improvements and fixes, outlined below. The most notable changes are:
+- `null` is no longer represented as an `Err` with error kind `NullPtr` if it is a value of some 
+  nullable Java reference (not an indication of an error). Related issues: #136, #148, #163.
+- `unsafe` methods, providing a low-level API similar to JNI, has been marked safe and renamed
+  to have `_unchecked` suffix. Such methods can be used to implement caching of class references
+  and method IDs to improve performance in loops and frequently called Java callbacks.
+  If you have such, check out [the docs][unchecked-docs] and [one of early usages][cache-exonum] 
+  of this feature.
+
+[unchecked-docs]: https://docs.rs/jni/0.11.0/jni/struct.JNIEnv.html
+[cache-exonum]: https://github.com/exonum/exonum-java-binding/blob/affa85c026c1870b502725b291822c00f199745d/exonum-java-binding/core/rust/src/utils/jni_cache.rs#L40
+
 ### Added
 - Invocation API support on Windows and AppVeyor CI (#149)
 
@@ -50,13 +63,16 @@ to call if there is a pending exception (#124):
   - Added checking for pending exception to the `call_static_method_unchecked` 
   method (eliminated WARNING messages in log)
   
--  Further improvements in macro usage for JNI method calls (#150):
+- Further improvements in macro usage for JNI method calls (#150):
   - The new_global_ref() and new_local_ref() functions are allowed to work with NULL objects according to specification.
   - Fixed the family of functions new_direct_byte_buffer(), get_direct_buffer_address() and get_direct_buffer_capacity()
    by adding checking for null and error codes.
   - Increased tests coverage for JNIEnv functions.
 
 - Implemented Clone for JNIEnv (#147).
+
+- The get_superclass(), get_field_unchecked() and get_object_array_element() are allowed to return NULL object according
+ to the specification (#163). 
 
 ### Fixed
 - The issue with early detaching of a thread by nested AttachGuard. (#139)
