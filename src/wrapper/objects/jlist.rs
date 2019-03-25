@@ -15,17 +15,17 @@ use signature::Primitive;
 ///
 /// Looks up the class and method ids on creation rather than for every method
 /// call.
-pub struct JList<'a> {
+pub struct JList<'a: 'b, 'b> {
     internal: JObject<'a>,
     get: JMethodID<'a>,
     add: JMethodID<'a>,
     add_idx: JMethodID<'a>,
     remove: JMethodID<'a>,
     size: JMethodID<'a>,
-    env: &'a JNIEnv<'a>,
+    env: &'b JNIEnv<'a>,
 }
 
-impl<'a> ::std::ops::Deref for JList<'a> {
+impl<'a: 'b, 'b> ::std::ops::Deref for JList<'a, 'b> {
     type Target = JObject<'a>;
 
     fn deref(&self) -> &Self::Target {
@@ -33,17 +33,17 @@ impl<'a> ::std::ops::Deref for JList<'a> {
     }
 }
 
-impl<'a> From<JList<'a>> for JObject<'a> {
-    fn from(other: JList) -> JObject {
+impl<'a: 'b, 'b> From<JList<'a, 'b>> for JObject<'a> {
+    fn from(other: JList<'a, 'b>) -> JObject<'a> {
         other.internal
     }
 }
 
-impl<'a> JList<'a> {
+impl<'a: 'b, 'b> JList<'a, 'b> {
     /// Create a map from the environment and an object. This looks up the
     /// necessary class and method ids to call all of the methods on it so that
     /// exra work doesn't need to be done on every method call.
-    pub fn from_env(env: &'a JNIEnv<'a>, obj: JObject<'a>) -> Result<JList<'a>> {
+    pub fn from_env(env: &'b JNIEnv<'a>, obj: JObject<'a>) -> Result<JList<'a, 'b>> {
         let class = env.find_class("java/util/List")?;
 
         let get = env.get_method_id(class, "get", "(I)Ljava/lang/Object;")?;
@@ -65,7 +65,7 @@ impl<'a> JList<'a> {
 
     /// Look up the value for a key. Returns `Some` if it's found and `None` if
     /// a null pointer would be returned.
-    pub fn get(&self, idx: jint) -> Result<Option<JObject>> {
+    pub fn get(&self, idx: jint) -> Result<Option<JObject<'a>>> {
         let result = self.env.call_method_unchecked(
             self.internal,
             self.get,
@@ -165,7 +165,7 @@ impl<'a> JList<'a> {
 
     /// Get key/value iterator for the map. This is done by getting the
     /// `EntrySet` from java and iterating over it.
-    pub fn iter(&'a self) -> Result<JListIter<'a>> {
+    pub fn iter(&self) -> Result<JListIter<'a, 'b, '_>> {
         Ok(JListIter {
             list: &self,
             current: 0,
@@ -178,13 +178,13 @@ impl<'a> JList<'a> {
 ///
 /// TODO: make the iterator implementation for java iterators its own thing
 /// and generic enough to use elsewhere.
-pub struct JListIter<'a> {
-    list: &'a JList<'a>,
+pub struct JListIter<'a: 'b, 'b: 'c, 'c> {
+    list: &'c JList<'a, 'b>,
     current: jint,
     size: jint,
 }
 
-impl<'a> Iterator for JListIter<'a> {
+impl<'a: 'b, 'b: 'c, 'c> Iterator for JListIter<'a, 'b, 'c> {
     type Item = JObject<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
