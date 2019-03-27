@@ -14,16 +14,16 @@ use signature::Primitive;
 ///
 /// Looks up the class and method ids on creation rather than for every method
 /// call.
-pub struct JMap<'a> {
+pub struct JMap<'a: 'b, 'b> {
     internal: JObject<'a>,
     class: JClass<'a>,
     get: JMethodID<'a>,
     put: JMethodID<'a>,
     remove: JMethodID<'a>,
-    env: &'a JNIEnv<'a>,
+    env: &'b JNIEnv<'a>,
 }
 
-impl<'a> ::std::ops::Deref for JMap<'a> {
+impl<'a: 'b, 'b> ::std::ops::Deref for JMap<'a, 'b> {
     type Target = JObject<'a>;
 
     fn deref(&self) -> &Self::Target {
@@ -31,17 +31,17 @@ impl<'a> ::std::ops::Deref for JMap<'a> {
     }
 }
 
-impl<'a> From<JMap<'a>> for JObject<'a> {
-    fn from(other: JMap) -> JObject {
+impl<'a: 'b, 'b> From<JMap<'a, 'b>> for JObject<'a> {
+    fn from(other: JMap<'a, 'b>) -> JObject<'a> {
         other.internal
     }
 }
 
-impl<'a> JMap<'a> {
+impl<'a: 'b, 'b> JMap<'a, 'b> {
     /// Create a map from the environment and an object. This looks up the
     /// necessary class and method ids to call all of the methods on it so that
     /// exra work doesn't need to be done on every method call.
-    pub fn from_env(env: &'a JNIEnv<'a>, obj: JObject<'a>) -> Result<JMap<'a>> {
+    pub fn from_env(env: &'b JNIEnv<'a>, obj: JObject<'a>) -> Result<JMap<'a, 'b>> {
         let class = env.find_class("java/util/Map")?;
 
         let get = env.get_method_id(class, "get", "(Ljava/lang/Object;)Ljava/lang/Object;")?;
@@ -66,7 +66,7 @@ impl<'a> JMap<'a> {
 
     /// Look up the value for a key. Returns `Some` if it's found and `None` if
     /// a null pointer would be returned.
-    pub fn get(&self, key: JObject<'a>) -> Result<Option<JObject>> {
+    pub fn get(&self, key: JObject<'a>) -> Result<Option<JObject<'a>>> {
         let result = self.env.call_method_unchecked(
             self.internal,
             self.get,
@@ -85,7 +85,7 @@ impl<'a> JMap<'a> {
 
     /// Look up the value for a key. Returns `Some` with the old value if the
     /// key already existed and `None` if it's a new key.
-    pub fn put(&self, key: JObject<'a>, value: JObject<'a>) -> Result<Option<JObject>> {
+    pub fn put(&self, key: JObject<'a>, value: JObject<'a>) -> Result<Option<JObject<'a>>> {
         let result = self.env.call_method_unchecked(
             self.internal,
             self.put,
@@ -123,7 +123,7 @@ impl<'a> JMap<'a> {
 
     /// Get key/value iterator for the map. This is done by getting the
     /// `EntrySet` from java and iterating over it.
-    pub fn iter(&'a self) -> Result<JMapIter<'a>> {
+    pub fn iter(&self) -> Result<JMapIter<'a, 'b, '_>> {
         let set = self.env.call_method_unchecked(
             self.internal,
             (self.class, "entrySet", "()Ljava/util/Set;"),
@@ -168,8 +168,8 @@ impl<'a> JMap<'a> {
 ///
 /// TODO: make the iterator implementation for java iterators its own thing
 /// and generic enough to use elsewhere.
-pub struct JMapIter<'a> {
-    map: &'a JMap<'a>,
+pub struct JMapIter<'a, 'b, 'c> {
+    map: &'c JMap<'a, 'b>,
     has_next: JMethodID<'a>,
     next: JMethodID<'a>,
     get_key: JMethodID<'a>,
@@ -177,7 +177,7 @@ pub struct JMapIter<'a> {
     iter: JObject<'a>,
 }
 
-impl<'a> JMapIter<'a> {
+impl<'a: 'b, 'b: 'c, 'c> JMapIter<'a, 'b, 'c> {
     fn get_next(&self) -> Result<Option<(JObject<'a>, JObject<'a>)>> {
         let has_next = self.map.env.call_method_unchecked(
             self.iter,
@@ -214,7 +214,7 @@ impl<'a> JMapIter<'a> {
     }
 }
 
-impl<'a> Iterator for JMapIter<'a> {
+impl<'a: 'b, 'b: 'c, 'c> Iterator for JMapIter<'a, 'b, 'c> {
     type Item = (JObject<'a>, JObject<'a>);
 
     fn next(&mut self) -> Option<Self::Item> {

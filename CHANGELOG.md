@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+- `JString`, `JMap` and `JavaStr` and their respective iterators now require an extra lifetime so
+  that they can now work with `&'b JNIEnv<'a>`, where `'a: 'b`.
+
 ## [0.11.0]
 
 ### Highlights

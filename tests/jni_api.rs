@@ -6,7 +6,7 @@ extern crate jni;
 use std::str::FromStr;
 use jni::{
     errors::{Error, ErrorKind},
-    objects::{AutoLocal, JByteBuffer, JObject, JValue},
+    objects::{AutoLocal, JByteBuffer, JList, JObject, JValue},
     signature::JavaType,
     sys::{jint, jobject, jsize},
     JNIEnv,
@@ -452,6 +452,38 @@ fn auto_local_null() {
         assert!(auto_ref.as_obj().is_null());
     }
     assert!(null_obj.is_null());
+}
+
+#[test]
+fn short_lifetime_with_local_frame() {
+    let env = attach_current_thread();
+    let object = short_lifetime_with_local_frame_sub_fn(&env);
+    assert!(object.is_ok());
+}
+
+fn short_lifetime_with_local_frame_sub_fn<'a>(env: &'_ JNIEnv<'a>) -> Result<JObject<'a>, Error> {
+    env.with_local_frame(16, || env.new_object(INTEGER_CLASS, "(I)V", &[JValue::from(5)]))
+}
+
+#[test]
+fn short_lifetime_list() {
+    let env = attach_current_thread();
+    let first_list_object = short_lifetime_list_sub_fn(&env).unwrap();
+    let value = env.call_method(first_list_object, "intValue", "()I", &[]);
+    assert_eq!(value.unwrap().i().unwrap(), 1);
+}
+
+fn short_lifetime_list_sub_fn<'a>(env: &'_ JNIEnv<'a>) -> Result<JObject<'a>, Error> {
+    let list_object = env.new_object(ARRAYLIST_CLASS, "()V", &[])?;
+    let list = JList::from_env(env, list_object)?;
+    let element = env.new_object(INTEGER_CLASS, "(I)V", &[JValue::from(1)])?;
+    list.add(element)?;
+    short_lifetime_list_sub_fn_get_first_element(&list)
+}
+
+fn short_lifetime_list_sub_fn_get_first_element<'a>(list: &'_ JList<'a, '_>) -> Result<JObject<'a>, Error> {
+    let mut iterator = list.iter()?;
+    Ok(iterator.next().unwrap())
 }
 
 #[test]

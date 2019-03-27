@@ -137,7 +137,7 @@ impl<'a> JNIEnv<'a> {
 
     /// Define a new java class. See the JNI docs for more details - I've never
     /// had occasion to use this and haven't researched it fully.
-    pub fn define_class<S>(&self, name: S, loader: JObject, buf: &[u8]) -> Result<JClass>
+    pub fn define_class<S>(&self, name: S, loader: JObject<'a>, buf: &[u8]) -> Result<JClass<'a>>
     where
         S: Into<JNIString>,
     {
@@ -171,7 +171,7 @@ impl<'a> JNIEnv<'a> {
 
     /// Returns the superclass for a particular class OR `JObject::null()` for `java.lang.Object` or
     /// an interface. As with `find_class`, takes a descriptor.
-    pub fn get_superclass<T>(&self, class: T) -> Result<JClass>
+    pub fn get_superclass<T>(&self, class: T) -> Result<JClass<'a>>
     where
         T: Desc<'a, JClass<'a>>,
     {
@@ -260,7 +260,7 @@ impl<'a> JNIEnv<'a> {
     /// Check whether or not an exception is currently in the process of being
     /// thrown. An exception is in this state from the time it gets thrown and
     /// not caught in a java function until `exception_clear` is called.
-    pub fn exception_occurred(&self) -> Result<JThrowable> {
+    pub fn exception_occurred(&self) -> Result<JThrowable<'a>> {
         let throwable = jni_unchecked!(self.internal, ExceptionOccurred);
         Ok(JThrowable::from(throwable))
     }
@@ -300,7 +300,7 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Create a new instance of a direct java.nio.ByteBuffer.
-    pub fn new_direct_byte_buffer(&self, data: &mut [u8]) -> Result<JByteBuffer> {
+    pub fn new_direct_byte_buffer(&self, data: &mut [u8]) -> Result<JByteBuffer<'a>> {
         let obj: JObject = jni_non_null_call!(
             self.internal,
             NewDirectByteBuffer,
@@ -345,7 +345,7 @@ impl<'a> JNIEnv<'a> {
     /// Note that the object passed to this is *already* a local ref. This
     /// creates yet another reference to it, which is most likely not what you
     /// want.
-    pub fn new_local_ref<T>(&self, obj: JObject) -> Result<JObject> {
+    pub fn new_local_ref<T>(&self, obj: JObject<'a>) -> Result<JObject<'a>> {
         let local: JObject = jni_unchecked!(self.internal, NewLocalRef, obj.into_inner()).into();
         Ok(local)
     }
@@ -405,7 +405,7 @@ impl<'a> JNIEnv<'a> {
     /// on the current stack frame.
     ///
     /// Note that resulting `JObject` can be `NULL` if `result` is `NULL`.
-    pub fn pop_local_frame(&self, result: JObject) -> Result<JObject> {
+    pub fn pop_local_frame(&self, result: JObject<'a>) -> Result<JObject<'a>> {
         // This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
         Ok(jni_unchecked!(self.internal, PopLocalFrame, result.into_inner()).into())
     }
@@ -413,7 +413,7 @@ impl<'a> JNIEnv<'a> {
     /// Provides a convenient way to use `push_local_frame` by automatically
     /// calling
     /// `pop_local_frame` function.
-    pub fn with_local_frame<F>(&self, capacity: i32, f: F) -> Result<JObject>
+    pub fn with_local_frame<F>(&self, capacity: i32, f: F) -> Result<JObject<'a>>
     where
         F: FnOnce() -> Result<JObject<'a>>,
     {
@@ -430,7 +430,7 @@ impl<'a> JNIEnv<'a> {
 
     /// Allocates a new object from a class descriptor without running a
     /// constructor.
-    pub fn alloc_object<T>(&self, class: T) -> Result<JObject>
+    pub fn alloc_object<T>(&self, class: T) -> Result<JObject<'a>>
     where
         T: Desc<'a, JClass<'a>>,
     {
@@ -627,7 +627,7 @@ impl<'a> JNIEnv<'a> {
         method_id: U,
         ret: JavaType,
         args: &[JValue],
-    ) -> Result<JValue>
+    ) -> Result<JValue<'a>>
     where
         T: Desc<'a, JClass<'a>>,
         U: Desc<'a, JStaticMethodID<'a>>,
@@ -738,7 +738,7 @@ impl<'a> JNIEnv<'a> {
         method_id: T,
         ret: JavaType,
         args: &[JValue],
-    ) -> Result<JValue>
+    ) -> Result<JValue<'a>>
     where
         T: Desc<'a, JMethodID<'a>>,
     {
@@ -829,12 +829,12 @@ impl<'a> JNIEnv<'a> {
     /// Note: this may cause a java exception if the arguments are the wrong
     /// type, in addition to if the method itself throws.
     pub fn call_method<S, T>(
-        &'a self,
+        &self,
         obj: JObject,
         name: S,
         sig: T,
         args: &[JValue],
-    ) -> Result<JValue>
+    ) -> Result<JValue<'a>>
     where
         S: Into<JNIString>,
         T: Into<JNIString> + AsRef<str>,
@@ -869,7 +869,7 @@ impl<'a> JNIEnv<'a> {
         name: U,
         sig: V,
         args: &[JValue],
-    ) -> Result<JValue>
+    ) -> Result<JValue<'a>>
     where
         T: Desc<'a, JClass<'a>>,
         U: Into<JNIString>,
@@ -947,7 +947,7 @@ impl<'a> JNIEnv<'a> {
     /// Cast a JObject to a JString. This won't throw exceptions or return errors
     /// in the event that the object isn't actually a list, but the methods on
     /// the resulting map object will.
-    pub fn get_list(&self, obj: JObject<'a>) -> Result<JList> {
+    pub fn get_list(&self, obj: JObject<'a>) -> Result<JList<'a, '_>> {
         non_null!(obj, "get_list obj argument");
         JList::from_env(self, obj)
     }
@@ -955,7 +955,7 @@ impl<'a> JNIEnv<'a> {
     /// Cast a JObject to a JMap. This won't throw exceptions or return errors
     /// in the event that the object isn't actually a map, but the methods on
     /// the resulting map object will.
-    pub fn get_map(&self, obj: JObject<'a>) -> Result<JMap> {
+    pub fn get_map(&self, obj: JObject<'a>) -> Result<JMap<'a, '_>> {
         non_null!(obj, "get_map obj argument");
         JMap::from_env(self, obj)
     }
@@ -965,7 +965,7 @@ impl<'a> JNIEnv<'a> {
     ///
     /// This entails a call to `GetStringUTFChars` and only decodes java's
     /// modified UTF-8 format on conversion to a rust-compatible string.
-    pub fn get_string(&self, obj: JString<'a>) -> Result<JavaStr> {
+    pub fn get_string(&self, obj: JString<'a>) -> Result<JavaStr<'a, '_>> {
         non_null!(obj, "get_string obj argument");
         JavaStr::from_env(self, obj)
     }
@@ -1037,7 +1037,7 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Returns an element of the `jobjectArray` array.
-    pub fn get_object_array_element(&self, array: jobjectArray, index: jsize) -> Result<JObject> {
+    pub fn get_object_array_element(&self, array: jobjectArray, index: jsize) -> Result<JObject<'a>> {
         non_null!(array, "get_object_array_element array argument");
         Ok(jni_non_void_call!(
             self.internal,
@@ -1459,7 +1459,7 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Get a field without checking the provided type against the actual field.
-    pub fn get_field_unchecked<T>(&self, obj: JObject, field: T, ty: JavaType) -> Result<JValue>
+    pub fn get_field_unchecked<T>(&self, obj: JObject, field: T, ty: JavaType) -> Result<JValue<'a>>
     where
         T: Desc<'a, JFieldID<'a>>,
     {
@@ -1561,7 +1561,7 @@ impl<'a> JNIEnv<'a> {
 
     /// Get a field. Requires an object class lookup and a field id lookup
     /// internally.
-    pub fn get_field<S, T>(&self, obj: JObject, name: S, ty: T) -> Result<JValue>
+    pub fn get_field<S, T>(&self, obj: JObject, name: S, ty: T) -> Result<JValue<'a>>
     where
         S: Into<JNIString>,
         T: Into<JNIString> + AsRef<str>,
@@ -1625,7 +1625,7 @@ impl<'a> JNIEnv<'a> {
         class: T,
         field: U,
         ty: JavaType,
-    ) -> Result<JValue>
+    ) -> Result<JValue<'a>>
     where
         T: Desc<'a, JClass<'a>>,
         U: Desc<'a, JStaticFieldID<'a>>,
