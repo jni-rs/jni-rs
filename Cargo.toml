@@ -11,7 +11,7 @@ keywords = [
 license = "MIT/Apache-2.0"
 name = "jni"
 repository = "https://github.com/jni-rs/jni-rs"
-version = "0.11.0"
+version = "0.12.0"
 
 [dependencies]
 cesu8 = "1.1.0"
