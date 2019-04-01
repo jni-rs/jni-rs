@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.12.0]
+
 ### Changed
 - `JString`, `JMap` and `JavaStr` and their respective iterators now require an extra lifetime so
   that they can now work with `&'b JNIEnv<'a>`, where `'a: 'b`.
@@ -99,7 +101,8 @@ to call if there is a pending exception (#124):
 ## [0.10.1]
 - No changes has been made to the Changelog until this release.
 
-[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.11.0...HEAD
-[0.11.0]: https://github.com/jni-rs/compare/v0.10.2...v0.11.0
-[0.10.2]: https://github.com/jni-rs/compare/v0.10.1...v0.10.2
-[0.10.1]: https://github.com/jni-rs/compare/v0.1...v0.10.1
+[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/jni-rs/jni-rs/compare/v0.11.0...v0.12.0
+[0.11.0]: https://github.com/jni-rs/jni-rs/compare/v0.10.2...v0.11.0
+[0.10.2]: https://github.com/jni-rs/jni-rs/compare/v0.10.1...v0.10.2
+[0.10.1]: https://github.com/jni-rs/jni-rs/compare/v0.1...v0.10.1
