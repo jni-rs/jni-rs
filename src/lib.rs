@@ -84,7 +84,7 @@
 //! `mylib` that has everything needed to build an basic crate with `cargo`. We
 //! need to make a couple of changes to `Cargo.toml` before we do anything else.
 //!
-//! * Under `[dependencies]`, add `jni = "0.10.2"`
+//! * Under `[dependencies]`, add `jni = "0.12.0"`
 //! * Add a new `[lib]` section and under it, `crate_type = ["cdylib"]`.
 //!
 //! Now, if you run `cargo build` from inside the crate directory, you should
