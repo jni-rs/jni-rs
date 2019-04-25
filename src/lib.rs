@@ -200,18 +200,18 @@
 //!   into LLVM-bitcode)
 //!
 //! [Invocation API]: https://docs.oracle.com/en/java/javase/11/docs/specs/jni/invocation.html
-//! [jni-spec]: https://docs.oracle.com/javase/10/docs/specs/jni/index.html
+//! [jni-spec]: https://docs.oracle.com/en/java/javase/11/docs/specs/jni/index.html
 //! [jni-tips]: https://developer.android.com/training/articles/perf-jni
 //! [jni-rs-example]: https://github.com/jni-rs/jni-rs/tree/master/example
 //! [jni-rs-its]: https://github.com/jni-rs/jni-rs/tree/master/tests
 //! [jni-rs-benches]: https://github.com/jni-rs/jni-rs/tree/master/benches
 //! [users-servo]: https://github.com/servo/servo/tree/master/ports/libsimpleservo
-//! [users-ejb]: https://github.com/exonum/exonum-java-binding/tree/master/exonum-java-binding-core
+//! [users-ejb]: https://github.com/exonum/exonum-java-binding/tree/master/exonum-java-binding/core/rust
 //! [users-maidsafe]: https://github.com/maidsafe/safe_client_libs/tree/master/safe_app_jni
 //! [projects-jnr]: https://github.com/jnr/jnr-ffi/
 //! [projects-graalvm]: http://www.graalvm.org/docs/why-graal/#for-java-programs
 //! [graalvm-rust]: http://www.graalvm.org/docs/reference-manual/languages/llvm/#running-rust
-//! [projects-panama]: http://openjdk.java.net/projects/panama/
+//! [projects-panama]: https://jdk.java.net/panama/
 
 /// Bindgen-generated definitions. Mirrors `jni.h` and `jni_md.h`.
 extern crate jni_sys;
