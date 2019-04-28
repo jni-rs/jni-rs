@@ -49,6 +49,7 @@ fn main() {
             println!("cargo:rustc-link-search={}", lib_path.display());
         }
 
+        println!("cargo:rerun-if-env-changed=JAVA_HOME");
         println!("cargo:rustc-link-lib=dylib=jvm");
     }
 }
