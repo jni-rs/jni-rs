@@ -1144,7 +1144,14 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Copy elements of the java boolean array from the `start` index to the
-    /// `buf` slice.
+    /// `buf` slice. The number of copied elements is equal to the `buf` length.
+    ///
+    /// # Errors
+    /// If `start` is negative _or_ `start + buf.len()` is greater than [`array.length`]
+    /// then no elements are copied, an `ArrayIndexOutOfBoundsException` is thrown,
+    /// and `Err` is returned.
+    ///
+    /// [`array.length`]: struct.JNIEnv.html#method.get_array_length
     pub fn get_boolean_array_region(
         &self,
         array: jbooleanArray,
@@ -1164,7 +1171,14 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Copy elements of the java byte array from the `start` index to the `buf`
-    /// slice.
+    /// slice. The number of copied elements is equal to the `buf` length.
+    ///
+    /// # Errors
+    /// If `start` is negative _or_ `start + buf.len()` is greater than [`array.length`]
+    /// then no elements are copied, an `ArrayIndexOutOfBoundsException` is thrown,
+    /// and `Err` is returned.
+    ///
+    /// [`array.length`]: struct.JNIEnv.html#method.get_array_length
     pub fn get_byte_array_region(
         &self,
         array: jbyteArray,
@@ -1184,7 +1198,14 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Copy elements of the java char array from the `start` index to the
-    /// `buf` slice.
+    /// `buf` slice. The number of copied elements is equal to the `buf` length.
+    ///
+    /// # Errors
+    /// If `start` is negative _or_ `start + buf.len()` is greater than [`array.length`]
+    /// then no elements are copied, an `ArrayIndexOutOfBoundsException` is thrown,
+    /// and `Err` is returned.
+    ///
+    /// [`array.length`]: struct.JNIEnv.html#method.get_array_length
     pub fn get_char_array_region(
         &self,
         array: jcharArray,
@@ -1204,7 +1225,14 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Copy elements of the java short array from the `start` index to the
-    /// `buf` slice.
+    /// `buf` slice. The number of copied elements is equal to the `buf` length.
+    ///
+    /// # Errors
+    /// If `start` is negative _or_ `start + buf.len()` is greater than [`array.length`]
+    /// then no elements are copied, an `ArrayIndexOutOfBoundsException` is thrown,
+    /// and `Err` is returned.
+    ///
+    /// [`array.length`]: struct.JNIEnv.html#method.get_array_length
     pub fn get_short_array_region(
         &self,
         array: jshortArray,
@@ -1224,7 +1252,14 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Copy elements of the java int array from the `start` index to the
-    /// `buf` slice.
+    /// `buf` slice. The number of copied elements is equal to the `buf` length.
+    ///
+    /// # Errors
+    /// If `start` is negative _or_ `start + buf.len()` is greater than [`array.length`]
+    /// then no elements are copied, an `ArrayIndexOutOfBoundsException` is thrown,
+    /// and `Err` is returned.
+    ///
+    /// [`array.length`]: struct.JNIEnv.html#method.get_array_length
     pub fn get_int_array_region(
         &self,
         array: jintArray,
@@ -1244,7 +1279,14 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Copy elements of the java long array from the `start` index to the
-    /// `buf` slice.
+    /// `buf` slice. The number of copied elements is equal to the `buf` length.
+    ///
+    /// # Errors
+    /// If `start` is negative _or_ `start + buf.len()` is greater than [`array.length`]
+    /// then no elements are copied, an `ArrayIndexOutOfBoundsException` is thrown,
+    /// and `Err` is returned.
+    ///
+    /// [`array.length`]: struct.JNIEnv.html#method.get_array_length
     pub fn get_long_array_region(
         &self,
         array: jlongArray,
@@ -1264,7 +1306,14 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Copy elements of the java float array from the `start` index to the
-    /// `buf` slice.
+    /// `buf` slice. The number of copied elements is equal to the `buf` length.
+    ///
+    /// # Errors
+    /// If `start` is negative _or_ `start + buf.len()` is greater than [`array.length`]
+    /// then no elements are copied, an `ArrayIndexOutOfBoundsException` is thrown,
+    /// and `Err` is returned.
+    ///
+    /// [`array.length`]: struct.JNIEnv.html#method.get_array_length
     pub fn get_float_array_region(
         &self,
         array: jfloatArray,
@@ -1284,7 +1333,14 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Copy elements of the java double array from the `start` index to the
-    /// `buf` slice.
+    /// `buf` slice. The number of copied elements is equal to the `buf` length.
+    ///
+    /// # Errors
+    /// If `start` is negative _or_ `start + buf.len()` is greater than [`array.length`]
+    /// then no elements are copied, an `ArrayIndexOutOfBoundsException` is thrown,
+    /// and `Err` is returned.
+    ///
+    /// [`array.length`]: struct.JNIEnv.html#method.get_array_length
     pub fn get_double_array_region(
         &self,
         array: jdoubleArray,
