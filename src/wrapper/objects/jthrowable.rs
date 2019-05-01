@@ -7,7 +7,7 @@ use sys::{
 
 /// Lifetime'd representation of a `jthrowable`. Just a `JObject` wrapped in a
 /// new class.
-#[repr(C)]
+#[repr(transparent)]
 pub struct JThrowable<'a>(JObject<'a>);
 
 impl<'a> From<jthrowable> for JThrowable<'a> {

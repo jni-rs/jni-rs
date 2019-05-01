@@ -112,7 +112,7 @@ use JavaVM;
 /// Calling unchecked methods with invalid arguments and/or invalid class and
 /// method descriptors may lead to segmentation fault.
 #[derive(Clone)]
-#[repr(C)]
+#[repr(transparent)]
 pub struct JNIEnv<'a> {
     internal: *mut sys::JNIEnv,
     lifetime: PhantomData<&'a ()>,

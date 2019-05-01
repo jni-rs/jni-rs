@@ -10,7 +10,7 @@ use sys::jobject;
 ///
 /// Most other types in the `objects` module deref to this, as they do in the C
 /// representation.
-#[repr(C)]
+#[repr(transparent)]
 #[derive(Clone, Copy, Debug)]
 pub struct JObject<'a> {
     internal: jobject,
