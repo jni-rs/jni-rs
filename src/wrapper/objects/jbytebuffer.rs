@@ -4,7 +4,7 @@ use sys::jobject;
 
 /// Lifetime'd representation of a `jobject` that is an instance of the
 /// ByteBuffer Java class. Just a `JObject` wrapped in a new class.
-#[repr(C)]
+#[repr(transparent)]
 #[derive(Clone, Copy)]
 pub struct JByteBuffer<'a>(JObject<'a>);
 

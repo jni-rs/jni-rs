@@ -7,7 +7,7 @@ use sys::jmethodID;
 /// under us. It matches C's representation of the raw pointer, so it can be
 /// used in any of the extern function argument positions that would take a
 /// `jmethodid`.
-#[repr(C)]
+#[repr(transparent)]
 #[derive(Copy, Clone, Debug)]
 pub struct JMethodID<'a> {
     internal: jmethodID,

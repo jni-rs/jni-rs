@@ -7,7 +7,7 @@ use sys::{
 
 /// Lifetime'd representation of a `jclass`. Just a `JObject` wrapped in a new
 /// class.
-#[repr(C)]
+#[repr(transparent)]
 #[derive(Clone, Copy, Debug)]
 pub struct JClass<'a>(JObject<'a>);
 
