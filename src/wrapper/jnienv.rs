@@ -60,6 +60,8 @@ use signature::JavaType;
 use signature::Primitive;
 use signature::TypeSignature;
 
+use class_loader;
+
 use JNIVersion;
 use JavaVM;
 
@@ -78,11 +80,11 @@ use JavaVM;
 ///
 /// ## `null` Java references
 /// `null` Java references are handled by the following rules:
-///   - If a `null` Java reference is passed to a method that expects a non-`null` 
+///   - If a `null` Java reference is passed to a method that expects a non-`null`
 ///   argument, an `Err` result with the kind `NullPtr` is returned.
 ///   - If a JNI function returns `null` to indicate an error (e.g. `new_int_array`),
-///     it is converted to `Err`/`NullPtr` or, where possible, to a more applicable 
-///     error type, such as `MethodNotFound`. If the JNI function also throws 
+///     it is converted to `Err`/`NullPtr` or, where possible, to a more applicable
+///     error type, such as `MethodNotFound`. If the JNI function also throws
 ///     an exception, the `JavaException` error kind will be preferred.
 ///   - If a JNI function may return `null` Java reference as one of possible reference
 ///     values (e.g., `get_object_array_element` or `get_field_unchecked`),
@@ -165,8 +167,7 @@ impl<'a> JNIEnv<'a> {
         S: Into<JNIString>,
     {
         let name = name.into();
-        let class = jni_non_null_call!(self.internal, FindClass, name.as_ptr());
-        Ok(class)
+        class_loader::load_class(&self, name)
     }
 
     /// Returns the superclass for a particular class OR `JObject::null()` for `java.lang.Object` or

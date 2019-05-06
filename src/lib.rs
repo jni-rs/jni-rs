@@ -228,6 +228,8 @@ extern crate combine;
 
 extern crate cesu8;
 
+extern crate lazy_static;
+
 mod wrapper {
     mod version;
     pub use self::version::*;
@@ -257,6 +259,9 @@ mod wrapper {
     /// Java VM interface
     mod java_vm;
     pub use self::java_vm::*;
+
+    /// Interface for loading classes.
+    pub mod class_loader;
 }
 
 pub use wrapper::*;
