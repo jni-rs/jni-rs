@@ -1,6 +1,6 @@
-use std::os::raw::c_void;
-
 use std::ffi::CString;
+use std::fmt;
+use std::os::raw::c_void;
 
 use sys::{JavaVMInitArgs, JavaVMOption};
 
@@ -30,6 +30,17 @@ impl Default for InitArgsBuilder {
             ignore_unrecognized: false,
             version: JNIVersion::V1.into(),
         }
+    }
+}
+
+impl fmt::Display for InitArgsBuilder {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut jvm_args_line = String::new();
+        for option in self.opts.iter() {
+            jvm_args_line.push(' ');
+            jvm_args_line.push_str(option);
+        }
+        write!(f, "JVM arguments:{}", jvm_args_line)
     }
 }
 
@@ -122,5 +133,22 @@ impl Drop for InitArgs {
         for opt in self.opts.iter() {
             unsafe { CString::from_raw(opt.optionString) };
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_args_builder_to_string() {
+        let builder = InitArgsBuilder::new();
+        assert_eq!(builder.to_string(), "JVM arguments:");
+
+        let args = builder
+            .option("-Doption1")
+            .option("-Doption2")
+            .to_string();
+        assert_eq!(args, "JVM arguments: -Doption1 -Doption2");
     }
 }
