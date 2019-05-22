@@ -78,11 +78,11 @@ use JavaVM;
 ///
 /// ## `null` Java references
 /// `null` Java references are handled by the following rules:
-///   - If a `null` Java reference is passed to a method that expects a non-`null` 
+///   - If a `null` Java reference is passed to a method that expects a non-`null`
 ///   argument, an `Err` result with the kind `NullPtr` is returned.
 ///   - If a JNI function returns `null` to indicate an error (e.g. `new_int_array`),
-///     it is converted to `Err`/`NullPtr` or, where possible, to a more applicable 
-///     error type, such as `MethodNotFound`. If the JNI function also throws 
+///     it is converted to `Err`/`NullPtr` or, where possible, to a more applicable
+///     error type, such as `MethodNotFound`. If the JNI function also throws
 ///     an exception, the `JavaException` error kind will be preferred.
 ///   - If a JNI function may return `null` Java reference as one of possible reference
 ///     values (e.g., `get_object_array_element` or `get_field_unchecked`),
@@ -656,14 +656,13 @@ impl<'a> JNIEnv<'a> {
             JavaType::Method(_) => unimplemented!(),
             JavaType::Primitive(p) => {
                 let v: JValue = match p {
-                    Primitive::Boolean => (jni_non_void_call!(
+                    Primitive::Boolean => jni_non_void_call!(
                         self.internal,
                         CallStaticBooleanMethodA,
                         class,
                         method_id,
                         jni_args
-                    ) == sys::JNI_TRUE)
-                        .into(),
+                    ).into(),
                     Primitive::Char => jni_non_void_call!(
                         self.internal,
                         CallStaticCharMethodA,
@@ -761,14 +760,13 @@ impl<'a> JNIEnv<'a> {
             JavaType::Method(_) => unimplemented!(),
             JavaType::Primitive(p) => {
                 let v: JValue = match p {
-                    Primitive::Boolean => (jni_non_void_call!(
+                    Primitive::Boolean => jni_non_void_call!(
                         self.internal,
                         CallBooleanMethodA,
                         obj,
                         method_id,
                         jni_args
-                    ) == sys::JNI_TRUE)
-                        .into(),
+                    ).into(),
                     Primitive::Char => {
                         jni_non_void_call!(self.internal, CallCharMethodA, obj, method_id, jni_args)
                             .into()
@@ -1535,9 +1533,7 @@ impl<'a> JNIEnv<'a> {
             JavaType::Primitive(p) => {
                 let v: JValue = match p {
                     Primitive::Boolean => {
-                        (jni_unchecked!(self.internal, GetBooleanField, obj, field)
-                            == sys::JNI_TRUE)
-                            .into()
+                        jni_unchecked!(self.internal, GetBooleanField, obj, field).into()
                     }
                     Primitive::Char => {
                         jni_unchecked!(self.internal, GetCharField, obj, field).into()
@@ -1704,9 +1700,7 @@ impl<'a> JNIEnv<'a> {
             JavaType::Primitive(p) => {
                 let v: JValue = match p {
                     Primitive::Boolean => {
-                        (jni_unchecked!(self.internal, GetStaticBooleanField, class, field_id)
-                            == sys::JNI_TRUE)
-                            .into()
+                        jni_unchecked!(self.internal, GetStaticBooleanField, class, field_id).into()
                     }
                     Primitive::Char => {
                         jni_unchecked!(self.internal, GetStaticCharField, class, field_id).into()

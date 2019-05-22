@@ -99,7 +99,7 @@ impl<'a> JValue<'a> {
     /// Try to unwrap to a boolean.
     pub fn z(self) -> Result<bool> {
         match self {
-            JValue::Bool(b) => Ok(b != 0),
+            JValue::Bool(b) => Ok(b == JNI_TRUE),
             _ => Err(ErrorKind::WrongJValueType("bool", self.type_name()).into()),
         }
     }
@@ -175,10 +175,16 @@ impl<'a> From<JObject<'a>> for JValue<'a> {
     }
 }
 
-// jbool
 impl<'a> From<bool> for JValue<'a> {
     fn from(other: bool) -> Self {
-        JValue::Bool(other as jboolean)
+        JValue::Bool(if other { JNI_TRUE } else { JNI_FALSE })
+    }
+}
+
+// jbool
+impl<'a> From<jboolean> for JValue<'a> {
+    fn from(other: jboolean) -> Self {
+        JValue::Bool(other)
     }
 }
 

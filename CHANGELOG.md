@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+- `From<jboolean>` implementation for `JValue` (#173)
+
 ## [0.12.2]
 
 ### Changed
