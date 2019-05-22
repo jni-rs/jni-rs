@@ -19,7 +19,8 @@ pub fn jmap_push_and_iterate() {
     let env = attach_current_thread();
     let data = &["hello", "world", "from", "test"];
 
-    let map_object = unwrap(&env, env.new_object("java/util/HashMap", "()V", &[]));
+    // Create a new map. Use LinkedHashMap to have predictable iteration order
+    let map_object = unwrap(&env, env.new_object("java/util/LinkedHashMap", "()V", &[]));
     let map = unwrap(&env, JMap::from_env(&env, map_object));
 
     // Push all strings
@@ -32,6 +33,7 @@ pub fn jmap_push_and_iterate() {
         }),
     );
 
+    // Collect the keys using the JMap iterator
     let mut collected = Vec::new();
     unwrap(
         &env,
@@ -42,9 +44,7 @@ pub fn jmap_push_and_iterate() {
             })
         }),
     );
-    collected.sort();
 
-    let mut orig = data.to_vec();
-    orig.sort();
+    let orig = data.to_vec();
     assert_eq!(orig, collected);
 }
