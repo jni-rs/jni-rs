@@ -20,7 +20,7 @@ error_chain! {
 pub struct InitArgsBuilder {
     opts: Vec<String>,
     ignore_unrecognized: bool,
-    version: i32,
+    version: JNIVersion,
 }
 
 impl Default for InitArgsBuilder {
@@ -28,7 +28,7 @@ impl Default for InitArgsBuilder {
         InitArgsBuilder {
             opts: vec![],
             ignore_unrecognized: false,
-            version: JNIVersion::V1.into(),
+            version: JNIVersion::V8,
         }
     }
 }
@@ -57,10 +57,10 @@ impl InitArgsBuilder {
 
     /// Set JNI version for the init args
     ///
-    /// Default: V1
+    /// Default: V8
     pub fn version(self, version: JNIVersion) -> Self {
         let mut s = self;
-        s.version = version.into();
+        s.version = version;
         s
     }
 
@@ -95,7 +95,7 @@ impl InitArgsBuilder {
 
         Ok(InitArgs {
             inner: JavaVMInitArgs {
-                version: self.version,
+                version: self.version.into(),
                 ignoreUnrecognized: self.ignore_unrecognized as _,
                 options: opts.as_ptr() as _,
                 nOptions: opts.len() as _,
