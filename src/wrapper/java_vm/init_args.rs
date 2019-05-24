@@ -103,6 +103,11 @@ impl InitArgsBuilder {
             opts,
         })
     }
+
+    /// Returns collected options
+    pub fn get_options(&self) -> Vec<String> {
+        self.opts.clone()
+    }
 }
 
 /// JavaVM InitArgs
