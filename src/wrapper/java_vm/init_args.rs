@@ -17,6 +17,7 @@ error_chain! {
 }
 
 /// Builder for JavaVM InitArgs
+#[derive(Debug)]
 pub struct InitArgsBuilder {
     opts: Vec<String>,
     ignore_unrecognized: bool,
@@ -102,6 +103,11 @@ impl InitArgsBuilder {
             },
             opts,
         })
+    }
+
+    /// Returns collected options
+    pub fn options(&self) -> Vec<String> {
+        self.opts.clone()
     }
 }
 
