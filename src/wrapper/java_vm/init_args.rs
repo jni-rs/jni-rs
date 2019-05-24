@@ -17,6 +17,7 @@ error_chain! {
 }
 
 /// Builder for JavaVM InitArgs
+#[derive(Debug)]
 pub struct InitArgsBuilder {
     opts: Vec<String>,
     ignore_unrecognized: bool,
