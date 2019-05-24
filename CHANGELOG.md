@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 - `From<jboolean>` implementation for `JValue` (#173)
+- `Debug` trait for InitArgsBuilder. (#175)
+- `InitArgsBuilder#options` returning the collected JVM options. (#177)
 
 ## [0.12.2]
 
