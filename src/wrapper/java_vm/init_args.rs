@@ -105,7 +105,7 @@ impl InitArgsBuilder {
     }
 
     /// Returns collected options
-    pub fn get_options(&self) -> Vec<String> {
+    pub fn options(&self) -> Vec<String> {
         self.opts.clone()
     }
 }
