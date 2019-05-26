@@ -14,7 +14,7 @@ license = "MIT/Apache-2.0"
 name = "jni"
 repository = "https://github.com/jni-rs/jni-rs"
 # ¡When bumping version please also update it in examples and documentation!
-version = "0.12.2"
+version = "0.12.3"
 
 [dependencies]
 cesu8 = "1.1.0"
