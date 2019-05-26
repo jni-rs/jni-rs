@@ -15,15 +15,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+- The default JNI API version in `InitArgsBuilder` from V1 to V8. (#178)
+
 ## [0.12.3]
 
 ### Added
 - `From<jboolean>` implementation for `JValue` (#173)
 - `Debug` trait for InitArgsBuilder. (#175)
 - `InitArgsBuilder#options` returning the collected JVM options. (#177)
-
-### Changed
-- The default JNI API version in `InitArgsBuilder` from V1 to V8.
 
 ## [0.12.2]
 
