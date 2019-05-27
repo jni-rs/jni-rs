@@ -26,7 +26,7 @@ pub fn nested_attach_guard_should_not_detach_thread() {
         assert_eq!(val, 2);
     }
 
-    // Call a Java method after nested guard has been dropped to check that 
+    // Call a Java method after nested guard has been dropped to check that
     // this thread has not been detached.
     let val = env.call_static_method("java/lang/Math", "abs", "(I)I", &[JValue::from(-3 as jint)])
         .unwrap().i().unwrap();

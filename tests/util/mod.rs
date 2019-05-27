@@ -6,13 +6,7 @@ use std::sync::{
 
 use error_chain::ChainedError;
 use jni::errors::Result;
-use jni::{
-    AttachGuard,
-    InitArgsBuilder,
-    JNIEnv,
-    JNIVersion,
-    JavaVM,
-};
+use jni::{InitArgsBuilder, JNIEnv, JNIVersion, JavaVM, AttachGuard};
 
 pub fn jvm() -> &'static Arc<JavaVM> {
     static mut JVM: Option<Arc<JavaVM>> = None;
