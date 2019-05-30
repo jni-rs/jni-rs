@@ -2,7 +2,7 @@
 extern crate jni;
 extern crate error_chain;
 
-use std::thread::{spawn, sleep};
+use std::thread::spawn;
 
 use jni::{
     objects::JValue,
@@ -11,7 +11,6 @@ use jni::{
 
 mod util;
 use util::jvm;
-use std::time::Duration;
 
 // We forced to combine several tests in one function, because every test function is running in
 // a separate thread and interferes the results of others.

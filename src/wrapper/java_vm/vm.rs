@@ -88,15 +88,17 @@ impl JavaVM {
     /// [block]: https://docs.oracle.com/en/java/javase/12/docs/specs/jni/invocation.html#unloading-the-vm
     pub fn attach_current_thread(&self) -> Result<AttachGuard> {
         match self.get_env() {
-            Ok(env) => AttachGuard::new(self, env, false),
+            Ok(env) => {
+                let internal = InternalAttachGuard::new(self.get_java_vm_pointer(), false);
+                AttachGuard::new(internal, env)
+            },
             Err(_) => {
+                let internal = InternalAttachGuard::new(self.get_java_vm_pointer(), true);
                 let env = unsafe {
-                    let env_ptr = InternalAttachGuard::attach_current_thread(
-                        self.get_java_vm_pointer()
-                    )?;
+                    let env_ptr = internal.attach_current_thread()?;
                     JNIEnv::from_raw(env_ptr)?
                 };
-                AttachGuard::new(self, env, true)
+                AttachGuard::new(internal, env)
             },
         }
     }
@@ -160,9 +162,9 @@ pub struct AttachGuard<'a> {
 }
 
 impl<'a> AttachGuard<'a> {
-    fn new(java_vm: &'a JavaVM, env: JNIEnv<'a>, should_detach: bool) -> Result<Self> {
+    fn new(internal: InternalAttachGuard, env: JNIEnv<'a>) -> Result<Self> {
         Ok(Self {
-            _internal: InternalAttachGuard::new(java_vm.get_java_vm_pointer(), should_detach),
+            _internal: internal,
             env,
         })
     }
@@ -190,9 +192,9 @@ impl InternalAttachGuard {
         let guard = InternalAttachGuard::new(java_vm, true);
         let env_ptr = unsafe {
             if as_daemon {
-                Self::attach_current_thread_as_daemon(java_vm)?
+                guard.attach_current_thread_as_daemon()?
             } else {
-                Self::attach_current_thread(java_vm)?
+                guard.attach_current_thread()?
             }
         };
 
@@ -215,10 +217,10 @@ impl InternalAttachGuard {
         });
     }
 
-    unsafe fn attach_current_thread(java_vm: *mut sys::JavaVM) -> Result<*mut sys::JNIEnv> {
+    unsafe fn attach_current_thread(&self) -> Result<*mut sys::JNIEnv> {
         let mut env_ptr = ptr::null_mut();
         let res = java_vm_unchecked!(
-            java_vm,
+            self.java_vm,
             AttachCurrentThread,
             &mut env_ptr,
             ptr::null_mut()
@@ -235,12 +237,10 @@ impl InternalAttachGuard {
         Ok(env_ptr as *mut sys::JNIEnv)
     }
 
-    unsafe fn attach_current_thread_as_daemon(
-        java_vm: *mut sys::JavaVM
-    ) -> Result<*mut sys::JNIEnv> {
+    unsafe fn attach_current_thread_as_daemon(&self) -> Result<*mut sys::JNIEnv> {
         let mut env_ptr = ptr::null_mut();
         let res = java_vm_unchecked!(
-            java_vm,
+            self.java_vm,
             AttachCurrentThreadAsDaemon,
             &mut env_ptr,
             ptr::null_mut()
