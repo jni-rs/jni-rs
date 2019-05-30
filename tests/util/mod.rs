@@ -16,7 +16,6 @@ pub fn jvm() -> &'static Arc<JavaVM> {
         let jvm_args = InitArgsBuilder::new()
             .version(JNIVersion::V8)
             .option("-Xcheck:jni")
-            .option("-Xdebug")
             .build()
             .unwrap_or_else(|e| panic!("{}", e.display_chain().to_string()));
 
