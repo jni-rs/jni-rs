@@ -216,7 +216,6 @@ impl InternalAttachGuard {
     }
 
     unsafe fn attach_current_thread(java_vm: *mut sys::JavaVM) -> Result<*mut sys::JNIEnv> {
-        debug!("Attaching thread {:?}", current().id());
         let mut env_ptr = ptr::null_mut();
         let res = java_vm_unchecked!(
             java_vm,
@@ -226,7 +225,12 @@ impl InternalAttachGuard {
         );
         jni_error_code_to_result(res)?;
 
-        ATTACHED_THREADS.fetch_add(1, Ordering::Relaxed);
+        ATTACHED_THREADS.fetch_add(1, Ordering::SeqCst);
+
+        debug!("Attached thread {:?}. {} threads attached",
+               current().id(),
+               ATTACHED_THREADS.load(Ordering::SeqCst)
+        );
 
         Ok(env_ptr as *mut sys::JNIEnv)
     }
@@ -234,7 +238,6 @@ impl InternalAttachGuard {
     unsafe fn attach_current_thread_as_daemon(
         java_vm: *mut sys::JavaVM
     ) -> Result<*mut sys::JNIEnv> {
-        debug!("Attaching daemon thread {:?}", current().id());
         let mut env_ptr = ptr::null_mut();
         let res = java_vm_unchecked!(
             java_vm,
@@ -244,18 +247,26 @@ impl InternalAttachGuard {
         );
         jni_error_code_to_result(res)?;
 
-        ATTACHED_THREADS.fetch_add(1, Ordering::Relaxed);
+        ATTACHED_THREADS.fetch_add(1, Ordering::SeqCst);
+
+        debug!("Attached daemon thread {:?}. {} threads attached",
+               current().id(),
+               ATTACHED_THREADS.load(Ordering::SeqCst)
+        );
 
         Ok(env_ptr as *mut sys::JNIEnv)
     }
 
     fn detach(&mut self) -> Result<()> {
         if self.should_detach {
-            debug!("Detaching thread {:?}", current().id());
             unsafe {
                 java_vm_unchecked!(self.java_vm, DetachCurrentThread);
             }
             ATTACHED_THREADS.fetch_sub(1, Ordering::SeqCst);
+            debug!("Detached thread {:?}. {} threads attached",
+                   current().id(),
+                   ATTACHED_THREADS.load(Ordering::SeqCst)
+            );
         }
 
         Ok(())
