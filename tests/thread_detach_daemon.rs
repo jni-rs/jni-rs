@@ -14,13 +14,13 @@ use util::jvm;
 
 #[test]
 fn thread_detach() {
-    // Thread detaches when finished.
+    // Daemon threads detach when finished
     let thread = spawn(|| {
-        let env = jvm().attach_current_thread_permanently().unwrap();
+        let env = jvm().attach_current_thread_as_daemon().unwrap();
         let val = env
-            .call_static_method("java/lang/Math", "abs", "(I)I", &[JValue::from(-2 as jint)])
+            .call_static_method("java/lang/Math", "abs", "(I)I", &[JValue::from(-3 as jint)])
             .unwrap().i().unwrap();
-        assert_eq!(val, 2);
+        assert_eq!(val, 3);
         assert_eq!(jvm().threads_attached(), 1);
     });
 

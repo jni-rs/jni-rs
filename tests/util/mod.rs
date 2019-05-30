@@ -30,6 +30,7 @@ pub fn jvm() -> &'static Arc<JavaVM> {
     unsafe { JVM.as_ref().unwrap() }
 }
 
+#[allow(dead_code)]
 pub fn attach_current_thread() -> AttachGuard<'static> {
     jvm()
         .attach_current_thread()
