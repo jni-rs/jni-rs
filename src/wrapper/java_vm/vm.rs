@@ -67,7 +67,6 @@ impl JavaVM {
                 unsafe {
                     let env_ptr = InternalAttachGuard::create_and_attach(
                         self.get_java_vm_pointer(),
-                        true,
                         false
                     )?;
                     JNIEnv::from_raw(env_ptr)
@@ -120,7 +119,6 @@ impl JavaVM {
             Err(_) => {
                 let env_ptr = InternalAttachGuard::create_and_attach(
                     self.get_java_vm_pointer(),
-                    true,
                     true
                 )?;
                 unsafe { JNIEnv::from_raw(env_ptr) }
@@ -187,10 +185,9 @@ struct InternalAttachGuard {
 impl InternalAttachGuard {
     fn create_and_attach(
         java_vm: *mut sys::JavaVM,
-        should_detach: bool,
         as_daemon: bool
     ) -> Result<*mut sys::JNIEnv> {
-        let guard = InternalAttachGuard::new(java_vm, should_detach);
+        let guard = InternalAttachGuard::new(java_vm, true);
         let env_ptr = unsafe {
             if as_daemon {
                 Self::attach_current_thread_as_daemon(java_vm)?
