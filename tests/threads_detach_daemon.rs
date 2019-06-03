@@ -5,14 +5,14 @@ extern crate error_chain;
 use std::thread::spawn;
 
 mod util;
-use util::{attach_current_thread_permanently, jvm, call_java_abs};
+use util::{attach_current_thread_as_daemon, jvm, call_java_abs};
 
 #[test]
-fn thread_detaches_when_finished() {
+fn daemon_thread_detaches_when_finished() {
     let thread = spawn(|| {
-        let env = attach_current_thread_permanently();
-        let val = call_java_abs(&env, -2);
-        assert_eq!(val, 2);
+        let env = attach_current_thread_as_daemon();
+        let val = call_java_abs(&env, -3);
+        assert_eq!(val, 3);
         assert_eq!(jvm().threads_attached(), 1);
     });
 

@@ -2,24 +2,16 @@
 extern crate jni;
 extern crate error_chain;
 
-use jni::{
-    objects::JValue,
-    sys::jint,
-};
-
 mod util;
-use util::jvm;
+use util::{attach_current_thread, jvm, call_java_abs};
 
 #[test]
-fn attach_guard() {
-    // `AttachGuard` detaches thread on drop.
+fn thread_attach_guard_detaches_on_drop() {
     assert_eq!(jvm().threads_attached(), 0);
     {
-        let guard = jvm().attach_current_thread().unwrap();
+        let guard = attach_current_thread();
         assert_eq!(jvm().threads_attached(), 1);
-        let val = guard
-            .call_static_method("java/lang/Math", "abs", "(I)I", &[JValue::from(-1 as jint)])
-            .unwrap().i().unwrap();
+        let val = call_java_abs(&guard, -1);
         assert_eq!(val, 1);
     }
     assert_eq!(jvm().threads_attached(), 0);
