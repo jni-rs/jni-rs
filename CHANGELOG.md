@@ -15,6 +15,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+- The default JNI API version in `InitArgsBuilder` from V1 to V8. (#178)
+
+## [0.12.3]
+
+### Added
+- `From<jboolean>` implementation for `JValue` (#173)
+- `Debug` trait for InitArgsBuilder. (#175)
+- `InitArgsBuilder#options` returning the collected JVM options. (#177)
+
 ## [0.12.2]
 
 ### Changed
@@ -114,7 +124,8 @@ to call if there is a pending exception (#124):
 ## [0.10.1]
 - No changes has been made to the Changelog until this release.
 
-[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.12.2...HEAD
+[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.12.3...HEAD
+[0.12.3]: https://github.com/jni-rs/jni-rs/compare/v0.12.2...v0.12.3
 [0.12.2]: https://github.com/jni-rs/jni-rs/compare/v0.12.1...v0.12.2
 [0.12.1]: https://github.com/jni-rs/jni-rs/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/jni-rs/jni-rs/compare/v0.11.0...v0.12.0

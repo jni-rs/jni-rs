@@ -657,14 +657,13 @@ impl<'a> JNIEnv<'a> {
             JavaType::Method(_) => unimplemented!(),
             JavaType::Primitive(p) => {
                 let v: JValue = match p {
-                    Primitive::Boolean => (jni_non_void_call!(
+                    Primitive::Boolean => jni_non_void_call!(
                         self.internal,
                         CallStaticBooleanMethodA,
                         class,
                         method_id,
                         jni_args
-                    ) == sys::JNI_TRUE)
-                        .into(),
+                    ).into(),
                     Primitive::Char => jni_non_void_call!(
                         self.internal,
                         CallStaticCharMethodA,
@@ -762,14 +761,13 @@ impl<'a> JNIEnv<'a> {
             JavaType::Method(_) => unimplemented!(),
             JavaType::Primitive(p) => {
                 let v: JValue = match p {
-                    Primitive::Boolean => (jni_non_void_call!(
+                    Primitive::Boolean => jni_non_void_call!(
                         self.internal,
                         CallBooleanMethodA,
                         obj,
                         method_id,
                         jni_args
-                    ) == sys::JNI_TRUE)
-                        .into(),
+                    ).into(),
                     Primitive::Char => {
                         jni_non_void_call!(self.internal, CallCharMethodA, obj, method_id, jni_args)
                             .into()
@@ -1536,9 +1534,7 @@ impl<'a> JNIEnv<'a> {
             JavaType::Primitive(p) => {
                 let v: JValue = match p {
                     Primitive::Boolean => {
-                        (jni_unchecked!(self.internal, GetBooleanField, obj, field)
-                            == sys::JNI_TRUE)
-                            .into()
+                        jni_unchecked!(self.internal, GetBooleanField, obj, field).into()
                     }
                     Primitive::Char => {
                         jni_unchecked!(self.internal, GetCharField, obj, field).into()
@@ -1705,9 +1701,7 @@ impl<'a> JNIEnv<'a> {
             JavaType::Primitive(p) => {
                 let v: JValue = match p {
                     Primitive::Boolean => {
-                        (jni_unchecked!(self.internal, GetStaticBooleanField, class, field_id)
-                            == sys::JNI_TRUE)
-                            .into()
+                        jni_unchecked!(self.internal, GetStaticBooleanField, class, field_id).into()
                     }
                     Primitive::Char => {
                         jni_unchecked!(self.internal, GetStaticCharField, class, field_id).into()
