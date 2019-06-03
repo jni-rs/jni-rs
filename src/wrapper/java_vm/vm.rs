@@ -110,9 +110,7 @@ impl JavaVM {
     ///
     /// Calling this method is an equivalent for calling `drop()` for `AttachGuard`.
     pub fn detach_current_thread(&self) {
-        THREAD_ATTACH_GUARD.with(|guard| {
-            *guard.borrow_mut() = None;
-        })
+        InternalAttachGuard::clear_tls();
     }
 
     /// Attaches the current thread to a Java VM as a daemon.
