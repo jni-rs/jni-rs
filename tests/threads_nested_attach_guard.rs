@@ -46,6 +46,8 @@ pub fn nested_attaches_should_not_detach_guarded_thread() {
     }
     assert_eq!(jvm().threads_attached(), 1);
 
+    // Check that after guard is dropped the thread is properly detached
+    // despite nested "permanent" attaches.
     drop(env);
     assert_eq!(jvm().threads_attached(), 0);
     assert!(jvm().get_env().is_err());

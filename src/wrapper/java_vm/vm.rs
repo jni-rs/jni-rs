@@ -240,7 +240,8 @@ impl InternalAttachGuard {
         });
     }
 
-    /// Clears thread local storage, drops InternalAttachGuard and causes detach.
+    /// Clears thread local storage, dropping the InternalAttachGuard and causing detach of
+    /// the current thread.
     fn clear_tls() {
         THREAD_ATTACH_GUARD.with(move |f| {
             *f.borrow_mut() = None;
@@ -259,9 +260,9 @@ impl InternalAttachGuard {
 
         ATTACHED_THREADS.fetch_add(1, Ordering::SeqCst);
 
-        debug!("Attached thread {:?}. Name: {:?}. {} threads attached",
+        debug!("Attached thread {} ({:?}). {} threads attached",
+               current().name().unwrap_or_default(),
                current().id(),
-               current().name(),
                ATTACHED_THREADS.load(Ordering::SeqCst)
         );
 
@@ -280,9 +281,9 @@ impl InternalAttachGuard {
 
         ATTACHED_THREADS.fetch_add(1, Ordering::SeqCst);
 
-        debug!("Attached daemon thread {:?}. Name: {:?}. {} threads attached",
+        debug!("Attached daemon thread {} ({:?}). {} threads attached",
+               current().name().unwrap_or_default(),
                current().id(),
-               current().name(),
                ATTACHED_THREADS.load(Ordering::SeqCst)
         );
 
@@ -294,9 +295,9 @@ impl InternalAttachGuard {
             java_vm_unchecked!(self.java_vm, DetachCurrentThread);
         }
         ATTACHED_THREADS.fetch_sub(1, Ordering::SeqCst);
-        debug!("Detached thread {:?}. Name: {:?}. {} threads attached",
+        debug!("Detached thread {} ({:?}). {} threads remain attached",
+               current().name().unwrap_or_default(),
                current().id(),
-               current().name(),
                ATTACHED_THREADS.load(Ordering::SeqCst)
         );
 
@@ -307,10 +308,10 @@ impl InternalAttachGuard {
 impl Drop for InternalAttachGuard {
     fn drop(&mut self) {
         if let Err(e) = self.detach() {
-            error!("Error detaching current thread: {:#?}\nThread: {:?}, name: {:?}",
+            error!("Error detaching current thread: {:#?}\nThread {} id={:?}",
                    e,
+                   current().name().unwrap_or_default(),
                    current().id(),
-                   current().name()
             );
         }
     }
