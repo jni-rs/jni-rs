@@ -3,12 +3,10 @@ extern crate error_chain;
 extern crate jni;
 
 use error_chain::ChainedError;
-use jni::objects::JObject;
-use jni::objects::JValue;
+use jni::{objects::JObject, objects::JValue};
 
 mod util;
 use util::{attach_current_thread, print_exception};
-
 
 #[test]
 fn test_java_integers() {
@@ -30,18 +28,20 @@ fn test_java_integers() {
                 integer_value,
             )?);
 
-            let result = env.call_static_method(
-                "java/util/Arrays",
-                "binarySearch",
-                "([Ljava/lang/Object;Ljava/lang/Object;)I",
-                &[JValue::Object(values_array), JValue::Object(integer_value)],
-            )?
+            let result = env
+                .call_static_method(
+                    "java/util/Arrays",
+                    "binarySearch",
+                    "([Ljava/lang/Object;Ljava/lang/Object;)I",
+                    &[JValue::Object(values_array), JValue::Object(integer_value)],
+                )?
                 .i()?;
 
             assert!(0 <= result && result < array_length);
 
             Ok(JObject::null())
-        }).unwrap_or_else(|e| {
+        })
+        .unwrap_or_else(|e| {
             print_exception(&env);
             panic!(format!("{}", e.display_chain().to_string()));
         });

@@ -2,7 +2,7 @@
 
 use sys;
 
-error_chain!{
+error_chain! {
     foreign_links {
     }
 

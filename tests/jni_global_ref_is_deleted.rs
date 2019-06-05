@@ -2,14 +2,10 @@
 extern crate error_chain;
 extern crate jni;
 
-use jni::objects::AutoLocal;
-use jni::objects::GlobalRef;
-use jni::objects::JValue;
-use jni::sys::jint;
+use jni::{objects::AutoLocal, objects::GlobalRef, objects::JValue, sys::jint};
 
 mod util;
 use util::{attach_current_thread, unwrap};
-
 
 /// The specification does not provide what should happen when a deleted reference is accessed.
 /// [https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#Call_type_Method_routines]
@@ -26,18 +22,24 @@ use util::{attach_current_thread, unwrap};
 /// *To avoid race condition this test routine should remain in a separate binary file.*
 
 #[test]
-#[ignore]  // JVM 10+ just aborts the process.
+#[ignore] // JVM 10+ just aborts the process.
 pub fn global_ref_is_dropped() {
     const VALUE: jint = 42;
 
     let env = attach_current_thread();
 
     let global_obj = {
-        let local_ref = AutoLocal::new(&env, unwrap(&env, env.new_object(
-            "java/util/concurrent/atomic/AtomicInteger",
-            "(I)V",
-            &[JValue::from(VALUE)]
-        )));
+        let local_ref = AutoLocal::new(
+            &env,
+            unwrap(
+                &env,
+                env.new_object(
+                    "java/util/concurrent/atomic/AtomicInteger",
+                    "(I)V",
+                    &[JValue::from(VALUE)],
+                ),
+            ),
+        );
         let global_ref = unwrap(&env, env.new_global_ref(local_ref.as_obj()));
 
         let res = env.call_method(global_ref.as_obj(), "get", "()I", &[]);

@@ -3,16 +3,10 @@
 extern crate error_chain;
 extern crate jni;
 
-use jni::objects::{
-    JMap,
-    JObject,
-};
+use jni::objects::{JMap, JObject};
 
 mod util;
-use util::{
-    attach_current_thread,
-    unwrap,
-};
+use util::{attach_current_thread, unwrap};
 
 #[test]
 pub fn jmap_push_and_iterate() {

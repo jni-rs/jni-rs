@@ -1,9 +1,6 @@
 use objects::JObject;
 
-use sys::{
-    jobject,
-    jstring,
-};
+use sys::{jobject, jstring};
 
 /// Lifetime'd representation of a `jstring`. Just a `JObject` wrapped in a new
 /// class.
