@@ -64,13 +64,7 @@ impl JavaVM {
         match self.get_env() {
             Ok(env) => Ok(env),
             Err(_) => {
-                unsafe {
-                    let env_ptr = InternalAttachGuard::create_and_attach(
-                        self.get_java_vm_pointer(),
-                        ThreadType::Normal
-                    )?;
-                    JNIEnv::from_raw(env_ptr)
-                }
+                self.attach_current_thread_impl(ThreadType::Normal)
             }
         }
     }
@@ -92,13 +86,7 @@ impl JavaVM {
                 Ok(AttachGuard::new_nested(env))
             },
             Err(_) => {
-                let env_ptr = InternalAttachGuard::create_and_attach(
-                    self.get_java_vm_pointer(),
-                    ThreadType::Normal
-                )?;
-                let env = unsafe {
-                    JNIEnv::from_raw(env_ptr)?
-                };
+                let env = self.attach_current_thread_impl(ThreadType::Normal)?;
                 Ok(AttachGuard::new(env))
             },
         }
@@ -120,11 +108,7 @@ impl JavaVM {
         match self.get_env() {
             Ok(env) => Ok(env),
             Err(_) => {
-                let env_ptr = InternalAttachGuard::create_and_attach(
-                    self.get_java_vm_pointer(),
-                    ThreadType::Daemon
-                )?;
-                unsafe { JNIEnv::from_raw(env_ptr) }
+                self.attach_current_thread_impl(ThreadType::Daemon)
             }
         }
     }
@@ -145,6 +129,22 @@ impl JavaVM {
 
             JNIEnv::from_raw(ptr as *mut sys::JNIEnv)
         }
+    }
+
+    /// Creates `InternalAttachGuard` and attaches current thread.
+    fn attach_current_thread_impl(&self, thread_type: ThreadType) -> Result<JNIEnv> {
+        let guard = InternalAttachGuard::new(self.get_java_vm_pointer());
+        let env_ptr = unsafe {
+            if thread_type == ThreadType::Daemon {
+                guard.attach_current_thread_as_daemon()?
+            } else {
+                guard.attach_current_thread()?
+            }
+        };
+
+        InternalAttachGuard::fill_tls(guard);
+
+        unsafe { JNIEnv::from_raw(env_ptr as *mut sys::JNIEnv) }
     }
 }
 
@@ -209,24 +209,6 @@ struct InternalAttachGuard {
 }
 
 impl InternalAttachGuard {
-    fn create_and_attach(
-        java_vm: *mut sys::JavaVM,
-        ty: ThreadType,
-    ) -> Result<*mut sys::JNIEnv> {
-        let guard = InternalAttachGuard::new(java_vm);
-        let env_ptr = unsafe {
-            if ty == ThreadType::Daemon {
-                guard.attach_current_thread_as_daemon()?
-            } else {
-                guard.attach_current_thread()?
-            }
-        };
-
-        Self::fill_tls(guard);
-
-        Ok(env_ptr)
-    }
-
     fn new(java_vm: *mut sys::JavaVM) -> Self {
         Self {
             java_vm,
