@@ -727,7 +727,7 @@ impl<'a> JNIEnv<'a> {
 
         let obj = obj.into_inner();
 
-        let args: Vec<jvalue> = args.into_iter().map(|v| v.to_jni()).collect();
+        let args: Vec<jvalue> = args.iter().map(|v| v.to_jni()).collect();
         let jni_args = args.as_ptr();
 
         // TODO clean this up
@@ -740,63 +740,44 @@ impl<'a> JNIEnv<'a> {
             }
             // JavaType::Object
             JavaType::Method(_) => unimplemented!(),
-            JavaType::Primitive(p) => {
-                let v: JValue = match p {
-                    Primitive::Boolean => jni_non_void_call!(
-                        self.internal,
-                        CallBooleanMethodA,
-                        obj,
-                        method_id,
-                        jni_args
-                    )
-                    .into(),
-                    Primitive::Char => {
-                        jni_non_void_call!(self.internal, CallCharMethodA, obj, method_id, jni_args)
-                            .into()
-                    }
-                    Primitive::Short => jni_non_void_call!(
-                        self.internal,
-                        CallShortMethodA,
-                        obj,
-                        method_id,
-                        jni_args
-                    )
-                    .into(),
-                    Primitive::Int => {
-                        jni_non_void_call!(self.internal, CallIntMethodA, obj, method_id, jni_args)
-                            .into()
-                    }
-                    Primitive::Long => {
-                        jni_non_void_call!(self.internal, CallLongMethodA, obj, method_id, jni_args)
-                            .into()
-                    }
-                    Primitive::Float => jni_non_void_call!(
-                        self.internal,
-                        CallFloatMethodA,
-                        obj,
-                        method_id,
-                        jni_args
-                    )
-                    .into(),
-                    Primitive::Double => jni_non_void_call!(
-                        self.internal,
-                        CallDoubleMethodA,
-                        obj,
-                        method_id,
-                        jni_args
-                    )
-                    .into(),
-                    Primitive::Byte => {
-                        jni_non_void_call!(self.internal, CallByteMethodA, obj, method_id, jni_args)
-                            .into()
-                    }
-                    Primitive::Void => {
-                        jni_void_call!(self.internal, CallVoidMethodA, obj, method_id, jni_args);
-                        return Ok(JValue::Void);
-                    }
-                };
-                v.into()
-            } // JavaType::Primitive
+            JavaType::Primitive(p) => match p {
+                Primitive::Boolean => {
+                    jni_non_void_call!(self.internal, CallBooleanMethodA, obj, method_id, jni_args)
+                        .into()
+                }
+                Primitive::Char => {
+                    jni_non_void_call!(self.internal, CallCharMethodA, obj, method_id, jni_args)
+                        .into()
+                }
+                Primitive::Short => {
+                    jni_non_void_call!(self.internal, CallShortMethodA, obj, method_id, jni_args)
+                        .into()
+                }
+                Primitive::Int => {
+                    jni_non_void_call!(self.internal, CallIntMethodA, obj, method_id, jni_args)
+                        .into()
+                }
+                Primitive::Long => {
+                    jni_non_void_call!(self.internal, CallLongMethodA, obj, method_id, jni_args)
+                        .into()
+                }
+                Primitive::Float => {
+                    jni_non_void_call!(self.internal, CallFloatMethodA, obj, method_id, jni_args)
+                        .into()
+                }
+                Primitive::Double => {
+                    jni_non_void_call!(self.internal, CallDoubleMethodA, obj, method_id, jni_args)
+                        .into()
+                }
+                Primitive::Byte => {
+                    jni_non_void_call!(self.internal, CallByteMethodA, obj, method_id, jni_args)
+                        .into()
+                }
+                Primitive::Void => {
+                    jni_void_call!(self.internal, CallVoidMethodA, obj, method_id, jni_args);
+                    return Ok(JValue::Void);
+                }
+            }, // JavaType::Primitive
         }) // match parsed.ret
     }
 
@@ -971,6 +952,7 @@ impl<'a> JNIEnv<'a> {
         Ok(ptr)
     }
 
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     /// Unpin the array returned by `get_string_utf_chars`.
     pub fn release_string_utf_chars(&self, obj: JString, arr: *const c_char) -> Result<()> {
         non_null!(obj, "release_string_utf_chars obj argument");
@@ -1885,9 +1867,8 @@ impl<'a> Drop for MonitorGuard<'a> {
             Ok(())
         });
 
-        match res {
-            Err(e) => warn!("error releasing java monitor: {}", e),
-            _ => {}
+        if let Err(e) = res {
+            warn!("error releasing java monitor: {}", e)
         }
     }
 }
