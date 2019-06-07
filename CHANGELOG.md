@@ -16,11 +16,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [Unreleased]
 
 ### Added
-- `JavaVM::attach_current_thread_permanently` method, which effectively attaches
-  current thread and detaches it when the thread finished. Daemon threads attached
-  with `JavaVM::attach_current_thread_as_daemon` also automatically detaches when
-  finished. The number of currently attached threads may be acquired using
-  `JavaVM::threads_attached` method. Current thread may be detached by calling
+- `JavaVM::attach_current_thread_permanently` method, which attaches the current 
+  thread and detaches it when the thread finishes. Daemon threads attached 
+  with `JavaVM::attach_current_thread_as_daemon` also automatically detach themselves
+  when finished. The number of currently attached threads may be acquired using
+  `JavaVM::threads_attached` method. The current thread may be detached by calling
   `JavaVM::detach_current_thread`. (#180)
 
 ### Changed
