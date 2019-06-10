@@ -352,10 +352,10 @@ impl<'a> JNIEnv<'a> {
 
     /// Creates a new auto-deleted local reference.
     ///
-    /// See also `with_local_frame` method that can be more convenient
-    /// when you create a bounded number of local references in a method but
-    /// can't rely on automatic de-allocation (e.g., in case of recursion
-    /// or just deep call stacks).
+    /// See also [`with_local_frame`](struct.JNIEnv.html#method.with_local_frame) method that
+    /// can be more convenient when you create a _bounded_ number of local references
+    /// but cannot rely on automatic de-allocation (e.g., in case of recursion, deep call stacks,
+    /// [permanently-attached](struct.JavaVM.html#attaching-native-threads) native threads, etc.).
     pub fn auto_local(&'a self, obj: JObject<'a>) -> AutoLocal<'a> {
         AutoLocal::new(self, obj)
     }
@@ -383,17 +383,15 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Creates a new local reference frame, in which at least a given number
-    /// of local
-    /// references can be created.
+    /// of local references can be created.
     ///
     /// Returns `Err` on failure, with a pending `OutOfMemoryError`.
     ///
-    /// Prefer to use `with_local_frame` instead of direct `push_local_frame`/
-    /// `pop_local_frame` calls.
+    /// Prefer to use [`with_local_frame`](struct.JNIEnv.html#method.with_local_frame) instead of
+    /// direct `push_local_frame`/`pop_local_frame` calls.
     ///
-    /// See also `auto_local` method and `AutoLocal` type - that approach can
-    /// be more
-    /// convenient in loops.
+    /// See also [`auto_local`](struct.JNIEnv.html#method.auto_local) method
+    /// and `AutoLocal` type — that approach can be more convenient in loops.
     pub fn push_local_frame(&self, capacity: i32) -> Result<()> {
         // This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
         let res = jni_unchecked!(self.internal, PushLocalFrame, capacity);
@@ -401,18 +399,23 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Pops off the current local reference frame, frees all the local
-    /// references allocated
-    /// on the current stack frame.
+    /// references allocated on the current stack frame, except the `result`,
+    /// which is returned from this function and remains valid.
     ///
-    /// Note that resulting `JObject` can be `NULL` if `result` is `NULL`.
+    /// The resulting `JObject` will be `NULL` iff `result` is `NULL`.
     pub fn pop_local_frame(&self, result: JObject<'a>) -> Result<JObject<'a>> {
         // This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
         Ok(jni_unchecked!(self.internal, PopLocalFrame, result.into_inner()).into())
     }
 
-    /// Provides a convenient way to use `push_local_frame` by automatically
-    /// calling
-    /// `pop_local_frame` function.
+    /// Executes the given function in a new local reference frame, in which at least a given number
+    /// of references can be created. Once this method returns, all references allocated
+    /// in the frame are freed, except the one that the function returns, which remains valid.
+    ///
+    /// If _no_ new frames can be allocated, returns `Err` with a pending `OutOfMemoryError`.
+    ///
+    /// See also [`auto_local`](struct.JNIEnv.html#method.auto_local) method
+    /// and `AutoLocal` type - that approach can be more convenient in loops.
     pub fn with_local_frame<F>(&self, capacity: i32, f: F) -> Result<JObject<'a>>
     where
         F: FnOnce() -> Result<JObject<'a>>,

@@ -154,27 +154,8 @@
 //!
 //! ## Launching JVM from Rust
 //!
-//! If you need to use the part of the [Invocation API]
-//! that allows to launch a JVM
-//! from a native process, you must enable `invocation` feature.
-//! The application will require linking to the dynamic `jvm`
-//! library, which is distributed with the JVM.
-//!
-//! During build time, the JVM installation path is determined:
-//! 1. By `JAVA_HOME` environment variable, if it is set.
-//! 2. Otherwise — from `java` output.
-//!
-//! It is recommended to set `JAVA_HOME` to have reproducible builds, especially, in case of multiple VMs installed.
-//!
-//! At application run time, you must specify the path
-//! to the `jvm` library so that the loader can locate it.
-//! * On **Windows**, append the path to `jvm.dll` to `PATH` environment variable.
-//! * On **MacOS**, append the path to `libjvm.dylib` to `LD_LIBRARY_PATH` environment variable.
-//! * On **Linux**, append the path to `libjvm.so` to `LD_LIBRARY_PATH` environment variable.
-//!
-//! The exact relative path to `jvm` library is version-specific.
-//!
-//! For more information - see documentation in [build.rs](https://github.com/jni-rs/jni-rs/tree/master/build.rs).
+//! It is possible to launch a JVM from a native process using the [Invocation API], provided
+//! by [`JavaVM`](struct.JavaVM.html).
 //!
 //! ## See Also
 //!

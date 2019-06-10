@@ -12,7 +12,61 @@ use std::thread::current;
 #[cfg(feature = "invocation")]
 use InitArgs;
 
-/// The invocation API.
+/// The Java VM, providing [Invocation API][invocation-api] support.
+///
+/// ## Attaching Native Threads
+///
+/// A native thread must «attach» itself to be able to call Java methods outside of a native Java
+/// method. This library provides two modes of attachment, each ensuring the thread is promptly
+/// detached:
+/// * A scoped attachment with [`attach_current_thread`][act].
+///   The thread will automatically detach itself once the returned guard is dropped.
+/// * A permanent attachment with [`attach_current_thread_permanently`][actp]
+///   or [`attach_current_thread_as_daemon`][actd].
+///   The thread will automatically detach itself before it terminates.
+///
+/// As attachment and detachment of a thread is an expensive operation, the scoped attachment
+/// shall be used if happens infrequently. If you have an undefined scope where you need
+/// to use `JNIEnv` and cannot keep the `AttachGuard`, consider attaching the thread
+/// permanently.
+///
+/// Remember that the native thread attached to the VM **must** manage the local references
+/// properly, i.e., do not allocate an excessive number of references and release them promptly
+/// when they are no longer needed to enable the GC to collect them. A common approach is to use
+/// an appropriately-sized local frame for larger code fragments
+/// (see [`with_local_frame`](struct.JNIEnv.html#method.with_local_frame))
+/// and [auto locals](struct.JNIEnv.html#method.auto_local) in loops.
+/// See also the [JNI specification][spec-references] for details on referencing Java objects.
+///
+/// ## Launching JVM from Rust
+///
+/// To [launch][launch-vm] a JVM from a native process, enable the `invocation` feature.
+/// The application will require linking to the dynamic `jvm` library, which is distributed
+/// with the JVM.
+///
+/// During build time, the JVM installation path is determined:
+/// 1. By `JAVA_HOME` environment variable, if it is set.
+/// 2. Otherwise — from `java` output.
+///
+/// It is recommended to set `JAVA_HOME` to have reproducible builds,
+/// especially, in case of multiple VMs installed.
+///
+/// At application run time, you must specify the path
+/// to the `jvm` library so that the loader can locate it.
+/// * On **Windows**, append the path to `jvm.dll` to `PATH` environment variable.
+/// * On **MacOS**, append the path to `libjvm.dylib` to `LD_LIBRARY_PATH` environment variable.
+/// * On **Linux**, append the path to `libjvm.so` to `LD_LIBRARY_PATH` environment variable.
+///
+/// The exact relative path to `jvm` library is version-specific.
+///
+/// For more information — see documentation in [build.rs](https://github.com/jni-rs/jni-rs/tree/master/build.rs).
+///
+/// [invocation-api]: https://docs.oracle.com/en/java/javase/12/docs/specs/jni/invocation.html
+/// [launch-vm]: struct.JavaVM.html#method.new
+/// [act]: struct.JavaVM.html#method.attach_current_thread
+/// [actp]: struct.JavaVM.html#method.attach_current_thread_permanently
+/// [actd]: struct.JavaVM.html#method.attach_current_thread_as_daemon
+/// [spec-references]: https://docs.oracle.com/en/java/javase/12/docs/specs/jni/design.html#referencing-java-objects
 pub struct JavaVM(*mut sys::JavaVM);
 
 unsafe impl Send for JavaVM {}
@@ -52,14 +106,16 @@ impl JavaVM {
         self.0
     }
 
-    /// Attaches the current thread to a JVM. Calling this for a thread that is already attached
+    /// Attaches the current thread to the JVM. Calling this for a thread that is already attached
     /// is a no-op.
     ///
-    /// Thread will be detached automatically when finished.
+    /// The thread will detach itself automatically when it exits.
     ///
-    /// Attached threads [block JVM exit][block].
+    /// Attached threads [block JVM exit][block]. If it is not desirable — consider using
+    /// [`attach_current_thread_as_daemon`][attach-as-daemon].
     ///
     /// [block]: https://docs.oracle.com/en/java/javase/12/docs/specs/jni/invocation.html#unloading-the-vm
+    /// [attach-as-daemon]: struct.JavaVM.html#method.attach_current_thread_as_daemon
     pub fn attach_current_thread_permanently(&self) -> Result<JNIEnv> {
         match self.get_env() {
             Ok(env) => Ok(env),
@@ -69,17 +125,19 @@ impl JavaVM {
         }
     }
 
-    /// Attaches the current thread to a Java VM. The resulting `AttachGuard`
+    /// Attaches the current thread to the Java VM. The returned `AttachGuard`
     /// can be dereferenced to a `JNIEnv` and automatically detaches the thread
-    /// when dropped. Calling this for a thread that is already attached is a no-op.
+    /// when dropped. Calling this in a thread that is already attached is a no-op, and
+    /// will neither change its daemon status nor prematurely detach it.
     ///
     /// Attached threads [block JVM exit][block].
     ///
-    /// Attaching and detaching is time-consuming operation, therefore multiple short-term attach
-    /// operations on the same thread should be avoided or replaced with
-    /// `attach_current_thread_permanently`.
+    /// Attaching and detaching a thread is an expensive operation. If you use it frequently
+    /// in the same threads, consider either [attaching them permanently][attach-as-daemon],
+    /// or, if the scope where you need the `JNIEnv` is well-defined, keeping the returned guard.
     ///
     /// [block]: https://docs.oracle.com/en/java/javase/12/docs/specs/jni/invocation.html#unloading-the-vm
+    /// [attach-as-daemon]: struct.JavaVM.html#method.attach_current_thread_as_daemon
     pub fn attach_current_thread(&self) -> Result<AttachGuard> {
         match self.get_env() {
             Ok(env) => {
@@ -101,9 +159,10 @@ impl JavaVM {
         InternalAttachGuard::clear_tls();
     }
 
-    /// Attaches the current thread to a Java VM as a daemon.
+    /// Attaches the current thread to the Java VM as a _daemon_. Calling this in a thread
+    /// that is already attached is a no-op, and will not change its status to a daemon thread.
     ///
-    /// Thread will be automatically detached when finished.
+    /// The thread will detach itself automatically when it exits.
     pub fn attach_current_thread_as_daemon(&self) -> Result<JNIEnv> {
         match self.get_env() {
             Ok(env) => Ok(env),
@@ -113,7 +172,9 @@ impl JavaVM {
         }
     }
 
-    /// Returns current number of threads attached to the JVM.
+    /// Returns the current number of threads attached to the JVM.
+    ///
+    /// This method is provided mostly for diagnostic purposes.
     pub fn threads_attached(&self) -> usize {
         ATTACHED_THREADS.load(Ordering::SeqCst)
     }
