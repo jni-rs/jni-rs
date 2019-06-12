@@ -411,6 +411,7 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Common functionality for finding methods.
+    #[allow(clippy::redundant_closure_call)]
     fn get_method_id_base<'c, T, U, V, C, R>(
         &self,
         class: T,
