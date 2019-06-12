@@ -251,6 +251,7 @@ mod wrapper {
     pub mod strings;
 
     /// Actual communication with the JVM
+    #[allow(clippy::unit_arg)]
     mod jnienv;
     pub use self::jnienv::*;
 
