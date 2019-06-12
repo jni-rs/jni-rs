@@ -1,0 +1,2 @@
+# Temporary increased until https://github.com/jni-rs/jni-rs/issues/137
+cognitive-complexity-threshold = 120
