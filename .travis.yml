@@ -7,6 +7,7 @@ rust:
 matrix:
   allow_failures:
     - rust: nightly
+  fast_finish: true
 
 jdk:
   - oraclejdk8
@@ -22,5 +23,5 @@ before_script:
   - echo $LD_LIBRARY_PATH
 
 script:
-  - cargo build
-  - cargo test --features=backtrace,invocation
+  - cd "$TRAVIS_BUILD_DIR"
+  - .travis/run_travis_job.sh
