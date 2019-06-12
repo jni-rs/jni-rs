@@ -627,82 +627,80 @@ impl<'a> JNIEnv<'a> {
             }
             // JavaType::Object
             JavaType::Method(_) => unimplemented!(),
-            JavaType::Primitive(p) => {
-                match p {
-                    Primitive::Boolean => jni_non_void_call!(
-                        self.internal,
-                        CallStaticBooleanMethodA,
-                        class,
-                        method_id,
-                        jni_args
-                    )
-                    .into(),
-                    Primitive::Char => jni_non_void_call!(
-                        self.internal,
-                        CallStaticCharMethodA,
-                        class,
-                        method_id,
-                        jni_args
-                    )
-                    .into(),
-                    Primitive::Short => jni_non_void_call!(
-                        self.internal,
-                        CallStaticShortMethodA,
-                        class,
-                        method_id,
-                        jni_args
-                    )
-                    .into(),
-                    Primitive::Int => jni_non_void_call!(
-                        self.internal,
-                        CallStaticIntMethodA,
-                        class,
-                        method_id,
-                        jni_args
-                    )
-                    .into(),
-                    Primitive::Long => jni_non_void_call!(
-                        self.internal,
-                        CallStaticLongMethodA,
-                        class,
-                        method_id,
-                        jni_args
-                    )
-                    .into(),
-                    Primitive::Float => jni_non_void_call!(
-                        self.internal,
-                        CallStaticFloatMethodA,
-                        class,
-                        method_id,
-                        jni_args
-                    )
-                    .into(),
-                    Primitive::Double => jni_non_void_call!(
-                        self.internal,
-                        CallStaticDoubleMethodA,
-                        class,
-                        method_id,
-                        jni_args
-                    )
-                    .into(),
-                    Primitive::Byte => jni_non_void_call!(
-                        self.internal,
-                        CallStaticByteMethodA,
-                        class,
-                        method_id,
-                        jni_args
-                    )
-                    .into(),
-                    Primitive::Void => jni_non_void_call!(
-                        self.internal,
-                        CallStaticVoidMethodA,
-                        class,
-                        method_id,
-                        jni_args
-                    )
-                    .into(),
-                }
-            } // JavaType::Primitive
+            JavaType::Primitive(p) => match p {
+                Primitive::Boolean => jni_non_void_call!(
+                    self.internal,
+                    CallStaticBooleanMethodA,
+                    class,
+                    method_id,
+                    jni_args
+                )
+                .into(),
+                Primitive::Char => jni_non_void_call!(
+                    self.internal,
+                    CallStaticCharMethodA,
+                    class,
+                    method_id,
+                    jni_args
+                )
+                .into(),
+                Primitive::Short => jni_non_void_call!(
+                    self.internal,
+                    CallStaticShortMethodA,
+                    class,
+                    method_id,
+                    jni_args
+                )
+                .into(),
+                Primitive::Int => jni_non_void_call!(
+                    self.internal,
+                    CallStaticIntMethodA,
+                    class,
+                    method_id,
+                    jni_args
+                )
+                .into(),
+                Primitive::Long => jni_non_void_call!(
+                    self.internal,
+                    CallStaticLongMethodA,
+                    class,
+                    method_id,
+                    jni_args
+                )
+                .into(),
+                Primitive::Float => jni_non_void_call!(
+                    self.internal,
+                    CallStaticFloatMethodA,
+                    class,
+                    method_id,
+                    jni_args
+                )
+                .into(),
+                Primitive::Double => jni_non_void_call!(
+                    self.internal,
+                    CallStaticDoubleMethodA,
+                    class,
+                    method_id,
+                    jni_args
+                )
+                .into(),
+                Primitive::Byte => jni_non_void_call!(
+                    self.internal,
+                    CallStaticByteMethodA,
+                    class,
+                    method_id,
+                    jni_args
+                )
+                .into(),
+                Primitive::Void => jni_non_void_call!(
+                    self.internal,
+                    CallStaticVoidMethodA,
+                    class,
+                    method_id,
+                    jni_args
+                )
+                .into(),
+            }, // JavaType::Primitive
         }) // match parsed.ret
     }
 
@@ -1501,35 +1499,23 @@ impl<'a> JNIEnv<'a> {
             }
             // JavaType::Object
             JavaType::Method(_) => unimplemented!(),
-            JavaType::Primitive(p) => {
-                match p {
-                    Primitive::Boolean => {
-                        jni_unchecked!(self.internal, GetBooleanField, obj, field).into()
-                    }
-                    Primitive::Char => {
-                        jni_unchecked!(self.internal, GetCharField, obj, field).into()
-                    }
-                    Primitive::Short => {
-                        jni_unchecked!(self.internal, GetShortField, obj, field).into()
-                    }
-                    Primitive::Int => jni_unchecked!(self.internal, GetIntField, obj, field).into(),
-                    Primitive::Long => {
-                        jni_unchecked!(self.internal, GetLongField, obj, field).into()
-                    }
-                    Primitive::Float => {
-                        jni_unchecked!(self.internal, GetFloatField, obj, field).into()
-                    }
-                    Primitive::Double => {
-                        jni_unchecked!(self.internal, GetDoubleField, obj, field).into()
-                    }
-                    Primitive::Byte => {
-                        jni_unchecked!(self.internal, GetByteField, obj, field).into()
-                    }
-                    Primitive::Void => {
-                        return Err(ErrorKind::WrongJValueType("void", "see java field").into());
-                    }
+            JavaType::Primitive(p) => match p {
+                Primitive::Boolean => {
+                    jni_unchecked!(self.internal, GetBooleanField, obj, field).into()
                 }
-            }
+                Primitive::Char => jni_unchecked!(self.internal, GetCharField, obj, field).into(),
+                Primitive::Short => jni_unchecked!(self.internal, GetShortField, obj, field).into(),
+                Primitive::Int => jni_unchecked!(self.internal, GetIntField, obj, field).into(),
+                Primitive::Long => jni_unchecked!(self.internal, GetLongField, obj, field).into(),
+                Primitive::Float => jni_unchecked!(self.internal, GetFloatField, obj, field).into(),
+                Primitive::Double => {
+                    jni_unchecked!(self.internal, GetDoubleField, obj, field).into()
+                }
+                Primitive::Byte => jni_unchecked!(self.internal, GetByteField, obj, field).into(),
+                Primitive::Void => {
+                    return Err(ErrorKind::WrongJValueType("void", "see java field").into());
+                }
+            },
         })
     }
 
@@ -1665,37 +1651,35 @@ impl<'a> JNIEnv<'a> {
             JavaType::Method(_) => {
                 return Err(ErrorKind::WrongJValueType("Method", "see java field").into())
             }
-            JavaType::Primitive(p) => {
-                match p {
-                    Primitive::Boolean => {
-                        jni_unchecked!(self.internal, GetStaticBooleanField, class, field_id).into()
-                    }
-                    Primitive::Char => {
-                        jni_unchecked!(self.internal, GetStaticCharField, class, field_id).into()
-                    }
-                    Primitive::Short => {
-                        jni_unchecked!(self.internal, GetStaticShortField, class, field_id).into()
-                    }
-                    Primitive::Int => {
-                        jni_unchecked!(self.internal, GetStaticIntField, class, field_id).into()
-                    }
-                    Primitive::Long => {
-                        jni_unchecked!(self.internal, GetStaticLongField, class, field_id).into()
-                    }
-                    Primitive::Float => {
-                        jni_unchecked!(self.internal, GetStaticFloatField, class, field_id).into()
-                    }
-                    Primitive::Double => {
-                        jni_unchecked!(self.internal, GetStaticDoubleField, class, field_id).into()
-                    }
-                    Primitive::Byte => {
-                        jni_unchecked!(self.internal, GetStaticByteField, class, field_id).into()
-                    }
-                    Primitive::Void => {
-                        return Err(ErrorKind::WrongJValueType("void", "see java field").into());
-                    }
+            JavaType::Primitive(p) => match p {
+                Primitive::Boolean => {
+                    jni_unchecked!(self.internal, GetStaticBooleanField, class, field_id).into()
                 }
-            }
+                Primitive::Char => {
+                    jni_unchecked!(self.internal, GetStaticCharField, class, field_id).into()
+                }
+                Primitive::Short => {
+                    jni_unchecked!(self.internal, GetStaticShortField, class, field_id).into()
+                }
+                Primitive::Int => {
+                    jni_unchecked!(self.internal, GetStaticIntField, class, field_id).into()
+                }
+                Primitive::Long => {
+                    jni_unchecked!(self.internal, GetStaticLongField, class, field_id).into()
+                }
+                Primitive::Float => {
+                    jni_unchecked!(self.internal, GetStaticFloatField, class, field_id).into()
+                }
+                Primitive::Double => {
+                    jni_unchecked!(self.internal, GetStaticDoubleField, class, field_id).into()
+                }
+                Primitive::Byte => {
+                    jni_unchecked!(self.internal, GetStaticByteField, class, field_id).into()
+                }
+                Primitive::Void => {
+                    return Err(ErrorKind::WrongJValueType("void", "see java field").into());
+                }
+            },
         })
     }
 
