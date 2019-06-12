@@ -1,5 +1,4 @@
 use std::{
-    iter::IntoIterator,
     marker::PhantomData,
     os::raw::{c_char, c_void},
     ptr, slice, str,
@@ -433,8 +432,8 @@ impl<'a> JNIEnv<'a> {
 
         match res {
             Ok(m) => Ok(m),
-            Err(e) => match e.kind() {
-                &ErrorKind::NullPtr(_) => {
+            Err(e) => match *e.kind() {
+                ErrorKind::NullPtr(_) => {
                     let name: String = ffi_name.into();
                     let sig: String = sig.into();
                     Err(ErrorKind::MethodNotFound(name, sig).into())
@@ -527,8 +526,8 @@ impl<'a> JNIEnv<'a> {
 
         match res {
             Ok(m) => Ok(m),
-            Err(e) => match e.kind() {
-                &ErrorKind::NullPtr(_) => {
+            Err(e) => match *e.kind() {
+                ErrorKind::NullPtr(_) => {
                     let name: String = ffi_name.into();
                     let sig: String = ffi_sig.into();
                     Err(ErrorKind::FieldNotFound(name, sig).into())
@@ -571,8 +570,8 @@ impl<'a> JNIEnv<'a> {
 
         match res {
             Ok(m) => Ok(m),
-            Err(e) => match e.kind() {
-                &ErrorKind::NullPtr(_) => {
+            Err(e) => match *e.kind() {
+                ErrorKind::NullPtr(_) => {
                     let name: String = ffi_name.into();
                     let sig: String = ffi_sig.into();
                     Err(ErrorKind::FieldNotFound(name, sig).into())
@@ -610,7 +609,7 @@ impl<'a> JNIEnv<'a> {
         let method_id = method_id.lookup(self)?.into_inner();
 
         let class = class.into_inner();
-        let args: Vec<jvalue> = args.into_iter().map(|v| v.to_jni()).collect();
+        let args: Vec<jvalue> = args.iter().map(|v| v.to_jni()).collect();
         let jni_args = args.as_ptr();
 
         // TODO clean this up
@@ -629,7 +628,7 @@ impl<'a> JNIEnv<'a> {
             // JavaType::Object
             JavaType::Method(_) => unimplemented!(),
             JavaType::Primitive(p) => {
-                let v: JValue = match p {
+                match p {
                     Primitive::Boolean => jni_non_void_call!(
                         self.internal,
                         CallStaticBooleanMethodA,
@@ -702,8 +701,7 @@ impl<'a> JNIEnv<'a> {
                         jni_args
                     )
                     .into(),
-                };
-                v.into()
+                }
             } // JavaType::Primitive
         }) // match parsed.ret
     }
@@ -808,7 +806,7 @@ impl<'a> JNIEnv<'a> {
         non_null!(obj, "call_method obj argument");
 
         // parse the signature
-        let parsed = TypeSignature::from_str(sig.as_ref())?;
+        let parsed = TypeSignature::from_string(sig.as_ref())?;
         if parsed.args.len() != args.len() {
             return Err(ErrorKind::InvalidArgList.into());
         }
@@ -841,7 +839,7 @@ impl<'a> JNIEnv<'a> {
         U: Into<JNIString>,
         V: Into<JNIString> + AsRef<str>,
     {
-        let parsed = TypeSignature::from_str(&sig)?;
+        let parsed = TypeSignature::from_string(&sig)?;
         if parsed.args.len() != args.len() {
             return Err(ErrorKind::InvalidArgList.into());
         }
@@ -866,7 +864,7 @@ impl<'a> JNIEnv<'a> {
         U: Into<JNIString> + AsRef<str>,
     {
         // parse the signature
-        let parsed = TypeSignature::from_str(&ctor_sig)?;
+        let parsed = TypeSignature::from_string(&ctor_sig)?;
 
         if parsed.args.len() != ctor_args.len() {
             return Err(ErrorKind::InvalidArgList.into());
@@ -898,7 +896,7 @@ impl<'a> JNIEnv<'a> {
     {
         let class = class.lookup(self)?;
 
-        let jni_args: Vec<jvalue> = ctor_args.into_iter().map(|v| v.to_jni()).collect();
+        let jni_args: Vec<jvalue> = ctor_args.iter().map(|v| v.to_jni()).collect();
         let jni_args = jni_args.as_ptr();
 
         Ok(jni_non_null_call!(
@@ -1504,7 +1502,7 @@ impl<'a> JNIEnv<'a> {
             // JavaType::Object
             JavaType::Method(_) => unimplemented!(),
             JavaType::Primitive(p) => {
-                let v: JValue = match p {
+                match p {
                     Primitive::Boolean => {
                         jni_unchecked!(self.internal, GetBooleanField, obj, field).into()
                     }
@@ -1530,8 +1528,7 @@ impl<'a> JNIEnv<'a> {
                     Primitive::Void => {
                         return Err(ErrorKind::WrongJValueType("void", "see java field").into());
                     }
-                };
-                v.into()
+                }
             }
         })
     }
@@ -1612,9 +1609,7 @@ impl<'a> JNIEnv<'a> {
 
         match parsed {
             JavaType::Object(_) | JavaType::Array(_) => {
-                if let None = in_type {
-                    // we're good here
-                } else {
+                if in_type.is_some() {
                     return Err(
                         ErrorKind::WrongJValueType(val.type_name(), "see java field").into(),
                     );
@@ -1671,7 +1666,7 @@ impl<'a> JNIEnv<'a> {
                 return Err(ErrorKind::WrongJValueType("Method", "see java field").into())
             }
             JavaType::Primitive(p) => {
-                let v: JValue = match p {
+                match p {
                     Primitive::Boolean => {
                         jni_unchecked!(self.internal, GetStaticBooleanField, class, field_id).into()
                     }
@@ -1699,8 +1694,7 @@ impl<'a> JNIEnv<'a> {
                     Primitive::Void => {
                         return Err(ErrorKind::WrongJValueType("void", "see java field").into());
                     }
-                };
-                v.into()
+                }
             }
         })
     }
