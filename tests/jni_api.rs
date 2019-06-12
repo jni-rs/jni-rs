@@ -260,7 +260,7 @@ pub fn call_static_method_throws() {
 pub fn call_static_method_wrong_arg() {
     let env = attach_current_thread();
 
-    let x = JValue::Double(4.56789123);
+    let x = JValue::Double(4.567_891_23);
     env.call_static_method(
         MATH_CLASS,
         MATH_TO_INT_METHOD_NAME,

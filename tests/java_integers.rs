@@ -9,6 +9,7 @@ mod util;
 use util::{attach_current_thread, print_exception};
 
 #[test]
+#[allow(clippy::identity_conversion)]
 fn test_java_integers() {
     let env = attach_current_thread();
 
@@ -43,7 +44,7 @@ fn test_java_integers() {
         })
         .unwrap_or_else(|e| {
             print_exception(&env);
-            panic!(format!("{}", e.display_chain().to_string()));
+            panic!(e.display_chain().to_string());
         });
     }
 }

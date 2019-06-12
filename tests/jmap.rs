@@ -22,7 +22,7 @@ pub fn jmap_push_and_iterate() {
         &env,
         data.iter().try_for_each(|s| {
             env.new_string(s)
-                .map(|s| JObject::from(s))
+                .map(JObject::from)
                 .and_then(|s| map.put(s, s).map(|_| ()))
         }),
     );
