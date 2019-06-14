@@ -342,11 +342,8 @@ impl<'a> JNIEnv<'a> {
     /// In most cases it is better to use `AutoLocal` (see `auto_local` method)
     /// or `with_local_frame` instead of direct `delete_local_ref` calls.
     pub fn delete_local_ref(&self, obj: JObject) -> Result<()> {
-        Ok(jni_unchecked!(
-            self.internal,
-            DeleteLocalRef,
-            obj.into_inner()
-        ))
+        jni_unchecked!(self.internal, DeleteLocalRef, obj.into_inner());
+        Ok(())
     }
 
     /// Creates a new local reference frame, in which at least a given number
@@ -692,14 +689,16 @@ impl<'a> JNIEnv<'a> {
                     jni_args
                 )
                 .into(),
-                Primitive::Void => jni_non_void_call!(
-                    self.internal,
-                    CallStaticVoidMethodA,
-                    class,
-                    method_id,
-                    jni_args
-                )
-                .into(),
+                Primitive::Void => {
+                    jni_non_void_call!(
+                        self.internal,
+                        CallStaticVoidMethodA,
+                        class,
+                        method_id,
+                        jni_args
+                    );
+                    return Ok(JValue::Void);
+                }
             }, // JavaType::Primitive
         }) // match parsed.ret
     }
@@ -949,10 +948,9 @@ impl<'a> JNIEnv<'a> {
         Ok(ptr)
     }
 
-    /// Unpin the array returned by `get_string_utf_chars`.
-    ///
     /// It is safe to dereference a pointer that comes from `get_string_utf_chars`.
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
+    /// Unpin the array returned by `get_string_utf_chars`.
     pub fn release_string_utf_chars(&self, obj: JString, arr: *const c_char) -> Result<()> {
         non_null!(obj, "release_string_utf_chars obj argument");
         // This method is safe to call in case of pending exceptions (see the chapter 2 of the spec)
@@ -1023,13 +1021,14 @@ impl<'a> JNIEnv<'a> {
         value: JObject,
     ) -> Result<()> {
         non_null!(array, "set_object_array_element array argument");
-        Ok(jni_void_call!(
+        jni_void_call!(
             self.internal,
             SetObjectArrayElement,
             array,
             index,
             value.into_inner()
-        ))
+        );
+        Ok(())
     }
 
     /// Create a new java byte array from a rust byte slice.
@@ -1829,7 +1828,8 @@ impl<'a> JNIEnv<'a> {
     /// Ensures that at least a given number of local references can be created
     /// in the current thread.
     pub fn ensure_local_capacity(&self, capacity: jint) -> Result<()> {
-        Ok(jni_void_call!(self.internal, EnsureLocalCapacity, capacity))
+        jni_void_call!(self.internal, EnsureLocalCapacity, capacity);
+        Ok(())
     }
 }
 

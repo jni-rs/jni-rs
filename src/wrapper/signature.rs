@@ -77,10 +77,9 @@ pub struct TypeSignature {
 }
 
 impl TypeSignature {
-    /// Parse a signature string into a TypeSignature enum.
-    ///
     /// Clippy suggests implementing `FromStr` or renaming it which is not possible in our case.
     #[allow(clippy::should_implement_trait)]
+    /// Parse a signature string into a TypeSignature enum.
     pub fn from_str<S: AsRef<str>>(s: S) -> Result<TypeSignature> {
         Ok(
             match parser(parse_sig)
