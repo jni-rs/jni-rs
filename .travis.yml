@@ -12,15 +12,8 @@ matrix:
 jdk:
   - oraclejdk8
 
-env:
-  global:
-    - JAVA_HOME=/usr/lib/jvm/java-8-oracle
-    - LD_LIBRARY_PATH=$JAVA_HOME/jre/lib/amd64/server
-
 before_script:
   - export RUST_BACKTRACE=1
-  - echo $JAVA_HOME
-  - echo $LD_LIBRARY_PATH
 
 script:
   - cd "$TRAVIS_BUILD_DIR"
