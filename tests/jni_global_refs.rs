@@ -40,7 +40,7 @@ pub fn global_ref_works_in_other_threads() {
 
         for _ in 0..thread_num {
             let barrier = barrier.clone();
-            let mut atomic_integer = atomic_integer.clone();
+            let atomic_integer = atomic_integer.clone();
 
             let jh = spawn(move || {
                 let env = attach_current_thread();
