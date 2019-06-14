@@ -804,7 +804,7 @@ impl<'a> JNIEnv<'a> {
         non_null!(obj, "call_method obj argument");
 
         // parse the signature
-        let parsed = TypeSignature::from_string(sig.as_ref())?;
+        let parsed = TypeSignature::from_str(sig.as_ref())?;
         if parsed.args.len() != args.len() {
             return Err(ErrorKind::InvalidArgList.into());
         }
@@ -837,7 +837,7 @@ impl<'a> JNIEnv<'a> {
         U: Into<JNIString>,
         V: Into<JNIString> + AsRef<str>,
     {
-        let parsed = TypeSignature::from_string(&sig)?;
+        let parsed = TypeSignature::from_str(&sig)?;
         if parsed.args.len() != args.len() {
             return Err(ErrorKind::InvalidArgList.into());
         }
@@ -862,7 +862,7 @@ impl<'a> JNIEnv<'a> {
         U: Into<JNIString> + AsRef<str>,
     {
         // parse the signature
-        let parsed = TypeSignature::from_string(&ctor_sig)?;
+        let parsed = TypeSignature::from_str(&ctor_sig)?;
 
         if parsed.args.len() != ctor_args.len() {
             return Err(ErrorKind::InvalidArgList.into());
@@ -949,8 +949,10 @@ impl<'a> JNIEnv<'a> {
         Ok(ptr)
     }
 
-    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     /// Unpin the array returned by `get_string_utf_chars`.
+    ///
+    /// It is safe to dereference a pointer that comes from `get_string_utf_chars`.
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn release_string_utf_chars(&self, obj: JString, arr: *const c_char) -> Result<()> {
         non_null!(obj, "release_string_utf_chars obj argument");
         // This method is safe to call in case of pending exceptions (see the chapter 2 of the spec)

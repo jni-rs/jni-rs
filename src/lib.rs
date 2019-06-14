@@ -249,6 +249,8 @@ mod wrapper {
     pub mod strings;
 
     /// Actual communication with the JVM
+    ///
+    /// Allowing the `unit_arg` lint for our macros.
     #[allow(clippy::unit_arg)]
     mod jnienv;
     pub use self::jnienv::*;
