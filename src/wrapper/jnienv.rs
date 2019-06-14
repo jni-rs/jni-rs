@@ -690,7 +690,7 @@ impl<'a> JNIEnv<'a> {
                 )
                 .into(),
                 Primitive::Void => {
-                    jni_non_void_call!(
+                    jni_void_call!(
                         self.internal,
                         CallStaticVoidMethodA,
                         class,
