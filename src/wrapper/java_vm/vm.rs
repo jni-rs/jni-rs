@@ -73,7 +73,11 @@ unsafe impl Send for JavaVM {}
 unsafe impl Sync for JavaVM {}
 
 impl JavaVM {
-    /// Launch a new JavaVM using the provided init args
+    /// Launch a new JavaVM using the provided init args.
+    ///
+    /// Unlike original JNI API, the main thread (the thread from which this method is called) will
+    /// not be attached to JVM. You must explicitly use `attach_current_thread…` methods (refer
+    /// to [Attaching Native Threads section](#attaching-native-threads)).
     #[cfg(feature = "invocation")]
     pub fn new(args: InitArgs) -> Result<Self> {
         use std::os::raw::c_void;
@@ -146,11 +150,23 @@ impl JavaVM {
         }
     }
 
-    /// Detaches current thread from the JVM.
+    /// Detaches current thread from the JVM. This operation is _rarely_ appropriate to use,
+    /// because the attachment methods [ensure](#attaching-native-threads) that the thread is
+    /// promptly detached.
     ///
-    /// Detaching a non-attached thread is no-op.
+    /// Detaching a non-attached thread is a no-op.
     ///
-    /// Calling this method is an equivalent for calling `drop()` for `AttachGuard`.
+    /// __Any existing `JNIEnv`s and `AttachGuard`s created in the calling thread
+    /// will be invalidated after this method completes. It is the__ caller’s __responsibility
+    /// to ensure that no JNI calls are subsequently performed on these objects.__
+    /// Failure to do so will result in unspecified errors, possibly, the process crash.
+    ///
+    /// Given some care is exercised, this method can be used to detach permanently attached
+    /// threads _before_ they exit (when automatic detachment occurs). However, it is
+    /// never appropriate to use it with the scoped attachment (`attach_current_thread`).
+    // This method is hidden because it is almost never needed and its use requires some
+    // extra care. Its status might be reconsidered if we learn of any use cases that require it.
+    #[doc(hidden)]
     pub fn detach_current_thread(&self) {
         InternalAttachGuard::clear_tls();
     }
