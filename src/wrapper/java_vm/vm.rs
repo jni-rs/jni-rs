@@ -5,7 +5,7 @@ use sys;
 
 use std::ptr;
 use std::cell::RefCell;
-use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::ops::Deref;
 use std::thread::current;
 
@@ -219,7 +219,7 @@ thread_local! {
     static THREAD_ATTACH_GUARD: RefCell<Option<InternalAttachGuard>> = RefCell::new(None)
 }
 
-static ATTACHED_THREADS: AtomicUsize = ATOMIC_USIZE_INIT;
+static ATTACHED_THREADS: AtomicUsize = AtomicUsize::new(0);
 
 /// A RAII implementation of scoped guard which detaches the current thread
 /// when dropped. The attached `JNIEnv` can be accessed through this guard
