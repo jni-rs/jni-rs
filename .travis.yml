@@ -1,16 +1,13 @@
 language: rust
 rust:
-    - stable
-    - beta
-    - nightly
+  - stable
+  - beta
+  - nightly
 
 matrix:
   allow_failures:
     - rust: nightly
   fast_finish: true
-
-jdk:
-  - oraclejdk8
 
 before_script:
   - export RUST_BACKTRACE=1
