@@ -231,13 +231,17 @@ mod wrapper {
     /// String types for going to/from java strings.
     pub mod strings;
 
-    /// Actual communication with the JVM
+    /// Actual communication with the JVM.
     mod jnienv;
     pub use self::jnienv::*;
 
-    /// Java VM interface
+    /// Java VM interface.
     mod java_vm;
     pub use self::java_vm::*;
+
+    /// Optional thread attachment manager.
+    mod executor;
+    pub use self::executor::*;
 }
 
 pub use wrapper::*;
