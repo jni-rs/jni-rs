@@ -458,16 +458,17 @@ pub fn throw_new() {
 
     let result = env.throw_new("java/lang/RuntimeException", "Test Exception");
     assert!(result.is_ok());
-    let ex = env
+    let ex: JObject = env
         .exception_occurred()
-        .expect("Exception should be thrown");
+        .expect("Exception should be thrown")
+        .into();
     assert_pending_java_exception(&env);
 
     assert!(env
-        .is_instance_of(ex.clone().into(), "java/lang/RuntimeException")
+        .is_instance_of(ex, "java/lang/RuntimeException")
         .unwrap());
     let message = env
-        .call_method(ex.into(), "getMessage", "()Ljava/lang/String;", &[])
+        .call_method(ex, "getMessage", "()Ljava/lang/String;", &[])
         .unwrap()
         .l()
         .unwrap();
