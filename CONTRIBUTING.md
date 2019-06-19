@@ -22,7 +22,7 @@ You need to install the following dependencies:
 To build `jni-rs`, simply run
 
 ```$sh
-$ cargo build
+cargo build
 ```
 
 inside project root directory. You can also build the library in release mode by
@@ -49,7 +49,7 @@ adding `--release` flag.
   ```
 * Integration tests are in [tests directory](tests). They use the same pattern as 
   unit tests, but split into several files instead of private modules.
-  Integration tests use `jni-rs` as every other Rust application - by importing 
+  Integration tests use `jni-rs` as every other Rust application — by importing 
   library using `extern crate` keyword.
   
   ```rust
@@ -63,6 +63,10 @@ adding `--release` flag.
   Keep in mind, that only one JVM can be run per process. Therefore, tests that
   need to launch it with different parameters have to be placed in different 
   source files. `Cargo` runs tests from different modules in parallel.
+
+* Benchmarks are in [benches](benches) directory. As integration tests, they
+  require launching a JVM from native.
+
 * Doc tests are rarely used, but they allow to efficiently test some functionality
   by providing an example of its usage. Consult 
   [Rust documentation](https://doc.rust-lang.org/beta/rustdoc/documentation-tests.html)
@@ -70,14 +74,46 @@ adding `--release` flag.
 
 ### Running Tests
 
-To run all tests, you should execute the following command:
+#### Setup Environment
+
+As some tests need to launch a JVM, add a directory with JVM library that you want
+to use to `LD_LIBRARY_PATH` on Linux/Mac or `PATH` environment variable on Windows.
+On Linux/Mac, you can use the following script for this purpose:
 
 ```$sh
-$ cargo test --features=backtrace,invocation
+JAVA_HOME="${JAVA_HOME:-$(java -XshowSettings:properties -version \
+    2>&1 > /dev/null |\
+    grep 'java.home' |\
+    awk '{print $3}')}"
+LIBJVM_PATH="$(find ${JAVA_HOME} -type f -name libjvm.* | xargs -n1 dirname)"
+
+export LD_LIBRARY_PATH="${LIBJVM_PATH}"
+```
+
+#### Run Tests
+
+To run all tests, execute the following command:
+
+```$sh
+cargo test --features=backtrace,invocation
 ```
 
 This command will run all tests, including unit, integration and documentation
 tests.
+
+#### Run Benchmarks
+
+To run all benchmarks, execute the following command (nightly Rust required):
+
+```$sh
+cargo +nightly bench --features=invocation
+```
+
+They might help you to see the performance differences between
+two [API flavours][checked-unchecked]: checked and unchecked, and
+pick the right one for your application.
+
+[checked-unchecked]: https://docs.rs/jni/0.12.3/jni/struct.JNIEnv.html#checked-and-unchecked-methods
 
 ## The Code Style
 
@@ -86,7 +122,7 @@ Rust code follows the [Rust style guide](https://github.com/rust-lang-nursery/fm
 
 After installation, you can run it with
 ```$sh
-$ cargo fmt --all -- --write-mode=check
+cargo fmt --all -- --check
 ```
 
 Every public entry of the API must be thoroughly documented and covered with tests if it is possible.
@@ -98,7 +134,7 @@ Do not forget to update project guides and tutorials along with documentation.
 To open local documentation of the project, you can use the following command:
 
 ```$sh
-$ cargo doc --open
+cargo doc --open
 ```
 
 ## Submitting Issues

@@ -1,10 +1,9 @@
-use JNIEnv;
 use errors::*;
+use JNIEnv;
 
 use sys;
 
-use std::ops::Deref;
-use std::ptr;
+use std::{ops::Deref, ptr};
 
 #[cfg(feature = "invocation")]
 use InitArgs;
@@ -57,7 +56,8 @@ impl JavaVM {
             Ok(env) => (env, false),
             Err(_) => unsafe {
                 let mut ptr = ptr::null_mut();
-                let res = java_vm_unchecked!(self.0, AttachCurrentThread, &mut ptr, ptr::null_mut());
+                let res =
+                    java_vm_unchecked!(self.0, AttachCurrentThread, &mut ptr, ptr::null_mut());
                 jni_error_code_to_result(res)?;
 
                 let env = JNIEnv::from_raw(ptr as *mut sys::JNIEnv)?;

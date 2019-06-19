@@ -30,7 +30,7 @@ macro_rules! non_null {
         } else {
             $obj
         }
-    }
+    };
 }
 
 // A void JNI call.
@@ -60,36 +60,37 @@ macro_rules! jni_unchecked {
 }
 
 macro_rules! jni_method {
-    ( $jnienv:expr, $name:tt ) => ({
+    ( $jnienv:expr, $name:tt ) => {{
         trace!("looking up jni method {}", stringify!($name));
         let env = $jnienv;
         match deref!(deref!(env, "JNIEnv"), "*JNIEnv").$name {
             Some(method) => {
                 trace!("found jni method");
                 method
-            },
+            }
             None => {
                 trace!("jnienv method not defined, returning error");
                 return Err($crate::errors::Error::from(
-                    $crate::errors::ErrorKind::JNIEnvMethodNotFound(
-                        stringify!($name))).into())},
+                    $crate::errors::ErrorKind::JNIEnvMethodNotFound(stringify!($name)),
+                )
+                .into());
+            }
         }
-    })
+    }};
 }
 
 macro_rules! check_exception {
     ( $jnienv:expr ) => {
         trace!("checking for exception");
-        let check = {
-            jni_unchecked!($jnienv, ExceptionCheck)
-        } == $crate::sys::JNI_TRUE;
+        let check = { jni_unchecked!($jnienv, ExceptionCheck) } == $crate::sys::JNI_TRUE;
         if check {
             trace!("exception found, returning error");
-            return Err($crate::errors::Error::from(
-                $crate::errors::ErrorKind::JavaException).into());
+            return Err(
+                $crate::errors::Error::from($crate::errors::ErrorKind::JavaException).into(),
+            );
         }
         trace!("no exception found");
-    }
+    };
 }
 
 macro_rules! catch {
@@ -109,21 +110,23 @@ macro_rules! java_vm_unchecked {
 }
 
 macro_rules! java_vm_method {
-    ( $jnienv:expr, $name:tt ) => ({
+    ( $jnienv:expr, $name:tt ) => {{
         trace!("looking up JavaVM method {}", stringify!($name));
         let env = $jnienv;
         match deref!(deref!(env, "JavaVM"), "*JavaVM").$name {
             Some(meth) => {
                 trace!("found JavaVM method");
                 meth
-            },
+            }
             None => {
                 trace!("JavaVM method not defined, returning error");
                 return Err($crate::errors::Error::from(
-                    $crate::errors::ErrorKind::JavaVMMethodNotFound(
-                        stringify!($name))).into())},
+                    $crate::errors::ErrorKind::JavaVMMethodNotFound(stringify!($name)),
+                )
+                .into());
+            }
         }
-    })
+    }};
 }
 
 macro_rules! deref {
@@ -132,7 +135,9 @@ macro_rules! deref {
             return Err($crate::errors::ErrorKind::NullDeref($ctx).into());
         } else {
             #[allow(unused_unsafe)]
-            unsafe { *$obj }
+            unsafe {
+                *$obj
+            }
         }
     };
 }

@@ -7,7 +7,7 @@ use sys::jfieldID;
 /// under us. It matches C's representation of the raw pointer, so it can be
 /// used in any of the extern function argument positions that would take a
 /// `jfieldid`.
-#[repr(C)]
+#[repr(transparent)]
 #[derive(Copy, Clone)]
 pub struct JFieldID<'a> {
     internal: jfieldID,

@@ -1,12 +1,10 @@
-use std::convert::From;
-use std::sync::Arc;
+use std::{convert::From, sync::Arc};
 
-use JavaVM;
-use JNIEnv;
 use errors::Result;
 use objects::JObject;
 use sys;
-
+use JNIEnv;
+use JavaVM;
 
 /// A global JVM reference. These are "pinned" by the garbage collector and are
 /// guaranteed to not get collected until released. Thus, this is allowed to
@@ -27,19 +25,16 @@ use sys;
 
 #[derive(Clone)]
 pub struct GlobalRef {
-    inner: Arc<GlobalRefGuard>
+    inner: Arc<GlobalRefGuard>,
 }
-
 
 struct GlobalRefGuard {
     obj: JObject<'static>,
     vm: JavaVM,
 }
 
-
 unsafe impl Send for GlobalRef {}
 unsafe impl Sync for GlobalRef {}
-
 
 impl<'a> From<&'a GlobalRef> for JObject<'a> {
     fn from(other: &'a GlobalRef) -> JObject<'a> {
@@ -103,7 +98,7 @@ impl Drop for GlobalRefGuard {
             }
         };
 
-        if let Err(err) = res  {
+        if let Err(err) = res {
             debug!("error dropping global ref: {:#?}", err);
         }
     }

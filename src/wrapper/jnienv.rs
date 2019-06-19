@@ -1,64 +1,29 @@
-use std::str;
-use std::marker::PhantomData;
-use std::iter::IntoIterator;
-use std::slice;
-use std::sync::{Mutex, MutexGuard};
-use std::str::FromStr;
+use std::{
+    marker::PhantomData,
+    os::raw::{c_char, c_void},
+    ptr, slice, str,
+    str::FromStr,
+    sync::{Mutex, MutexGuard},
+};
 
 use errors::*;
 
-use std::os::raw::{
-    c_char,
-    c_void,
-};
-use std::ptr;
 use sys::{
-    self,
-    jarray,
-    jboolean,
-    jbyte,
-    jchar,
-    jdouble,
-    jfloat,
-    jint,
-    jlong,
-    jshort,
-    jsize,
-    jvalue,
-    jbooleanArray,
-    jbyteArray,
-    jcharArray,
-    jdoubleArray,
-    jfloatArray,
-    jintArray,
-    jlongArray,
-    jobjectArray,
-    jshortArray,
+    self, jarray, jboolean, jbooleanArray, jbyte, jbyteArray, jchar, jcharArray, jdouble,
+    jdoubleArray, jfloat, jfloatArray, jint, jintArray, jlong, jlongArray, jobjectArray, jshort,
+    jshortArray, jsize, jvalue,
 };
 
-use strings::JNIString;
-use strings::JavaStr;
+use strings::{JNIString, JavaStr};
 
-use objects::AutoLocal;
-use objects::GlobalRef;
-use objects::JByteBuffer;
-use objects::JClass;
-use objects::JFieldID;
-use objects::JList;
-use objects::JMap;
-use objects::JMethodID;
-use objects::JObject;
-use objects::JStaticFieldID;
-use objects::JStaticMethodID;
-use objects::JString;
-use objects::JThrowable;
-use objects::JValue;
+use objects::{
+    AutoLocal, GlobalRef, JByteBuffer, JClass, JFieldID, JList, JMap, JMethodID, JObject,
+    JStaticFieldID, JStaticMethodID, JString, JThrowable, JValue,
+};
 
 use descriptors::Desc;
 
-use signature::JavaType;
-use signature::Primitive;
-use signature::TypeSignature;
+use signature::{JavaType, Primitive, TypeSignature};
 
 use JNIVersion;
 use JavaVM;
@@ -76,11 +41,17 @@ use JavaVM;
 /// will _not_ clear the exception - it's up to the caller to decide whether to
 /// do so or to let it continue being thrown.
 ///
-/// Because null pointers are a thing in Java, this also converts them to an
-/// `Err` result with the kind `NullPtr`. This may occur when either a null
-/// argument is passed to a method or when a null would be returned. Where
-/// applicable, the null error is changed to a more applicable error type, such
-/// as `MethodNotFound`.
+/// ## `null` Java references
+/// `null` Java references are handled by the following rules:
+///   - If a `null` Java reference is passed to a method that expects a non-`null`
+///   argument, an `Err` result with the kind `NullPtr` is returned.
+///   - If a JNI function returns `null` to indicate an error (e.g. `new_int_array`),
+///     it is converted to `Err`/`NullPtr` or, where possible, to a more applicable
+///     error type, such as `MethodNotFound`. If the JNI function also throws
+///     an exception, the `JavaException` error kind will be preferred.
+///   - If a JNI function may return `null` Java reference as one of possible reference
+///     values (e.g., `get_object_array_element` or `get_field_unchecked`),
+///     it is converted to `JObject::null()`.
 ///
 /// # Checked and unchecked methods
 ///
@@ -106,7 +77,7 @@ use JavaVM;
 /// Calling unchecked methods with invalid arguments and/or invalid class and
 /// method descriptors may lead to segmentation fault.
 #[derive(Clone)]
-#[repr(C)]
+#[repr(transparent)]
 pub struct JNIEnv<'a> {
     internal: *mut sys::JNIEnv,
     lifetime: PhantomData<&'a ()>,
@@ -131,7 +102,7 @@ impl<'a> JNIEnv<'a> {
 
     /// Define a new java class. See the JNI docs for more details - I've never
     /// had occasion to use this and haven't researched it fully.
-    pub fn define_class<S>(&self, name: S, loader: JObject, buf: &[u8]) -> Result<JClass>
+    pub fn define_class<S>(&self, name: S, loader: JObject<'a>, buf: &[u8]) -> Result<JClass<'a>>
     where
         S: Into<JNIString>,
     {
@@ -163,14 +134,14 @@ impl<'a> JNIEnv<'a> {
         Ok(class)
     }
 
-    /// Get the superclass for a particular class. As with `find_class`, takes
-    /// a descriptor.
-    pub fn get_superclass<T>(&self, class: T) -> Result<JClass>
+    /// Returns the superclass for a particular class OR `JObject::null()` for `java.lang.Object` or
+    /// an interface. As with `find_class`, takes a descriptor.
+    pub fn get_superclass<T>(&self, class: T) -> Result<JClass<'a>>
     where
         T: Desc<'a, JClass<'a>>,
     {
         let class = class.lookup(self)?;
-        Ok(jni_non_null_call!(self.internal, GetSuperclass, class.into_inner()))
+        Ok(jni_non_void_call!(self.internal, GetSuperclass, class.into_inner()).into())
     }
 
     /// Tests whether class1 is assignable from class2.
@@ -182,11 +153,11 @@ impl<'a> JNIEnv<'a> {
         let class1 = class1.lookup(self)?;
         let class2 = class2.lookup(self)?;
         Ok(jni_unchecked!(
-                self.internal,
-                IsAssignableFrom,
-                class1.into_inner(),
-                class2.into_inner()
-            ) == sys::JNI_TRUE)
+            self.internal,
+            IsAssignableFrom,
+            class1.into_inner(),
+            class2.into_inner()
+        ) == sys::JNI_TRUE)
     }
 
     /// Returns true if the object reference can be cast to the given type.
@@ -202,12 +173,11 @@ impl<'a> JNIEnv<'a> {
     {
         let class = class.lookup(self)?;
         Ok(jni_unchecked!(
-                self.internal,
-                IsInstanceOf,
-                object.into_inner(),
-                class.into_inner()
-            ) == sys::JNI_TRUE,
-        )
+            self.internal,
+            IsInstanceOf,
+            object.into_inner(),
+            class.into_inner()
+        ) == sys::JNI_TRUE)
     }
 
     /// Raise an exception from an existing object. This will continue being
@@ -261,7 +231,7 @@ impl<'a> JNIEnv<'a> {
     /// Check whether or not an exception is currently in the process of being
     /// thrown. An exception is in this state from the time it gets thrown and
     /// not caught in a java function until `exception_clear` is called.
-    pub fn exception_occurred(&self) -> Result<JThrowable> {
+    pub fn exception_occurred(&self) -> Result<JThrowable<'a>> {
         let throwable = jni_unchecked!(self.internal, ExceptionOccurred);
         Ok(JThrowable::from(throwable))
     }
@@ -301,7 +271,7 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Create a new instance of a direct java.nio.ByteBuffer.
-    pub fn new_direct_byte_buffer(&self, data: &mut [u8]) -> Result<JByteBuffer> {
+    pub fn new_direct_byte_buffer(&self, data: &mut [u8]) -> Result<JByteBuffer<'a>> {
         let obj: JObject = jni_non_null_call!(
             self.internal,
             NewDirectByteBuffer,
@@ -324,8 +294,7 @@ impl<'a> JNIEnv<'a> {
 
     /// Returns the capacity of the direct java.nio.ByteBuffer.
     pub fn get_direct_buffer_capacity(&self, buf: JByteBuffer) -> Result<jlong> {
-        let capacity =
-            jni_unchecked!(self.internal, GetDirectBufferCapacity, buf.into_inner());
+        let capacity = jni_unchecked!(self.internal, GetDirectBufferCapacity, buf.into_inner());
         match capacity {
             -1 => Err(Error::from(ErrorKind::Other(sys::JNI_ERR))),
             _ => Ok(capacity),
@@ -346,7 +315,7 @@ impl<'a> JNIEnv<'a> {
     /// Note that the object passed to this is *already* a local ref. This
     /// creates yet another reference to it, which is most likely not what you
     /// want.
-    pub fn new_local_ref<T>(&self, obj: JObject) -> Result<JObject> {
+    pub fn new_local_ref<T>(&self, obj: JObject<'a>) -> Result<JObject<'a>> {
         let local: JObject = jni_unchecked!(self.internal, NewLocalRef, obj.into_inner()).into();
         Ok(local)
     }
@@ -380,7 +349,8 @@ impl<'a> JNIEnv<'a> {
     /// In most cases it is better to use `AutoLocal` (see `auto_local` method)
     /// or `with_local_frame` instead of direct `delete_local_ref` calls.
     pub fn delete_local_ref(&self, obj: JObject) -> Result<()> {
-        Ok(jni_unchecked!(self.internal, DeleteLocalRef, obj.into_inner()))
+        jni_unchecked!(self.internal, DeleteLocalRef, obj.into_inner());
+        Ok(())
     }
 
     /// Creates a new local reference frame, in which at least a given number
@@ -406,7 +376,7 @@ impl<'a> JNIEnv<'a> {
     /// on the current stack frame.
     ///
     /// Note that resulting `JObject` can be `NULL` if `result` is `NULL`.
-    pub fn pop_local_frame(&self, result: JObject) -> Result<JObject> {
+    pub fn pop_local_frame(&self, result: JObject<'a>) -> Result<JObject<'a>> {
         // This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
         Ok(jni_unchecked!(self.internal, PopLocalFrame, result.into_inner()).into())
     }
@@ -414,7 +384,7 @@ impl<'a> JNIEnv<'a> {
     /// Provides a convenient way to use `push_local_frame` by automatically
     /// calling
     /// `pop_local_frame` function.
-    pub fn with_local_frame<F>(&self, capacity: i32, f: F) -> Result<JObject>
+    pub fn with_local_frame<F>(&self, capacity: i32, f: F) -> Result<JObject<'a>>
     where
         F: FnOnce() -> Result<JObject<'a>>,
     {
@@ -431,15 +401,20 @@ impl<'a> JNIEnv<'a> {
 
     /// Allocates a new object from a class descriptor without running a
     /// constructor.
-    pub fn alloc_object<T>(&self, class: T) -> Result<JObject>
+    pub fn alloc_object<T>(&self, class: T) -> Result<JObject<'a>>
     where
         T: Desc<'a, JClass<'a>>,
     {
         let class = class.lookup(self)?;
-        Ok(jni_non_null_call!(self.internal, AllocObject, class.into_inner()))
+        Ok(jni_non_null_call!(
+            self.internal,
+            AllocObject,
+            class.into_inner()
+        ))
     }
 
     /// Common functionality for finding methods.
+    #[allow(clippy::redundant_closure_call)]
     fn get_method_id_base<'c, T, U, V, C, R>(
         &self,
         class: T,
@@ -461,8 +436,8 @@ impl<'a> JNIEnv<'a> {
 
         match res {
             Ok(m) => Ok(m),
-            Err(e) => match e.kind() {
-                &ErrorKind::NullPtr(_) => {
+            Err(e) => match *e.kind() {
+                ErrorKind::NullPtr(_) => {
                     let name: String = ffi_name.into();
                     let sig: String = sig.into();
                     Err(ErrorKind::MethodNotFound(name, sig).into())
@@ -555,8 +530,8 @@ impl<'a> JNIEnv<'a> {
 
         match res {
             Ok(m) => Ok(m),
-            Err(e) => match e.kind() {
-                &ErrorKind::NullPtr(_) => {
+            Err(e) => match *e.kind() {
+                ErrorKind::NullPtr(_) => {
                     let name: String = ffi_name.into();
                     let sig: String = ffi_sig.into();
                     Err(ErrorKind::FieldNotFound(name, sig).into())
@@ -599,8 +574,8 @@ impl<'a> JNIEnv<'a> {
 
         match res {
             Ok(m) => Ok(m),
-            Err(e) => match e.kind() {
-                &ErrorKind::NullPtr(_) => {
+            Err(e) => match *e.kind() {
+                ErrorKind::NullPtr(_) => {
                     let name: String = ffi_name.into();
                     let sig: String = ffi_sig.into();
                     Err(ErrorKind::FieldNotFound(name, sig).into())
@@ -628,7 +603,7 @@ impl<'a> JNIEnv<'a> {
         method_id: U,
         ret: JavaType,
         args: &[JValue],
-    ) -> Result<JValue>
+    ) -> Result<JValue<'a>>
     where
         T: Desc<'a, JClass<'a>>,
         U: Desc<'a, JStaticMethodID<'a>>,
@@ -638,7 +613,7 @@ impl<'a> JNIEnv<'a> {
         let method_id = method_id.lookup(self)?.into_inner();
 
         let class = class.into_inner();
-        let args: Vec<jvalue> = args.into_iter().map(|v| v.to_jni()).collect();
+        let args: Vec<jvalue> = args.iter().map(|v| v.to_jni()).collect();
         let jni_args = args.as_ptr();
 
         // TODO clean this up
@@ -650,80 +625,88 @@ impl<'a> JNIEnv<'a> {
                     class,
                     method_id,
                     jni_args
-                ).into();
+                )
+                .into();
                 obj.into()
             }
             // JavaType::Object
             JavaType::Method(_) => unimplemented!(),
-            JavaType::Primitive(p) => {
-                let v: JValue = match p {
-                    Primitive::Boolean => (jni_non_void_call!(
-                        self.internal,
-                        CallStaticBooleanMethodA,
-                        class,
-                        method_id,
-                        jni_args
-                    ) == sys::JNI_TRUE)
-                        .into(),
-                    Primitive::Char => jni_non_void_call!(
-                        self.internal,
-                        CallStaticCharMethodA,
-                        class,
-                        method_id,
-                        jni_args
-                    ).into(),
-                    Primitive::Short => jni_non_void_call!(
-                        self.internal,
-                        CallStaticShortMethodA,
-                        class,
-                        method_id,
-                        jni_args
-                    ).into(),
-                    Primitive::Int => jni_non_void_call!(
-                        self.internal,
-                        CallStaticIntMethodA,
-                        class,
-                        method_id,
-                        jni_args
-                    ).into(),
-                    Primitive::Long => jni_non_void_call!(
-                        self.internal,
-                        CallStaticLongMethodA,
-                        class,
-                        method_id,
-                        jni_args
-                    ).into(),
-                    Primitive::Float => jni_non_void_call!(
-                        self.internal,
-                        CallStaticFloatMethodA,
-                        class,
-                        method_id,
-                        jni_args
-                    ).into(),
-                    Primitive::Double => jni_non_void_call!(
-                        self.internal,
-                        CallStaticDoubleMethodA,
-                        class,
-                        method_id,
-                        jni_args
-                    ).into(),
-                    Primitive::Byte => jni_non_void_call!(
-                        self.internal,
-                        CallStaticByteMethodA,
-                        class,
-                        method_id,
-                        jni_args
-                    ).into(),
-                    Primitive::Void => jni_non_void_call!(
+            JavaType::Primitive(p) => match p {
+                Primitive::Boolean => jni_non_void_call!(
+                    self.internal,
+                    CallStaticBooleanMethodA,
+                    class,
+                    method_id,
+                    jni_args
+                )
+                .into(),
+                Primitive::Char => jni_non_void_call!(
+                    self.internal,
+                    CallStaticCharMethodA,
+                    class,
+                    method_id,
+                    jni_args
+                )
+                .into(),
+                Primitive::Short => jni_non_void_call!(
+                    self.internal,
+                    CallStaticShortMethodA,
+                    class,
+                    method_id,
+                    jni_args
+                )
+                .into(),
+                Primitive::Int => jni_non_void_call!(
+                    self.internal,
+                    CallStaticIntMethodA,
+                    class,
+                    method_id,
+                    jni_args
+                )
+                .into(),
+                Primitive::Long => jni_non_void_call!(
+                    self.internal,
+                    CallStaticLongMethodA,
+                    class,
+                    method_id,
+                    jni_args
+                )
+                .into(),
+                Primitive::Float => jni_non_void_call!(
+                    self.internal,
+                    CallStaticFloatMethodA,
+                    class,
+                    method_id,
+                    jni_args
+                )
+                .into(),
+                Primitive::Double => jni_non_void_call!(
+                    self.internal,
+                    CallStaticDoubleMethodA,
+                    class,
+                    method_id,
+                    jni_args
+                )
+                .into(),
+                Primitive::Byte => jni_non_void_call!(
+                    self.internal,
+                    CallStaticByteMethodA,
+                    class,
+                    method_id,
+                    jni_args
+                )
+                .into(),
+                Primitive::Void => {
+                    jni_void_call!(
                         self.internal,
                         CallStaticVoidMethodA,
                         class,
                         method_id,
                         jni_args
-                    ).into(),
-                };
-                v.into()
-            } // JavaType::Primitive
+                    );
+                    return Ok(JValue::Void);
+                }
+            }, // JavaType::Primitive
         }) // match parsed.ret
     }
 
@@ -739,7 +722,7 @@ impl<'a> JNIEnv<'a> {
         method_id: T,
         ret: JavaType,
         args: &[JValue],
-    ) -> Result<JValue>
+    ) -> Result<JValue<'a>>
     where
         T: Desc<'a, JMethodID<'a>>,
     {
@@ -747,7 +730,7 @@ impl<'a> JNIEnv<'a> {
 
         let obj = obj.into_inner();
 
-        let args: Vec<jvalue> = args.into_iter().map(|v| v.to_jni()).collect();
+        let args: Vec<jvalue> = args.iter().map(|v| v.to_jni()).collect();
         let jni_args = args.as_ptr();
 
         // TODO clean this up
@@ -760,60 +743,44 @@ impl<'a> JNIEnv<'a> {
             }
             // JavaType::Object
             JavaType::Method(_) => unimplemented!(),
-            JavaType::Primitive(p) => {
-                let v: JValue = match p {
-                    Primitive::Boolean => (jni_non_void_call!(
-                        self.internal,
-                        CallBooleanMethodA,
-                        obj,
-                        method_id,
-                        jni_args
-                    ) == sys::JNI_TRUE)
-                        .into(),
-                    Primitive::Char => {
-                        jni_non_void_call!(self.internal, CallCharMethodA, obj, method_id, jni_args)
-                            .into()
-                    }
-                    Primitive::Short => jni_non_void_call!(
-                        self.internal,
-                        CallShortMethodA,
-                        obj,
-                        method_id,
-                        jni_args
-                    ).into(),
-                    Primitive::Int => {
-                        jni_non_void_call!(self.internal, CallIntMethodA, obj, method_id, jni_args)
-                            .into()
-                    }
-                    Primitive::Long => {
-                        jni_non_void_call!(self.internal, CallLongMethodA, obj, method_id, jni_args)
-                            .into()
-                    }
-                    Primitive::Float => jni_non_void_call!(
-                        self.internal,
-                        CallFloatMethodA,
-                        obj,
-                        method_id,
-                        jni_args
-                    ).into(),
-                    Primitive::Double => jni_non_void_call!(
-                        self.internal,
-                        CallDoubleMethodA,
-                        obj,
-                        method_id,
-                        jni_args
-                    ).into(),
-                    Primitive::Byte => {
-                        jni_non_void_call!(self.internal, CallByteMethodA, obj, method_id, jni_args)
-                            .into()
-                    }
-                    Primitive::Void => {
-                        jni_void_call!(self.internal, CallVoidMethodA, obj, method_id, jni_args);
-                        return Ok(JValue::Void);
-                    }
-                };
-                v.into()
-            } // JavaType::Primitive
+            JavaType::Primitive(p) => match p {
+                Primitive::Boolean => {
+                    jni_non_void_call!(self.internal, CallBooleanMethodA, obj, method_id, jni_args)
+                        .into()
+                }
+                Primitive::Char => {
+                    jni_non_void_call!(self.internal, CallCharMethodA, obj, method_id, jni_args)
+                        .into()
+                }
+                Primitive::Short => {
+                    jni_non_void_call!(self.internal, CallShortMethodA, obj, method_id, jni_args)
+                        .into()
+                }
+                Primitive::Int => {
+                    jni_non_void_call!(self.internal, CallIntMethodA, obj, method_id, jni_args)
+                        .into()
+                }
+                Primitive::Long => {
+                    jni_non_void_call!(self.internal, CallLongMethodA, obj, method_id, jni_args)
+                        .into()
+                }
+                Primitive::Float => {
+                    jni_non_void_call!(self.internal, CallFloatMethodA, obj, method_id, jni_args)
+                        .into()
+                }
+                Primitive::Double => {
+                    jni_non_void_call!(self.internal, CallDoubleMethodA, obj, method_id, jni_args)
+                        .into()
+                }
+                Primitive::Byte => {
+                    jni_non_void_call!(self.internal, CallByteMethodA, obj, method_id, jni_args)
+                        .into()
+                }
+                Primitive::Void => {
+                    jni_void_call!(self.internal, CallVoidMethodA, obj, method_id, jni_args);
+                    return Ok(JValue::Void);
+                }
+            }, // JavaType::Primitive
         }) // match parsed.ret
     }
 
@@ -830,12 +797,12 @@ impl<'a> JNIEnv<'a> {
     /// Note: this may cause a java exception if the arguments are the wrong
     /// type, in addition to if the method itself throws.
     pub fn call_method<S, T>(
-        &'a self,
+        &self,
         obj: JObject,
         name: S,
         sig: T,
         args: &[JValue],
-    ) -> Result<JValue>
+    ) -> Result<JValue<'a>>
     where
         S: Into<JNIString>,
         T: Into<JNIString> + AsRef<str>,
@@ -870,7 +837,7 @@ impl<'a> JNIEnv<'a> {
         name: U,
         sig: V,
         args: &[JValue],
-    ) -> Result<JValue>
+    ) -> Result<JValue<'a>>
     where
         T: Desc<'a, JClass<'a>>,
         U: Into<JNIString>,
@@ -933,7 +900,7 @@ impl<'a> JNIEnv<'a> {
     {
         let class = class.lookup(self)?;
 
-        let jni_args: Vec<jvalue> = ctor_args.into_iter().map(|v| v.to_jni()).collect();
+        let jni_args: Vec<jvalue> = ctor_args.iter().map(|v| v.to_jni()).collect();
         let jni_args = jni_args.as_ptr();
 
         Ok(jni_non_null_call!(
@@ -948,7 +915,7 @@ impl<'a> JNIEnv<'a> {
     /// Cast a JObject to a JString. This won't throw exceptions or return errors
     /// in the event that the object isn't actually a list, but the methods on
     /// the resulting map object will.
-    pub fn get_list(&self, obj: JObject<'a>) -> Result<JList> {
+    pub fn get_list(&self, obj: JObject<'a>) -> Result<JList<'a, '_>> {
         non_null!(obj, "get_list obj argument");
         JList::from_env(self, obj)
     }
@@ -956,7 +923,7 @@ impl<'a> JNIEnv<'a> {
     /// Cast a JObject to a JMap. This won't throw exceptions or return errors
     /// in the event that the object isn't actually a map, but the methods on
     /// the resulting map object will.
-    pub fn get_map(&self, obj: JObject<'a>) -> Result<JMap> {
+    pub fn get_map(&self, obj: JObject<'a>) -> Result<JMap<'a, '_>> {
         non_null!(obj, "get_map obj argument");
         JMap::from_env(self, obj)
     }
@@ -966,7 +933,7 @@ impl<'a> JNIEnv<'a> {
     ///
     /// This entails a call to `GetStringUTFChars` and only decodes java's
     /// modified UTF-8 format on conversion to a rust-compatible string.
-    pub fn get_string(&self, obj: JString<'a>) -> Result<JavaStr> {
+    pub fn get_string(&self, obj: JString<'a>) -> Result<JavaStr<'a, '_>> {
         non_null!(obj, "get_string obj argument");
         JavaStr::from_env(self, obj)
     }
@@ -989,6 +956,8 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Unpin the array returned by `get_string_utf_chars`.
+    // It is safe to dereference a pointer that comes from `get_string_utf_chars`.
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn release_string_utf_chars(&self, obj: JString, arr: *const c_char) -> Result<()> {
         non_null!(obj, "release_string_utf_chars obj argument");
         // This method is safe to call in case of pending exceptions (see the chapter 2 of the spec)
@@ -1001,7 +970,11 @@ impl<'a> JNIEnv<'a> {
     /// format.
     pub fn new_string<S: Into<JNIString>>(&self, from: S) -> Result<JString<'a>> {
         let ffi_str = from.into();
-        Ok(jni_non_null_call!(self.internal, NewStringUTF, ffi_str.as_ptr()))
+        Ok(jni_non_null_call!(
+            self.internal,
+            NewStringUTF,
+            ffi_str.as_ptr()
+        ))
     }
 
     /// Get the length of a java array
@@ -1038,14 +1011,13 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Returns an element of the `jobjectArray` array.
-    pub fn get_object_array_element(&self, array: jobjectArray, index: jsize) -> Result<JObject> {
+    pub fn get_object_array_element(
+        &self,
+        array: jobjectArray,
+        index: jsize,
+    ) -> Result<JObject<'a>> {
         non_null!(array, "get_object_array_element array argument");
-        Ok(jni_non_null_call!(
-            self.internal,
-            GetObjectArrayElement,
-            array,
-            index
-        ))
+        Ok(jni_non_void_call!(self.internal, GetObjectArrayElement, array, index).into())
     }
 
     /// Sets an element of the `jobjectArray` array.
@@ -1056,13 +1028,14 @@ impl<'a> JNIEnv<'a> {
         value: JObject,
     ) -> Result<()> {
         non_null!(array, "set_object_array_element array argument");
-        Ok(jni_void_call!(
+        jni_void_call!(
             self.internal,
             SetObjectArrayElement,
             array,
             index,
             value.into_inner()
-        ))
+        );
+        Ok(())
     }
 
     /// Create a new java byte array from a rust byte slice.
@@ -1145,7 +1118,14 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Copy elements of the java boolean array from the `start` index to the
-    /// `buf` slice.
+    /// `buf` slice. The number of copied elements is equal to the `buf` length.
+    ///
+    /// # Errors
+    /// If `start` is negative _or_ `start + buf.len()` is greater than [`array.length`]
+    /// then no elements are copied, an `ArrayIndexOutOfBoundsException` is thrown,
+    /// and `Err` is returned.
+    ///
+    /// [`array.length`]: struct.JNIEnv.html#method.get_array_length
     pub fn get_boolean_array_region(
         &self,
         array: jbooleanArray,
@@ -1165,7 +1145,14 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Copy elements of the java byte array from the `start` index to the `buf`
-    /// slice.
+    /// slice. The number of copied elements is equal to the `buf` length.
+    ///
+    /// # Errors
+    /// If `start` is negative _or_ `start + buf.len()` is greater than [`array.length`]
+    /// then no elements are copied, an `ArrayIndexOutOfBoundsException` is thrown,
+    /// and `Err` is returned.
+    ///
+    /// [`array.length`]: struct.JNIEnv.html#method.get_array_length
     pub fn get_byte_array_region(
         &self,
         array: jbyteArray,
@@ -1185,7 +1172,14 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Copy elements of the java char array from the `start` index to the
-    /// `buf` slice.
+    /// `buf` slice. The number of copied elements is equal to the `buf` length.
+    ///
+    /// # Errors
+    /// If `start` is negative _or_ `start + buf.len()` is greater than [`array.length`]
+    /// then no elements are copied, an `ArrayIndexOutOfBoundsException` is thrown,
+    /// and `Err` is returned.
+    ///
+    /// [`array.length`]: struct.JNIEnv.html#method.get_array_length
     pub fn get_char_array_region(
         &self,
         array: jcharArray,
@@ -1205,7 +1199,14 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Copy elements of the java short array from the `start` index to the
-    /// `buf` slice.
+    /// `buf` slice. The number of copied elements is equal to the `buf` length.
+    ///
+    /// # Errors
+    /// If `start` is negative _or_ `start + buf.len()` is greater than [`array.length`]
+    /// then no elements are copied, an `ArrayIndexOutOfBoundsException` is thrown,
+    /// and `Err` is returned.
+    ///
+    /// [`array.length`]: struct.JNIEnv.html#method.get_array_length
     pub fn get_short_array_region(
         &self,
         array: jshortArray,
@@ -1225,7 +1226,14 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Copy elements of the java int array from the `start` index to the
-    /// `buf` slice.
+    /// `buf` slice. The number of copied elements is equal to the `buf` length.
+    ///
+    /// # Errors
+    /// If `start` is negative _or_ `start + buf.len()` is greater than [`array.length`]
+    /// then no elements are copied, an `ArrayIndexOutOfBoundsException` is thrown,
+    /// and `Err` is returned.
+    ///
+    /// [`array.length`]: struct.JNIEnv.html#method.get_array_length
     pub fn get_int_array_region(
         &self,
         array: jintArray,
@@ -1245,7 +1253,14 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Copy elements of the java long array from the `start` index to the
-    /// `buf` slice.
+    /// `buf` slice. The number of copied elements is equal to the `buf` length.
+    ///
+    /// # Errors
+    /// If `start` is negative _or_ `start + buf.len()` is greater than [`array.length`]
+    /// then no elements are copied, an `ArrayIndexOutOfBoundsException` is thrown,
+    /// and `Err` is returned.
+    ///
+    /// [`array.length`]: struct.JNIEnv.html#method.get_array_length
     pub fn get_long_array_region(
         &self,
         array: jlongArray,
@@ -1265,7 +1280,14 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Copy elements of the java float array from the `start` index to the
-    /// `buf` slice.
+    /// `buf` slice. The number of copied elements is equal to the `buf` length.
+    ///
+    /// # Errors
+    /// If `start` is negative _or_ `start + buf.len()` is greater than [`array.length`]
+    /// then no elements are copied, an `ArrayIndexOutOfBoundsException` is thrown,
+    /// and `Err` is returned.
+    ///
+    /// [`array.length`]: struct.JNIEnv.html#method.get_array_length
     pub fn get_float_array_region(
         &self,
         array: jfloatArray,
@@ -1285,7 +1307,14 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Copy elements of the java double array from the `start` index to the
-    /// `buf` slice.
+    /// `buf` slice. The number of copied elements is equal to the `buf` length.
+    ///
+    /// # Errors
+    /// If `start` is negative _or_ `start + buf.len()` is greater than [`array.length`]
+    /// then no elements are copied, an `ArrayIndexOutOfBoundsException` is thrown,
+    /// and `Err` is returned.
+    ///
+    /// [`array.length`]: struct.JNIEnv.html#method.get_array_length
     pub fn get_double_array_region(
         &self,
         array: jdoubleArray,
@@ -1460,7 +1489,7 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Get a field without checking the provided type against the actual field.
-    pub fn get_field_unchecked<T>(&self, obj: JObject, field: T, ty: JavaType) -> Result<JValue>
+    pub fn get_field_unchecked<T>(&self, obj: JObject, field: T, ty: JavaType) -> Result<JValue<'a>>
     where
         T: Desc<'a, JFieldID<'a>>,
     {
@@ -1472,43 +1501,29 @@ impl<'a> JNIEnv<'a> {
         // TODO clean this up
         Ok(match ty {
             JavaType::Object(_) | JavaType::Array(_) => {
-                let obj: JObject = jni_non_null_call!(self.internal, GetObjectField, obj, field);
+                let obj: JObject =
+                    jni_non_void_call!(self.internal, GetObjectField, obj, field).into();
                 obj.into()
             }
             // JavaType::Object
             JavaType::Method(_) => unimplemented!(),
-            JavaType::Primitive(p) => {
-                let v: JValue = match p {
-                    Primitive::Boolean => {
-                        (jni_unchecked!(self.internal, GetBooleanField, obj, field)
-                            == sys::JNI_TRUE)
-                            .into()
-                    }
-                    Primitive::Char => {
-                        jni_unchecked!(self.internal, GetCharField, obj, field).into()
-                    }
-                    Primitive::Short => {
-                        jni_unchecked!(self.internal, GetShortField, obj, field).into()
-                    }
-                    Primitive::Int => jni_unchecked!(self.internal, GetIntField, obj, field).into(),
-                    Primitive::Long => {
-                        jni_unchecked!(self.internal, GetLongField, obj, field).into()
-                    }
-                    Primitive::Float => {
-                        jni_unchecked!(self.internal, GetFloatField, obj, field).into()
-                    }
-                    Primitive::Double => {
-                        jni_unchecked!(self.internal, GetDoubleField, obj, field).into()
-                    }
-                    Primitive::Byte => {
-                        jni_unchecked!(self.internal, GetByteField, obj, field).into()
-                    }
-                    Primitive::Void => {
-                        return Err(ErrorKind::WrongJValueType("void", "see java field").into());
-                    }
-                };
-                v.into()
-            }
+            JavaType::Primitive(p) => match p {
+                Primitive::Boolean => {
+                    jni_unchecked!(self.internal, GetBooleanField, obj, field).into()
+                }
+                Primitive::Char => jni_unchecked!(self.internal, GetCharField, obj, field).into(),
+                Primitive::Short => jni_unchecked!(self.internal, GetShortField, obj, field).into(),
+                Primitive::Int => jni_unchecked!(self.internal, GetIntField, obj, field).into(),
+                Primitive::Long => jni_unchecked!(self.internal, GetLongField, obj, field).into(),
+                Primitive::Float => jni_unchecked!(self.internal, GetFloatField, obj, field).into(),
+                Primitive::Double => {
+                    jni_unchecked!(self.internal, GetDoubleField, obj, field).into()
+                }
+                Primitive::Byte => jni_unchecked!(self.internal, GetByteField, obj, field).into(),
+                Primitive::Void => {
+                    return Err(ErrorKind::WrongJValueType("void", "see java field").into());
+                }
+            },
         })
     }
 
@@ -1562,7 +1577,7 @@ impl<'a> JNIEnv<'a> {
 
     /// Get a field. Requires an object class lookup and a field id lookup
     /// internally.
-    pub fn get_field<S, T>(&self, obj: JObject, name: S, ty: T) -> Result<JValue>
+    pub fn get_field<S, T>(&self, obj: JObject, name: S, ty: T) -> Result<JValue<'a>>
     where
         S: Into<JNIString>,
         T: Into<JNIString> + AsRef<str>,
@@ -1588,9 +1603,7 @@ impl<'a> JNIEnv<'a> {
 
         match parsed {
             JavaType::Object(_) | JavaType::Array(_) => {
-                if let None = in_type {
-                    // we're good here
-                } else {
+                if in_type.is_some() {
                     return Err(
                         ErrorKind::WrongJValueType(val.type_name(), "see java field").into(),
                     );
@@ -1626,7 +1639,7 @@ impl<'a> JNIEnv<'a> {
         class: T,
         field: U,
         ty: JavaType,
-    ) -> Result<JValue>
+    ) -> Result<JValue<'a>>
     where
         T: Desc<'a, JClass<'a>>,
         U: Desc<'a, JStaticFieldID<'a>>,
@@ -1646,40 +1659,35 @@ impl<'a> JNIEnv<'a> {
             JavaType::Method(_) => {
                 return Err(ErrorKind::WrongJValueType("Method", "see java field").into())
             }
-            JavaType::Primitive(p) => {
-                let v: JValue = match p {
-                    Primitive::Boolean => {
-                        (jni_unchecked!(self.internal, GetStaticBooleanField, class, field_id)
-                            == sys::JNI_TRUE)
-                            .into()
-                    }
-                    Primitive::Char => {
-                        jni_unchecked!(self.internal, GetStaticCharField, class, field_id).into()
-                    }
-                    Primitive::Short => {
-                        jni_unchecked!(self.internal, GetStaticShortField, class, field_id).into()
-                    }
-                    Primitive::Int => {
-                        jni_unchecked!(self.internal, GetStaticIntField, class, field_id).into()
-                    }
-                    Primitive::Long => {
-                        jni_unchecked!(self.internal, GetStaticLongField, class, field_id).into()
-                    }
-                    Primitive::Float => {
-                        jni_unchecked!(self.internal, GetStaticFloatField, class, field_id).into()
-                    }
-                    Primitive::Double => {
-                        jni_unchecked!(self.internal, GetStaticDoubleField, class, field_id).into()
-                    }
-                    Primitive::Byte => {
-                        jni_unchecked!(self.internal, GetStaticByteField, class, field_id).into()
-                    }
-                    Primitive::Void => {
-                        return Err(ErrorKind::WrongJValueType("void", "see java field").into());
-                    }
-                };
-                v.into()
-            }
+            JavaType::Primitive(p) => match p {
+                Primitive::Boolean => {
+                    jni_unchecked!(self.internal, GetStaticBooleanField, class, field_id).into()
+                }
+                Primitive::Char => {
+                    jni_unchecked!(self.internal, GetStaticCharField, class, field_id).into()
+                }
+                Primitive::Short => {
+                    jni_unchecked!(self.internal, GetStaticShortField, class, field_id).into()
+                }
+                Primitive::Int => {
+                    jni_unchecked!(self.internal, GetStaticIntField, class, field_id).into()
+                }
+                Primitive::Long => {
+                    jni_unchecked!(self.internal, GetStaticLongField, class, field_id).into()
+                }
+                Primitive::Float => {
+                    jni_unchecked!(self.internal, GetStaticFloatField, class, field_id).into()
+                }
+                Primitive::Double => {
+                    jni_unchecked!(self.internal, GetStaticDoubleField, class, field_id).into()
+                }
+                Primitive::Byte => {
+                    jni_unchecked!(self.internal, GetStaticByteField, class, field_id).into()
+                }
+                Primitive::Void => {
+                    return Err(ErrorKind::WrongJValueType("void", "see java field").into());
+                }
+            },
         })
     }
 
@@ -1723,7 +1731,8 @@ impl<'a> JNIEnv<'a> {
 
         // Check to see if we've already set this value. If it's not null, that
         // means that we're going to leak memory if it gets overwritten.
-        let field_ptr = self.get_field_unchecked(obj, field_id, JavaType::Primitive(Primitive::Long))?
+        let field_ptr = self
+            .get_field_unchecked(obj, field_id, JavaType::Primitive(Primitive::Long))?
             .j()? as *mut Mutex<T>;
         if !field_ptr.is_null() {
             return Err(format!("field already set: {}", field.as_ref()).into());
@@ -1773,14 +1782,13 @@ impl<'a> JNIEnv<'a> {
         let mbox = {
             let guard = self.lock_obj(obj)?;
 
-            let ptr = self.get_field_unchecked(obj, field_id, JavaType::Primitive(Primitive::Long))?
+            let ptr = self
+                .get_field_unchecked(obj, field_id, JavaType::Primitive(Primitive::Long))?
                 .j()? as *mut Mutex<T>;
 
             non_null!(ptr, "rust value from Java");
 
-            let mbox = unsafe {
-                Box::from_raw(ptr)
-            };
+            let mbox = unsafe { Box::from_raw(ptr) };
 
             // attempt to acquire the lock. This prevents us from consuming the
             // mutex if there's an outstanding lock. No one else will be able to
@@ -1827,7 +1835,8 @@ impl<'a> JNIEnv<'a> {
     /// Ensures that at least a given number of local references can be created
     /// in the current thread.
     pub fn ensure_local_capacity(&self, capacity: jint) -> Result<()> {
-        Ok(jni_void_call!(self.internal, EnsureLocalCapacity, capacity))
+        jni_void_call!(self.internal, EnsureLocalCapacity, capacity);
+        Ok(())
     }
 }
 
@@ -1846,9 +1855,8 @@ impl<'a> Drop for MonitorGuard<'a> {
             Ok(())
         });
 
-        match res {
-            Err(e) => warn!("error releasing java monitor: {}", e),
-            _ => {}
+        if let Err(e) = res {
+            warn!("error releasing java monitor: {}", e)
         }
     }
 }

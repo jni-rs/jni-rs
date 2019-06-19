@@ -1,4 +1,3 @@
-
 use std::marker::PhantomData;
 
 use sys::jmethodID;
@@ -9,7 +8,7 @@ use sys::jmethodID;
 /// used in any of the extern function argument positions that would take a
 /// `jmethodid`. This represents static methods only since they require a
 /// different set of JNI signatures.
-#[repr(C)]
+#[repr(transparent)]
 #[derive(Copy, Clone)]
 pub struct JStaticMethodID<'a> {
     internal: jmethodID,
