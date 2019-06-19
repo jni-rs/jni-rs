@@ -229,10 +229,10 @@ impl<'a> JNIEnv<'a> {
     {
         let throwable = obj.lookup(self)?;
         let res: i32 = jni_unchecked!(self.internal, Throw, throwable.into_inner());
-        if res < 0 {
-            Err(format!("throw failed with code {}", res).into())
-        } else {
+        if res == 0 {
             Ok(())
+        } else {
+            Err(format!("throw failed with code {}", res).into())
         }
     }
 
@@ -251,10 +251,10 @@ impl<'a> JNIEnv<'a> {
         let class = class.lookup(self)?;
         let msg = msg.into();
         let res: i32 = jni_unchecked!(self.internal, ThrowNew, class.into_inner(), msg.as_ptr());
-        if res < 0 {
-            Err(format!("throw_new failed with code {}", res).into())
-        } else {
+        if res == 0 {
             Ok(())
+        } else {
+            Err(format!("throw_new failed with code {}", res).into())
         }
     }
 

@@ -452,15 +452,37 @@ fn auto_local_null() {
     assert!(null_obj.is_null());
 }
 
-
 #[test]
 pub fn throw_new() {
     let env = attach_current_thread();
 
-    env.throw_new("java/lang/RuntimeException", "Test Exception")
+    let result = env.throw_new("java/lang/RuntimeException", "Test Exception");
+    assert!(result.is_ok());
+    let ex = env
+        .exception_occurred()
+        .expect("Exception should be thrown");
+    assert_pending_java_exception(&env);
+
+    assert!(env
+        .is_instance_of(ex.clone().into(), "java/lang/RuntimeException")
+        .unwrap());
+    let message = env
+        .call_method(ex.into(), "getMessage", "()Ljava/lang/String;", &[])
+        .unwrap()
+        .l()
         .unwrap();
-    env.exception_occurred().unwrap();
-    env.exception_clear().unwrap();
+    let msg_rust: String = env.get_string(message.into()).unwrap().into();
+    assert_eq!(msg_rust, "Test Exception");
+}
+
+#[test]
+pub fn throw_new_fail() {
+    let env = attach_current_thread();
+
+    let result = env.throw_new("java/lang/NonexistentException", "Test Exception");
+    assert!(result.is_err());
+    // Just to clear the java.lang.NoClassDefFoundError
+    assert_pending_java_exception(&env);
 }
 
 // Helper method that asserts that result is Error and the cause is JavaException.
