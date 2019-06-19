@@ -54,6 +54,9 @@ use InitArgs;
 /// with the JVM, and allow to use `JavaVM#new`:
 ///
 /// ```rust
+/// # // Ignore this test without invocation feature, so that simple `cargo test` works
+/// # #[cfg(feature = "invocation")] {
+/// #
 /// # use jni::{AttachGuard, objects::JValue, InitArgsBuilder, JNIEnv, JNIVersion, JavaVM, sys::jint};
 /// # use jni::errors;
 /// #
@@ -86,6 +89,7 @@ use InitArgs;
 ///
 /// assert_eq!(val, 10);
 /// # Ok(()) }
+/// # }
 /// ```
 ///
 /// During build time, the JVM installation path is determined:
