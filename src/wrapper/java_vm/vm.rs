@@ -55,7 +55,9 @@ use InitArgs;
 ///
 /// ```rust
 /// # use jni::{AttachGuard, objects::JValue, InitArgsBuilder, JNIEnv, JNIVersion, JavaVM, sys::jint};
-///
+/// # use jni::errors;
+/// #
+/// # fn main() -> errors::Result<()> {
 /// // Build the VM properties
 /// let jvm_args = InitArgsBuilder::new()
 ///           // Pass the JNI API version (default is 8)
@@ -64,7 +66,8 @@ use InitArgs;
 ///           // or VM-specific).
 ///           // Here we enable some extra JNI checks useful during development
 ///           .option("-Xcheck:jni")
-///           .build()?;
+///           .build()
+///           .unwrap();
 ///
 /// // Create a new VM
 /// let jvm = JavaVM::new(jvm_args)?;
@@ -79,10 +82,10 @@ use InitArgs;
 /// // Call Java Math#abs(-10)
 /// let x = JValue::from(-10);
 /// let val: jint = env.call_static_method("java/lang/Math", "abs", "(I)I", &[x])?
-///   .i()
-///   .unwrap();
+///   .i()?;
 ///
 /// assert_eq!(val, 10);
+/// # Ok(()) }
 /// ```
 ///
 /// During build time, the JVM installation path is determined:
