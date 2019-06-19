@@ -1,18 +1,7 @@
-use std::sync::{
-    Arc,
-    Once,
-    ONCE_INIT,
-};
+use std::sync::{Arc, Once, ONCE_INIT};
 
 use error_chain::ChainedError;
-use jni::errors::Result;
-use jni::{
-    AttachGuard,
-    InitArgsBuilder,
-    JNIEnv,
-    JNIVersion,
-    JavaVM,
-};
+use jni::{errors::Result, AttachGuard, InitArgsBuilder, JNIEnv, JNIVersion, JavaVM};
 
 pub fn jvm() -> &'static Arc<JavaVM> {
     static mut JVM: Option<Arc<JavaVM>> = None;

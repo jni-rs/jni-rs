@@ -14,12 +14,11 @@
 
 extern crate walkdir;
 
-use std::env;
-use std::path::{
-    Path,
-    PathBuf,
+use std::{
+    env,
+    path::{Path, PathBuf},
+    process::Command,
 };
-use std::process::Command;
 
 #[cfg(target_os = "windows")]
 const EXPECTED_JVM_FILENAME: &str = "jvm.dll";
@@ -32,13 +31,14 @@ fn main() {
     if cfg!(feature = "invocation") {
         let java_home = match env::var("JAVA_HOME") {
             Ok(java_home) => PathBuf::from(java_home),
-            Err(_) => find_java_home()
-                .expect("Failed to find Java home directory. \
-                         Try setting JAVA_HOME")
+            Err(_) => find_java_home().expect(
+                "Failed to find Java home directory. \
+                 Try setting JAVA_HOME",
+            ),
         };
 
-        let libjvm_path = find_libjvm(&java_home)
-            .expect("Failed to find libjvm.so. Check JAVA_HOME");
+        let libjvm_path =
+            find_libjvm(&java_home).expect("Failed to find libjvm.so. Check JAVA_HOME");
 
         println!("cargo:rustc-link-search=native={}", libjvm_path.display());
 

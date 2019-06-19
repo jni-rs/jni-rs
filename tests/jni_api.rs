@@ -3,7 +3,6 @@
 extern crate error_chain;
 extern crate jni;
 
-use std::str::FromStr;
 use jni::{
     errors::{Error, ErrorKind},
     objects::{AutoLocal, JByteBuffer, JList, JObject, JValue},
@@ -11,6 +10,7 @@ use jni::{
     sys::{jint, jobject, jsize},
     JNIEnv,
 };
+use std::str::FromStr;
 
 mod util;
 use util::{attach_current_thread, unwrap};
@@ -30,9 +30,15 @@ static MATH_TO_INT_SIGNATURE: &str = "(J)I";
 pub fn call_method_returning_null() {
     let env = attach_current_thread();
     // Create an Exception with no message
-    let obj = AutoLocal::new(&env, unwrap(&env, env.new_object(EXCEPTION_CLASS, "()V", &[])));
+    let obj = AutoLocal::new(
+        &env,
+        unwrap(&env, env.new_object(EXCEPTION_CLASS, "()V", &[])),
+    );
     // Call Throwable#getMessage must return null
-    let message = unwrap(&env, env.call_method(obj.as_obj(), "getMessage", "()Ljava/lang/String;", &[]));
+    let message = unwrap(
+        &env,
+        env.call_method(obj.as_obj(), "getMessage", "()Ljava/lang/String;", &[]),
+    );
     let message_ref = env.auto_local(unwrap(&env, message.l()));
 
     assert!(message_ref.as_obj().is_null());
@@ -41,29 +47,53 @@ pub fn call_method_returning_null() {
 #[test]
 pub fn is_instance_of_same_class() {
     let env = attach_current_thread();
-    let obj = AutoLocal::new(&env, unwrap(&env, env.new_object(EXCEPTION_CLASS, "()V", &[])));
-    assert!(unwrap(&env, env.is_instance_of(obj.as_obj(), EXCEPTION_CLASS)));
+    let obj = AutoLocal::new(
+        &env,
+        unwrap(&env, env.new_object(EXCEPTION_CLASS, "()V", &[])),
+    );
+    assert!(unwrap(
+        &env,
+        env.is_instance_of(obj.as_obj(), EXCEPTION_CLASS)
+    ));
 }
 
 #[test]
 pub fn is_instance_of_superclass() {
     let env = attach_current_thread();
-    let obj = AutoLocal::new(&env, unwrap(&env, env.new_object(ARITHMETIC_EXCEPTION_CLASS, "()V", &[])));
-    assert!(unwrap(&env, env.is_instance_of(obj.as_obj(), EXCEPTION_CLASS)));
+    let obj = AutoLocal::new(
+        &env,
+        unwrap(&env, env.new_object(ARITHMETIC_EXCEPTION_CLASS, "()V", &[])),
+    );
+    assert!(unwrap(
+        &env,
+        env.is_instance_of(obj.as_obj(), EXCEPTION_CLASS)
+    ));
 }
 
 #[test]
 pub fn is_instance_of_subclass() {
     let env = attach_current_thread();
-    let obj = AutoLocal::new(&env, unwrap(&env, env.new_object(EXCEPTION_CLASS, "()V", &[])));
-    assert!(!unwrap(&env, env.is_instance_of(obj.as_obj(), ARITHMETIC_EXCEPTION_CLASS)));
+    let obj = AutoLocal::new(
+        &env,
+        unwrap(&env, env.new_object(EXCEPTION_CLASS, "()V", &[])),
+    );
+    assert!(!unwrap(
+        &env,
+        env.is_instance_of(obj.as_obj(), ARITHMETIC_EXCEPTION_CLASS)
+    ));
 }
 
 #[test]
 pub fn is_instance_of_not_superclass() {
     let env = attach_current_thread();
-    let obj = AutoLocal::new(&env, unwrap(&env, env.new_object(ARITHMETIC_EXCEPTION_CLASS, "()V", &[])));
-    assert!(!unwrap(&env, env.is_instance_of(obj.as_obj(), ARRAYLIST_CLASS)));
+    let obj = AutoLocal::new(
+        &env,
+        unwrap(&env, env.new_object(ARITHMETIC_EXCEPTION_CLASS, "()V", &[])),
+    );
+    assert!(!unwrap(
+        &env,
+        env.is_instance_of(obj.as_obj(), ARRAYLIST_CLASS)
+    ));
 }
 
 #[test]
@@ -72,14 +102,18 @@ pub fn is_instance_of_null() {
     let obj = JObject::null();
     assert!(unwrap(&env, env.is_instance_of(obj, ARRAYLIST_CLASS)));
     assert!(unwrap(&env, env.is_instance_of(obj, EXCEPTION_CLASS)));
-    assert!(unwrap(&env, env.is_instance_of(obj, ARITHMETIC_EXCEPTION_CLASS)));
+    assert!(unwrap(
+        &env,
+        env.is_instance_of(obj, ARITHMETIC_EXCEPTION_CLASS)
+    ));
 }
 
 #[test]
 pub fn get_static_public_field() {
     let env = attach_current_thread();
 
-    let min_int_value = env.get_static_field(INTEGER_CLASS, "MIN_VALUE", "I")
+    let min_int_value = env
+        .get_static_field(INTEGER_CLASS, "MIN_VALUE", "I")
         .unwrap()
         .i()
         .unwrap();
@@ -94,11 +128,13 @@ pub fn get_static_public_field_by_id() {
     // One can't pass a JavaType::Primitive(Primitive::Int) to
     //   `get_static_field_id` unfortunately: #137
     let field_type = "I";
-    let field_id = env.get_static_field_id(INTEGER_CLASS, "MIN_VALUE", field_type)
+    let field_id = env
+        .get_static_field_id(INTEGER_CLASS, "MIN_VALUE", field_type)
         .unwrap();
 
     let field_type = JavaType::from_str(field_type).unwrap();
-    let min_int_value = env.get_static_field_unchecked(INTEGER_CLASS, field_id, field_type)
+    let min_int_value = env
+        .get_static_field_unchecked(INTEGER_CLASS, field_id, field_type)
         .unwrap()
         .i()
         .unwrap();
@@ -112,7 +148,8 @@ pub fn pop_local_frame_pending_exception() {
 
     env.push_local_frame(16).unwrap();
 
-    env.throw_new("java/lang/RuntimeException", "Test Exception").unwrap();
+    env.throw_new("java/lang/RuntimeException", "Test Exception")
+        .unwrap();
 
     // Pop the local frame with a pending exception
     env.pop_local_frame(JObject::null())
@@ -125,7 +162,8 @@ pub fn pop_local_frame_pending_exception() {
 pub fn push_local_frame_pending_exception() {
     let env = attach_current_thread();
 
-    env.throw_new("java/lang/RuntimeException", "Test Exception").unwrap();
+    env.throw_new("java/lang/RuntimeException", "Test Exception")
+        .unwrap();
 
     // Push a new local frame with a pending exception
     env.push_local_frame(16)
@@ -152,12 +190,15 @@ pub fn push_local_frame_too_many_refs() {
 pub fn with_local_frame() {
     let env = attach_current_thread();
 
-    let s = env.with_local_frame(16, || {
-        let res = env.new_string("Test").unwrap();
-        Ok(res.into())
-    }).unwrap();
+    let s = env
+        .with_local_frame(16, || {
+            let res = env.new_string("Test").unwrap();
+            Ok(res.into())
+        })
+        .unwrap();
 
-    let s = env.get_string(s.into())
+    let s = env
+        .get_string(s.into())
         .expect("The object returned from the local frame must remain valid");
     assert_eq!(s.to_str().unwrap(), "Test");
 }
@@ -166,12 +207,12 @@ pub fn with_local_frame() {
 pub fn with_local_frame_pending_exception() {
     let env = attach_current_thread();
 
-    env.throw_new("java/lang/RuntimeException", "Test Exception").unwrap();
+    env.throw_new("java/lang/RuntimeException", "Test Exception")
+        .unwrap();
 
     // Try to allocate a frame of locals
-    env.with_local_frame(16, || {
-        Ok(JObject::null())
-    }).expect("JNIEnv#with_local_frame must work in case of pending exception");
+    env.with_local_frame(16, || Ok(JObject::null()))
+        .expect("JNIEnv#with_local_frame must work in case of pending exception");
 
     env.exception_clear().unwrap();
 }
@@ -181,8 +222,11 @@ pub fn call_static_method_ok() {
     let env = attach_current_thread();
 
     let x = JValue::from(-10);
-    let val: jint = env.call_static_method(MATH_CLASS, MATH_ABS_METHOD_NAME, MATH_ABS_SIGNATURE, &[x])
-        .expect("JNIEnv#call_static_method_unsafe should return JValue").i().unwrap();
+    let val: jint = env
+        .call_static_method(MATH_CLASS, MATH_ABS_METHOD_NAME, MATH_ABS_SIGNATURE, &[x])
+        .expect("JNIEnv#call_static_method_unsafe should return JValue")
+        .i()
+        .unwrap();
 
     assert_eq!(val, 10);
 }
@@ -193,13 +237,22 @@ pub fn call_static_method_throws() {
 
     let x = JValue::Long(4_000_000_000);
     let is_java_exception = env
-        .call_static_method(MATH_CLASS, MATH_TO_INT_METHOD_NAME, MATH_TO_INT_SIGNATURE, &[x])
+        .call_static_method(
+            MATH_CLASS,
+            MATH_TO_INT_METHOD_NAME,
+            MATH_TO_INT_SIGNATURE,
+            &[x],
+        )
         .map_err(|error| match error.0 {
             ErrorKind::JavaException => true,
             _ => false,
-        }).expect_err("JNIEnv#call_static_method_unsafe should return error");
+        })
+        .expect_err("JNIEnv#call_static_method_unsafe should return error");
 
-    assert!(is_java_exception, "ErrorKind::JavaException expected as error");
+    assert!(
+        is_java_exception,
+        "ErrorKind::JavaException expected as error"
+    );
     assert_pending_java_exception(&env);
 }
 
@@ -207,9 +260,14 @@ pub fn call_static_method_throws() {
 pub fn call_static_method_wrong_arg() {
     let env = attach_current_thread();
 
-    let x = JValue::Double(4.56789123);
-    env.call_static_method(MATH_CLASS, MATH_TO_INT_METHOD_NAME, MATH_TO_INT_SIGNATURE, &[x])
-        .expect_err("JNIEnv#call_static_method_unsafe should return error");
+    let x = JValue::Double(4.567_891_23);
+    env.call_static_method(
+        MATH_CLASS,
+        MATH_TO_INT_METHOD_NAME,
+        MATH_TO_INT_SIGNATURE,
+        &[x],
+    )
+    .expect_err("JNIEnv#call_static_method_unsafe should return error");
 
     assert_pending_java_exception(&env);
 }
@@ -218,7 +276,8 @@ pub fn call_static_method_wrong_arg() {
 pub fn java_byte_array_from_slice() {
     let env = attach_current_thread();
     let buf: &[u8] = &[1, 2, 3];
-    let java_array = env.byte_array_from_slice(buf)
+    let java_array = env
+        .byte_array_from_slice(buf)
         .expect("JNIEnv#byte_array_from_slice must create a java array from slice");
     let obj = AutoLocal::new(&env, JObject::from(java_array));
 
@@ -243,10 +302,13 @@ pub fn get_object_class() {
 pub fn get_object_class_null_arg() {
     let env = attach_current_thread();
     let null_obj = JObject::null();
-    let result = env.get_object_class(null_obj).map_err(|error| match *error.kind() {
-        ErrorKind::NullPtr(_) => true,
-        _ => false,
-    }).expect_err("JNIEnv#get_object_class should return error for null argument");
+    let result = env
+        .get_object_class(null_obj)
+        .map_err(|error| match *error.kind() {
+            ErrorKind::NullPtr(_) => true,
+            _ => false,
+        })
+        .expect_err("JNIEnv#get_object_class should return error for null argument");
     assert!(result, "ErrorKind::NullPtr expected as error");
 }
 
@@ -462,7 +524,9 @@ fn short_lifetime_with_local_frame() {
 }
 
 fn short_lifetime_with_local_frame_sub_fn<'a>(env: &'_ JNIEnv<'a>) -> Result<JObject<'a>, Error> {
-    env.with_local_frame(16, || env.new_object(INTEGER_CLASS, "(I)V", &[JValue::from(5)]))
+    env.with_local_frame(16, || {
+        env.new_object(INTEGER_CLASS, "(I)V", &[JValue::from(5)])
+    })
 }
 
 #[test]
@@ -481,7 +545,9 @@ fn short_lifetime_list_sub_fn<'a>(env: &'_ JNIEnv<'a>) -> Result<JObject<'a>, Er
     short_lifetime_list_sub_fn_get_first_element(&list)
 }
 
-fn short_lifetime_list_sub_fn_get_first_element<'a>(list: &'_ JList<'a, '_>) -> Result<JObject<'a>, Error> {
+fn short_lifetime_list_sub_fn_get_first_element<'a>(
+    list: &'_ JList<'a, '_>,
+) -> Result<JObject<'a>, Error> {
     let mut iterator = list.iter()?;
     Ok(iterator.next().unwrap())
 }
@@ -489,21 +555,26 @@ fn short_lifetime_list_sub_fn_get_first_element<'a>(list: &'_ JList<'a, '_>) -> 
 #[test]
 fn get_object_array_element() {
     let env = attach_current_thread();
-    let array = env.new_object_array(1, STRING_CLASS, JObject::null()).unwrap();
+    let array = env
+        .new_object_array(1, STRING_CLASS, JObject::null())
+        .unwrap();
     assert!(!array.is_null());
     assert!(env.get_object_array_element(array, 0).unwrap().is_null());
     let test_str = env.new_string("test").unwrap();
-    env.set_object_array_element(array,0,test_str.into()).unwrap();
+    env.set_object_array_element(array, 0, test_str.into())
+        .unwrap();
     assert!(!env.get_object_array_element(array, 0).unwrap().is_null());
 }
 
 // Helper method that asserts that result is Error and the cause is JavaException.
 fn assert_exception(res: Result<jobject, Error>, expect_message: &str) {
     assert!(res.is_err());
-    assert!(res.map_err(|error| match *error.kind() {
-        ErrorKind::JavaException => true,
-        _ => false,
-    }).expect_err(expect_message));
+    assert!(res
+        .map_err(|error| match *error.kind() {
+            ErrorKind::JavaException => true,
+            _ => false,
+        })
+        .expect_err(expect_message));
 }
 
 // Helper method that asserts there is a pending Java exception and clears if any
