@@ -1,9 +1,9 @@
 #![cfg(feature = "invocation")]
-extern crate jni;
 extern crate error_chain;
+extern crate jni;
 
 mod util;
-use util::{attach_current_thread, jvm, call_java_abs};
+use util::{attach_current_thread, call_java_abs, jvm};
 
 #[test]
 fn thread_attach_guard_detaches_on_drop() {

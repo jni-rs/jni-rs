@@ -7,12 +7,13 @@ extern crate jni;
 #[macro_use]
 extern crate lazy_static;
 
-
-use jni::{InitArgsBuilder, JavaVM, JNIEnv, JNIVersion};
-use jni::descriptors::Desc;
-use jni::objects::{JClass, JMethodID, JObject, JStaticMethodID, JValue};
-use jni::signature::{JavaType, Primitive};
-use jni::sys::jint;
+use jni::{
+    descriptors::Desc,
+    objects::{JClass, JMethodID, JObject, JStaticMethodID, JValue},
+    signature::{JavaType, Primitive},
+    sys::jint,
+    InitArgsBuilder, JNIEnv, JNIVersion, JavaVM,
+};
 
 static CLASS_MATH: &str = "java/lang/Math";
 static CLASS_OBJECT: &str = "java/lang/Object";
@@ -23,7 +24,6 @@ static SIG_OBJECT_CTOR: &str = "()V";
 static SIG_MATH_ABS: &str = "(I)I";
 static SIG_OBJECT_HASH_CODE: &str = "()I";
 
-
 #[inline(never)]
 fn native_abs(x: i32) -> i32 {
     x.abs()
@@ -31,49 +31,58 @@ fn native_abs(x: i32) -> i32 {
 
 fn jni_abs_safe(env: &JNIEnv, x: jint) -> jint {
     let x = JValue::from(x);
-    let v = env.call_static_method(CLASS_MATH, METHOD_MATH_ABS, SIG_MATH_ABS, &[x]).unwrap();
+    let v = env
+        .call_static_method(CLASS_MATH, METHOD_MATH_ABS, SIG_MATH_ABS, &[x])
+        .unwrap();
     v.i().unwrap()
 }
 
-fn jni_call_static_unchecked<'c, C>(env: &JNIEnv<'c>, class: C, method_id: JStaticMethodID<'c>, x: jint) -> jint
-    where
-        C: Desc<'c, JClass<'c>>,
+fn jni_call_static_unchecked<'c, C>(
+    env: &JNIEnv<'c>,
+    class: C,
+    method_id: JStaticMethodID<'c>,
+    x: jint,
+) -> jint
+where
+    C: Desc<'c, JClass<'c>>,
 {
     let x = JValue::from(x);
     let ret = JavaType::Primitive(Primitive::Int);
-    let v = env.call_static_method_unchecked(class, method_id, ret, &[x]).unwrap();
+    let v = env
+        .call_static_method_unchecked(class, method_id, ret, &[x])
+        .unwrap();
     v.i().unwrap()
 }
 
 fn jni_hash_safe(env: &JNIEnv, obj: JObject) -> jint {
-    let v = env.call_method(obj, METHOD_OBJECT_HASH_CODE, SIG_OBJECT_HASH_CODE, &[]).unwrap();
+    let v = env
+        .call_method(obj, METHOD_OBJECT_HASH_CODE, SIG_OBJECT_HASH_CODE, &[])
+        .unwrap();
     v.i().unwrap()
 }
 
 fn jni_call_unchecked<'m, M>(env: &JNIEnv<'m>, obj: JObject, method_id: M) -> jint
-    where
-        M: Desc<'m, JMethodID<'m>>,
+where
+    M: Desc<'m, JMethodID<'m>>,
 {
     let ret = JavaType::Primitive(Primitive::Int);
-    let v = unsafe {
-        env.call_method_unchecked(obj, method_id, ret, &[]).unwrap()
-    };
+    let v = unsafe { env.call_method_unchecked(obj, method_id, ret, &[]).unwrap() };
     v.i().unwrap()
 }
 
-
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::rc::Rc;
     use std::sync::Arc;
-    use test::{Bencher, black_box};
-    use super::*;
+    use test::{black_box, Bencher};
 
     lazy_static! {
         static ref VM: JavaVM = {
             let args = InitArgsBuilder::new()
                 .version(JNIVersion::V8)
-                .build().unwrap();
+                .build()
+                .unwrap();
             JavaVM::new(args).unwrap()
         };
     }
@@ -96,7 +105,9 @@ mod tests {
     fn jni_call_static_method_unchecked_str(b: &mut Bencher) {
         let env = VM.attach_current_thread().unwrap();
         let class = CLASS_MATH;
-        let method_id = env.get_static_method_id(class, METHOD_MATH_ABS, SIG_MATH_ABS).unwrap();
+        let method_id = env
+            .get_static_method_id(class, METHOD_MATH_ABS, SIG_MATH_ABS)
+            .unwrap();
 
         b.iter(|| jni_call_static_unchecked(&env, class, method_id, -3));
     }
@@ -105,7 +116,9 @@ mod tests {
     fn jni_call_static_method_unchecked_jclass(b: &mut Bencher) {
         let env = VM.attach_current_thread().unwrap();
         let class: JClass = CLASS_MATH.lookup(&env).unwrap();
-        let method_id = env.get_static_method_id(class, METHOD_MATH_ABS, SIG_MATH_ABS).unwrap();
+        let method_id = env
+            .get_static_method_id(class, METHOD_MATH_ABS, SIG_MATH_ABS)
+            .unwrap();
 
         b.iter(|| jni_call_static_unchecked(&env, class, method_id, -3));
     }
@@ -124,8 +137,9 @@ mod tests {
         let env = VM.attach_current_thread().unwrap();
         let s = env.new_string("").unwrap();
         let obj = black_box(JObject::from(s));
-        let method_id = env.get_method_id(
-            obj, METHOD_OBJECT_HASH_CODE, SIG_OBJECT_HASH_CODE).unwrap();
+        let method_id = env
+            .get_method_id(obj, METHOD_OBJECT_HASH_CODE, SIG_OBJECT_HASH_CODE)
+            .unwrap();
 
         b.iter(|| jni_call_unchecked(&env, obj, method_id));
     }
@@ -145,7 +159,9 @@ mod tests {
     fn jni_new_object_by_id_str(b: &mut Bencher) {
         let env = VM.attach_current_thread().unwrap();
         let class = CLASS_OBJECT;
-        let ctor_id = env.get_method_id(class, METHOD_CTOR, SIG_OBJECT_CTOR).unwrap();
+        let ctor_id = env
+            .get_method_id(class, METHOD_CTOR, SIG_OBJECT_CTOR)
+            .unwrap();
 
         b.iter(|| {
             let obj = env.new_object_unchecked(class, ctor_id, &[]).unwrap();
@@ -168,7 +184,9 @@ mod tests {
     fn jni_new_object_by_id_jclass(b: &mut Bencher) {
         let env = VM.attach_current_thread().unwrap();
         let class: JClass = CLASS_OBJECT.lookup(&env).unwrap();
-        let ctor_id = env.get_method_id(class, METHOD_CTOR, SIG_OBJECT_CTOR).unwrap();
+        let ctor_id = env
+            .get_method_id(class, METHOD_CTOR, SIG_OBJECT_CTOR)
+            .unwrap();
 
         b.iter(|| {
             let obj = env.new_object_unchecked(class, ctor_id, &[]).unwrap();
@@ -197,9 +215,7 @@ mod tests {
     fn jni_check_exception(b: &mut Bencher) {
         let env = VM.attach_current_thread().unwrap();
 
-        b.iter(|| {
-            env.exception_check().unwrap()
-        });
+        b.iter(|| env.exception_check().unwrap());
     }
 
     #[bench]

@@ -3,7 +3,7 @@ extern crate error_chain;
 extern crate jni;
 
 mod util;
-use util::{attach_current_thread_as_daemon, detach_current_thread, jvm, call_java_abs};
+use util::{attach_current_thread_as_daemon, call_java_abs, detach_current_thread, jvm};
 
 #[test]
 pub fn explicit_detach_detaches_thread_attached_as_daemon() {

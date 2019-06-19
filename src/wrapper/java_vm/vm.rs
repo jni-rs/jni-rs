@@ -1,12 +1,12 @@
-use JNIEnv;
 use errors::*;
+use JNIEnv;
 
 use sys;
 
-use std::ptr;
 use std::cell::RefCell;
-use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
 use std::ops::Deref;
+use std::ptr;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread::current;
 
 #[cfg(feature = "invocation")]
@@ -119,9 +119,7 @@ impl JavaVM {
     pub fn attach_current_thread_permanently(&self) -> Result<JNIEnv> {
         match self.get_env() {
             Ok(env) => Ok(env),
-            Err(_) => {
-                self.attach_current_thread_impl(ThreadType::Normal)
-            }
+            Err(_) => self.attach_current_thread_impl(ThreadType::Normal),
         }
     }
 
@@ -140,13 +138,11 @@ impl JavaVM {
     /// [attach-as-daemon]: struct.JavaVM.html#method.attach_current_thread_as_daemon
     pub fn attach_current_thread(&self) -> Result<AttachGuard> {
         match self.get_env() {
-            Ok(env) => {
-                Ok(AttachGuard::new_nested(env))
-            },
+            Ok(env) => Ok(AttachGuard::new_nested(env)),
             Err(_) => {
                 let env = self.attach_current_thread_impl(ThreadType::Normal)?;
                 Ok(AttachGuard::new(env))
-            },
+            }
         }
     }
 
@@ -166,9 +162,7 @@ impl JavaVM {
     pub fn attach_current_thread_as_daemon(&self) -> Result<JNIEnv> {
         match self.get_env() {
             Ok(env) => Ok(env),
-            Err(_) => {
-                self.attach_current_thread_impl(ThreadType::Daemon)
-            }
+            Err(_) => self.attach_current_thread_impl(ThreadType::Daemon),
         }
     }
 
@@ -213,7 +207,7 @@ thread_local! {
     static THREAD_ATTACH_GUARD: RefCell<Option<InternalAttachGuard>> = RefCell::new(None)
 }
 
-static ATTACHED_THREADS: AtomicUsize = ATOMIC_USIZE_INIT;
+static ATTACHED_THREADS: AtomicUsize = AtomicUsize::new(0);
 
 /// A RAII implementation of scoped guard which detaches the current thread
 /// when dropped. The attached `JNIEnv` can be accessed through this guard
@@ -271,9 +265,7 @@ struct InternalAttachGuard {
 
 impl InternalAttachGuard {
     fn new(java_vm: *mut sys::JavaVM) -> Self {
-        Self {
-            java_vm,
-        }
+        Self { java_vm }
     }
 
     /// Stores guard in thread local storage.
@@ -303,10 +295,11 @@ impl InternalAttachGuard {
 
         ATTACHED_THREADS.fetch_add(1, Ordering::SeqCst);
 
-        debug!("Attached thread {} ({:?}). {} threads attached",
-               current().name().unwrap_or_default(),
-               current().id(),
-               ATTACHED_THREADS.load(Ordering::SeqCst)
+        debug!(
+            "Attached thread {} ({:?}). {} threads attached",
+            current().name().unwrap_or_default(),
+            current().id(),
+            ATTACHED_THREADS.load(Ordering::SeqCst)
         );
 
         Ok(env_ptr as *mut sys::JNIEnv)
@@ -324,10 +317,11 @@ impl InternalAttachGuard {
 
         ATTACHED_THREADS.fetch_add(1, Ordering::SeqCst);
 
-        debug!("Attached daemon thread {} ({:?}). {} threads attached",
-               current().name().unwrap_or_default(),
-               current().id(),
-               ATTACHED_THREADS.load(Ordering::SeqCst)
+        debug!(
+            "Attached daemon thread {} ({:?}). {} threads attached",
+            current().name().unwrap_or_default(),
+            current().id(),
+            ATTACHED_THREADS.load(Ordering::SeqCst)
         );
 
         Ok(env_ptr as *mut sys::JNIEnv)
@@ -338,10 +332,11 @@ impl InternalAttachGuard {
             java_vm_unchecked!(self.java_vm, DetachCurrentThread);
         }
         ATTACHED_THREADS.fetch_sub(1, Ordering::SeqCst);
-        debug!("Detached thread {} ({:?}). {} threads remain attached",
-               current().name().unwrap_or_default(),
-               current().id(),
-               ATTACHED_THREADS.load(Ordering::SeqCst)
+        debug!(
+            "Detached thread {} ({:?}). {} threads remain attached",
+            current().name().unwrap_or_default(),
+            current().id(),
+            ATTACHED_THREADS.load(Ordering::SeqCst)
         );
 
         Ok(())
@@ -351,10 +346,11 @@ impl InternalAttachGuard {
 impl Drop for InternalAttachGuard {
     fn drop(&mut self) {
         if let Err(e) = self.detach() {
-            error!("Error detaching current thread: {:#?}\nThread {} id={:?}",
-                   e,
-                   current().name().unwrap_or_default(),
-                   current().id(),
+            error!(
+                "Error detaching current thread: {:#?}\nThread {} id={:?}",
+                e,
+                current().name().unwrap_or_default(),
+                current().id(),
             );
         }
     }

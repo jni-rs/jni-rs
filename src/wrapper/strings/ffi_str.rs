@@ -1,11 +1,7 @@
-use std::os::raw::c_char;
-
-use std::ffi;
-
-use std::borrow::{
-    Borrow,
-    Cow,
-    ToOwned,
+use std::{
+    borrow::{Borrow, Cow, ToOwned},
+    ffi,
+    os::raw::c_char,
 };
 
 use cesu8::{from_java_cesu8, to_java_cesu8};
@@ -87,7 +83,6 @@ impl JNIStr {
         &*(ffi::CStr::from_ptr(ptr) as *const ffi::CStr as *const ffi_str::JNIStr)
     }
 }
-
 
 // impls for CoW
 impl Borrow<JNIStr> for JNIString {
