@@ -566,6 +566,40 @@ fn get_object_array_element() {
     assert!(!env.get_object_array_element(array, 0).unwrap().is_null());
 }
 
+#[test]
+pub fn throw_new() {
+    let env = attach_current_thread();
+
+    let result = env.throw_new("java/lang/RuntimeException", "Test Exception");
+    assert!(result.is_ok());
+    let ex: JObject = env
+        .exception_occurred()
+        .expect("Exception should be thrown")
+        .into();
+    assert_pending_java_exception(&env);
+
+    assert!(env
+        .is_instance_of(ex, "java/lang/RuntimeException")
+        .unwrap());
+    let message = env
+        .call_method(ex, "getMessage", "()Ljava/lang/String;", &[])
+        .unwrap()
+        .l()
+        .unwrap();
+    let msg_rust: String = env.get_string(message.into()).unwrap().into();
+    assert_eq!(msg_rust, "Test Exception");
+}
+
+#[test]
+pub fn throw_new_fail() {
+    let env = attach_current_thread();
+
+    let result = env.throw_new("java/lang/NonexistentException", "Test Exception");
+    assert!(result.is_err());
+    // Just to clear the java.lang.NoClassDefFoundError
+    assert_pending_java_exception(&env);
+}
+
 // Helper method that asserts that result is Error and the cause is JavaException.
 fn assert_exception(res: Result<jobject, Error>, expect_message: &str) {
     assert!(res.is_err());
