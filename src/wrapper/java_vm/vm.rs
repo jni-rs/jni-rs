@@ -14,6 +14,9 @@ use InitArgs;
 
 /// The Java VM, providing [Invocation API][invocation-api] support.
 ///
+/// The JavaVM can be obtained either via [`JNIEnv#get_java_vm`][get-vm] in an already attached
+/// thread, or it can be [launched](#launching-jvm-from-rust) from Rust via `JavaVM#new`.
+///
 /// ## Attaching Native Threads
 ///
 /// A native thread must «attach» itself to be able to call Java methods outside of a native Java
@@ -40,9 +43,54 @@ use InitArgs;
 ///
 /// ## Launching JVM from Rust
 ///
-/// To [launch][launch-vm] a JVM from a native process, enable the `invocation` feature.
+/// To [launch][launch-vm] a JVM from a native process, enable the `invocation` feature
+/// in the Cargo.toml:
+///
+/// ```toml
+/// jni = { version = "0.12.3", features = ["invocation"] }
+/// ```
+///
 /// The application will require linking to the dynamic `jvm` library, which is distributed
-/// with the JVM.
+/// with the JVM, and allow to use `JavaVM#new`:
+///
+/// ```rust
+/// # // Ignore this test without invocation feature, so that simple `cargo test` works
+/// # #[cfg(feature = "invocation")] {
+/// #
+/// # use jni::{AttachGuard, objects::JValue, InitArgsBuilder, JNIEnv, JNIVersion, JavaVM, sys::jint};
+/// # use jni::errors;
+/// #
+/// # fn main() -> errors::Result<()> {
+/// // Build the VM properties
+/// let jvm_args = InitArgsBuilder::new()
+///           // Pass the JNI API version (default is 8)
+///           .version(JNIVersion::V8)
+///           // You can additionally pass any JVM options (standard, like a system property,
+///           // or VM-specific).
+///           // Here we enable some extra JNI checks useful during development
+///           .option("-Xcheck:jni")
+///           .build()
+///           .unwrap();
+///
+/// // Create a new VM
+/// let jvm = JavaVM::new(jvm_args)?;
+///
+/// // Attach the current thread to call into Java — see extra options in
+/// // "Attaching Native Threads" section.
+/// //
+/// // This method returns the guard that will detach the current thread when dropped,
+/// // also freeing any local references created in it
+/// let env = jvm.attach_current_thread()?;
+///
+/// // Call Java Math#abs(-10)
+/// let x = JValue::from(-10);
+/// let val: jint = env.call_static_method("java/lang/Math", "abs", "(I)I", &[x])?
+///   .i()?;
+///
+/// assert_eq!(val, 10);
+/// # Ok(()) }
+/// # }
+/// ```
 ///
 /// During build time, the JVM installation path is determined:
 /// 1. By `JAVA_HOME` environment variable, if it is set.
@@ -59,9 +107,11 @@ use InitArgs;
 ///
 /// The exact relative path to `jvm` library is version-specific.
 ///
-/// For more information — see documentation in [build.rs](https://github.com/jni-rs/jni-rs/tree/master/build.rs).
+/// For more information on linking — see documentation
+/// in [build.rs](https://github.com/jni-rs/jni-rs/tree/master/build.rs).
 ///
 /// [invocation-api]: https://docs.oracle.com/en/java/javase/12/docs/specs/jni/invocation.html
+/// [get-vm]: struct.JNIEnv.html#method.get_java_vm
 /// [launch-vm]: struct.JavaVM.html#method.new
 /// [act]: struct.JavaVM.html#method.attach_current_thread
 /// [actp]: struct.JavaVM.html#method.attach_current_thread_permanently
