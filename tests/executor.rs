@@ -1,12 +1,12 @@
 extern crate jni;
 
-use jni::Executor;
 use jni::sys::jint;
+use jni::Executor;
 
 pub mod util;
-use util::{jvm, AtomicIntegerProxy};
-use std::thread::spawn;
 use std::sync::{Arc, Barrier};
+use std::thread::spawn;
+use util::{jvm, AtomicIntegerProxy};
 
 #[test]
 fn single_thread() {

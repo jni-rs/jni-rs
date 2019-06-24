@@ -4,7 +4,6 @@ use JNIEnv;
 use sys;
 
 use std::cell::RefCell;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::ops::Deref;
 use std::ptr;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -42,9 +41,10 @@ use InitArgs;
 /// and [auto locals](struct.JNIEnv.html#method.auto_local) in loops.
 ///
 /// Jni-rs provides a helper struct to deal with such local references -
-/// [`Executor`](struct.Executor.html). It is a simple abstraction that hides the necessity
-/// of handling local references behind the
-/// [`Executor::with_attached`](struct.Executor.html#method.with_attached) method.
+/// [`Executor`](struct.Executor.html). The `Executor` provides `JNIEnv` to any native thread with
+/// reasonably high performance, making use of permanent attaches. It also removes the risk of local
+/// references leaks if used consistently. `Executor` is recommended to use when the scope of
+/// necessary attachment is distinct.
 ///
 /// See also the [JNI specification][spec-references] for details on referencing Java objects.
 ///

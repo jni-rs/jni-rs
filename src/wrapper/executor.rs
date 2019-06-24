@@ -1,4 +1,4 @@
-use {objects::JObject, JavaVM, JNIEnv, errors::*};
+use {errors::*, objects::JObject, JNIEnv, JavaVM};
 
 use std::sync::Arc;
 
@@ -44,8 +44,8 @@ impl Executor {
     /// is attached to the JVM. Additionally ensures that local object references are freed after
     /// call.
     ///
-    /// Allocates a local frame with the default capacity
-    /// ([`DEFAULT_LOCAL_FRAME_CAPACITY`](constant.DEFAULT_LOCAL_FRAME_CAPACITY.html)).
+    /// Allocates a local frame with
+    /// [the default capacity](constant.DEFAULT_LOCAL_FRAME_CAPACITY.html).
     pub fn with_attached<F, R>(&self, f: F) -> Result<R>
     where
         F: FnOnce(&JNIEnv) -> Result<R>,
