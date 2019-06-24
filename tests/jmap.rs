@@ -3,16 +3,10 @@
 extern crate error_chain;
 extern crate jni;
 
-use jni::objects::{
-    JMap,
-    JObject,
-};
+use jni::objects::{JMap, JObject};
 
 mod util;
-use util::{
-    attach_current_thread,
-    unwrap,
-};
+use util::{attach_current_thread, unwrap};
 
 #[test]
 pub fn jmap_push_and_iterate() {
@@ -28,7 +22,7 @@ pub fn jmap_push_and_iterate() {
         &env,
         data.iter().try_for_each(|s| {
             env.new_string(s)
-                .map(|s| JObject::from(s))
+                .map(JObject::from)
                 .and_then(|s| map.put(s, s).map(|_| ()))
         }),
     );

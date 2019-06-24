@@ -1,18 +1,22 @@
-use JNIEnv;
 use errors::*;
+use JNIEnv;
 
 use sys;
 
-use std::ptr;
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::ops::Deref;
+use std::ptr;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread::current;
 
 #[cfg(feature = "invocation")]
 use InitArgs;
 
 /// The Java VM, providing [Invocation API][invocation-api] support.
+///
+/// The JavaVM can be obtained either via [`JNIEnv#get_java_vm`][get-vm] in an already attached
+/// thread, or it can be [launched](#launching-jvm-from-rust) from Rust via `JavaVM#new`.
 ///
 /// ## Attaching Native Threads
 ///
@@ -46,9 +50,54 @@ use InitArgs;
 ///
 /// ## Launching JVM from Rust
 ///
-/// To [launch][launch-vm] a JVM from a native process, enable the `invocation` feature.
+/// To [launch][launch-vm] a JVM from a native process, enable the `invocation` feature
+/// in the Cargo.toml:
+///
+/// ```toml
+/// jni = { version = "0.12.3", features = ["invocation"] }
+/// ```
+///
 /// The application will require linking to the dynamic `jvm` library, which is distributed
-/// with the JVM.
+/// with the JVM, and allow to use `JavaVM#new`:
+///
+/// ```rust
+/// # // Ignore this test without invocation feature, so that simple `cargo test` works
+/// # #[cfg(feature = "invocation")] {
+/// #
+/// # use jni::{AttachGuard, objects::JValue, InitArgsBuilder, JNIEnv, JNIVersion, JavaVM, sys::jint};
+/// # use jni::errors;
+/// #
+/// # fn main() -> errors::Result<()> {
+/// // Build the VM properties
+/// let jvm_args = InitArgsBuilder::new()
+///           // Pass the JNI API version (default is 8)
+///           .version(JNIVersion::V8)
+///           // You can additionally pass any JVM options (standard, like a system property,
+///           // or VM-specific).
+///           // Here we enable some extra JNI checks useful during development
+///           .option("-Xcheck:jni")
+///           .build()
+///           .unwrap();
+///
+/// // Create a new VM
+/// let jvm = JavaVM::new(jvm_args)?;
+///
+/// // Attach the current thread to call into Java — see extra options in
+/// // "Attaching Native Threads" section.
+/// //
+/// // This method returns the guard that will detach the current thread when dropped,
+/// // also freeing any local references created in it
+/// let env = jvm.attach_current_thread()?;
+///
+/// // Call Java Math#abs(-10)
+/// let x = JValue::from(-10);
+/// let val: jint = env.call_static_method("java/lang/Math", "abs", "(I)I", &[x])?
+///   .i()?;
+///
+/// assert_eq!(val, 10);
+/// # Ok(()) }
+/// # }
+/// ```
 ///
 /// During build time, the JVM installation path is determined:
 /// 1. By `JAVA_HOME` environment variable, if it is set.
@@ -65,9 +114,11 @@ use InitArgs;
 ///
 /// The exact relative path to `jvm` library is version-specific.
 ///
-/// For more information — see documentation in [build.rs](https://github.com/jni-rs/jni-rs/tree/master/build.rs).
+/// For more information on linking — see documentation
+/// in [build.rs](https://github.com/jni-rs/jni-rs/tree/master/build.rs).
 ///
 /// [invocation-api]: https://docs.oracle.com/en/java/javase/12/docs/specs/jni/invocation.html
+/// [get-vm]: struct.JNIEnv.html#method.get_java_vm
 /// [launch-vm]: struct.JavaVM.html#method.new
 /// [act]: struct.JavaVM.html#method.attach_current_thread
 /// [actp]: struct.JavaVM.html#method.attach_current_thread_permanently
@@ -79,7 +130,11 @@ unsafe impl Send for JavaVM {}
 unsafe impl Sync for JavaVM {}
 
 impl JavaVM {
-    /// Launch a new JavaVM using the provided init args
+    /// Launch a new JavaVM using the provided init args.
+    ///
+    /// Unlike original JNI API, the main thread (the thread from which this method is called) will
+    /// not be attached to JVM. You must explicitly use `attach_current_thread…` methods (refer
+    /// to [Attaching Native Threads section](#attaching-native-threads)).
     #[cfg(feature = "invocation")]
     pub fn new(args: InitArgs) -> Result<Self> {
         use std::os::raw::c_void;
@@ -125,9 +180,7 @@ impl JavaVM {
     pub fn attach_current_thread_permanently(&self) -> Result<JNIEnv> {
         match self.get_env() {
             Ok(env) => Ok(env),
-            Err(_) => {
-                self.attach_current_thread_impl(ThreadType::Normal)
-            }
+            Err(_) => self.attach_current_thread_impl(ThreadType::Normal),
         }
     }
 
@@ -146,21 +199,31 @@ impl JavaVM {
     /// [attach-as-daemon]: struct.JavaVM.html#method.attach_current_thread_as_daemon
     pub fn attach_current_thread(&self) -> Result<AttachGuard> {
         match self.get_env() {
-            Ok(env) => {
-                Ok(AttachGuard::new_nested(env))
-            },
+            Ok(env) => Ok(AttachGuard::new_nested(env)),
             Err(_) => {
                 let env = self.attach_current_thread_impl(ThreadType::Normal)?;
                 Ok(AttachGuard::new(env))
-            },
+            }
         }
     }
 
-    /// Detaches current thread from the JVM.
+    /// Detaches current thread from the JVM. This operation is _rarely_ appropriate to use,
+    /// because the attachment methods [ensure](#attaching-native-threads) that the thread is
+    /// promptly detached.
     ///
-    /// Detaching a non-attached thread is no-op.
+    /// Detaching a non-attached thread is a no-op.
     ///
-    /// Calling this method is an equivalent for calling `drop()` for `AttachGuard`.
+    /// __Any existing `JNIEnv`s and `AttachGuard`s created in the calling thread
+    /// will be invalidated after this method completes. It is the__ caller’s __responsibility
+    /// to ensure that no JNI calls are subsequently performed on these objects.__
+    /// Failure to do so will result in unspecified errors, possibly, the process crash.
+    ///
+    /// Given some care is exercised, this method can be used to detach permanently attached
+    /// threads _before_ they exit (when automatic detachment occurs). However, it is
+    /// never appropriate to use it with the scoped attachment (`attach_current_thread`).
+    // This method is hidden because it is almost never needed and its use requires some
+    // extra care. Its status might be reconsidered if we learn of any use cases that require it.
+    #[doc(hidden)]
     pub fn detach_current_thread(&self) {
         InternalAttachGuard::clear_tls();
     }
@@ -172,9 +235,7 @@ impl JavaVM {
     pub fn attach_current_thread_as_daemon(&self) -> Result<JNIEnv> {
         match self.get_env() {
             Ok(env) => Ok(env),
-            Err(_) => {
-                self.attach_current_thread_impl(ThreadType::Daemon)
-            }
+            Err(_) => self.attach_current_thread_impl(ThreadType::Daemon),
         }
     }
 
@@ -277,9 +338,7 @@ struct InternalAttachGuard {
 
 impl InternalAttachGuard {
     fn new(java_vm: *mut sys::JavaVM) -> Self {
-        Self {
-            java_vm,
-        }
+        Self { java_vm }
     }
 
     /// Stores guard in thread local storage.
@@ -309,10 +368,11 @@ impl InternalAttachGuard {
 
         ATTACHED_THREADS.fetch_add(1, Ordering::SeqCst);
 
-        debug!("Attached thread {} ({:?}). {} threads attached",
-               current().name().unwrap_or_default(),
-               current().id(),
-               ATTACHED_THREADS.load(Ordering::SeqCst)
+        debug!(
+            "Attached thread {} ({:?}). {} threads attached",
+            current().name().unwrap_or_default(),
+            current().id(),
+            ATTACHED_THREADS.load(Ordering::SeqCst)
         );
 
         Ok(env_ptr as *mut sys::JNIEnv)
@@ -330,10 +390,11 @@ impl InternalAttachGuard {
 
         ATTACHED_THREADS.fetch_add(1, Ordering::SeqCst);
 
-        debug!("Attached daemon thread {} ({:?}). {} threads attached",
-               current().name().unwrap_or_default(),
-               current().id(),
-               ATTACHED_THREADS.load(Ordering::SeqCst)
+        debug!(
+            "Attached daemon thread {} ({:?}). {} threads attached",
+            current().name().unwrap_or_default(),
+            current().id(),
+            ATTACHED_THREADS.load(Ordering::SeqCst)
         );
 
         Ok(env_ptr as *mut sys::JNIEnv)
@@ -344,10 +405,11 @@ impl InternalAttachGuard {
             java_vm_unchecked!(self.java_vm, DetachCurrentThread);
         }
         ATTACHED_THREADS.fetch_sub(1, Ordering::SeqCst);
-        debug!("Detached thread {} ({:?}). {} threads remain attached",
-               current().name().unwrap_or_default(),
-               current().id(),
-               ATTACHED_THREADS.load(Ordering::SeqCst)
+        debug!(
+            "Detached thread {} ({:?}). {} threads remain attached",
+            current().name().unwrap_or_default(),
+            current().id(),
+            ATTACHED_THREADS.load(Ordering::SeqCst)
         );
 
         Ok(())
@@ -357,10 +419,11 @@ impl InternalAttachGuard {
 impl Drop for InternalAttachGuard {
     fn drop(&mut self) {
         if let Err(e) = self.detach() {
-            error!("Error detaching current thread: {:#?}\nThread {} id={:?}",
-                   e,
-                   current().name().unwrap_or_default(),
-                   current().id(),
+            error!(
+                "Error detaching current thread: {:#?}\nThread {} id={:?}",
+                e,
+                current().name().unwrap_or_default(),
+                current().id(),
             );
         }
     }

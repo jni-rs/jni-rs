@@ -1,11 +1,11 @@
 #![cfg(feature = "invocation")]
-extern crate jni;
 extern crate error_chain;
+extern crate jni;
 
 use std::thread::spawn;
 
 mod util;
-use util::{attach_current_thread_as_daemon, jvm, call_java_abs};
+use util::{attach_current_thread_as_daemon, call_java_abs, jvm};
 
 #[test]
 fn daemon_thread_detaches_when_finished() {

@@ -2,12 +2,7 @@ use errors::*;
 
 use descriptors::Desc;
 
-use objects::{
-    JClass,
-    JObject,
-    JThrowable,
-    JValue,
-};
+use objects::{JClass, JObject, JThrowable, JValue};
 
 use strings::JNIString;
 
@@ -20,9 +15,9 @@ where
 {
     fn lookup(self, env: &JNIEnv<'a>) -> Result<JThrowable<'a>> {
         let jmsg: JObject = env.new_string(self.1)?.into();
-        let obj: JThrowable =
-            env.new_object(self.0, "(Ljava/lang/String;)V", &[JValue::from(jmsg)])?
-                .into();
+        let obj: JThrowable = env
+            .new_object(self.0, "(Ljava/lang/String;)V", &[JValue::from(jmsg)])?
+            .into();
         Ok(obj)
     }
 }

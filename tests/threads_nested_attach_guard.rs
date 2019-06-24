@@ -3,8 +3,10 @@ extern crate error_chain;
 extern crate jni;
 
 mod util;
-use util::{attach_current_thread, attach_current_thread_as_daemon,
-           attach_current_thread_permanently, jvm, call_java_abs};
+use util::{
+    attach_current_thread, attach_current_thread_as_daemon, attach_current_thread_permanently,
+    call_java_abs, jvm,
+};
 
 #[test]
 pub fn nested_attaches_should_not_detach_guarded_thread() {

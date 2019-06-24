@@ -1,11 +1,6 @@
 use strings::JNIString;
 
-use objects::{
-    AutoLocal,
-    GlobalRef,
-    JClass,
-    JObject,
-};
+use objects::{AutoLocal, GlobalRef, JClass, JObject};
 
 use descriptors::Desc;
 
