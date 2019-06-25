@@ -2,7 +2,7 @@ use JNIEnv;
 
 use errors::*;
 
-use objects::{JClass, JMethodID, JObject};
+use objects::{AutoLocal, JMethodID, JObject};
 
 use signature::{JavaType, Primitive};
 
@@ -13,7 +13,7 @@ use signature::{JavaType, Primitive};
 /// call.
 pub struct JMap<'a: 'b, 'b> {
     internal: JObject<'a>,
-    class: JClass<'a>,
+    class: AutoLocal<'b>,
     get: JMethodID<'a>,
     put: JMethodID<'a>,
     remove: JMethodID<'a>,
@@ -39,18 +39,18 @@ impl<'a: 'b, 'b> JMap<'a, 'b> {
     /// necessary class and method ids to call all of the methods on it so that
     /// exra work doesn't need to be done on every method call.
     pub fn from_env(env: &'b JNIEnv<'a>, obj: JObject<'a>) -> Result<JMap<'a, 'b>> {
-        let class = env.find_class("java/util/Map")?;
+        let class = env.auto_local(env.find_class("java/util/Map")?.into());
 
-        let get = env.get_method_id(class, "get", "(Ljava/lang/Object;)Ljava/lang/Object;")?;
+        let get = env.get_method_id(&class, "get", "(Ljava/lang/Object;)Ljava/lang/Object;")?;
         let put = env.get_method_id(
-            class,
+            &class,
             "put",
             "(Ljava/lang/Object;Ljava/lang/Object;\
              )Ljava/lang/Object;",
         )?;
 
         let remove =
-            env.get_method_id(class, "remove", "(Ljava/lang/Object;)Ljava/lang/Object;")?;
+            env.get_method_id(&class, "remove", "(Ljava/lang/Object;)Ljava/lang/Object;")?;
 
         Ok(JMap {
             internal: obj,
@@ -126,7 +126,7 @@ impl<'a: 'b, 'b> JMap<'a, 'b> {
             .env
             .call_method_unchecked(
                 self.internal,
-                (self.class, "entrySet", "()Ljava/util/Set;"),
+                (&self.class, "entrySet", "()Ljava/util/Set;"),
                 JavaType::Object("java/util/Set".into()),
                 &[],
             )?
