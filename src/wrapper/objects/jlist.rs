@@ -44,13 +44,13 @@ impl<'a: 'b, 'b> JList<'a, 'b> {
     /// necessary class and method ids to call all of the methods on it so that
     /// exra work doesn't need to be done on every method call.
     pub fn from_env(env: &'b JNIEnv<'a>, obj: JObject<'a>) -> Result<JList<'a, 'b>> {
-        let class = env.find_class("java/util/List")?;
+        let class = env.auto_local(env.find_class("java/util/List")?.into());
 
-        let get = env.get_method_id(class, "get", "(I)Ljava/lang/Object;")?;
-        let add = env.get_method_id(class, "add", "(Ljava/lang/Object;)Z")?;
-        let add_idx = env.get_method_id(class, "add", "(ILjava/lang/Object;)V")?;
-        let remove = env.get_method_id(class, "remove", "(I)Ljava/lang/Object;")?;
-        let size = env.get_method_id(class, "size", "()I")?;
+        let get = env.get_method_id(&class, "get", "(I)Ljava/lang/Object;")?;
+        let add = env.get_method_id(&class, "add", "(Ljava/lang/Object;)Z")?;
+        let add_idx = env.get_method_id(&class, "add", "(ILjava/lang/Object;)V")?;
+        let remove = env.get_method_id(&class, "remove", "(I)Ljava/lang/Object;")?;
+        let size = env.get_method_id(&class, "size", "()I")?;
 
         Ok(JList {
             internal: obj,
