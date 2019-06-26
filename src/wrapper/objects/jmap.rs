@@ -142,13 +142,15 @@ impl<'a: 'b, 'b> JMap<'a, 'b> {
             )?
             .l()?;
 
-        let iter_class = self.env.find_class("java/util/Iterator")?;
+        let iter_class = self
+            .env
+            .auto_local(self.env.find_class("java/util/Iterator")?.into());
 
-        let has_next = self.env.get_method_id(iter_class, "hasNext", "()Z")?;
+        let has_next = self.env.get_method_id(&iter_class, "hasNext", "()Z")?;
 
         let next = self
             .env
-            .get_method_id(iter_class, "next", "()Ljava/lang/Object;")?;
+            .get_method_id(&iter_class, "next", "()Ljava/lang/Object;")?;
 
         let entry_class = self.env.find_class("java/util/Map$Entry")?;
 
