@@ -13,7 +13,7 @@ use signature::{JavaType, Primitive};
 /// call.
 pub struct JMap<'a: 'b, 'b> {
     internal: JObject<'a>,
-    class: AutoLocal<'b>,
+    class: AutoLocal<'a, 'b>,
     get: JMethodID<'a>,
     put: JMethodID<'a>,
     remove: JMethodID<'a>,

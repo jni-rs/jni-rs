@@ -17,18 +17,18 @@ use JNIEnv;
 /// NOTE: This comes with some potential safety risks. DO NOT use this to wrap
 /// something unless you're SURE it won't be used after this wrapper gets
 /// dropped. Otherwise, you'll get a nasty JVM crash.
-pub struct AutoLocal<'a> {
+pub struct AutoLocal<'a: 'b, 'b> {
     obj: JObject<'a>,
-    env: &'a JNIEnv<'a>,
+    env: &'b JNIEnv<'a>,
 }
 
-impl<'a> AutoLocal<'a> {
+impl<'a, 'b> AutoLocal<'a, 'b> {
     /// Creates a new auto-delete wrapper for a local ref.
     ///
     /// Once this wrapper goes out of scope, the `delete_local_ref` will be
     /// called on the object. While wrapped, the object can be accessed via
     /// the `Deref` impl.
-    pub fn new(env: &'a JNIEnv<'a>, obj: JObject<'a>) -> Self {
+    pub fn new(env: &'b JNIEnv<'a>, obj: JObject<'a>) -> Self {
         AutoLocal { obj, env }
     }
 
@@ -49,15 +49,15 @@ impl<'a> AutoLocal<'a> {
     ///
     /// Unlike `forget`, this ensures the wrapper from being dropped while the
     /// returned `JObject` is still live.
-    pub fn as_obj<'b>(&'b self) -> JObject<'b>
+    pub fn as_obj<'c>(&'c self) -> JObject<'c>
     where
-        'a: 'b,
+        'a: 'c,
     {
         self.obj
     }
 }
 
-impl<'a> Drop for AutoLocal<'a> {
+impl<'a, 'b> Drop for AutoLocal<'a, 'b> {
     fn drop(&mut self) {
         let res = self.env.delete_local_ref(self.obj);
         match res {

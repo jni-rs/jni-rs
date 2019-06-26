@@ -31,7 +31,7 @@ impl<'a, 'b> Desc<'a, JClass<'b>> for &'b GlobalRef {
 }
 
 /// This conversion assumes that the `AutoLocal` is a pointer to a class object.
-impl<'a, 'b, 'c> Desc<'a, JClass<'b>> for &'b AutoLocal<'c>
+impl<'a, 'b, 'c> Desc<'a, JClass<'b>> for &'b AutoLocal<'c, '_>
 where
     'c: 'b,
 {

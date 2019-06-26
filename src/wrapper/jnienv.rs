@@ -326,7 +326,7 @@ impl<'a> JNIEnv<'a> {
     /// when you create a bounded number of local references in a method but
     /// can't rely on automatic de-allocation (e.g., in case of recursion
     /// or just deep call stacks).
-    pub fn auto_local(&'a self, obj: JObject<'a>) -> AutoLocal<'a> {
+    pub fn auto_local<'b>(&'b self, obj: JObject<'a>) -> AutoLocal<'a, 'b> {
         AutoLocal::new(self, obj)
     }
 
