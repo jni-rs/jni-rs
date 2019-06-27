@@ -33,20 +33,23 @@ use InitArgs;
 /// to use `JNIEnv` and cannot keep the `AttachGuard`, consider attaching the thread
 /// permanently.
 ///
+/// ### Local Reference Management
+///
 /// Remember that the native thread attached to the VM **must** manage the local references
 /// properly, i.e., do not allocate an excessive number of references and release them promptly
 /// when they are no longer needed to enable the GC to collect them. A common approach is to use
 /// an appropriately-sized local frame for larger code fragments
-/// (see [`with_local_frame`](struct.JNIEnv.html#method.with_local_frame))
+/// (see [`with_local_frame`](struct.JNIEnv.html#method.with_local_frame) and [Executor](#executor))
 /// and [auto locals](struct.JNIEnv.html#method.auto_local) in loops.
 ///
-/// Jni-rs provides a helper struct to deal with such local references -
-/// [`Executor`](struct.Executor.html). The `Executor` provides `JNIEnv` to any native thread with
-/// reasonably high performance, making use of permanent attaches. It also removes the risk of local
-/// references leaks if used consistently. `Executor` is recommended to use when the scope of
-/// `JNIEnv` usage can be limited by certain closure.
-///
 /// See also the [JNI specification][spec-references] for details on referencing Java objects.
+///
+/// ### Executor
+///
+/// Jni-rs provides an [`Executor`](struct.Executor.html) — a helper struct that allows to
+/// execute a closure with `JNIEnv`. It combines the performance benefits of permanent attaches
+/// *and* automatic local reference management. Prefer it to manual permanent attaches if
+/// they happen in various parts of the code to reduce the burden of local reference management.
 ///
 /// ## Launching JVM from Rust
 ///
@@ -61,13 +64,14 @@ use InitArgs;
 /// with the JVM, and allow to use `JavaVM#new`:
 ///
 /// ```rust
+/// # use jni::errors;
+/// # //
+/// # fn main() -> errors::Result<()> {
 /// # // Ignore this test without invocation feature, so that simple `cargo test` works
 /// # #[cfg(feature = "invocation")] {
-/// #
+/// # //
 /// # use jni::{AttachGuard, objects::JValue, InitArgsBuilder, JNIEnv, JNIVersion, JavaVM, sys::jint};
-/// # use jni::errors;
-/// #
-/// # fn main() -> errors::Result<()> {
+/// # //
 /// // Build the VM properties
 /// let jvm_args = InitArgsBuilder::new()
 ///           // Pass the JNI API version (default is 8)
@@ -95,8 +99,9 @@ use InitArgs;
 ///   .i()?;
 ///
 /// assert_eq!(val, 10);
-/// # Ok(()) }
+///
 /// # }
+/// # Ok(()) }
 /// ```
 ///
 /// During build time, the JVM installation path is determined:
