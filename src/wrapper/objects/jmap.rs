@@ -2,7 +2,7 @@ use JNIEnv;
 
 use errors::*;
 
-use objects::{JClass, JMethodID, JObject};
+use objects::{AutoLocal, JMethodID, JObject};
 
 use signature::{JavaType, Primitive};
 
@@ -13,7 +13,7 @@ use signature::{JavaType, Primitive};
 /// call.
 pub struct JMap<'a: 'b, 'b> {
     internal: JObject<'a>,
-    class: JClass<'a>,
+    class: AutoLocal<'a, 'b>,
     get: JMethodID<'a>,
     put: JMethodID<'a>,
     remove: JMethodID<'a>,
@@ -39,18 +39,18 @@ impl<'a: 'b, 'b> JMap<'a, 'b> {
     /// necessary class and method ids to call all of the methods on it so that
     /// exra work doesn't need to be done on every method call.
     pub fn from_env(env: &'b JNIEnv<'a>, obj: JObject<'a>) -> Result<JMap<'a, 'b>> {
-        let class = env.find_class("java/util/Map")?;
+        let class = env.auto_local(env.find_class("java/util/Map")?.into());
 
-        let get = env.get_method_id(class, "get", "(Ljava/lang/Object;)Ljava/lang/Object;")?;
+        let get = env.get_method_id(&class, "get", "(Ljava/lang/Object;)Ljava/lang/Object;")?;
         let put = env.get_method_id(
-            class,
+            &class,
             "put",
             "(Ljava/lang/Object;Ljava/lang/Object;\
              )Ljava/lang/Object;",
         )?;
 
         let remove =
-            env.get_method_id(class, "remove", "(Ljava/lang/Object;)Ljava/lang/Object;")?;
+            env.get_method_id(&class, "remove", "(Ljava/lang/Object;)Ljava/lang/Object;")?;
 
         Ok(JMap {
             internal: obj,
@@ -122,43 +122,55 @@ impl<'a: 'b, 'b> JMap<'a, 'b> {
     /// Get key/value iterator for the map. This is done by getting the
     /// `EntrySet` from java and iterating over it.
     pub fn iter(&self) -> Result<JMapIter<'a, 'b, '_>> {
-        let set = self
+        let iter_class = self
             .env
-            .call_method_unchecked(
-                self.internal,
-                (self.class, "entrySet", "()Ljava/util/Set;"),
-                JavaType::Object("java/util/Set".into()),
-                &[],
-            )?
-            .l()?;
+            .auto_local(self.env.find_class("java/util/Iterator")?.into());
 
-        let iter = self
-            .env
-            .call_method_unchecked(
-                set,
-                ("java/util/Set", "iterator", "()Ljava/util/Iterator;"),
-                JavaType::Object("java/util/Iterator".into()),
-                &[],
-            )?
-            .l()?;
-
-        let iter_class = self.env.find_class("java/util/Iterator")?;
-
-        let has_next = self.env.get_method_id(iter_class, "hasNext", "()Z")?;
+        let has_next = self.env.get_method_id(&iter_class, "hasNext", "()Z")?;
 
         let next = self
             .env
-            .get_method_id(iter_class, "next", "()Ljava/lang/Object;")?;
+            .get_method_id(&iter_class, "next", "()Ljava/lang/Object;")?;
 
-        let entry_class = self.env.find_class("java/util/Map$Entry")?;
+        let entry_class = self
+            .env
+            .auto_local(self.env.find_class("java/util/Map$Entry")?.into());
 
         let get_key = self
             .env
-            .get_method_id(entry_class, "getKey", "()Ljava/lang/Object;")?;
+            .get_method_id(&entry_class, "getKey", "()Ljava/lang/Object;")?;
 
         let get_value = self
             .env
-            .get_method_id(entry_class, "getValue", "()Ljava/lang/Object;")?;
+            .get_method_id(&entry_class, "getValue", "()Ljava/lang/Object;")?;
+
+        // Get the iterator over Map entries.
+        // Use the local frame till #109 is resolved, so that implicitly looked-up
+        // classes are freed promptly.
+        let iter = self.env.with_local_frame(16, || {
+            let entry_set = self
+                .env
+                .call_method_unchecked(
+                    self.internal,
+                    (&self.class, "entrySet", "()Ljava/util/Set;"),
+                    JavaType::Object("java/util/Set".into()),
+                    &[],
+                )?
+                .l()?;
+
+            let iter = self
+                .env
+                .call_method_unchecked(
+                    entry_set,
+                    ("java/util/Set", "iterator", "()Ljava/util/Iterator;"),
+                    JavaType::Object("java/util/Iterator".into()),
+                    &[],
+                )?
+                .l()?;
+
+            Ok(iter)
+        })?;
+        let iter = self.env.auto_local(iter);
 
         Ok(JMapIter {
             map: &self,
@@ -181,16 +193,17 @@ pub struct JMapIter<'a, 'b, 'c> {
     next: JMethodID<'a>,
     get_key: JMethodID<'a>,
     get_value: JMethodID<'a>,
-    iter: JObject<'a>,
+    iter: AutoLocal<'a, 'b>,
 }
 
 impl<'a: 'b, 'b: 'c, 'c> JMapIter<'a, 'b, 'c> {
     fn get_next(&self) -> Result<Option<(JObject<'a>, JObject<'a>)>> {
+        let iter = self.iter.as_obj();
         let has_next = self
             .map
             .env
             .call_method_unchecked(
-                self.iter,
+                iter,
                 self.has_next,
                 JavaType::Primitive(Primitive::Boolean),
                 &[],
@@ -204,7 +217,7 @@ impl<'a: 'b, 'b: 'c, 'c> JMapIter<'a, 'b, 'c> {
             .map
             .env
             .call_method_unchecked(
-                self.iter,
+                iter,
                 self.next,
                 JavaType::Object("java/util/Map$Entry".into()),
                 &[],
