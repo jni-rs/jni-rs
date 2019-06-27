@@ -15,7 +15,7 @@ export JAVA_HOME="$(java -XshowSettings:properties -version \
 export LD_LIBRARY_PATH="$(find -L ${JAVA_HOME} -type f -name libjvm.* | xargs -n1 dirname)"
 
 # Install clippy
-if rustc --version | grep -q "nightly"
+if [[ ${TRAVIS_RUST_VERSION} == "nightly" ]];
 then
     # Install nightly clippy
     rustup component add clippy --toolchain=nightly || cargo install --git https://github.com/rust-lang/rust-clippy/ --force clippy
@@ -36,5 +36,10 @@ cargo fmt --all -- --check
 # Run clippy static analysis.
 cargo clippy --all --tests --all-features -- -D warnings
 
-# Run all tests
+# Run tests with default features (stable-only)
+if [[ ${TRAVIS_RUST_VERSION} == "stable" ]]; then
+  cargo test
+fi
+
+# Run all tests with invocation feature (enables JavaVM ITs)
 cargo test --features=backtrace,invocation
