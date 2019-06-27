@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 - The default JNI API version in `InitArgsBuilder` from V1 to V8. (#178)
+- Extended the lifetimes of `AutoLocal` to make it more flexible. (#190)
+
+### Fixed
+- Local reference leaks in `JList`, `JMap` and `JMapIter`. (#190, #191)
 
 ## [0.12.3]
 
