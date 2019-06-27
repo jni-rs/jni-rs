@@ -1,10 +1,15 @@
 use std::sync::{Arc, Once, ONCE_INIT};
 
-use error_chain::ChainedError;
+extern crate error_chain;
+
+use self::error_chain::ChainedError;
 use jni::{
     errors::Result, objects::JValue, sys::jint, AttachGuard, InitArgsBuilder, JNIEnv, JNIVersion,
     JavaVM,
 };
+
+mod example_proxy;
+pub use self::example_proxy::AtomicIntegerProxy;
 
 pub fn jvm() -> &'static Arc<JavaVM> {
     static mut JVM: Option<Arc<JavaVM>> = None;

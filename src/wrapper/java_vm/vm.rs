@@ -39,6 +39,13 @@ use InitArgs;
 /// an appropriately-sized local frame for larger code fragments
 /// (see [`with_local_frame`](struct.JNIEnv.html#method.with_local_frame))
 /// and [auto locals](struct.JNIEnv.html#method.auto_local) in loops.
+///
+/// Jni-rs provides a helper struct to deal with such local references -
+/// [`Executor`](struct.Executor.html). The `Executor` provides `JNIEnv` to any native thread with
+/// reasonably high performance, making use of permanent attaches. It also removes the risk of local
+/// references leaks if used consistently. `Executor` is recommended to use when the scope of
+/// `JNIEnv` usage can be limited by certain closure.
+///
 /// See also the [JNI specification][spec-references] for details on referencing Java objects.
 ///
 /// ## Launching JVM from Rust
