@@ -20,14 +20,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   thread and detaches it when the thread finishes. Daemon threads attached 
   with `JavaVM::attach_current_thread_as_daemon` also automatically detach themselves
   when finished. The number of currently attached threads may be acquired using
-  `JavaVM::threads_attached` method. The current thread may be detached by calling
-  `JavaVM::detach_current_thread`. (#180)
-- `Executor` struct - a simple thread attachment manager which helps to safely
-  execute a closure in attached thread context and to auto-free created local
-  references at closure exit. (#186)
+  `JavaVM::threads_attached` method. (#179, #180)
+- `Executor` — a simple thread attachment manager which helps to safely
+  execute a closure in attached thread context and to automatically free 
+  created local references at closure exit. (#186)
 
 ### Changed
 - The default JNI API version in `InitArgsBuilder` from V1 to V8. (#178)
+
+### Fixed
+- Native threads attached with `JavaVM::attach_current_thread_as_daemon` now automatically detach
+  themselves on exit, preventing Java Thread leaks. (#179)
 
 ## [0.12.3]
 
