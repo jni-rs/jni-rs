@@ -44,7 +44,7 @@ use InitArgs;
 /// [`Executor`](struct.Executor.html). The `Executor` provides `JNIEnv` to any native thread with
 /// reasonably high performance, making use of permanent attaches. It also removes the risk of local
 /// references leaks if used consistently. `Executor` is recommended to use when the scope of
-/// necessary attachment is distinct.
+/// `JNIEnv` usage can be limited by certain closure.
 ///
 /// See also the [JNI specification][spec-references] for details on referencing Java objects.
 ///
