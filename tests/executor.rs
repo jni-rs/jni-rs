@@ -1,3 +1,4 @@
+#![cfg(feature = "invocation")]
 extern crate jni;
 
 use jni::sys::jint;
