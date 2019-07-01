@@ -8,6 +8,8 @@ use strings::JNIString;
 
 use JNIEnv;
 
+const DEFAULT_EXCEPTION_CLASS: &str = "java/lang/RuntimeException";
+
 impl<'a, 'c, C, M> Desc<'a, JThrowable<'a>> for (C, M)
 where
     C: Desc<'a, JClass<'c>>,
@@ -30,18 +32,18 @@ impl<'a> Desc<'a, JThrowable<'a>> for Exception {
 
 impl<'a, 'b> Desc<'a, JThrowable<'a>> for &'b str {
     fn lookup(self, env: &JNIEnv<'a>) -> Result<JThrowable<'a>> {
-        ("java/lang/Exception", self).lookup(env)
+        (DEFAULT_EXCEPTION_CLASS, self).lookup(env)
     }
 }
 
 impl<'a> Desc<'a, JThrowable<'a>> for String {
     fn lookup(self, env: &JNIEnv<'a>) -> Result<JThrowable<'a>> {
-        ("java/lang/Exception", self).lookup(env)
+        (DEFAULT_EXCEPTION_CLASS, self).lookup(env)
     }
 }
 
 impl<'a, 'b> Desc<'a, JThrowable<'a>> for JNIString {
     fn lookup(self, env: &JNIEnv<'a>) -> Result<JThrowable<'a>> {
-        ("java/lang/Exception", self).lookup(env)
+        (DEFAULT_EXCEPTION_CLASS, self).lookup(env)
     }
 }
