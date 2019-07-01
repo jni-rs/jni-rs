@@ -4,11 +4,14 @@ extern crate error_chain;
 extern crate jni;
 
 use jni::{
+    descriptors::Desc,
     errors::{Error, ErrorKind},
     objects::{AutoLocal, JByteBuffer, JList, JObject, JValue},
     signature::JavaType,
     sys::{jint, jobject, jsize},
     JNIEnv,
+    objects::JThrowable,
+    strings::JNIString
 };
 use std::str::FromStr;
 
@@ -572,22 +575,11 @@ pub fn throw_new() {
 
     let result = env.throw_new("java/lang/RuntimeException", "Test Exception");
     assert!(result.is_ok());
-    let ex: JObject = env
-        .exception_occurred()
-        .expect("Exception should be thrown")
-        .into();
-    assert_pending_java_exception(&env);
-
-    assert!(env
-        .is_instance_of(ex, "java/lang/RuntimeException")
-        .unwrap());
-    let message = env
-        .call_method(ex, "getMessage", "()Ljava/lang/String;", &[])
-        .unwrap()
-        .l()
-        .unwrap();
-    let msg_rust: String = env.get_string(message.into()).unwrap().into();
-    assert_eq!(msg_rust, "Test Exception");
+    assert_pending_java_exception_detailed(
+        &env,
+        Some("java/lang/RuntimeException"),
+        Some("Test Exception"),
+    );
 }
 
 #[test]
@@ -598,6 +590,27 @@ pub fn throw_new_fail() {
     assert!(result.is_err());
     // Just to clear the java.lang.NoClassDefFoundError
     assert_pending_java_exception(&env);
+}
+
+#[test]
+pub fn throw_defaults() {
+    let env = attach_current_thread();
+
+    assert_throws(&env, "Default exception thrown");
+    assert_throws(&env, "Default exception thrown".to_owned());
+    assert_throws(&env, JNIString::from("Default exception thrown"));
+}
+
+fn assert_throws<'a, D>(env: &JNIEnv<'a>, descriptor: D)
+    where
+        D: Desc<'a, JThrowable<'a>>,
+{
+    assert!(env.throw(descriptor).is_ok());
+    assert_pending_java_exception_detailed(
+        env,
+        Some("java/lang/RuntimeException"),
+        Some("Default exception thrown"),
+    );
 }
 
 // Helper method that asserts that result is Error and the cause is JavaException.
@@ -611,8 +624,37 @@ fn assert_exception(res: Result<jobject, Error>, expect_message: &str) {
         .expect_err(expect_message));
 }
 
-// Helper method that asserts there is a pending Java exception and clears if any
+// Shortcut to `assert_pending_java_exception_detailed()` without checking for expected  type and
+// message of exception.
 fn assert_pending_java_exception(env: &JNIEnv) {
+    assert_pending_java_exception_detailed(env, None, None)
+}
+
+// Helper method that asserts there is a pending Java exception of `expected_class` with
+// `expected_message` and clears it if any.
+fn assert_pending_java_exception_detailed(
+    env: &JNIEnv,
+    expected_type: Option<&str>,
+    expected_message: Option<&str>,
+) {
     assert!(env.exception_check().unwrap());
+    let exception: JObject = env
+        .exception_occurred()
+        .expect("Unable to get exception")
+        .into();
     env.exception_clear().unwrap();
+
+    if let Some(expected_type) = expected_type {
+        assert!(env.is_instance_of(exception, expected_type).unwrap());
+    }
+
+    if let Some(expected_message) = expected_message {
+        let message = env
+            .call_method(exception, "getMessage", "()Ljava/lang/String;", &[])
+            .unwrap()
+            .l()
+            .unwrap();
+        let msg_rust: String = env.get_string(message.into()).unwrap().into();
+        assert_eq!(msg_rust, expected_message);
+    }
 }
