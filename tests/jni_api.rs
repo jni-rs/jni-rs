@@ -6,12 +6,12 @@ extern crate jni;
 use jni::{
     descriptors::Desc,
     errors::{Error, ErrorKind},
+    objects::JThrowable,
     objects::{AutoLocal, JByteBuffer, JList, JObject, JValue},
     signature::JavaType,
+    strings::JNIString,
     sys::{jint, jobject, jsize},
     JNIEnv,
-    objects::JThrowable,
-    strings::JNIString
 };
 use std::str::FromStr;
 
@@ -602,8 +602,8 @@ pub fn throw_defaults() {
 }
 
 fn assert_throws<'a, D>(env: &JNIEnv<'a>, descriptor: D)
-    where
-        D: Desc<'a, JThrowable<'a>>,
+where
+    D: Desc<'a, JThrowable<'a>>,
 {
     assert!(env.throw(descriptor).is_ok());
     assert_pending_java_exception_detailed(
