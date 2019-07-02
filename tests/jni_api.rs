@@ -28,6 +28,8 @@ static MATH_ABS_METHOD_NAME: &str = "abs";
 static MATH_TO_INT_METHOD_NAME: &str = "toIntExact";
 static MATH_ABS_SIGNATURE: &str = "(I)I";
 static MATH_TO_INT_SIGNATURE: &str = "(J)I";
+static DEFAULT_EXCEPTION_TYPE: &str = "java/lang/RuntimeException";
+static TEST_EXCEPTION_MESSAGE: &str = "Default exception thrown";
 
 #[test]
 pub fn call_method_returning_null() {
@@ -596,21 +598,21 @@ pub fn throw_new_fail() {
 pub fn throw_defaults() {
     let env = attach_current_thread();
 
-    assert_throws(&env, "Default exception thrown");
-    assert_throws(&env, "Default exception thrown".to_owned());
-    assert_throws(&env, JNIString::from("Default exception thrown"));
+    test_throwable_descriptor_with_default_type(&env, TEST_EXCEPTION_MESSAGE);
+    test_throwable_descriptor_with_default_type(&env, TEST_EXCEPTION_MESSAGE.to_owned());
+    test_throwable_descriptor_with_default_type(&env, JNIString::from(TEST_EXCEPTION_MESSAGE));
 }
 
-fn assert_throws<'a, D>(env: &JNIEnv<'a>, descriptor: D)
+fn test_throwable_descriptor_with_default_type<'a, D>(env: &JNIEnv<'a>, descriptor: D)
 where
     D: Desc<'a, JThrowable<'a>>,
 {
-    assert!(env.throw(descriptor).is_ok());
-    assert_pending_java_exception_detailed(
-        env,
-        Some("java/lang/RuntimeException"),
-        Some("Default exception thrown"),
-    );
+    let result = descriptor.lookup(env);
+    assert!(result.is_ok());
+    let exception: JObject = result.unwrap().into();
+
+    assert_exception_type(env, exception, DEFAULT_EXCEPTION_TYPE);
+    assert_exception_message(env, exception, TEST_EXCEPTION_MESSAGE);
 }
 
 // Helper method that asserts that result is Error and the cause is JavaException.
@@ -630,7 +632,7 @@ fn assert_pending_java_exception(env: &JNIEnv) {
     assert_pending_java_exception_detailed(env, None, None)
 }
 
-// Helper method that asserts there is a pending Java exception of `expected_class` with
+// Helper method that asserts there is a pending Java exception of `expected_type` with
 // `expected_message` and clears it if any.
 fn assert_pending_java_exception_detailed(
     env: &JNIEnv,
@@ -645,16 +647,26 @@ fn assert_pending_java_exception_detailed(
     env.exception_clear().unwrap();
 
     if let Some(expected_type) = expected_type {
-        assert!(env.is_instance_of(exception, expected_type).unwrap());
+        assert_exception_type(env, exception, expected_type);
     }
 
     if let Some(expected_message) = expected_message {
-        let message = env
-            .call_method(exception, "getMessage", "()Ljava/lang/String;", &[])
-            .unwrap()
-            .l()
-            .unwrap();
-        let msg_rust: String = env.get_string(message.into()).unwrap().into();
-        assert_eq!(msg_rust, expected_message);
+        assert_exception_message(env, exception, expected_message);
     }
+}
+
+// Asserts that exception is of `expected_type` type.
+fn assert_exception_type(env: &JNIEnv, exception: JObject, expected_type: &str) {
+    assert!(env.is_instance_of(exception, expected_type).unwrap());
+}
+
+// Asserts that exception's message is `expected_message`.
+fn assert_exception_message(env: &JNIEnv, exception: JObject, expected_message: &str) {
+    let message = env
+        .call_method(exception, "getMessage", "()Ljava/lang/String;", &[])
+        .unwrap()
+        .l()
+        .unwrap();
+    let msg_rust: String = env.get_string(message.into()).unwrap().into();
+    assert_eq!(msg_rust, expected_message);
 }
