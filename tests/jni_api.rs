@@ -6,8 +6,7 @@ extern crate jni;
 use jni::{
     descriptors::Desc,
     errors::{Error, ErrorKind},
-    objects::JThrowable,
-    objects::{AutoLocal, JByteBuffer, JList, JObject, JValue},
+    objects::{AutoLocal, JByteBuffer, JList, JObject, JThrowable, JValue},
     signature::JavaType,
     strings::JNIString,
     sys::{jint, jobject, jsize},
@@ -21,6 +20,7 @@ use util::{attach_current_thread, unwrap};
 static ARRAYLIST_CLASS: &str = "java/util/ArrayList";
 static EXCEPTION_CLASS: &str = "java/lang/Exception";
 static ARITHMETIC_EXCEPTION_CLASS: &str = "java/lang/ArithmeticException";
+static RUNTIME_EXCEPTION_CLASS: &str = "java/lang/RuntimeException";
 static INTEGER_CLASS: &str = "java/lang/Integer";
 static MATH_CLASS: &str = "java/lang/Math";
 static STRING_CLASS: &str = "java/lang/String";
@@ -28,7 +28,6 @@ static MATH_ABS_METHOD_NAME: &str = "abs";
 static MATH_TO_INT_METHOD_NAME: &str = "toIntExact";
 static MATH_ABS_SIGNATURE: &str = "(I)I";
 static MATH_TO_INT_SIGNATURE: &str = "(J)I";
-static DEFAULT_EXCEPTION_TYPE: &str = "java/lang/RuntimeException";
 static TEST_EXCEPTION_MESSAGE: &str = "Default exception thrown";
 
 #[test]
@@ -153,7 +152,7 @@ pub fn pop_local_frame_pending_exception() {
 
     env.push_local_frame(16).unwrap();
 
-    env.throw_new("java/lang/RuntimeException", "Test Exception")
+    env.throw_new(RUNTIME_EXCEPTION_CLASS, "Test Exception")
         .unwrap();
 
     // Pop the local frame with a pending exception
@@ -167,7 +166,7 @@ pub fn pop_local_frame_pending_exception() {
 pub fn push_local_frame_pending_exception() {
     let env = attach_current_thread();
 
-    env.throw_new("java/lang/RuntimeException", "Test Exception")
+    env.throw_new(RUNTIME_EXCEPTION_CLASS, "Test Exception")
         .unwrap();
 
     // Push a new local frame with a pending exception
@@ -212,7 +211,7 @@ pub fn with_local_frame() {
 pub fn with_local_frame_pending_exception() {
     let env = attach_current_thread();
 
-    env.throw_new("java/lang/RuntimeException", "Test Exception")
+    env.throw_new(RUNTIME_EXCEPTION_CLASS, "Test Exception")
         .unwrap();
 
     // Try to allocate a frame of locals
@@ -575,11 +574,11 @@ fn get_object_array_element() {
 pub fn throw_new() {
     let env = attach_current_thread();
 
-    let result = env.throw_new("java/lang/RuntimeException", "Test Exception");
+    let result = env.throw_new(RUNTIME_EXCEPTION_CLASS, "Test Exception");
     assert!(result.is_ok());
     assert_pending_java_exception_detailed(
         &env,
-        Some("java/lang/RuntimeException"),
+        Some(RUNTIME_EXCEPTION_CLASS),
         Some("Test Exception"),
     );
 }
@@ -611,7 +610,7 @@ where
     assert!(result.is_ok());
     let exception: JObject = result.unwrap().into();
 
-    assert_exception_type(env, exception, DEFAULT_EXCEPTION_TYPE);
+    assert_exception_type(env, exception, RUNTIME_EXCEPTION_CLASS);
     assert_exception_message(env, exception, TEST_EXCEPTION_MESSAGE);
 }
 
