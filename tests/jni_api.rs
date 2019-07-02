@@ -4,9 +4,11 @@ extern crate error_chain;
 extern crate jni;
 
 use jni::{
+    descriptors::Desc,
     errors::{Error, ErrorKind},
-    objects::{AutoLocal, JByteBuffer, JList, JObject, JValue},
+    objects::{AutoLocal, JByteBuffer, JList, JObject, JThrowable, JValue},
     signature::JavaType,
+    strings::JNIString,
     sys::{jint, jobject, jsize},
     JNIEnv,
 };
@@ -18,6 +20,7 @@ use util::{attach_current_thread, unwrap};
 static ARRAYLIST_CLASS: &str = "java/util/ArrayList";
 static EXCEPTION_CLASS: &str = "java/lang/Exception";
 static ARITHMETIC_EXCEPTION_CLASS: &str = "java/lang/ArithmeticException";
+static RUNTIME_EXCEPTION_CLASS: &str = "java/lang/RuntimeException";
 static INTEGER_CLASS: &str = "java/lang/Integer";
 static MATH_CLASS: &str = "java/lang/Math";
 static STRING_CLASS: &str = "java/lang/String";
@@ -25,6 +28,7 @@ static MATH_ABS_METHOD_NAME: &str = "abs";
 static MATH_TO_INT_METHOD_NAME: &str = "toIntExact";
 static MATH_ABS_SIGNATURE: &str = "(I)I";
 static MATH_TO_INT_SIGNATURE: &str = "(J)I";
+static TEST_EXCEPTION_MESSAGE: &str = "Default exception thrown";
 
 #[test]
 pub fn call_method_returning_null() {
@@ -148,7 +152,7 @@ pub fn pop_local_frame_pending_exception() {
 
     env.push_local_frame(16).unwrap();
 
-    env.throw_new("java/lang/RuntimeException", "Test Exception")
+    env.throw_new(RUNTIME_EXCEPTION_CLASS, "Test Exception")
         .unwrap();
 
     // Pop the local frame with a pending exception
@@ -162,7 +166,7 @@ pub fn pop_local_frame_pending_exception() {
 pub fn push_local_frame_pending_exception() {
     let env = attach_current_thread();
 
-    env.throw_new("java/lang/RuntimeException", "Test Exception")
+    env.throw_new(RUNTIME_EXCEPTION_CLASS, "Test Exception")
         .unwrap();
 
     // Push a new local frame with a pending exception
@@ -207,7 +211,7 @@ pub fn with_local_frame() {
 pub fn with_local_frame_pending_exception() {
     let env = attach_current_thread();
 
-    env.throw_new("java/lang/RuntimeException", "Test Exception")
+    env.throw_new(RUNTIME_EXCEPTION_CLASS, "Test Exception")
         .unwrap();
 
     // Try to allocate a frame of locals
@@ -570,24 +574,13 @@ fn get_object_array_element() {
 pub fn throw_new() {
     let env = attach_current_thread();
 
-    let result = env.throw_new("java/lang/RuntimeException", "Test Exception");
+    let result = env.throw_new(RUNTIME_EXCEPTION_CLASS, "Test Exception");
     assert!(result.is_ok());
-    let ex: JObject = env
-        .exception_occurred()
-        .expect("Exception should be thrown")
-        .into();
-    assert_pending_java_exception(&env);
-
-    assert!(env
-        .is_instance_of(ex, "java/lang/RuntimeException")
-        .unwrap());
-    let message = env
-        .call_method(ex, "getMessage", "()Ljava/lang/String;", &[])
-        .unwrap()
-        .l()
-        .unwrap();
-    let msg_rust: String = env.get_string(message.into()).unwrap().into();
-    assert_eq!(msg_rust, "Test Exception");
+    assert_pending_java_exception_detailed(
+        &env,
+        Some(RUNTIME_EXCEPTION_CLASS),
+        Some("Test Exception"),
+    );
 }
 
 #[test]
@@ -598,6 +591,27 @@ pub fn throw_new_fail() {
     assert!(result.is_err());
     // Just to clear the java.lang.NoClassDefFoundError
     assert_pending_java_exception(&env);
+}
+
+#[test]
+pub fn throw_defaults() {
+    let env = attach_current_thread();
+
+    test_throwable_descriptor_with_default_type(&env, TEST_EXCEPTION_MESSAGE);
+    test_throwable_descriptor_with_default_type(&env, TEST_EXCEPTION_MESSAGE.to_owned());
+    test_throwable_descriptor_with_default_type(&env, JNIString::from(TEST_EXCEPTION_MESSAGE));
+}
+
+fn test_throwable_descriptor_with_default_type<'a, D>(env: &JNIEnv<'a>, descriptor: D)
+where
+    D: Desc<'a, JThrowable<'a>>,
+{
+    let result = descriptor.lookup(env);
+    assert!(result.is_ok());
+    let exception: JObject = result.unwrap().into();
+
+    assert_exception_type(env, exception, RUNTIME_EXCEPTION_CLASS);
+    assert_exception_message(env, exception, TEST_EXCEPTION_MESSAGE);
 }
 
 // Helper method that asserts that result is Error and the cause is JavaException.
@@ -611,8 +625,47 @@ fn assert_exception(res: Result<jobject, Error>, expect_message: &str) {
         .expect_err(expect_message));
 }
 
-// Helper method that asserts there is a pending Java exception and clears if any
+// Shortcut to `assert_pending_java_exception_detailed()` without checking for expected  type and
+// message of exception.
 fn assert_pending_java_exception(env: &JNIEnv) {
+    assert_pending_java_exception_detailed(env, None, None)
+}
+
+// Helper method that asserts there is a pending Java exception of `expected_type` with
+// `expected_message` and clears it if any.
+fn assert_pending_java_exception_detailed(
+    env: &JNIEnv,
+    expected_type: Option<&str>,
+    expected_message: Option<&str>,
+) {
     assert!(env.exception_check().unwrap());
+    let exception: JObject = env
+        .exception_occurred()
+        .expect("Unable to get exception")
+        .into();
     env.exception_clear().unwrap();
+
+    if let Some(expected_type) = expected_type {
+        assert_exception_type(env, exception, expected_type);
+    }
+
+    if let Some(expected_message) = expected_message {
+        assert_exception_message(env, exception, expected_message);
+    }
+}
+
+// Asserts that exception is of `expected_type` type.
+fn assert_exception_type(env: &JNIEnv, exception: JObject, expected_type: &str) {
+    assert!(env.is_instance_of(exception, expected_type).unwrap());
+}
+
+// Asserts that exception's message is `expected_message`.
+fn assert_exception_message(env: &JNIEnv, exception: JObject, expected_message: &str) {
+    let message = env
+        .call_method(exception, "getMessage", "()Ljava/lang/String;", &[])
+        .unwrap()
+        .l()
+        .unwrap();
+    let msg_rust: String = env.get_string(message.into()).unwrap().into();
+    assert_eq!(msg_rust, expected_message);
 }
