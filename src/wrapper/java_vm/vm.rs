@@ -57,7 +57,7 @@ use InitArgs;
 /// in the Cargo.toml:
 ///
 /// ```toml
-/// jni = { version = "0.12.3", features = ["invocation"] }
+/// jni = { version = "0.13.0", features = ["invocation"] }
 /// ```
 ///
 /// The application will require linking to the dynamic `jvm` library, which is distributed
