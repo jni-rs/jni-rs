@@ -15,6 +15,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.13.0] — 2019-07-05
+
+0.13 brings major improvements in thread management, allowing to attach the native threads
+permanently and safely; `Executor` for extra convenience and safety; and other
+improvements and fixes.
+
+:warning: If your code attaches native threads — make sure to check the updated documentation
+of [JavaVM](https://docs.rs/jni/0.13.0/jni/struct.JavaVM.html) to learn about the new features!
+
 ### Added
 - `JavaVM::attach_current_thread_permanently` method, which attaches the current 
   thread and detaches it when the thread finishes. Daemon threads attached 
@@ -145,7 +154,8 @@ to call if there is a pending exception (#124):
 ## [0.10.1]
 - No changes has been made to the Changelog until this release.
 
-[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.12.3...HEAD
+[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/jni-rs/jni-rs/compare/v0.12.3...v0.13.0
 [0.12.3]: https://github.com/jni-rs/jni-rs/compare/v0.12.2...v0.12.3
 [0.12.2]: https://github.com/jni-rs/jni-rs/compare/v0.12.1...v0.12.2
 [0.12.1]: https://github.com/jni-rs/jni-rs/compare/v0.12.0...v0.12.1
