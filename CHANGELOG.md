@@ -15,6 +15,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+- `JavaVM::attach_current_thread_permanently` method, which attaches the current 
+  thread and detaches it when the thread finishes. Daemon threads attached 
+  with `JavaVM::attach_current_thread_as_daemon` also automatically detach themselves
+  when finished. The number of currently attached threads may be acquired using
+  `JavaVM::threads_attached` method. (#179, #180)
+- `Executor` — a simple thread attachment manager which helps to safely
+  execute a closure in attached thread context and to automatically free 
+  created local references at closure exit. (#186)
+
 ### Changed
 - The default JNI API version in `InitArgsBuilder` from V1 to V8. (#178)
 - Extended the lifetimes of `AutoLocal` to make it more flexible. (#190)
@@ -25,6 +35,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `env.throw_new(exception_type, "Exception message")`. (#194) 
 
 ### Fixed
+- Native threads attached with `JavaVM::attach_current_thread_as_daemon` now automatically detach
+  themselves on exit, preventing Java Thread leaks. (#179)
 - Local reference leaks in `JList`, `JMap` and `JMapIter`. (#190, #191)
 
 ## [0.12.3]

@@ -1,7 +1,15 @@
 use std::sync::{Arc, Once, ONCE_INIT};
 
-use error_chain::ChainedError;
-use jni::{errors::Result, AttachGuard, InitArgsBuilder, JNIEnv, JNIVersion, JavaVM};
+extern crate error_chain;
+
+use self::error_chain::ChainedError;
+use jni::{
+    errors::Result, objects::JValue, sys::jint, AttachGuard, InitArgsBuilder, JNIEnv, JNIVersion,
+    JavaVM,
+};
+
+mod example_proxy;
+pub use self::example_proxy::AtomicIntegerProxy;
 
 pub fn jvm() -> &'static Arc<JavaVM> {
     static mut JVM: Option<Arc<JavaVM>> = None;
@@ -25,10 +33,43 @@ pub fn jvm() -> &'static Arc<JavaVM> {
     unsafe { JVM.as_ref().unwrap() }
 }
 
+#[allow(dead_code)]
+pub fn call_java_abs(env: &JNIEnv, value: i32) -> i32 {
+    env.call_static_method(
+        "java/lang/Math",
+        "abs",
+        "(I)I",
+        &[JValue::from(value as jint)],
+    )
+    .unwrap()
+    .i()
+    .unwrap()
+}
+
+#[allow(dead_code)]
 pub fn attach_current_thread() -> AttachGuard<'static> {
     jvm()
         .attach_current_thread()
         .expect("failed to attach jvm thread")
+}
+
+#[allow(dead_code)]
+pub fn attach_current_thread_as_daemon() -> JNIEnv<'static> {
+    jvm()
+        .attach_current_thread_as_daemon()
+        .expect("failed to attach jvm daemon thread")
+}
+
+#[allow(dead_code)]
+pub fn attach_current_thread_permanently() -> JNIEnv<'static> {
+    jvm()
+        .attach_current_thread_permanently()
+        .expect("failed to attach jvm thread permanently")
+}
+
+#[allow(dead_code)]
+pub fn detach_current_thread() {
+    jvm().detach_current_thread()
 }
 
 pub fn print_exception(env: &JNIEnv) {
