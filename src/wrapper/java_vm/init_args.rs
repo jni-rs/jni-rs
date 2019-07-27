@@ -17,8 +17,8 @@ error_chain! {
 }
 
 /// Builder for JavaVM InitArgs.
-/// 
-/// *This API requires "invocation" feature to be enabled, 
+///
+/// *This API requires "invocation" feature to be enabled,
 /// see ["Launching JVM from Rust"](struct.JavaVM.html#launching-jvm-from-rust).*
 #[derive(Debug)]
 pub struct InitArgsBuilder {
@@ -115,8 +115,8 @@ impl InitArgsBuilder {
 }
 
 /// JavaVM InitArgs.
-/// 
-/// *This API requires "invocation" feature to be enabled, 
+///
+/// *This API requires "invocation" feature to be enabled,
 /// see ["Launching JVM from Rust"](struct.JavaVM.html#launching-jvm-from-rust).*
 pub struct InitArgs {
     inner: JavaVMInitArgs,
