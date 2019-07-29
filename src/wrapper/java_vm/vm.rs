@@ -140,6 +140,9 @@ impl JavaVM {
     /// Unlike original JNI API, the main thread (the thread from which this method is called) will
     /// not be attached to JVM. You must explicitly use `attach_current_thread…` methods (refer
     /// to [Attaching Native Threads section](#attaching-native-threads)).
+    ///
+    /// *This API requires "invocation" feature to be enabled,
+    /// see ["Launching JVM from Rust"](struct.JavaVM.html#launching-jvm-from-rust).*
     #[cfg(feature = "invocation")]
     pub fn new(args: InitArgs) -> Result<Self> {
         use std::os::raw::c_void;
