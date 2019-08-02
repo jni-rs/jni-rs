@@ -1,7 +1,6 @@
 #![cfg(feature = "invocation")]
 
-extern crate error_chain;
-extern crate jni;
+use std::str::FromStr;
 
 use jni::{
     descriptors::Desc,
@@ -12,7 +11,6 @@ use jni::{
     sys::{jint, jobject, jsize},
     JNIEnv,
 };
-use std::str::FromStr;
 
 mod util;
 use util::{attach_current_thread, unwrap};

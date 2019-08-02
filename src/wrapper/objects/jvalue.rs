@@ -1,11 +1,8 @@
 use std::mem::transmute;
 
-use signature::Primitive;
+use log::trace;
 
-use errors::*;
-use sys::*;
-
-use objects::JObject;
+use crate::{errors::*, objects::JObject, signature::Primitive, sys::*};
 
 /// Rusty version of the JNI C `jvalue` enum. Used in Java method call arguments
 /// and returns.

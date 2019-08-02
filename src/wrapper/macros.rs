@@ -12,7 +12,7 @@ macro_rules! jni_non_null_call {
 // Returns Err if there is a pending exception after the call.
 macro_rules! jni_non_void_call {
     ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
-        trace!("calling checked jni method: {}", stringify!($name));
+        log::trace!("calling checked jni method: {}", stringify!($name));
 
         let res = unsafe {
             jni_method!($jnienv, $name)($jnienv, $($args),*)
@@ -37,7 +37,7 @@ macro_rules! non_null {
 // Returns Err if there is a pending exception after the call.
 macro_rules! jni_void_call {
     ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
-        trace!("calling checked jni method: {}", stringify!($name));
+        log::trace!("calling checked jni method: {}", stringify!($name));
 
         unsafe {
             jni_method!($jnienv, $name)($jnienv, $($args),*)
@@ -51,7 +51,7 @@ macro_rules! jni_void_call {
 // error codes (if any).
 macro_rules! jni_unchecked {
     ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
-        trace!("calling unchecked jni method: {}", stringify!($name));
+        log::trace!("calling unchecked jni method: {}", stringify!($name));
 
         unsafe {
             jni_method!($jnienv, $name)($jnienv, $($args),*)
@@ -61,15 +61,15 @@ macro_rules! jni_unchecked {
 
 macro_rules! jni_method {
     ( $jnienv:expr, $name:tt ) => {{
-        trace!("looking up jni method {}", stringify!($name));
+        log::trace!("looking up jni method {}", stringify!($name));
         let env = $jnienv;
         match deref!(deref!(env, "JNIEnv"), "*JNIEnv").$name {
             Some(method) => {
-                trace!("found jni method");
+                log::trace!("found jni method");
                 method
             }
             None => {
-                trace!("jnienv method not defined, returning error");
+                log::trace!("jnienv method not defined, returning error");
                 return Err($crate::errors::Error::from(
                     $crate::errors::ErrorKind::JNIEnvMethodNotFound(stringify!($name)),
                 )
@@ -81,15 +81,15 @@ macro_rules! jni_method {
 
 macro_rules! check_exception {
     ( $jnienv:expr ) => {
-        trace!("checking for exception");
+        log::trace!("checking for exception");
         let check = { jni_unchecked!($jnienv, ExceptionCheck) } == $crate::sys::JNI_TRUE;
         if check {
-            trace!("exception found, returning error");
+            log::trace!("exception found, returning error");
             return Err(
                 $crate::errors::Error::from($crate::errors::ErrorKind::JavaException).into(),
             );
         }
-        trace!("no exception found");
+        log::trace!("no exception found");
     };
 }
 
@@ -104,22 +104,22 @@ macro_rules! catch {
 
 macro_rules! java_vm_unchecked {
     ( $java_vm:expr, $name:tt $(, $args:expr )* ) => ({
-        trace!("calling unchecked JavaVM method: {}", stringify!($name));
+        log::trace!("calling unchecked JavaVM method: {}", stringify!($name));
         java_vm_method!($java_vm, $name)($java_vm, $($args),*)
     })
 }
 
 macro_rules! java_vm_method {
     ( $jnienv:expr, $name:tt ) => {{
-        trace!("looking up JavaVM method {}", stringify!($name));
+        log::trace!("looking up JavaVM method {}", stringify!($name));
         let env = $jnienv;
         match deref!(deref!(env, "JavaVM"), "*JavaVM").$name {
             Some(meth) => {
-                trace!("found JavaVM method");
+                log::trace!("found JavaVM method");
                 meth
             }
             None => {
-                trace!("JavaVM method not defined, returning error");
+                log::trace!("JavaVM method not defined, returning error");
                 return Err($crate::errors::Error::from(
                     $crate::errors::ErrorKind::JavaVMMethodNotFound(stringify!($name)),
                 )

@@ -3,9 +3,7 @@
 
 extern crate test;
 
-extern crate jni;
-#[macro_use]
-extern crate lazy_static;
+use lazy_static::lazy_static;
 
 use jni::{
     descriptors::Desc,

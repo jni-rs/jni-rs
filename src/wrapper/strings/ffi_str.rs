@@ -5,8 +5,9 @@ use std::{
 };
 
 use cesu8::{from_java_cesu8, to_java_cesu8};
+use log::debug;
 
-use wrapper::strings::ffi_str;
+use crate::wrapper::strings::ffi_str;
 
 /// Wrapper for `std::ffi::CString` that also takes care of encoding between
 /// UTF-8 and Java's Modified UTF-8. As with `CString`, this implements `Deref`

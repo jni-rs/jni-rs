@@ -6,27 +6,24 @@ use std::{
     sync::{Mutex, MutexGuard},
 };
 
-use errors::*;
+use log::warn;
 
-use sys::{
-    self, jarray, jboolean, jbooleanArray, jbyte, jbyteArray, jchar, jcharArray, jdouble,
-    jdoubleArray, jfloat, jfloatArray, jint, jintArray, jlong, jlongArray, jobjectArray, jshort,
-    jshortArray, jsize, jvalue,
+use crate::{
+    descriptors::Desc,
+    errors::*,
+    objects::{
+        AutoLocal, GlobalRef, JByteBuffer, JClass, JFieldID, JList, JMap, JMethodID, JObject,
+        JStaticFieldID, JStaticMethodID, JString, JThrowable, JValue,
+    },
+    signature::{JavaType, Primitive, TypeSignature},
+    strings::{JNIString, JavaStr},
+    sys::{
+        self, jarray, jboolean, jbooleanArray, jbyte, jbyteArray, jchar, jcharArray, jdouble,
+        jdoubleArray, jfloat, jfloatArray, jint, jintArray, jlong, jlongArray, jobjectArray,
+        jshort, jshortArray, jsize, jvalue,
+    },
+    JNIVersion, JavaVM,
 };
-
-use strings::{JNIString, JavaStr};
-
-use objects::{
-    AutoLocal, GlobalRef, JByteBuffer, JClass, JFieldID, JList, JMap, JMethodID, JObject,
-    JStaticFieldID, JStaticMethodID, JString, JThrowable, JValue,
-};
-
-use descriptors::Desc;
-
-use signature::{JavaType, Primitive, TypeSignature};
-
-use JNIVersion;
-use JavaVM;
 
 /// FFI-compatible JNIEnv struct. You can safely use this as the JNIEnv argument
 /// to exported methods that will be called by java. This is where most of the
@@ -1744,7 +1741,7 @@ impl<'a> JNIEnv<'a> {
         let mbox = Box::new(::std::sync::Mutex::new(rust_object));
         let ptr: *mut Mutex<T> = Box::into_raw(mbox);
 
-        self.set_field_unchecked(obj, field_id, (ptr as ::sys::jlong).into())
+        self.set_field_unchecked(obj, field_id, (ptr as crate::sys::jlong).into())
     }
 
     /// Gets a lock on a Rust value that's been given to a Java object. Java

@@ -1,11 +1,10 @@
 #![cfg(feature = "invocation")]
-extern crate jni;
+
+use std::{sync::Arc, thread::spawn};
 
 use jni::{errors::ErrorKind, Executor, JavaVM};
-use std::thread::spawn;
 
-pub mod util;
-use std::sync::Arc;
+mod util;
 use util::jvm;
 
 /// Checks if nested attaches are working properly and threads detach themselves

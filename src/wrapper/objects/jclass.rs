@@ -1,6 +1,7 @@
-use objects::JObject;
-
-use sys::{jclass, jobject};
+use crate::{
+    objects::JObject,
+    sys::{jclass, jobject},
+};
 
 /// Lifetime'd representation of a `jclass`. Just a `JObject` wrapped in a new
 /// class.

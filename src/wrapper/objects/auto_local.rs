@@ -1,8 +1,8 @@
 use std::mem;
 
-use objects::JObject;
+use log::debug;
 
-use JNIEnv;
+use crate::{objects::JObject, JNIEnv};
 
 /// Auto-delete wrapper for local refs.
 ///

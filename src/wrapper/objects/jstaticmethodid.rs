@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use sys::jmethodID;
+use crate::sys::jmethodID;
 
 /// Wrapper around `sys::jmethodid` that adds a lifetime. This prevents it from
 /// outliving the context in which it was acquired and getting GC'd out from

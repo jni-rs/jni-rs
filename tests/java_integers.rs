@@ -1,6 +1,4 @@
 #![cfg(feature = "invocation")]
-extern crate error_chain;
-extern crate jni;
 
 use error_chain::ChainedError;
 use jni::{objects::JObject, objects::JValue};
@@ -9,7 +7,6 @@ mod util;
 use util::{attach_current_thread, print_exception};
 
 #[test]
-#[allow(clippy::identity_conversion)]
 fn test_java_integers() {
     let env = attach_current_thread();
 
@@ -17,11 +14,8 @@ fn test_java_integers() {
 
     for value in -10..10 {
         env.with_local_frame(16, || {
-            let integer_value = JObject::from(env.new_object(
-                "java/lang/Integer",
-                "(I)V",
-                &[JValue::Int(value)],
-            )?);
+            let integer_value =
+                env.new_object("java/lang/Integer", "(I)V", &[JValue::Int(value)])?;
 
             let values_array = JObject::from(env.new_object_array(
                 array_length,

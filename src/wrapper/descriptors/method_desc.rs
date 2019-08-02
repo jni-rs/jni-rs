@@ -1,14 +1,10 @@
-use errors::*;
-
-use descriptors::Desc;
-
-use objects::JClass;
-use objects::JMethodID;
-use objects::JStaticMethodID;
-
-use strings::JNIString;
-
-use JNIEnv;
+use crate::{
+    descriptors::Desc,
+    errors::*,
+    objects::{JClass, JMethodID, JStaticMethodID},
+    strings::JNIString,
+    JNIEnv,
+};
 
 impl<'a, 'c, T, U, V> Desc<'a, JMethodID<'a>> for (T, U, V)
 where

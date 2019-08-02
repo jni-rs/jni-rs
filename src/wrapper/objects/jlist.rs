@@ -1,14 +1,10 @@
-use JNIEnv;
-
-use errors::*;
-
-use objects::JMethodID;
-use objects::JObject;
-
-use sys::jint;
-
-use signature::JavaType;
-use signature::Primitive;
+use crate::{
+    errors::*,
+    objects::{JMethodID, JObject},
+    signature::{JavaType, Primitive},
+    sys::jint,
+    JNIEnv,
+};
 
 /// Wrapper for JObjects that implement `java/util/Map`. Provides methods to get
 /// and set entries and a way to iterate over key/value pairs.

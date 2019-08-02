@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use sys::jfieldID;
+use crate::sys::jfieldID;
 
 /// Wrapper around `sys::jfieldid` that adds a lifetime. This prevents it from
 /// outliving the context in which it was acquired and getting GC'd out from

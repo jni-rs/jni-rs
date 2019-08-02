@@ -1,10 +1,8 @@
 use std::{convert::From, sync::Arc};
 
-use errors::Result;
-use objects::JObject;
-use sys;
-use JNIEnv;
-use JavaVM;
+use log::{debug, warn};
+
+use crate::{errors::Result, objects::JObject, sys, JNIEnv, JavaVM};
 
 /// A global JVM reference. These are "pinned" by the garbage collector and are
 /// guaranteed to not get collected until released. Thus, this is allowed to

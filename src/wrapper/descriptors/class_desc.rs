@@ -1,12 +1,10 @@
-use strings::JNIString;
-
-use objects::{AutoLocal, GlobalRef, JClass, JObject};
-
-use descriptors::Desc;
-
-use JNIEnv;
-
-use errors::*;
+use crate::{
+    descriptors::Desc,
+    errors::*,
+    objects::{AutoLocal, GlobalRef, JClass, JObject},
+    strings::JNIString,
+    JNIEnv,
+};
 
 impl<'a, T> Desc<'a, JClass<'a>> for T
 where

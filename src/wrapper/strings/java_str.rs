@@ -1,14 +1,8 @@
-use std::os::raw::c_char;
+use std::{borrow::Cow, os::raw::c_char};
 
-use std::borrow::Cow;
+use log::warn;
 
-use JNIEnv;
-
-use objects::JString;
-
-use errors::*;
-
-use strings::JNIStr;
+use crate::{errors::*, objects::JString, strings::JNIStr, JNIEnv};
 
 /// Reference to a string in the JVM. Holds a pointer to the array
 /// returned by GetStringUTFChars. Calls ReleaseStringUTFChars on Drop.

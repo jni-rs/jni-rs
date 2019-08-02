@@ -1,12 +1,10 @@
-use errors::*;
-
-use descriptors::Desc;
-
-use objects::{JClass, JObject, JThrowable, JValue};
-
-use strings::JNIString;
-
-use JNIEnv;
+use crate::{
+    descriptors::Desc,
+    errors::*,
+    objects::{JClass, JObject, JThrowable, JValue},
+    strings::JNIString,
+    JNIEnv,
+};
 
 const DEFAULT_EXCEPTION_CLASS: &str = "java/lang/RuntimeException";
 

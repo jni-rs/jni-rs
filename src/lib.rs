@@ -93,8 +93,6 @@
 //! your crate's `src/lib.rs`:
 //!
 //! ```rust,ignore
-//! extern crate jni;
-//!
 //! // This is the interface to the JVM that we'll call the majority of our
 //! // methods on.
 //! use jni::JNIEnv;
@@ -192,20 +190,8 @@
 //! [graalvm-rust]: http://www.graalvm.org/docs/reference-manual/languages/llvm/#running-rust
 //! [projects-panama]: https://jdk.java.net/panama/
 
-/// Bindgen-generated definitions. Mirrors `jni.h` and `jni_md.h`.
-extern crate jni_sys;
 /// `jni-sys` re-exports
 pub mod sys;
-
-#[macro_use]
-extern crate log;
-
-#[macro_use]
-extern crate error_chain;
-
-extern crate combine;
-
-extern crate cesu8;
 
 mod wrapper {
     mod version;
