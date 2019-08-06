@@ -1,16 +1,17 @@
-use errors::*;
-use JNIEnv;
+use std::{
+    cell::RefCell,
+    ops::Deref,
+    ptr,
+    sync::atomic::{AtomicUsize, Ordering},
+    thread::current,
+};
 
-use sys;
+use log::{debug, error};
 
-use std::cell::RefCell;
-use std::ops::Deref;
-use std::ptr;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::thread::current;
+use crate::{errors::*, sys, JNIEnv};
 
 #[cfg(feature = "invocation")]
-use InitArgs;
+use crate::InitArgs;
 
 /// The Java VM, providing [Invocation API][invocation-api] support.
 ///

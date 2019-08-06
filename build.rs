@@ -12,8 +12,6 @@
 //! On Windows, we also need to find `jvm.lib` file which is used while linking
 //! at build time. This file is typically placed in `$JAVA_HOME/lib` directory.
 
-extern crate walkdir;
-
 use std::{
     env,
     path::{Path, PathBuf},

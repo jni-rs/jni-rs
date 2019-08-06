@@ -2,6 +2,7 @@
 name = "mylib"
 version = "0.1.0"
 authors = ["Josh Chase <josh@prevoty.com>"]
+edition = "2018"
 
 [dependencies]
 jni = { path = "../../" }

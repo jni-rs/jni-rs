@@ -1,8 +1,6 @@
 use std::sync::{Arc, Once, ONCE_INIT};
 
-extern crate error_chain;
-
-use self::error_chain::ChainedError;
+use error_chain::ChainedError;
 use jni::{
     errors::Result, objects::JValue, sys::jint, AttachGuard, InitArgsBuilder, JNIEnv, JNIVersion,
     JavaVM,

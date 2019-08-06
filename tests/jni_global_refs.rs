@@ -1,6 +1,4 @@
 #![cfg(feature = "invocation")]
-extern crate error_chain;
-extern crate jni;
 
 use std::{
     sync::{Arc, Barrier},

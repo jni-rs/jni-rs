@@ -1,8 +1,6 @@
 #![allow(dead_code)]
 
-use jni::objects::GlobalRef;
-use jni::sys::jint;
-use jni::{errors::*, objects::JValue, Executor, JNIEnv};
+use jni::{errors::*, objects::GlobalRef, objects::JValue, sys::jint, Executor, JNIEnv};
 
 /// A test example of a native-to-JNI proxy
 #[derive(Clone)]

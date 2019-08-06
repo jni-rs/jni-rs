@@ -1,6 +1,6 @@
-use {errors::*, objects::JObject, JNIEnv, JavaVM};
-
 use std::sync::Arc;
+
+use crate::{errors::*, objects::JObject, JNIEnv, JavaVM};
 
 /// The capacity of local frames, allocated for attached threads by default. Same as the default
 /// value Hotspot uses when calling native Java methods.

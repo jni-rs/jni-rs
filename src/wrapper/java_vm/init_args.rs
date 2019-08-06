@@ -1,10 +1,11 @@
-use std::os::raw::c_void;
+use std::{ffi::CString, os::raw::c_void};
 
-use std::ffi::CString;
+use error_chain::*;
 
-use sys::{JavaVMInitArgs, JavaVMOption};
-
-use JNIVersion;
+use crate::{
+    sys::{JavaVMInitArgs, JavaVMOption},
+    JNIVersion,
+};
 
 error_chain! {
     errors {

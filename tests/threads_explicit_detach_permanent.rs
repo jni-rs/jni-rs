@@ -1,6 +1,4 @@
 #![cfg(feature = "invocation")]
-extern crate error_chain;
-extern crate jni;
 
 mod util;
 use util::{attach_current_thread_permanently, call_java_abs, detach_current_thread, jvm};

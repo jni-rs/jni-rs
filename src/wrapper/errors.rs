@@ -1,6 +1,8 @@
 #![allow(missing_docs)]
 
-use sys;
+use error_chain::*;
+
+use crate::sys;
 
 error_chain! {
     foreign_links {

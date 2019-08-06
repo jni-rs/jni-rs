@@ -1,12 +1,13 @@
 #![cfg(feature = "invocation")]
-extern crate jni;
 
-use jni::sys::jint;
-use jni::Executor;
+use std::{
+    sync::{Arc, Barrier},
+    thread::spawn,
+};
 
-pub mod util;
-use std::sync::{Arc, Barrier};
-use std::thread::spawn;
+use jni::{sys::jint, Executor};
+
+mod util;
 use util::{jvm, AtomicIntegerProxy};
 
 #[test]

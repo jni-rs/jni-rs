@@ -1,6 +1,8 @@
-use combine::{stream::state::State, *};
-use errors::*;
 use std::str::FromStr;
+
+use combine::{stream::state::State, *};
+
+use crate::errors::*;
 
 /// A primitive java type. These are the things that can be represented without
 /// an object.
