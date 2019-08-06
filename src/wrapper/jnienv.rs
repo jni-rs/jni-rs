@@ -912,7 +912,7 @@ impl<'a> JNIEnv<'a> {
         ))
     }
 
-    /// Cast a JObject to a JString. This won't throw exceptions or return errors
+    /// Cast a JObject to a `JList`. This won't throw exceptions or return errors
     /// in the event that the object isn't actually a list, but the methods on
     /// the resulting map object will.
     pub fn get_list(&self, obj: JObject<'a>) -> Result<JList<'a, '_>> {
