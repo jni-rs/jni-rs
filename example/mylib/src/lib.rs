@@ -16,9 +16,6 @@ use std::{sync::mpsc, thread, time::Duration};
 
 // This keeps rust from "mangling" the name and making it unique for this crate.
 #[no_mangle]
-// This turns off linter warnings because
-// the name doesn't conform to conventions.
-#[allow(non_snake_case)]
 pub extern "system" fn Java_HelloWorld_hello(
     env: JNIEnv,
     // this is the class that owns our
@@ -45,7 +42,6 @@ pub extern "system" fn Java_HelloWorld_hello(
 }
 
 #[no_mangle]
-#[allow(non_snake_case)]
 pub extern "system" fn Java_HelloWorld_helloByte(
     env: JNIEnv,
     _class: JClass,
@@ -62,7 +58,6 @@ pub extern "system" fn Java_HelloWorld_helloByte(
 }
 
 #[no_mangle]
-#[allow(non_snake_case)]
 pub extern "system" fn Java_HelloWorld_factAndCallMeBack(
     env: JNIEnv,
     _class: JClass,
@@ -102,7 +97,6 @@ impl Counter {
 }
 
 #[no_mangle]
-#[allow(non_snake_case)]
 pub unsafe extern "system" fn Java_HelloWorld_counterNew(
     env: JNIEnv,
     _class: JClass,
@@ -115,7 +109,6 @@ pub unsafe extern "system" fn Java_HelloWorld_counterNew(
 }
 
 #[no_mangle]
-#[allow(non_snake_case)]
 pub unsafe extern "system" fn Java_HelloWorld_counterIncrement(
     env: JNIEnv,
     _class: JClass,
@@ -127,7 +120,6 @@ pub unsafe extern "system" fn Java_HelloWorld_counterIncrement(
 }
 
 #[no_mangle]
-#[allow(non_snake_case)]
 pub unsafe extern "system" fn Java_HelloWorld_counterDestroy(
     _env: JNIEnv,
     _class: JClass,
@@ -137,7 +129,6 @@ pub unsafe extern "system" fn Java_HelloWorld_counterDestroy(
 }
 
 #[no_mangle]
-#[allow(non_snake_case)]
 pub extern "system" fn Java_HelloWorld_asyncComputation(
     env: JNIEnv,
     _class: JClass,
