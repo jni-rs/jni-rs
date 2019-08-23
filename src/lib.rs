@@ -110,9 +110,6 @@
 //! // This keeps Rust from "mangling" the name and making it unique for this
 //! // crate.
 //! #[no_mangle]
-//! // This turns off linter warnings because the name doesn't conform to
-//! // conventions.
-//! #[allow(non_snake_case)]
 //! pub extern "system" fn Java_HelloWorld_hello(env: JNIEnv,
 //! // This is the class that owns our static method. It's not going to be used,
 //! // but still must be present to match the expected signature of a static
