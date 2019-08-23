@@ -1,4 +1,4 @@
-use std::sync::{Arc, Once, ONCE_INIT};
+use std::sync::{Arc, Once};
 
 use error_chain::ChainedError;
 use jni::{
@@ -11,7 +11,7 @@ pub use self::example_proxy::AtomicIntegerProxy;
 
 pub fn jvm() -> &'static Arc<JavaVM> {
     static mut JVM: Option<Arc<JavaVM>> = None;
-    static INIT: Once = ONCE_INIT;
+    static INIT: Once = Once::new();
 
     INIT.call_once(|| {
         let jvm_args = InitArgsBuilder::new()
