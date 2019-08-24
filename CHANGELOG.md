@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.13.1] — 2019-08-22
+
+### Changed
+- Various documentation improvements.
+
 ## [0.13.0] — 2019-07-05
 
 0.13 brings major improvements in thread management, allowing to attach the native threads
@@ -154,7 +159,8 @@ to call if there is a pending exception (#124):
 ## [0.10.1]
 - No changes has been made to the Changelog until this release.
 
-[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.13.1...HEAD
+[0.13.1]: https://github.com/jni-rs/jni-rs/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/jni-rs/jni-rs/compare/v0.12.3...v0.13.0
 [0.12.3]: https://github.com/jni-rs/jni-rs/compare/v0.12.2...v0.12.3
 [0.12.2]: https://github.com/jni-rs/jni-rs/compare/v0.12.1...v0.12.2
