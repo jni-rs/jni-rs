@@ -86,7 +86,7 @@
 //! * Add a new `[lib]` section and under it, `crate_type = ["cdylib"]`.
 //!
 //! Now, if you run `cargo build` from inside the crate directory, you should
-//! see a `libmylib.so` (if you're on linux/OSX) in the `target/debug`
+//! see a `libmylib.so` (if you're on linux) or a `libmylib.dylib` (if you are on OSX) in the `target/debug`
 //! directory.
 //!
 //! The last thing we need to do is to define our exported method. Add this to
