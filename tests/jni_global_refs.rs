@@ -5,7 +5,10 @@ use std::{
     thread::spawn,
 };
 
-use jni::{objects::AutoLocal, objects::JValue, sys::jint};
+use jni::{
+    objects::{AsObj, AutoLocal, JValue},
+    sys::jint,
+};
 
 mod util;
 use util::{attach_current_thread, unwrap};

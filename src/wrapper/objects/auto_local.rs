@@ -2,7 +2,10 @@ use std::mem;
 
 use log::debug;
 
-use crate::{objects::JObject, JNIEnv};
+use crate::{
+    objects::{AsObj, JObject},
+    JNIEnv,
+};
 
 /// Auto-delete wrapper for local refs.
 ///
@@ -50,17 +53,6 @@ impl<'a, 'b> AutoLocal<'a, 'b> {
         mem::forget(self);
         obj
     }
-
-    /// Get a reference to the wrapped object
-    ///
-    /// Unlike `forget`, this ensures the wrapper from being dropped while the
-    /// returned `JObject` is still live.
-    pub fn as_obj<'c>(&'c self) -> JObject<'c>
-    where
-        'a: 'c,
-    {
-        self.obj
-    }
 }
 
 impl<'a, 'b> Drop for AutoLocal<'a, 'b> {
@@ -70,5 +62,11 @@ impl<'a, 'b> Drop for AutoLocal<'a, 'b> {
             Ok(()) => {}
             Err(e) => debug!("error dropping global ref: {:#?}", e),
         }
+    }
+}
+
+impl<'a: 'c, 'c> AsObj<'c> for AutoLocal<'a, '_> {
+    fn as_obj(&self) -> JObject<'c> {
+        self.obj
     }
 }

@@ -2,7 +2,11 @@ use std::{convert::From, sync::Arc};
 
 use log::{debug, warn};
 
-use crate::{errors::Result, objects::JObject, sys, JNIEnv, JavaVM};
+use crate::{
+    errors::Result,
+    objects::{AsObj, JObject},
+    sys, JNIEnv, JavaVM,
+};
 
 /// A global JVM reference. These are "pinned" by the garbage collector and are
 /// guaranteed to not get collected until released. Thus, this is allowed to
@@ -48,14 +52,6 @@ impl GlobalRef {
             inner: Arc::new(GlobalRefGuard::from_raw(vm, obj)),
         }
     }
-
-    /// Get the object from the global ref
-    ///
-    /// This borrows the ref and prevents it from being dropped as long as the
-    /// JObject sticks around.
-    pub fn as_obj(&self) -> JObject {
-        self.inner.as_obj()
-    }
 }
 
 impl GlobalRefGuard {
@@ -72,7 +68,7 @@ impl GlobalRefGuard {
     ///
     /// This borrows the ref and prevents it from being dropped as long as the
     /// JObject sticks around.
-    pub fn as_obj(&self) -> JObject {
+    pub fn as_obj<'a>(&self) -> JObject<'a> {
         self.obj
     }
 }
@@ -99,5 +95,11 @@ impl Drop for GlobalRefGuard {
         if let Err(err) = res {
             debug!("error dropping global ref: {:#?}", err);
         }
+    }
+}
+
+impl<'a> AsObj<'a> for GlobalRef {
+    fn as_obj(&self) -> JObject<'a> {
+        self.inner.as_obj()
     }
 }

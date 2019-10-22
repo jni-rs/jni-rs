@@ -5,7 +5,7 @@ use std::str::FromStr;
 use jni::{
     descriptors::Desc,
     errors::{Error, ErrorKind},
-    objects::{AutoLocal, JByteBuffer, JList, JObject, JThrowable, JValue},
+    objects::{AsObj, AutoLocal, JByteBuffer, JList, JObject, JThrowable, JValue},
     signature::JavaType,
     strings::JNIString,
     sys::{jint, jobject, jsize},

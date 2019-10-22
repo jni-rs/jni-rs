@@ -1,6 +1,6 @@
 use crate::{
     errors::*,
-    objects::{AutoLocal, JMethodID, JObject},
+    objects::{AsObj, AutoLocal, JMethodID, JObject},
     signature::{JavaType, Primitive},
     JNIEnv,
 };
@@ -257,5 +257,11 @@ impl<'a: 'b, 'b: 'c, 'c> Iterator for JMapIter<'a, 'b, 'c> {
             Ok(Some(n)) => Some(n),
             _ => None,
         }
+    }
+}
+
+impl<'a> AsObj<'a> for JMap<'a, '_> {
+    fn as_obj(&self) -> JObject<'a> {
+        self.internal
     }
 }

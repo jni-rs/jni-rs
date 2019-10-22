@@ -1,7 +1,7 @@
 use crate::{
     descriptors::Desc,
     errors::*,
-    objects::{AutoLocal, GlobalRef, JClass, JObject},
+    objects::{AsObj, AutoLocal, GlobalRef, JClass, JObject},
     strings::JNIString,
     JNIEnv,
 };
