@@ -401,9 +401,9 @@ impl<'a> JNIEnv<'a> {
 
     /// Allocates a new object from a class descriptor without running a
     /// constructor.
-    pub fn alloc_object<T>(&self, class: T) -> Result<JObject<'a>>
+    pub fn alloc_object<'c, T>(&self, class: T) -> Result<JObject<'a>>
     where
-        T: Desc<'a, JClass<'a>>,
+        T: Desc<'a, JClass<'c>>,
     {
         let class = class.lookup(self)?;
         Ok(jni_non_null_call!(
