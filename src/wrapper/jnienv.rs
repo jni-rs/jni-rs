@@ -142,10 +142,10 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Tests whether class1 is assignable from class2.
-    pub fn is_assignable_from<T, U>(&self, class1: T, class2: U) -> Result<bool>
+    pub fn is_assignable_from<'t, 'u, T, U>(&self, class1: T, class2: U) -> Result<bool>
     where
-        T: Desc<'a, JClass<'a>>,
-        U: Desc<'a, JClass<'a>>,
+        T: Desc<'a, JClass<'t>>,
+        U: Desc<'a, JClass<'u>>,
     {
         let class1 = class1.lookup(self)?;
         let class2 = class2.lookup(self)?;
