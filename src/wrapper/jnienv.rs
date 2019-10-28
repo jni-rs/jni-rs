@@ -1533,9 +1533,9 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Set a field without any type checking.
-    pub fn set_field_unchecked<T>(&self, obj: JObject, field: T, val: JValue) -> Result<()>
+    pub fn set_field_unchecked<'f, T>(&self, obj: JObject, field: T, val: JValue) -> Result<()>
     where
-        T: Desc<'a, JFieldID<'a>>,
+        T: Desc<'a, JFieldID<'f>>,
     {
         non_null!(obj, "set_field_typed obj argument");
 
