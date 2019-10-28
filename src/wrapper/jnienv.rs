@@ -1634,15 +1634,15 @@ impl<'a> JNIEnv<'a> {
 
     /// Get a static field without checking the provided type against the actual
     /// field.
-    pub fn get_static_field_unchecked<T, U>(
+    pub fn get_static_field_unchecked<'c, 'f, T, U>(
         &self,
         class: T,
         field: U,
         ty: JavaType,
     ) -> Result<JValue<'a>>
     where
-        T: Desc<'a, JClass<'a>>,
-        U: Desc<'a, JStaticFieldID<'a>>,
+        T: Desc<'a, JClass<'c>>,
+        U: Desc<'a, JStaticFieldID<'f>>,
     {
         let class = class.lookup(self)?.into_inner();
 
