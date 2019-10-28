@@ -991,14 +991,14 @@ impl<'a> JNIEnv<'a> {
     /// excessively.
     /// See [Java documentation][1] for details.
     /// [1]: https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/design.html#global_and_local_references
-    pub fn new_object_array<T>(
+    pub fn new_object_array<'c, T>(
         &self,
         length: jsize,
         element_class: T,
         initial_element: JObject,
     ) -> Result<jobjectArray>
     where
-        T: Desc<'a, JClass<'a>>,
+        T: Desc<'a, JClass<'c>>,
     {
         let class = element_class.lookup(self)?;
         Ok(jni_non_null_call!(
