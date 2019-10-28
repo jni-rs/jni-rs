@@ -597,7 +597,7 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Under the hood, this simply calls the `CallStatic<Type>MethodA` method
     /// with the provided arguments.
-    pub fn call_static_method_unchecked<T, U>(
+    pub fn call_static_method_unchecked<'c, 'm, T, U>(
         &self,
         class: T,
         method_id: U,
@@ -605,8 +605,8 @@ impl<'a> JNIEnv<'a> {
         args: &[JValue],
     ) -> Result<JValue<'a>>
     where
-        T: Desc<'a, JClass<'a>>,
-        U: Desc<'a, JStaticMethodID<'a>>,
+        T: Desc<'a, JClass<'c>>,
+        U: Desc<'a, JStaticMethodID<'m>>,
     {
         let class = class.lookup(self)?;
 
