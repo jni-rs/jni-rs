@@ -164,9 +164,9 @@ impl<'a> JNIEnv<'a> {
     ///
     /// See [JNI documentation](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#IsInstanceOf)
     /// for details.
-    pub fn is_instance_of<T>(&self, object: JObject<'a>, class: T) -> Result<bool>
+    pub fn is_instance_of<'c, T>(&self, object: JObject<'a>, class: T) -> Result<bool>
     where
-        T: Desc<'a, JClass<'a>>,
+        T: Desc<'a, JClass<'c>>,
     {
         let class = class.lookup(self)?;
         Ok(jni_unchecked!(
