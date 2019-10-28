@@ -716,7 +716,7 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Under the hood, this simply calls the `Call<Type>MethodA` method with
     /// the provided arguments.
-    pub fn call_method_unchecked<T>(
+    pub fn call_method_unchecked<'m, T>(
         &self,
         obj: JObject,
         method_id: T,
@@ -724,7 +724,7 @@ impl<'a> JNIEnv<'a> {
         args: &[JValue],
     ) -> Result<JValue<'a>>
     where
-        T: Desc<'a, JMethodID<'a>>,
+        T: Desc<'a, JMethodID<'m>>,
     {
         let method_id = method_id.lookup(self)?.into_inner();
 
