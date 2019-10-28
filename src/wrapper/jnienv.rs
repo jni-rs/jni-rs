@@ -1693,9 +1693,9 @@ impl<'a> JNIEnv<'a> {
 
     /// Get a static field. Requires a class lookup and a field id lookup
     /// internally.
-    pub fn get_static_field<T, U, V>(&self, class: T, field: U, sig: V) -> Result<JValue<'a>>
+    pub fn get_static_field<'c, T, U, V>(&self, class: T, field: U, sig: V) -> Result<JValue<'a>>
     where
-        T: Desc<'a, JClass<'a>>,
+        T: Desc<'a, JClass<'c>>,
         U: Into<JNIString>,
         V: Into<JNIString> + AsRef<str>,
     {
