@@ -1489,9 +1489,14 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Get a field without checking the provided type against the actual field.
-    pub fn get_field_unchecked<T>(&self, obj: JObject, field: T, ty: JavaType) -> Result<JValue<'a>>
+    pub fn get_field_unchecked<'f, T>(
+        &self,
+        obj: JObject,
+        field: T,
+        ty: JavaType,
+    ) -> Result<JValue<'a>>
     where
-        T: Desc<'a, JFieldID<'a>>,
+        T: Desc<'a, JFieldID<'f>>,
     {
         non_null!(obj, "get_field_typed obj argument");
 
