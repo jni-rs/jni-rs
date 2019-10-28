@@ -133,9 +133,9 @@ impl<'a> JNIEnv<'a> {
 
     /// Returns the superclass for a particular class OR `JObject::null()` for `java.lang.Object` or
     /// an interface. As with `find_class`, takes a descriptor.
-    pub fn get_superclass<T>(&self, class: T) -> Result<JClass<'a>>
+    pub fn get_superclass<'c, T>(&self, class: T) -> Result<JClass<'a>>
     where
-        T: Desc<'a, JClass<'a>>,
+        T: Desc<'a, JClass<'c>>,
     {
         let class = class.lookup(self)?;
         Ok(jni_non_void_call!(self.internal, GetSuperclass, class.into_inner()).into())
