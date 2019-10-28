@@ -831,7 +831,7 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Note: this may cause a java exception if the arguments are the wrong
     /// type, in addition to if the method itself throws.
-    pub fn call_static_method<T, U, V>(
+    pub fn call_static_method<'c, T, U, V>(
         &self,
         class: T,
         name: U,
@@ -839,7 +839,7 @@ impl<'a> JNIEnv<'a> {
         args: &[JValue],
     ) -> Result<JValue<'a>>
     where
-        T: Desc<'a, JClass<'a>>,
+        T: Desc<'a, JClass<'c>>,
         U: Into<JNIString>,
         V: Into<JNIString> + AsRef<str>,
     {
