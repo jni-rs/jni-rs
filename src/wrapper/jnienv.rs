@@ -210,10 +210,10 @@ impl<'a> JNIEnv<'a> {
     /// ```rust,ignore
     /// let _ = env.throw_new("java/lang/Exception", "something bad happened");
     /// ```
-    pub fn throw_new<S, T>(&self, class: T, msg: S) -> Result<()>
+    pub fn throw_new<'c, S, T>(&self, class: T, msg: S) -> Result<()>
     where
         S: Into<JNIString>,
-        T: Desc<'a, JClass<'a>>,
+        T: Desc<'a, JClass<'c>>,
     {
         let class = class.lookup(self)?;
         let msg = msg.into();
