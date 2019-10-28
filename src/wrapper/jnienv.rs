@@ -190,9 +190,9 @@ impl<'a> JNIEnv<'a> {
     /// ```rust,ignore
     /// let _ = env.throw("something bad happened");
     /// ```
-    pub fn throw<E>(&self, obj: E) -> Result<()>
+    pub fn throw<'e, E>(&self, obj: E) -> Result<()>
     where
-        E: Desc<'a, JThrowable<'a>>,
+        E: Desc<'a, JThrowable<'e>>,
     {
         let throwable = obj.lookup(self)?;
         let res: i32 = jni_unchecked!(self.internal, Throw, throwable.into_inner());
