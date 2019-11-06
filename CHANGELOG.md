@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.14.0] — 2019-10-31
+
+- Relaxed some lifetime restrictions in JNIEnv to support the case when 
+  method, field ids; and global references to classes
+  have a different (larger) lifetime than JNIEnv (#209)
+
 ## [0.13.1] — 2019-08-22
 
 ### Changed
@@ -159,7 +165,8 @@ to call if there is a pending exception (#124):
 ## [0.10.1]
 - No changes has been made to the Changelog until this release.
 
-[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.13.1...HEAD
+[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/jni-rs/jni-rs/compare/v0.13.1...0.14.0
 [0.13.1]: https://github.com/jni-rs/jni-rs/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/jni-rs/jni-rs/compare/v0.12.3...v0.13.0
 [0.12.3]: https://github.com/jni-rs/jni-rs/compare/v0.12.2...v0.12.3

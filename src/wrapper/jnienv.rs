@@ -133,19 +133,19 @@ impl<'a> JNIEnv<'a> {
 
     /// Returns the superclass for a particular class OR `JObject::null()` for `java.lang.Object` or
     /// an interface. As with `find_class`, takes a descriptor.
-    pub fn get_superclass<T>(&self, class: T) -> Result<JClass<'a>>
+    pub fn get_superclass<'c, T>(&self, class: T) -> Result<JClass<'a>>
     where
-        T: Desc<'a, JClass<'a>>,
+        T: Desc<'a, JClass<'c>>,
     {
         let class = class.lookup(self)?;
         Ok(jni_non_void_call!(self.internal, GetSuperclass, class.into_inner()).into())
     }
 
     /// Tests whether class1 is assignable from class2.
-    pub fn is_assignable_from<T, U>(&self, class1: T, class2: U) -> Result<bool>
+    pub fn is_assignable_from<'t, 'u, T, U>(&self, class1: T, class2: U) -> Result<bool>
     where
-        T: Desc<'a, JClass<'a>>,
-        U: Desc<'a, JClass<'a>>,
+        T: Desc<'a, JClass<'t>>,
+        U: Desc<'a, JClass<'u>>,
     {
         let class1 = class1.lookup(self)?;
         let class2 = class2.lookup(self)?;
@@ -164,9 +164,9 @@ impl<'a> JNIEnv<'a> {
     ///
     /// See [JNI documentation](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#IsInstanceOf)
     /// for details.
-    pub fn is_instance_of<T>(&self, object: JObject<'a>, class: T) -> Result<bool>
+    pub fn is_instance_of<'c, T>(&self, object: JObject<'a>, class: T) -> Result<bool>
     where
-        T: Desc<'a, JClass<'a>>,
+        T: Desc<'a, JClass<'c>>,
     {
         let class = class.lookup(self)?;
         Ok(jni_unchecked!(
@@ -190,9 +190,9 @@ impl<'a> JNIEnv<'a> {
     /// ```rust,ignore
     /// let _ = env.throw("something bad happened");
     /// ```
-    pub fn throw<E>(&self, obj: E) -> Result<()>
+    pub fn throw<'e, E>(&self, obj: E) -> Result<()>
     where
-        E: Desc<'a, JThrowable<'a>>,
+        E: Desc<'a, JThrowable<'e>>,
     {
         let throwable = obj.lookup(self)?;
         let res: i32 = jni_unchecked!(self.internal, Throw, throwable.into_inner());
@@ -210,10 +210,10 @@ impl<'a> JNIEnv<'a> {
     /// ```rust,ignore
     /// let _ = env.throw_new("java/lang/Exception", "something bad happened");
     /// ```
-    pub fn throw_new<S, T>(&self, class: T, msg: S) -> Result<()>
+    pub fn throw_new<'c, S, T>(&self, class: T, msg: S) -> Result<()>
     where
         S: Into<JNIString>,
-        T: Desc<'a, JClass<'a>>,
+        T: Desc<'a, JClass<'c>>,
     {
         let class = class.lookup(self)?;
         let msg = msg.into();
@@ -401,9 +401,9 @@ impl<'a> JNIEnv<'a> {
 
     /// Allocates a new object from a class descriptor without running a
     /// constructor.
-    pub fn alloc_object<T>(&self, class: T) -> Result<JObject<'a>>
+    pub fn alloc_object<'c, T>(&self, class: T) -> Result<JObject<'a>>
     where
-        T: Desc<'a, JClass<'a>>,
+        T: Desc<'a, JClass<'c>>,
     {
         let class = class.lookup(self)?;
         Ok(jni_non_null_call!(
@@ -597,7 +597,7 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Under the hood, this simply calls the `CallStatic<Type>MethodA` method
     /// with the provided arguments.
-    pub fn call_static_method_unchecked<T, U>(
+    pub fn call_static_method_unchecked<'c, 'm, T, U>(
         &self,
         class: T,
         method_id: U,
@@ -605,8 +605,8 @@ impl<'a> JNIEnv<'a> {
         args: &[JValue],
     ) -> Result<JValue<'a>>
     where
-        T: Desc<'a, JClass<'a>>,
-        U: Desc<'a, JStaticMethodID<'a>>,
+        T: Desc<'a, JClass<'c>>,
+        U: Desc<'a, JStaticMethodID<'m>>,
     {
         let class = class.lookup(self)?;
 
@@ -716,7 +716,7 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Under the hood, this simply calls the `Call<Type>MethodA` method with
     /// the provided arguments.
-    pub fn call_method_unchecked<T>(
+    pub fn call_method_unchecked<'m, T>(
         &self,
         obj: JObject,
         method_id: T,
@@ -724,7 +724,7 @@ impl<'a> JNIEnv<'a> {
         args: &[JValue],
     ) -> Result<JValue<'a>>
     where
-        T: Desc<'a, JMethodID<'a>>,
+        T: Desc<'a, JMethodID<'m>>,
     {
         let method_id = method_id.lookup(self)?.into_inner();
 
@@ -831,7 +831,7 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Note: this may cause a java exception if the arguments are the wrong
     /// type, in addition to if the method itself throws.
-    pub fn call_static_method<T, U, V>(
+    pub fn call_static_method<'c, T, U, V>(
         &self,
         class: T,
         name: U,
@@ -839,7 +839,7 @@ impl<'a> JNIEnv<'a> {
         args: &[JValue],
     ) -> Result<JValue<'a>>
     where
-        T: Desc<'a, JClass<'a>>,
+        T: Desc<'a, JClass<'c>>,
         U: Into<JNIString>,
         V: Into<JNIString> + AsRef<str>,
     {
@@ -991,14 +991,14 @@ impl<'a> JNIEnv<'a> {
     /// excessively.
     /// See [Java documentation][1] for details.
     /// [1]: https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/design.html#global_and_local_references
-    pub fn new_object_array<T>(
+    pub fn new_object_array<'c, T>(
         &self,
         length: jsize,
         element_class: T,
         initial_element: JObject,
     ) -> Result<jobjectArray>
     where
-        T: Desc<'a, JClass<'a>>,
+        T: Desc<'a, JClass<'c>>,
     {
         let class = element_class.lookup(self)?;
         Ok(jni_non_null_call!(
@@ -1489,9 +1489,14 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Get a field without checking the provided type against the actual field.
-    pub fn get_field_unchecked<T>(&self, obj: JObject, field: T, ty: JavaType) -> Result<JValue<'a>>
+    pub fn get_field_unchecked<'f, T>(
+        &self,
+        obj: JObject,
+        field: T,
+        ty: JavaType,
+    ) -> Result<JValue<'a>>
     where
-        T: Desc<'a, JFieldID<'a>>,
+        T: Desc<'a, JFieldID<'f>>,
     {
         non_null!(obj, "get_field_typed obj argument");
 
@@ -1528,9 +1533,9 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Set a field without any type checking.
-    pub fn set_field_unchecked<T>(&self, obj: JObject, field: T, val: JValue) -> Result<()>
+    pub fn set_field_unchecked<'f, T>(&self, obj: JObject, field: T, val: JValue) -> Result<()>
     where
-        T: Desc<'a, JFieldID<'a>>,
+        T: Desc<'a, JFieldID<'f>>,
     {
         non_null!(obj, "set_field_typed obj argument");
 
@@ -1634,15 +1639,15 @@ impl<'a> JNIEnv<'a> {
 
     /// Get a static field without checking the provided type against the actual
     /// field.
-    pub fn get_static_field_unchecked<T, U>(
+    pub fn get_static_field_unchecked<'c, 'f, T, U>(
         &self,
         class: T,
         field: U,
         ty: JavaType,
     ) -> Result<JValue<'a>>
     where
-        T: Desc<'a, JClass<'a>>,
-        U: Desc<'a, JStaticFieldID<'a>>,
+        T: Desc<'a, JClass<'c>>,
+        U: Desc<'a, JStaticFieldID<'f>>,
     {
         let class = class.lookup(self)?.into_inner();
 
@@ -1693,9 +1698,9 @@ impl<'a> JNIEnv<'a> {
 
     /// Get a static field. Requires a class lookup and a field id lookup
     /// internally.
-    pub fn get_static_field<T, U, V>(&self, class: T, field: U, sig: V) -> Result<JValue>
+    pub fn get_static_field<'c, T, U, V>(&self, class: T, field: U, sig: V) -> Result<JValue<'a>>
     where
-        T: Desc<'a, JClass<'a>>,
+        T: Desc<'a, JClass<'c>>,
         U: Into<JNIString>,
         V: Into<JNIString> + AsRef<str>,
     {
