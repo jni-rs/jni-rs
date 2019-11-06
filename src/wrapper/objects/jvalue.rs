@@ -166,6 +166,12 @@ impl<'a> JValue<'a> {
     }
 }
 
+impl<'a, T: Into<JObject<'a>>> From<T> for JValue<'a> {
+    fn from(other: T) -> Self {
+        JValue::Object(other.into())
+    }
+}
+
 impl<'a> From<bool> for JValue<'a> {
     fn from(other: bool) -> Self {
         JValue::Bool(if other { JNI_TRUE } else { JNI_FALSE })
