@@ -221,8 +221,7 @@ mod test {
                 panic!("Unexpected result: {}", any);
             }
             Err(err) => {
-                let error_message = err.to_string();
-                assert!(error_message.contains("Input: ()Ljava/lang/List"));
+                assert!(err.contains("Input: ()Ljava/lang/List"));
             }
         }
     }

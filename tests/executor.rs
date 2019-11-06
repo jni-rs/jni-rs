@@ -52,7 +52,7 @@ fn test_serialized_threads(executor: Executor) {
 fn test_concurrent_threads(executor: Executor, thread_num: usize) {
     const ITERS_PER_THREAD: usize = 10_000;
 
-    let mut atomic = AtomicIntegerProxy::new(executor.clone(), 0).unwrap();
+    let mut atomic = AtomicIntegerProxy::new(executor, 0).unwrap();
     let barrier = Arc::new(Barrier::new(thread_num));
     let mut threads = Vec::new();
 
