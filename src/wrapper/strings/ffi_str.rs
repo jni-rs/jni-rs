@@ -78,8 +78,11 @@ impl JNIString {
 }
 
 impl JNIStr {
-    /// Construct a reference to a `JNIStr` from a pointer. Equivalent to
-    /// `CStr::from_ptr`.
+    /// Construct a reference to a `JNIStr` from a pointer. Equivalent to `CStr::from_ptr`.
+    ///
+    /// # Safety
+    ///
+    /// Expects a valid pointer to a valid immutable C string.
     pub unsafe fn from_ptr<'a>(ptr: *const c_char) -> &'a JNIStr {
         &*(ffi::CStr::from_ptr(ptr) as *const ffi::CStr as *const ffi_str::JNIStr)
     }

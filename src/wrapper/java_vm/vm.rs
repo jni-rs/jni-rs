@@ -166,6 +166,10 @@ impl JavaVM {
     }
 
     /// Create a JavaVM from a raw pointer.
+    ///
+    /// # Safety
+    ///
+    /// Assumes a valid pointer is retrieved from the `JNI_CreateJavaVM` function. Only does a null check.
     pub unsafe fn from_raw(ptr: *mut sys::JavaVM) -> Result<Self> {
         non_null!(ptr, "from_raw ptr argument");
         Ok(JavaVM(ptr))

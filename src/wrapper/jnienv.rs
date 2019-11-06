@@ -83,7 +83,9 @@ pub struct JNIEnv<'a> {
 impl<'a> JNIEnv<'a> {
     /// Create a JNIEnv from a raw pointer.
     ///
-    /// Only does a null check - otherwise assumes that the pointer is valid.
+    /// # Safety
+    ///
+    /// Assumes a valid pointer is retrieved from the `GetEnv` function. Only does a null check.
     pub unsafe fn from_raw(ptr: *mut sys::JNIEnv) -> Result<Self> {
         non_null!(ptr, "from_raw ptr argument");
         Ok(JNIEnv {
