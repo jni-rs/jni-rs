@@ -45,15 +45,3 @@ impl<'a> JObject<'a> {
         (::std::ptr::null_mut() as jobject).into()
     }
 }
-
-/// Used to do a cheap object_wrapper-to-object conversion.
-pub trait AsObj<'a> {
-    /// Performs the conversion.
-    fn as_obj(&self) -> JObject<'a>;
-}
-
-impl<'a> AsObj<'a> for JObject<'a> {
-    fn as_obj(&self) -> JObject<'a> {
-        *self
-    }
-}

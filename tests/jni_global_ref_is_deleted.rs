@@ -1,9 +1,6 @@
 #![cfg(feature = "invocation")]
 
-use jni::{
-    objects::{AsObj, AutoLocal, GlobalRef, JValue},
-    sys::jint,
-};
+use jni::{objects::AutoLocal, objects::GlobalRef, objects::JValue, sys::jint};
 
 mod util;
 use util::{attach_current_thread, unwrap};

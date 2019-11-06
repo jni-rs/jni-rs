@@ -1,7 +1,4 @@
-use crate::{
-    objects::{AsObj, JObject},
-    sys::jobject,
-};
+use crate::{objects::JObject, sys::jobject};
 
 /// Lifetime'd representation of a `jobject` that is an instance of the
 /// ByteBuffer Java class. Just a `JObject` wrapped in a new class.
@@ -32,11 +29,5 @@ impl<'a> From<JByteBuffer<'a>> for JObject<'a> {
 impl<'a> From<JObject<'a>> for JByteBuffer<'a> {
     fn from(other: JObject) -> JByteBuffer {
         (other.into_inner() as jobject).into()
-    }
-}
-
-impl<'a> AsObj<'a> for JByteBuffer<'a> {
-    fn as_obj(&self) -> JObject<'a> {
-        self.0
     }
 }

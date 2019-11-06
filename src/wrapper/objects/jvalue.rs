@@ -2,12 +2,7 @@ use std::mem::transmute;
 
 use log::trace;
 
-use crate::{
-    errors::*,
-    objects::{AsObj, JObject},
-    signature::Primitive,
-    sys::*,
-};
+use crate::{errors::*, objects::JObject, signature::Primitive, sys::*};
 
 /// Rusty version of the JNI C `jvalue` enum. Used in Java method call arguments
 /// and returns.
@@ -237,15 +232,5 @@ impl<'a> From<jbyte> for JValue<'a> {
 impl<'a> From<()> for JValue<'a> {
     fn from(_: ()) -> Self {
         JValue::Void
-    }
-}
-
-// Conversion from JObject wrappers to JValue
-impl<'a, T> From<T> for JValue<'a>
-where
-    T: AsObj<'a>,
-{
-    fn from(other: T) -> Self {
-        JValue::Object(other.as_obj())
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
     errors::*,
-    objects::{AsObj, JMethodID, JObject},
+    objects::{JMethodID, JObject},
     signature::{JavaType, Primitive},
     sys::jint,
     JNIEnv,
@@ -198,11 +198,5 @@ impl<'a: 'b, 'b: 'c, 'c> Iterator for JListIter<'a, 'b, 'c> {
                 None
             }
         }
-    }
-}
-
-impl<'a> AsObj<'a> for JList<'a, '_> {
-    fn as_obj(&self) -> JObject<'a> {
-        self.internal
     }
 }

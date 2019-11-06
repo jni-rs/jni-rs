@@ -1,5 +1,5 @@
 use crate::{
-    objects::{AsObj, JObject},
+    objects::JObject,
     sys::{jclass, jobject},
 };
 
@@ -33,11 +33,5 @@ impl<'a> From<JClass<'a>> for JObject<'a> {
 impl<'a> From<JObject<'a>> for JClass<'a> {
     fn from(other: JObject) -> JClass {
         (other.into_inner() as jclass).into()
-    }
-}
-
-impl<'a> AsObj<'a> for JClass<'a> {
-    fn as_obj(&self) -> JObject<'a> {
-        self.0
     }
 }
