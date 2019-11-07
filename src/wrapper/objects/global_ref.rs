@@ -45,7 +45,7 @@ impl GlobalRef {
     ///
     /// # Safety
     ///
-    /// This function assumes that `NewGlobalRef` has already been called.
+    /// Assumes that `NewGlobalRef` JNI function has already been called.
     pub unsafe fn from_raw(vm: JavaVM, obj: sys::jobject) -> Self {
         GlobalRef {
             inner: Arc::new(GlobalRefGuard::from_raw(vm, obj)),
