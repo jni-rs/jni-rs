@@ -82,7 +82,8 @@ impl JNIStr {
     ///
     /// # Safety
     ///
-    /// Expects a valid pointer to a valid immutable C string.
+    /// Expects a valid pointer to a null-terminated C string and does not perform any lifetime
+    /// checks for the resulting value.
     pub unsafe fn from_ptr<'a>(ptr: *const c_char) -> &'a JNIStr {
         &*(ffi::CStr::from_ptr(ptr) as *const ffi::CStr as *const ffi_str::JNIStr)
     }
