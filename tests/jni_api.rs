@@ -590,6 +590,26 @@ pub fn throw_defaults() {
     test_throwable_descriptor_with_default_type(&env, JNIString::from(TEST_EXCEPTION_MESSAGE));
 }
 
+#[test]
+pub fn test_conversion() {
+    fn test_str_len<'a: 'b, 'b>(env: &JNIEnv<'a>, obj: impl Into<JObject<'b>>) {
+        let len = env
+            .call_method(obj, "length", "()I", &[])
+            .unwrap()
+            .i()
+            .unwrap();
+        assert_eq!(len, 5);
+    }
+
+    let env = attach_current_thread();
+    let s = env.new_string("Hello").unwrap();
+
+    test_str_len(&env, s);
+    test_str_len(&env, JObject::from(s));
+    test_str_len(&env, &env.new_global_ref(s).unwrap());
+    test_str_len(&env, &env.auto_local(s));
+}
+
 fn test_throwable_descriptor_with_default_type<'a, D>(env: &JNIEnv<'a>, descriptor: D)
 where
     D: Desc<'a, JThrowable<'a>>,
