@@ -164,15 +164,16 @@ impl<'a> JNIEnv<'a> {
     ///
     /// See [JNI documentation](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#IsInstanceOf)
     /// for details.
-    pub fn is_instance_of<'c, T>(&self, object: JObject<'a>, class: T) -> Result<bool>
+    pub fn is_instance_of<'c, O, T>(&self, object: O, class: T) -> Result<bool>
     where
+        O: Into<JObject<'a>>,
         T: Desc<'a, JClass<'c>>,
     {
         let class = class.lookup(self)?;
         Ok(jni_unchecked!(
             self.internal,
             IsInstanceOf,
-            object.into_inner(),
+            object.into().into_inner(),
             class.into_inner()
         ) == sys::JNI_TRUE)
     }
@@ -301,8 +302,12 @@ impl<'a> JNIEnv<'a> {
     /// Turns an object into a global ref. This has the benefit of removing the
     /// lifetime bounds since it's guaranteed to not get GC'd by java. It
     /// releases the GC pin upon being dropped.
-    pub fn new_global_ref(&self, obj: JObject) -> Result<GlobalRef> {
-        let new_ref: JObject = jni_unchecked!(self.internal, NewGlobalRef, obj.into_inner()).into();
+    pub fn new_global_ref<O>(&self, obj: O) -> Result<GlobalRef>
+    where
+        O: Into<JObject<'a>>,
+    {
+        let new_ref: JObject =
+            jni_unchecked!(self.internal, NewGlobalRef, obj.into().into_inner()).into();
         let global = unsafe { GlobalRef::from_raw(self.get_java_vm()?, new_ref.into_inner()) };
         Ok(global)
     }
@@ -323,8 +328,11 @@ impl<'a> JNIEnv<'a> {
     /// can be more convenient when you create a _bounded_ number of local references
     /// but cannot rely on automatic de-allocation (e.g., in case of recursion, deep call stacks,
     /// [permanently-attached](struct.JavaVM.html#attaching-native-threads) native threads, etc.).
-    pub fn auto_local<'b>(&'b self, obj: JObject<'a>) -> AutoLocal<'a, 'b> {
-        AutoLocal::new(self, obj)
+    pub fn auto_local<'b, O>(&'b self, obj: O) -> AutoLocal<'a, 'b>
+    where
+        O: Into<JObject<'a>>,
+    {
+        AutoLocal::new(self, obj.into())
     }
 
     /// Deletes the local reference.
@@ -586,7 +594,11 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Get the class for an object.
-    pub fn get_object_class(&self, obj: JObject) -> Result<JClass<'a>> {
+    pub fn get_object_class<'b, O>(&self, obj: O) -> Result<JClass<'a>>
+    where
+        O: Into<JObject<'b>>,
+    {
+        let obj = obj.into();
         non_null!(obj, "get_object_class");
         Ok(jni_unchecked!(self.internal, GetObjectClass, obj.into_inner()).into())
     }
@@ -716,19 +728,20 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Under the hood, this simply calls the `Call<Type>MethodA` method with
     /// the provided arguments.
-    pub fn call_method_unchecked<'m, T>(
+    pub fn call_method_unchecked<'m, O, T>(
         &self,
-        obj: JObject,
+        obj: O,
         method_id: T,
         ret: JavaType,
         args: &[JValue],
     ) -> Result<JValue<'a>>
     where
+        O: Into<JObject<'a>>,
         T: Desc<'a, JMethodID<'m>>,
     {
         let method_id = method_id.lookup(self)?.into_inner();
 
-        let obj = obj.into_inner();
+        let obj = obj.into().into_inner();
 
         let args: Vec<jvalue> = args.iter().map(|v| v.to_jni()).collect();
         let jni_args = args.as_ptr();
@@ -796,17 +809,19 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Note: this may cause a java exception if the arguments are the wrong
     /// type, in addition to if the method itself throws.
-    pub fn call_method<S, T>(
+    pub fn call_method<O, S, T>(
         &self,
-        obj: JObject,
+        obj: O,
         name: S,
         sig: T,
         args: &[JValue],
     ) -> Result<JValue<'a>>
     where
+        O: Into<JObject<'a>>,
         S: Into<JNIString>,
         T: Into<JNIString> + AsRef<str>,
     {
+        let obj = obj.into();
         non_null!(obj, "call_method obj argument");
 
         // parse the signature
@@ -815,7 +830,7 @@ impl<'a> JNIEnv<'a> {
             return Err(ErrorKind::InvalidArgList.into());
         }
 
-        let class = self.auto_local(self.get_object_class(obj)?.into());
+        let class = self.auto_local(self.get_object_class(obj)?);
 
         self.call_method_unchecked(obj, (&class, name, sig), parsed.ret, args)
     }
@@ -915,7 +930,11 @@ impl<'a> JNIEnv<'a> {
     /// Cast a JObject to a `JList`. This won't throw exceptions or return errors
     /// in the event that the object isn't actually a list, but the methods on
     /// the resulting map object will.
-    pub fn get_list(&self, obj: JObject<'a>) -> Result<JList<'a, '_>> {
+    pub fn get_list<O>(&self, obj: O) -> Result<JList<'a, '_>>
+    where
+        O: Into<JObject<'a>>,
+    {
+        let obj = obj.into();
         non_null!(obj, "get_list obj argument");
         JList::from_env(self, obj)
     }
@@ -923,7 +942,11 @@ impl<'a> JNIEnv<'a> {
     /// Cast a JObject to a JMap. This won't throw exceptions or return errors
     /// in the event that the object isn't actually a map, but the methods on
     /// the resulting map object will.
-    pub fn get_map(&self, obj: JObject<'a>) -> Result<JMap<'a, '_>> {
+    pub fn get_map<O>(&self, obj: O) -> Result<JMap<'a, '_>>
+    where
+        O: Into<JObject<'a>>,
+    {
+        let obj = obj.into();
         non_null!(obj, "get_map obj argument");
         JMap::from_env(self, obj)
     }
@@ -991,14 +1014,15 @@ impl<'a> JNIEnv<'a> {
     /// excessively.
     /// See [Java documentation][1] for details.
     /// [1]: https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/design.html#global_and_local_references
-    pub fn new_object_array<'c, T>(
+    pub fn new_object_array<'c, T, U>(
         &self,
         length: jsize,
         element_class: T,
-        initial_element: JObject,
+        initial_element: U,
     ) -> Result<jobjectArray>
     where
         T: Desc<'a, JClass<'c>>,
+        U: Into<JObject<'a>>,
     {
         let class = element_class.lookup(self)?;
         Ok(jni_non_null_call!(
@@ -1006,7 +1030,7 @@ impl<'a> JNIEnv<'a> {
             NewObjectArray,
             length,
             class.into_inner(),
-            initial_element.into_inner()
+            initial_element.into().into_inner()
         ))
     }
 
@@ -1021,19 +1045,22 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Sets an element of the `jobjectArray` array.
-    pub fn set_object_array_element(
+    pub fn set_object_array_element<O>(
         &self,
         array: jobjectArray,
         index: jsize,
-        value: JObject,
-    ) -> Result<()> {
+        value: O,
+    ) -> Result<()>
+    where
+        O: Into<JObject<'a>>,
+    {
         non_null!(array, "set_object_array_element array argument");
         jni_void_call!(
             self.internal,
             SetObjectArrayElement,
             array,
             index,
-            value.into_inner()
+            value.into().into_inner()
         );
         Ok(())
     }
@@ -1489,15 +1516,17 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Get a field without checking the provided type against the actual field.
-    pub fn get_field_unchecked<'f, T>(
+    pub fn get_field_unchecked<'f, O, T>(
         &self,
-        obj: JObject,
+        obj: O,
         field: T,
         ty: JavaType,
     ) -> Result<JValue<'a>>
     where
+        O: Into<JObject<'a>>,
         T: Desc<'a, JFieldID<'f>>,
     {
+        let obj = obj.into();
         non_null!(obj, "get_field_typed obj argument");
 
         let field = field.lookup(self)?.into_inner();
@@ -1533,10 +1562,12 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Set a field without any type checking.
-    pub fn set_field_unchecked<'f, T>(&self, obj: JObject, field: T, val: JValue) -> Result<()>
+    pub fn set_field_unchecked<'f, O, T>(&self, obj: O, field: T, val: JValue) -> Result<()>
     where
+        O: Into<JObject<'a>>,
         T: Desc<'a, JFieldID<'f>>,
     {
+        let obj = obj.into();
         non_null!(obj, "set_field_typed obj argument");
 
         let field = field.lookup(self)?.into_inner();
@@ -1582,12 +1613,14 @@ impl<'a> JNIEnv<'a> {
 
     /// Get a field. Requires an object class lookup and a field id lookup
     /// internally.
-    pub fn get_field<S, T>(&self, obj: JObject, name: S, ty: T) -> Result<JValue<'a>>
+    pub fn get_field<O, S, T>(&self, obj: O, name: S, ty: T) -> Result<JValue<'a>>
     where
+        O: Into<JObject<'a>>,
         S: Into<JNIString>,
         T: Into<JNIString> + AsRef<str>,
     {
-        let class = self.auto_local(self.get_object_class(obj)?.into());
+        let obj = obj.into();
+        let class = self.auto_local(self.get_object_class(obj)?);
 
         let parsed = JavaType::from_str(ty.as_ref())?;
 
@@ -1598,11 +1631,13 @@ impl<'a> JNIEnv<'a> {
 
     /// Set a field. Does the same lookups as `get_field` and ensures that the
     /// type matches the given value.
-    pub fn set_field<S, T>(&self, obj: JObject, name: S, ty: T, val: JValue) -> Result<()>
+    pub fn set_field<O, S, T>(&self, obj: O, name: S, ty: T, val: JValue) -> Result<()>
     where
+        O: Into<JObject<'a>>,
         S: Into<JNIString>,
         T: Into<JNIString> + AsRef<str>,
     {
+        let obj = obj.into();
         let parsed = JavaType::from_str(ty.as_ref())?;
         let in_type = val.primitive_type();
 
@@ -1632,7 +1667,7 @@ impl<'a> JNIEnv<'a> {
             JavaType::Method(_) => unimplemented!(),
         }
 
-        let class = self.auto_local(self.get_object_class(obj)?.into());
+        let class = self.auto_local(self.get_object_class(obj)?);
 
         self.set_field_unchecked(obj, (&class, name, ty), val)
     }
@@ -1724,12 +1759,14 @@ impl<'a> JNIEnv<'a> {
     /// will point to invalid memory and will likely attempt to be deallocated
     /// again.
     #[allow(unused_variables)]
-    pub fn set_rust_field<S, T>(&self, obj: JObject, field: S, rust_object: T) -> Result<()>
+    pub fn set_rust_field<O, S, T>(&self, obj: O, field: S, rust_object: T) -> Result<()>
     where
+        O: Into<JObject<'a>>,
         S: AsRef<str>,
         T: Send + 'static,
     {
-        let class = self.auto_local(self.get_object_class(obj)?.into());
+        let obj = obj.into();
+        let class = self.auto_local(self.get_object_class(obj)?);
         let field_id: JFieldID = (&class, &field, "J").lookup(self)?;
 
         let guard = self.lock_obj(obj)?;
@@ -1754,11 +1791,13 @@ impl<'a> JNIEnv<'a> {
     /// called at some point. Checks for a null pointer, but assumes that the
     /// data it ponts to is valid for T.
     #[allow(unused_variables)]
-    pub fn get_rust_field<S, T>(&self, obj: JObject, field: S) -> Result<MutexGuard<T>>
+    pub fn get_rust_field<O, S, T>(&self, obj: O, field: S) -> Result<MutexGuard<T>>
     where
+        O: Into<JObject<'a>>,
         S: Into<JNIString>,
         T: Send + 'static,
     {
+        let obj = obj.into();
         let guard = self.lock_obj(obj)?;
 
         let ptr = self.get_field(obj, field, "J")?.j()? as *mut Mutex<T>;
@@ -1776,12 +1815,14 @@ impl<'a> JNIEnv<'a> {
     /// This will return an error in the event that there's an outstanding lock
     /// on the object.
     #[allow(unused_variables)]
-    pub fn take_rust_field<S, T>(&self, obj: JObject, field: S) -> Result<T>
+    pub fn take_rust_field<O, S, T>(&self, obj: O, field: S) -> Result<T>
     where
+        O: Into<JObject<'a>>,
         S: AsRef<str>,
         T: Send + 'static,
     {
-        let class = self.auto_local(self.get_object_class(obj)?.into());
+        let obj = obj.into();
+        let class = self.auto_local(self.get_object_class(obj)?);
         let field_id: JFieldID = (&class, &field, "J").lookup(self)?;
 
         let mbox = {
@@ -1814,11 +1855,15 @@ impl<'a> JNIEnv<'a> {
 
     /// Lock a Java object. The MonitorGuard that this returns is responsible
     /// for ensuring that it gets unlocked.
-    pub fn lock_obj(&self, obj: JObject) -> Result<MonitorGuard<'a>> {
-        let _ = jni_unchecked!(self.internal, MonitorEnter, obj.into_inner());
+    pub fn lock_obj<O>(&self, obj: O) -> Result<MonitorGuard<'a>>
+    where
+        O: Into<JObject<'a>>,
+    {
+        let inner = obj.into().into_inner();
+        let _ = jni_unchecked!(self.internal, MonitorEnter, inner);
 
         Ok(MonitorGuard {
-            obj: obj.into_inner(),
+            obj: inner,
             env: self.internal,
             life: Default::default(),
         })
