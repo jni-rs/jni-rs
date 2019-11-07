@@ -169,8 +169,7 @@ impl JavaVM {
     ///
     /// # Safety
     ///
-    /// Assumes a valid pointer is retrieved from the `JNI_CreateJavaVM` JNI function. Only does a
-    /// null check.
+    /// Expects a valid pointer retrieved from the `JNI_CreateJavaVM` JNI function. Only does null check.
     pub unsafe fn from_raw(ptr: *mut sys::JavaVM) -> Result<Self> {
         non_null!(ptr, "from_raw ptr argument");
         Ok(JavaVM(ptr))
