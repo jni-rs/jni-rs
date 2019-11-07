@@ -1,6 +1,11 @@
 #![allow(dead_code)]
 
-use jni::{errors::*, objects::GlobalRef, objects::JValue, sys::jint, Executor, JNIEnv};
+use jni::{
+    errors::*,
+    objects::{GlobalRef, JValue},
+    sys::jint,
+    Executor, JNIEnv,
+};
 
 /// A test example of a native-to-JNI proxy
 #[derive(Clone)]
@@ -25,13 +30,13 @@ impl AtomicIntegerProxy {
     /// Gets a current value from java object
     pub fn get(&mut self) -> Result<jint> {
         self.exec
-            .with_attached(|env| env.call_method(self.obj.as_obj(), "get", "()I", &[])?.i())
+            .with_attached(|env| env.call_method(&self.obj, "get", "()I", &[])?.i())
     }
 
     /// Increments a value of java object and then gets it
     pub fn increment_and_get(&mut self) -> Result<jint> {
         self.exec.with_attached(|env| {
-            env.call_method(self.obj.as_obj(), "incrementAndGet", "()I", &[])?
+            env.call_method(&self.obj, "incrementAndGet", "()I", &[])?
                 .i()
         })
     }
@@ -40,7 +45,7 @@ impl AtomicIntegerProxy {
     pub fn add_and_get(&mut self, delta: jint) -> Result<jint> {
         let delta = JValue::from(delta);
         self.exec.with_attached(|env| {
-            env.call_method(self.obj.as_obj(), "addAndGet", "(I)I", &[delta])?
+            env.call_method(&self.obj, "addAndGet", "(I)I", &[delta])?
                 .i()
         })
     }

@@ -1,6 +1,9 @@
 #![cfg(feature = "invocation")]
 
-use jni::{objects::AutoLocal, objects::GlobalRef, objects::JValue, sys::jint};
+use jni::{
+    objects::{AutoLocal, GlobalRef, JValue},
+    sys::jint,
+};
 
 mod util;
 use util::{attach_current_thread, unwrap};
@@ -38,16 +41,16 @@ pub fn global_ref_is_dropped() {
                 ),
             ),
         );
-        let global_ref = unwrap(&env, env.new_global_ref(local_ref.as_obj()));
+        let global_ref = unwrap(&env, env.new_global_ref(&local_ref));
 
-        let res = env.call_method(global_ref.as_obj(), "get", "()I", &[]);
+        let res = env.call_method(&global_ref, "get", "()I", &[]);
         assert_eq!(VALUE, unwrap(&env, unwrap(&env, res).i()));
 
         let obj = global_ref.as_obj().into_inner();
 
         // check that the other object still works
         let global_ref = unsafe { GlobalRef::from_raw(env.get_java_vm().unwrap(), obj) };
-        let res = env.call_method(global_ref.as_obj(), "get", "()I", &[]);
+        let res = env.call_method(&global_ref, "get", "()I", &[]);
         assert_eq!(VALUE, unwrap(&env, unwrap(&env, res).i()));
         std::mem::forget(global_ref);
 
@@ -55,7 +58,7 @@ pub fn global_ref_is_dropped() {
     }; // << - here global and local references should already be deleted
 
     let global_ref = unsafe { GlobalRef::from_raw(env.get_java_vm().unwrap(), global_obj) };
-    let res = env.call_method(global_ref.as_obj(), "get", "()I", &[]);
+    let res = env.call_method(&global_ref, "get", "()I", &[]);
 
     assert!(res.is_err());
 }

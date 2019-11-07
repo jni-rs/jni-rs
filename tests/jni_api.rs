@@ -39,7 +39,7 @@ pub fn call_method_returning_null() {
     // Call Throwable#getMessage must return null
     let message = unwrap(
         &env,
-        env.call_method(obj.as_obj(), "getMessage", "()Ljava/lang/String;", &[]),
+        env.call_method(&obj, "getMessage", "()Ljava/lang/String;", &[]),
     );
     let message_ref = env.auto_local(unwrap(&env, message.l()));
 
@@ -53,10 +53,7 @@ pub fn is_instance_of_same_class() {
         &env,
         unwrap(&env, env.new_object(EXCEPTION_CLASS, "()V", &[])),
     );
-    assert!(unwrap(
-        &env,
-        env.is_instance_of(obj.as_obj(), EXCEPTION_CLASS)
-    ));
+    assert!(unwrap(&env, env.is_instance_of(&obj, EXCEPTION_CLASS)));
 }
 
 #[test]
@@ -66,10 +63,7 @@ pub fn is_instance_of_superclass() {
         &env,
         unwrap(&env, env.new_object(ARITHMETIC_EXCEPTION_CLASS, "()V", &[])),
     );
-    assert!(unwrap(
-        &env,
-        env.is_instance_of(obj.as_obj(), EXCEPTION_CLASS)
-    ));
+    assert!(unwrap(&env, env.is_instance_of(&obj, EXCEPTION_CLASS)));
 }
 
 #[test]
@@ -81,7 +75,7 @@ pub fn is_instance_of_subclass() {
     );
     assert!(!unwrap(
         &env,
-        env.is_instance_of(obj.as_obj(), ARITHMETIC_EXCEPTION_CLASS)
+        env.is_instance_of(&obj, ARITHMETIC_EXCEPTION_CLASS)
     ));
 }
 
@@ -92,10 +86,7 @@ pub fn is_instance_of_not_superclass() {
         &env,
         unwrap(&env, env.new_object(ARITHMETIC_EXCEPTION_CLASS, "()V", &[])),
     );
-    assert!(!unwrap(
-        &env,
-        env.is_instance_of(obj.as_obj(), ARRAYLIST_CLASS)
-    ));
+    assert!(!unwrap(&env, env.is_instance_of(&obj, ARRAYLIST_CLASS)));
 }
 
 #[test]
@@ -295,7 +286,7 @@ pub fn java_byte_array_from_slice() {
 pub fn get_object_class() {
     let env = attach_current_thread();
     let string = env.new_string("test").unwrap();
-    let result = env.get_object_class(string.into());
+    let result = env.get_object_class(string);
     assert!(result.is_ok());
     assert!(!result.unwrap().is_null());
 }
@@ -563,8 +554,7 @@ fn get_object_array_element() {
     assert!(!array.is_null());
     assert!(env.get_object_array_element(array, 0).unwrap().is_null());
     let test_str = env.new_string("test").unwrap();
-    env.set_object_array_element(array, 0, test_str.into())
-        .unwrap();
+    env.set_object_array_element(array, 0, test_str).unwrap();
     assert!(!env.get_object_array_element(array, 0).unwrap().is_null());
 }
 
@@ -606,7 +596,7 @@ where
 {
     let result = descriptor.lookup(env);
     assert!(result.is_ok());
-    let exception: JObject = result.unwrap().into();
+    let exception = result.unwrap();
 
     assert_exception_type(env, exception, RUNTIME_EXCEPTION_CLASS);
     assert_exception_message(env, exception, TEST_EXCEPTION_MESSAGE);
@@ -637,10 +627,7 @@ fn assert_pending_java_exception_detailed(
     expected_message: Option<&str>,
 ) {
     assert!(env.exception_check().unwrap());
-    let exception: JObject = env
-        .exception_occurred()
-        .expect("Unable to get exception")
-        .into();
+    let exception = env.exception_occurred().expect("Unable to get exception");
     env.exception_clear().unwrap();
 
     if let Some(expected_type) = expected_type {
@@ -653,12 +640,12 @@ fn assert_pending_java_exception_detailed(
 }
 
 // Asserts that exception is of `expected_type` type.
-fn assert_exception_type(env: &JNIEnv, exception: JObject, expected_type: &str) {
+fn assert_exception_type(env: &JNIEnv, exception: JThrowable, expected_type: &str) {
     assert!(env.is_instance_of(exception, expected_type).unwrap());
 }
 
 // Asserts that exception's message is `expected_message`.
-fn assert_exception_message(env: &JNIEnv, exception: JObject, expected_message: &str) {
+fn assert_exception_message(env: &JNIEnv, exception: JThrowable, expected_message: &str) {
     let message = env
         .call_method(exception, "getMessage", "()Ljava/lang/String;", &[])
         .unwrap()
