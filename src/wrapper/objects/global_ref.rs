@@ -41,11 +41,14 @@ impl<'a> From<&'a GlobalRef> for JObject<'a> {
 }
 
 impl GlobalRef {
-    /// Creates a new global reference. This assumes that `NewGlobalRef`
-    /// has already been called.
-    pub unsafe fn from_raw(vm: JavaVM, obj: sys::jobject) -> Self {
+    /// Creates a new wrapper for a global reference.
+    ///
+    /// # Safety
+    ///
+    /// Expects a valid raw global reference that should be created with `NewGlobalRef` JNI function.
+    pub(crate) unsafe fn from_raw(vm: JavaVM, raw_global_ref: sys::jobject) -> Self {
         GlobalRef {
-            inner: Arc::new(GlobalRefGuard::from_raw(vm, obj)),
+            inner: Arc::new(GlobalRefGuard::from_raw(vm, raw_global_ref)),
         }
     }
 
