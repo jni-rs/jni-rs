@@ -1868,8 +1868,7 @@ impl<'a> JNIEnv<'a> {
             class.into_inner(),
             jni_native_methods.as_ptr(),
             jni_native_methods.len() as jint
-        )
-        .into();
+        );
         jni_error_code_to_result(res)
     }
 
