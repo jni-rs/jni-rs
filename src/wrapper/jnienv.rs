@@ -20,7 +20,7 @@ use crate::{
     sys::{
         self, jarray, jboolean, jbooleanArray, jbyte, jbyteArray, jchar, jcharArray, jdouble,
         jdoubleArray, jfloat, jfloatArray, jint, jintArray, jlong, jlongArray, jobjectArray,
-        jshort, jshortArray, jsize, jvalue, JNINativeMethod
+        jshort, jshortArray, jsize, jvalue, JNINativeMethod,
     },
     JNIVersion, JavaVM,
 };
@@ -1851,24 +1851,32 @@ impl<'a> JNIEnv<'a> {
     /// for details see [documentation](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#RegisterNatives)
     pub fn register_native_methods<'c, T>(&self, class: T, methods: Vec<NativeMethod>) -> Result<()>
     where
-        T: Desc<'a, JClass<'c>>
+        T: Desc<'a, JClass<'c>>,
     {
         let class = class.lookup(self)?;
-        let jni_native_methods: Vec<JNINativeMethod> = methods.iter().map(|nm| {
-            JNINativeMethod {
+        let jni_native_methods: Vec<JNINativeMethod> = methods
+            .iter()
+            .map(|nm| JNINativeMethod {
                 name: nm.name.as_ptr() as *mut c_char,
                 signature: nm.sig.as_ptr() as *mut c_char,
-                fnPtr: nm.fn_ptr
-            }
-        }).collect();
-        let res = jni_non_void_call!(self.internal, RegisterNatives, class.into_inner(), jni_native_methods.as_ptr(), jni_native_methods.len() as jint).into();
+                fnPtr: nm.fn_ptr,
+            })
+            .collect();
+        let res = jni_non_void_call!(
+            self.internal,
+            RegisterNatives,
+            class.into_inner(),
+            jni_native_methods.as_ptr(),
+            jni_native_methods.len() as jint
+        )
+        .into();
         jni_error_code_to_result(res)
     }
 
     /// Unbind all native methods of class
     pub fn unregister_native_methods<'c, T>(&self, class: T) -> Result<()>
     where
-        T: Desc<'a, JClass<'c>>
+        T: Desc<'a, JClass<'c>>,
     {
         let class = class.lookup(self)?;
         let res = jni_non_void_call!(self.internal, UnregisterNatives, class.into_inner());
@@ -1883,7 +1891,7 @@ pub struct NativeMethod {
     /// Method signature
     pub sig: JNIString,
     /// Pointer to native function with appropriate signature
-    pub fn_ptr: *mut c_void
+    pub fn_ptr: *mut c_void,
 }
 
 /// Guard for a lock on a java object. This gets returned from the `lock_obj`
