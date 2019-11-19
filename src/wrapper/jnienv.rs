@@ -1889,7 +1889,8 @@ pub struct NativeMethod {
     pub name: JNIString,
     /// Method signature
     pub sig: JNIString,
-    /// Pointer to native function with appropriate signature
+    /// Pointer to native function with signature
+    /// fn(env: JNIEnv, class: JClass, ...arguments according to `sig`) -> RetType
     pub fn_ptr: *mut c_void,
 }
 
