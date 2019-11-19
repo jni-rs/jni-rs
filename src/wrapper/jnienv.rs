@@ -1849,7 +1849,7 @@ impl<'a> JNIEnv<'a> {
     /// Bind function pointers to native methods of class
     /// according to method name and signature
     /// for details see [documentation](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#RegisterNatives)
-    pub fn register_native_methods<'c, T>(&self, class: T, methods: Vec<NativeMethod>) -> Result<()>
+    pub fn register_native_methods<'c, T>(&self, class: T, methods: &[NativeMethod]) -> Result<()>
     where
         T: Desc<'a, JClass<'c>>,
     {
