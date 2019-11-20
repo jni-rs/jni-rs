@@ -932,11 +932,7 @@ impl<'a> JNIEnv<'a> {
     /// Cast a JObject to a `JList`. This won't throw exceptions or return errors
     /// in the event that the object isn't actually a list, but the methods on
     /// the resulting map object will.
-    pub fn get_list<O>(&self, obj: O) -> Result<JList<'a, '_>>
-    where
-        O: Into<JObject<'a>>,
-    {
-        let obj = obj.into();
+    pub fn get_list(&self, obj: JObject<'a>) -> Result<JList<'a, '_>> {
         non_null!(obj, "get_list obj argument");
         JList::from_env(self, obj)
     }
@@ -944,11 +940,7 @@ impl<'a> JNIEnv<'a> {
     /// Cast a JObject to a JMap. This won't throw exceptions or return errors
     /// in the event that the object isn't actually a map, but the methods on
     /// the resulting map object will.
-    pub fn get_map<O>(&self, obj: O) -> Result<JMap<'a, '_>>
-    where
-        O: Into<JObject<'a>>,
-    {
-        let obj = obj.into();
+    pub fn get_map(&self, obj: JObject<'a>) -> Result<JMap<'a, '_>> {
         non_null!(obj, "get_map obj argument");
         JMap::from_env(self, obj)
     }
