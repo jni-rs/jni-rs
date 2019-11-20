@@ -5,7 +5,7 @@ use std::str::FromStr;
 use jni::{
     descriptors::Desc,
     errors::{Error, ErrorKind},
-    objects::{AutoLocal, JByteBuffer, JList, JObject, JThrowable, JValue},
+    objects::{AutoLocal, JByteBuffer, JList, JObject, JString, JThrowable, JValue},
     signature::JavaType,
     strings::JNIString,
     sys::{jint, jobject, jsize},
@@ -592,22 +592,35 @@ pub fn throw_defaults() {
 
 #[test]
 pub fn test_conversion() {
-    fn test_str_len<'a: 'b, 'b>(env: &JNIEnv<'a>, obj: impl Into<JObject<'b>>) {
-        let len = env
-            .call_method(obj, "length", "()I", &[])
+    fn assert_is_same_object<'a: 'b, 'b>(
+        env: &JNIEnv<'a>,
+        src: JObject<'b>,
+        actual: impl Into<JObject<'b>>,
+    ) {
+        let equals = env
+            .call_method(
+                src,
+                "equals",
+                "(Ljava/lang/Object;)Z",
+                &[JValue::Object(actual.into())],
+            )
             .unwrap()
-            .i()
+            .z()
             .unwrap();
-        assert_eq!(len, 5);
+        assert!(equals);
     }
 
     let env = attach_current_thread();
-    let s = env.new_string("Hello").unwrap();
+    let orig_obj: JObject = env.new_string("Hello, world!").unwrap().into();
 
-    test_str_len(&env, s);
-    test_str_len(&env, JObject::from(s));
-    test_str_len(&env, &env.new_global_ref(s).unwrap());
-    test_str_len(&env, &env.auto_local(s));
+    let string = JString::from(orig_obj);
+    assert_is_same_object(&env, orig_obj, string);
+
+    let global_ref = env.new_global_ref(orig_obj).unwrap();
+    assert_is_same_object(&env, orig_obj, &global_ref);
+
+    let auto_local = env.auto_local(orig_obj);
+    assert_is_same_object(&env, orig_obj, &auto_local);
 }
 
 fn test_throwable_descriptor_with_default_type<'a, D>(env: &JNIEnv<'a>, descriptor: D)
