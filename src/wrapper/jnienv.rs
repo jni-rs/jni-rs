@@ -1847,8 +1847,8 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Bind function pointers to native methods of class
-    /// according to method name and signature
-    /// for details see [documentation](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#RegisterNatives)
+    /// according to method name and signature.
+    /// For details see [documentation](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#RegisterNatives).
     pub fn register_native_methods<'c, T>(&self, class: T, methods: &[NativeMethod]) -> Result<()>
     where
         T: Desc<'a, JClass<'c>>,
@@ -1872,7 +1872,7 @@ impl<'a> JNIEnv<'a> {
         jni_error_code_to_result(res)
     }
 
-    /// Unbind all native methods of class
+    /// Unbind all native methods of class.
     pub fn unregister_native_methods<'c, T>(&self, class: T) -> Result<()>
     where
         T: Desc<'a, JClass<'c>>,
@@ -1883,14 +1883,17 @@ impl<'a> JNIEnv<'a> {
     }
 }
 
-/// Native method descriptor
+/// Native method descriptor.
 pub struct NativeMethod {
-    /// Name of method
+    /// Name of method.
     pub name: JNIString,
-    /// Method signature
+    /// Method signature.
     pub sig: JNIString,
     /// Pointer to native function with signature
-    /// fn(env: JNIEnv, class: JClass, ...arguments according to `sig`) -> RetType
+    /// `fn(env: JNIEnv, class: JClass, ...arguments according to sig) -> RetType`
+    /// for static methods or
+    /// `fn(env: JNIEnv, object: JObject, ...arguments according to sig) -> RetType`
+    /// for instance methods.
     pub fn_ptr: *mut c_void,
 }
 
