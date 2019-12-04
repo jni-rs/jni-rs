@@ -5,7 +5,6 @@ use std::{
 };
 
 use cesu8::{from_java_cesu8, to_java_cesu8};
-use log::debug;
 
 use crate::wrapper::strings::ffi_str;
 
@@ -55,10 +54,7 @@ impl<'a> From<&'a JNIStr> for Cow<'a, str> {
         let bytes = other.to_bytes();
         match from_java_cesu8(bytes) {
             Ok(s) => s,
-            Err(e) => {
-                debug!("error decoding java cesu8: {:#?}", e);
-                String::from_utf8_lossy(bytes)
-            }
+            Err(_) => String::from_utf8_lossy(bytes),
         }
     }
 }

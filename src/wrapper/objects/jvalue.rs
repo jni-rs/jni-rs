@@ -1,7 +1,5 @@
 use std::mem::transmute;
 
-use log::trace;
-
 use crate::{errors::*, objects::JObject, signature::Primitive, sys::*};
 
 /// Rusty version of the JNI C `jvalue` enum. Used in Java method call arguments
@@ -46,9 +44,6 @@ impl<'a> JValue<'a> {
                 l: ::std::ptr::null_mut(),
             },
         };
-        trace!("converted {:?} to jvalue {:?}", self, unsafe {
-            ::std::mem::transmute::<_, u64>(val)
-        });
         val
     }
 

@@ -1,7 +1,5 @@
 use std::{borrow::Cow, os::raw::c_char};
 
-use log::warn;
-
 use crate::{errors::*, objects::JString, strings::JNIStr, JNIEnv};
 
 /// Reference to a string in the JVM. Holds a pointer to the array
@@ -63,9 +61,6 @@ impl<'a: 'b, 'b> From<JavaStr<'a, 'b>> for String {
 
 impl<'a: 'b, 'b> Drop for JavaStr<'a, 'b> {
     fn drop(&mut self) {
-        match self.env.release_string_utf_chars(self.obj, self.internal) {
-            Ok(()) => {}
-            Err(e) => warn!("error dropping java str: {}", e),
-        }
+        let _ = self.env.release_string_utf_chars(self.obj, self.internal); 
     }
 }

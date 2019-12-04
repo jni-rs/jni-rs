@@ -1,7 +1,5 @@
 use std::mem;
 
-use log::debug;
-
 use crate::{objects::JObject, JNIEnv};
 
 /// Auto-delete wrapper for local refs.
@@ -65,11 +63,7 @@ impl<'a, 'b> AutoLocal<'a, 'b> {
 
 impl<'a, 'b> Drop for AutoLocal<'a, 'b> {
     fn drop(&mut self) {
-        let res = self.env.delete_local_ref(self.obj);
-        match res {
-            Ok(()) => {}
-            Err(e) => debug!("error dropping global ref: {:#?}", e),
-        }
+        let _ = self.env.delete_local_ref(self.obj);
     }
 }
 

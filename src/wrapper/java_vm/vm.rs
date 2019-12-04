@@ -3,10 +3,7 @@ use std::{
     ops::Deref,
     ptr,
     sync::atomic::{AtomicUsize, Ordering},
-    thread::current,
 };
-
-use log::{debug, error};
 
 use crate::{errors::*, sys, JNIEnv};
 
@@ -381,13 +378,6 @@ impl InternalAttachGuard {
 
         ATTACHED_THREADS.fetch_add(1, Ordering::SeqCst);
 
-        debug!(
-            "Attached thread {} ({:?}). {} threads attached",
-            current().name().unwrap_or_default(),
-            current().id(),
-            ATTACHED_THREADS.load(Ordering::SeqCst)
-        );
-
         Ok(env_ptr as *mut sys::JNIEnv)
     }
 
@@ -403,13 +393,6 @@ impl InternalAttachGuard {
 
         ATTACHED_THREADS.fetch_add(1, Ordering::SeqCst);
 
-        debug!(
-            "Attached daemon thread {} ({:?}). {} threads attached",
-            current().name().unwrap_or_default(),
-            current().id(),
-            ATTACHED_THREADS.load(Ordering::SeqCst)
-        );
-
         Ok(env_ptr as *mut sys::JNIEnv)
     }
 
@@ -417,13 +400,8 @@ impl InternalAttachGuard {
         unsafe {
             java_vm_unchecked!(self.java_vm, DetachCurrentThread);
         }
+
         ATTACHED_THREADS.fetch_sub(1, Ordering::SeqCst);
-        debug!(
-            "Detached thread {} ({:?}). {} threads remain attached",
-            current().name().unwrap_or_default(),
-            current().id(),
-            ATTACHED_THREADS.load(Ordering::SeqCst)
-        );
 
         Ok(())
     }
@@ -431,13 +409,6 @@ impl InternalAttachGuard {
 
 impl Drop for InternalAttachGuard {
     fn drop(&mut self) {
-        if let Err(e) = self.detach() {
-            error!(
-                "Error detaching current thread: {:#?}\nThread {} id={:?}",
-                e,
-                current().name().unwrap_or_default(),
-                current().id(),
-            );
-        }
+        let _ = self.detach();
     }
 }

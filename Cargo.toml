@@ -20,7 +20,6 @@ edition = "2018"
 cesu8 = "1.1.0"
 combine = "4.1.0"
 jni-sys = "0.3.0"
-log = "0.4.4"
 
 [build-dependencies]
 walkdir = "2"

@@ -1,7 +1,5 @@
 use std::{convert::From, sync::Arc};
 
-use log::{debug, warn};
-
 use crate::{errors::Result, objects::JObject, sys, JNIEnv, JavaVM};
 
 /// A global JVM reference. These are "pinned" by the garbage collector and are
@@ -89,18 +87,13 @@ impl Drop for GlobalRefGuard {
             Ok(())
         }
 
-        let res = match self.vm.get_env() {
+        let _ = match self.vm.get_env() {
             Ok(env) => drop_impl(&env, self.as_obj()),
             Err(_) => {
-                warn!("Dropping a GlobalRef in a detached thread. Fix your code if this message appears frequently (see the GlobalRef docs).");
                 self.vm
                     .attach_current_thread()
                     .and_then(|env| drop_impl(&env, self.as_obj()))
             }
         };
-
-        if let Err(err) = res {
-            debug!("error dropping global ref: {:#?}", err);
-        }
     }
 }

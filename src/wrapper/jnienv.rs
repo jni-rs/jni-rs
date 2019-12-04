@@ -6,8 +6,6 @@ use std::{
     sync::{Mutex, MutexGuard},
 };
 
-use log::warn;
-
 use crate::{
     descriptors::Desc,
     errors::*,
@@ -2160,13 +2158,9 @@ pub struct MonitorGuard<'a> {
 
 impl<'a> Drop for MonitorGuard<'a> {
     fn drop(&mut self) {
-        let res: Result<()> = catch!({
+        let _: Result<()> = catch!({
             jni_unchecked!(self.env, MonitorExit, self.obj);
             Ok(())
         });
-
-        if let Err(e) = res {
-            warn!("error releasing java monitor: {}", e)
-        }
     }
 }
