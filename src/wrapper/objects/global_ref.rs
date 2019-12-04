@@ -89,11 +89,10 @@ impl Drop for GlobalRefGuard {
 
         let _ = match self.vm.get_env() {
             Ok(env) => drop_impl(&env, self.as_obj()),
-            Err(_) => {
-                self.vm
-                    .attach_current_thread()
-                    .and_then(|env| drop_impl(&env, self.as_obj()))
-            }
+            Err(_) => self
+                .vm
+                .attach_current_thread()
+                .and_then(|env| drop_impl(&env, self.as_obj())),
         };
     }
 }

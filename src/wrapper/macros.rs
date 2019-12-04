@@ -57,9 +57,7 @@ macro_rules! jni_method {
     ( $jnienv:expr, $name:tt ) => {{
         let env = $jnienv;
         match deref!(deref!(env, "JNIEnv"), "*JNIEnv").$name {
-            Some(method) => {
-                method
-            }
+            Some(method) => method,
             None => {
                 return Err($crate::errors::Error::from(
                     $crate::errors::ErrorKind::JNIEnvMethodNotFound(stringify!($name)),
@@ -100,9 +98,7 @@ macro_rules! java_vm_method {
     ( $jnienv:expr, $name:tt ) => {{
         let env = $jnienv;
         match deref!(deref!(env, "JavaVM"), "*JavaVM").$name {
-            Some(meth) => {
-                meth
-            }
+            Some(meth) => meth,
             None => {
                 return Err($crate::errors::Error::from(
                     $crate::errors::ErrorKind::JavaVMMethodNotFound(stringify!($name)),
