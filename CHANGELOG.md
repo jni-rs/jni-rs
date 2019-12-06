@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+- Ability to pass object wrappers that are convertible to `JObject` as arguments to the majority
+ of JNIEnv methods without explicit conversion (#213)
+- `JNIEnv#is_same_object` implementation (#213)
+
 ## [0.14.0] — 2019-10-31
 
 - Relaxed some lifetime restrictions in JNIEnv to support the case when 
