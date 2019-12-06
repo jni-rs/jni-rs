@@ -20,7 +20,7 @@ use crate::{
     sys::{
         self, jarray, jboolean, jbooleanArray, jbyte, jbyteArray, jchar, jcharArray, jdouble,
         jdoubleArray, jfloat, jfloatArray, jint, jintArray, jlong, jlongArray, jobjectArray,
-        jshort, jshortArray, jsize, jvalue,
+        jshort, jshortArray, jsize, jvalue, JNINativeMethod,
     },
     JNIVersion, JavaVM,
 };
@@ -1897,6 +1897,56 @@ impl<'a> JNIEnv<'a> {
         jni_void_call!(self.internal, EnsureLocalCapacity, capacity);
         Ok(())
     }
+
+    /// Bind function pointers to native methods of class
+    /// according to method name and signature.
+    /// For details see [documentation](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#RegisterNatives).
+    pub fn register_native_methods<'c, T>(&self, class: T, methods: &[NativeMethod]) -> Result<()>
+    where
+        T: Desc<'a, JClass<'c>>,
+    {
+        let class = class.lookup(self)?;
+        let jni_native_methods: Vec<JNINativeMethod> = methods
+            .iter()
+            .map(|nm| JNINativeMethod {
+                name: nm.name.as_ptr() as *mut c_char,
+                signature: nm.sig.as_ptr() as *mut c_char,
+                fnPtr: nm.fn_ptr,
+            })
+            .collect();
+        let res = jni_non_void_call!(
+            self.internal,
+            RegisterNatives,
+            class.into_inner(),
+            jni_native_methods.as_ptr(),
+            jni_native_methods.len() as jint
+        );
+        jni_error_code_to_result(res)
+    }
+
+    /// Unbind all native methods of class.
+    pub fn unregister_native_methods<'c, T>(&self, class: T) -> Result<()>
+    where
+        T: Desc<'a, JClass<'c>>,
+    {
+        let class = class.lookup(self)?;
+        let res = jni_non_void_call!(self.internal, UnregisterNatives, class.into_inner());
+        jni_error_code_to_result(res)
+    }
+}
+
+/// Native method descriptor.
+pub struct NativeMethod {
+    /// Name of method.
+    pub name: JNIString,
+    /// Method signature.
+    pub sig: JNIString,
+    /// Pointer to native function with signature
+    /// `fn(env: JNIEnv, class: JClass, ...arguments according to sig) -> RetType`
+    /// for static methods or
+    /// `fn(env: JNIEnv, object: JObject, ...arguments according to sig) -> RetType`
+    /// for instance methods.
+    pub fn_ptr: *mut c_void,
 }
 
 /// Guard for a lock on a java object. This gets returned from the `lock_obj`
