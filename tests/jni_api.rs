@@ -605,35 +605,20 @@ pub fn throw_defaults() {
 
 #[test]
 pub fn test_conversion() {
-    fn assert_is_same_object<'a: 'b, 'b>(
-        env: &JNIEnv<'a>,
-        src: JObject<'b>,
-        actual: impl Into<JObject<'b>>,
-    ) {
-        let equals = env
-            .call_method(
-                src,
-                "equals",
-                "(Ljava/lang/Object;)Z",
-                &[JValue::Object(actual.into())],
-            )
-            .unwrap()
-            .z()
-            .unwrap();
-        assert!(equals);
-    }
-
     let env = attach_current_thread();
     let orig_obj: JObject = env.new_string("Hello, world!").unwrap().into();
 
     let string = JString::from(orig_obj);
-    assert_is_same_object(&env, orig_obj, string);
+    let actual = JObject::from(string);
+    assert!(unwrap(&env, env.is_same_object(orig_obj, actual)));
 
     let global_ref = env.new_global_ref(orig_obj).unwrap();
-    assert_is_same_object(&env, orig_obj, &global_ref);
+    let actual = JObject::from(&global_ref);
+    assert!(unwrap(&env, env.is_same_object(orig_obj, actual)));
 
     let auto_local = env.auto_local(orig_obj);
-    assert_is_same_object(&env, orig_obj, &auto_local);
+    let actual = JObject::from(&auto_local);
+    assert!(unwrap(&env, env.is_same_object(orig_obj, actual)));
 }
 
 fn test_throwable_descriptor_with_default_type<'a, D>(env: &JNIEnv<'a>, descriptor: D)
