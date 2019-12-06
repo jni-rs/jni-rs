@@ -180,6 +180,21 @@ impl<'a> JNIEnv<'a> {
         ) == sys::JNI_TRUE)
     }
 
+    /// Returns true if ref1 and ref2 refer to the same Java object, or are both `NULL`. Otherwise,
+    /// returns false.
+    pub fn is_same_object<'b, 'c, O, T>(&self, ref1: O, ref2: T) -> Result<bool>
+    where
+        O: Into<JObject<'b>>,
+        T: Into<JObject<'c>>,
+    {
+        Ok(jni_unchecked!(
+            self.internal,
+            IsSameObject,
+            ref1.into().into_inner(),
+            ref2.into().into_inner()
+        ) == sys::JNI_TRUE)
+    }
+
     /// Raise an exception from an existing object. This will continue being
     /// thrown in java unless `exception_clear` is called.
     ///

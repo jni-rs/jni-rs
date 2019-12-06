@@ -102,6 +102,19 @@ pub fn is_instance_of_null() {
 }
 
 #[test]
+pub fn test_same_objects() {
+    const SOURCE_STR: &str = "THIS IS STRING OBJECT";
+    let env = attach_current_thread();
+    let string = env.new_string(SOURCE_STR).unwrap();
+    let ref_from_string = unwrap(&env, env.new_local_ref::<JObject>(string.into()));
+    assert!(unwrap(&env, env.is_same_object(string, ref_from_string)));
+    unwrap(&env, env.delete_local_ref(ref_from_string));
+
+    let same_src_str = env.new_string(SOURCE_STR).unwrap();
+    assert!(!unwrap(&env, env.is_same_object(string, same_src_str)));
+}
+
+#[test]
 pub fn get_static_public_field() {
     let env = attach_current_thread();
 
