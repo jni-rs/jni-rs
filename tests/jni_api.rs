@@ -129,7 +129,10 @@ pub fn is_not_same_object() {
 #[test]
 pub fn is_not_same_object_null() {
     let env = attach_current_thread();
-    assert!(unwrap(&env, env.is_same_object(JObject::null(), JObject::null())));
+    assert!(unwrap(
+        &env,
+        env.is_same_object(JObject::null(), JObject::null())
+    ));
 }
 
 #[test]
