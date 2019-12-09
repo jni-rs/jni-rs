@@ -27,6 +27,7 @@ static MATH_TO_INT_METHOD_NAME: &str = "toIntExact";
 static MATH_ABS_SIGNATURE: &str = "(I)I";
 static MATH_TO_INT_SIGNATURE: &str = "(J)I";
 static TEST_EXCEPTION_MESSAGE: &str = "Default exception thrown";
+static TESTING_OBJECT_STR: &str = "TESTING OBJECT";
 
 #[test]
 pub fn call_method_returning_null() {
@@ -102,16 +103,33 @@ pub fn is_instance_of_null() {
 }
 
 #[test]
-pub fn test_same_objects() {
-    const SOURCE_STR: &str = "THIS IS STRING OBJECT";
+pub fn is_same_object_diff_references() {
     let env = attach_current_thread();
-    let string = env.new_string(SOURCE_STR).unwrap();
+    let string = env.new_string(TESTING_OBJECT_STR).unwrap();
     let ref_from_string = unwrap(&env, env.new_local_ref::<JObject>(string.into()));
     assert!(unwrap(&env, env.is_same_object(string, ref_from_string)));
     unwrap(&env, env.delete_local_ref(ref_from_string));
+}
 
-    let same_src_str = env.new_string(SOURCE_STR).unwrap();
+#[test]
+pub fn is_same_object_same_reference() {
+    let env = attach_current_thread();
+    let string = env.new_string(TESTING_OBJECT_STR).unwrap();
+    assert!(unwrap(&env, env.is_same_object(string, string)));
+}
+
+#[test]
+pub fn is_not_same_object() {
+    let env = attach_current_thread();
+    let string = env.new_string(TESTING_OBJECT_STR).unwrap();
+    let same_src_str = env.new_string(TESTING_OBJECT_STR).unwrap();
     assert!(!unwrap(&env, env.is_same_object(string, same_src_str)));
+}
+
+#[test]
+pub fn is_not_same_object_null() {
+    let env = attach_current_thread();
+    assert!(unwrap(&env, env.is_same_object(JObject::null(), JObject::null())));
 }
 
 #[test]
