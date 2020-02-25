@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+- Passing `null` as class loader to `define_class` method now allowed according
+  to the JNI specification. (#225)
+
 ## [0.14.0] — 2019-10-31
 
 - Relaxed some lifetime restrictions in JNIEnv to support the case when 
