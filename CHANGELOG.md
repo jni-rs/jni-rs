@@ -15,10 +15,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.15.0] — 2020-02-28
+
 ### Added
 - Ability to pass object wrappers that are convertible to `JObject` as arguments to the majority
  of JNIEnv methods without explicit conversion (#213)
 - `JNIEnv#is_same_object` implementation (#213)
+- `JNIEnv#register_native_methods` (#214)
+- Conversion from `Into<JObject>` to `JValue::Object`
 
 ### Fixed
 - Passing `null` as class loader to `define_class` method now allowed according
@@ -174,8 +178,9 @@ to call if there is a pending exception (#124):
 ## [0.10.1]
 - No changes has been made to the Changelog until this release.
 
-[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.14.0...HEAD
-[0.14.0]: https://github.com/jni-rs/jni-rs/compare/v0.13.1...0.14.0
+[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/jni-rs/jni-rs/compare/v0.14.0...v0.15.0
+[0.14.0]: https://github.com/jni-rs/jni-rs/compare/v0.13.1...v0.14.0
 [0.13.1]: https://github.com/jni-rs/jni-rs/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/jni-rs/jni-rs/compare/v0.12.3...v0.13.0
 [0.12.3]: https://github.com/jni-rs/jni-rs/compare/v0.12.2...v0.12.3
