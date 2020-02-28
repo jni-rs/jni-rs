@@ -5,7 +5,10 @@ use std::{
     thread::spawn,
 };
 
-use jni::{objects::AutoLocal, objects::JValue, sys::jint};
+use jni::{
+    objects::{AutoLocal, JValue},
+    sys::jint,
+};
 
 mod util;
 use util::{attach_current_thread, unwrap};
@@ -29,7 +32,7 @@ pub fn global_ref_works_in_other_threads() {
                 ),
             ),
         );
-        unwrap(&env, env.new_global_ref(local_ref.as_obj()))
+        unwrap(&env, env.new_global_ref(&local_ref))
     };
 
     // Test with a different number of threads (from 2 to 8)
@@ -48,7 +51,7 @@ pub fn global_ref_works_in_other_threads() {
                         &env,
                         unwrap(
                             &env,
-                            env.call_method(atomic_integer.as_obj(), "incrementAndGet", "()I", &[]),
+                            env.call_method(&atomic_integer, "incrementAndGet", "()I", &[]),
                         )
                         .i(),
                     );
@@ -68,12 +71,7 @@ pub fn global_ref_works_in_other_threads() {
                 &env,
                 unwrap(
                     &env,
-                    env.call_method(
-                        atomic_integer.as_obj(),
-                        "getAndSet",
-                        "(I)I",
-                        &[JValue::from(0)]
-                    )
+                    env.call_method(&atomic_integer, "getAndSet", "(I)I", &[JValue::from(0)])
                 )
                 .i()
             )
