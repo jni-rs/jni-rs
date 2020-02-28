@@ -6,13 +6,13 @@ set -eu -o pipefail
 # Echo commands so that the progress can be seen in CI server logs.
 set -x
 
-# Detect installed Java
-export JAVA_HOME="$(java -XshowSettings:properties -version \
-    2>&1 > /dev/null |\
-    grep 'java.home' |\
-    awk '{print $3}')"
+# Check the shell scripts
+shellcheck .travis/run_travis_job.sh
+shellcheck test_profile
 
-export LD_LIBRARY_PATH="$(find -L ${JAVA_HOME} -type f -name libjvm.* | xargs -n1 dirname)"
+# Setup LD_LIBRARY_PATH for ITs
+# shellcheck source=/dev/null
+source test_profile
 
 # Install clippy
 if [[ ${TRAVIS_RUST_VERSION} == "nightly" ]];

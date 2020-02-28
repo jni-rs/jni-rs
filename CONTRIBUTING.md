@@ -81,13 +81,7 @@ to use to `LD_LIBRARY_PATH` on Linux/Mac or `PATH` environment variable on Windo
 On Linux/Mac, you can use the following script for this purpose:
 
 ```$sh
-JAVA_HOME="${JAVA_HOME:-$(java -XshowSettings:properties -version \
-    2>&1 > /dev/null |\
-    grep 'java.home' |\
-    awk '{print $3}')}"
-LIBJVM_PATH="$(find ${JAVA_HOME} -type f -name libjvm.* | xargs -n1 dirname)"
-
-export LD_LIBRARY_PATH="${LIBJVM_PATH}"
+source test_profile
 ```
 
 #### Run Tests
