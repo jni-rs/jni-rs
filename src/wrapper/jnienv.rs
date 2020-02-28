@@ -105,7 +105,6 @@ impl<'a> JNIEnv<'a> {
     where
         S: Into<JNIString>,
     {
-        non_null!(loader, "define_class loader argument");
         let name = name.into();
         let class = jni_non_null_call!(
             self.internal,
