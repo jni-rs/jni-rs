@@ -26,6 +26,12 @@ pub use self::jclass::*;
 mod jstring;
 pub use self::jstring::*;
 
+mod jinputstream;
+pub use self::jinputstream::*;
+
+mod joutputstream;
+pub use self::joutputstream::*;
+
 mod jmap;
 pub use self::jmap::*;
 
