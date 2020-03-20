@@ -59,12 +59,12 @@ fn jni_hash_safe(env: &JNIEnv, obj: JObject) -> jint {
     v.i().unwrap()
 }
 
-fn jni_call_unchecked<'m, M>(env: &JNIEnv<'m>, obj: JObject, method_id: M) -> jint
+fn jni_call_unchecked<'m, M>(env: &JNIEnv<'m>, obj: JObject<'m>, method_id: M) -> jint
 where
     M: Desc<'m, JMethodID<'m>>,
 {
     let ret = JavaType::Primitive(Primitive::Int);
-    let v = unsafe { env.call_method_unchecked(obj, method_id, ret, &[]).unwrap() };
+    let v = env.call_method_unchecked(obj, method_id, ret, &[]).unwrap();
     v.i().unwrap()
 }
 
@@ -200,7 +200,7 @@ mod tests {
         let global_ref = env.new_global_ref(obj).unwrap();
         env.delete_local_ref(obj).unwrap();
 
-        b.iter(|| env.new_global_ref(global_ref.as_obj()).unwrap());
+        b.iter(|| env.new_global_ref(&global_ref).unwrap());
     }
 
     /// Checks the overhead of checking if exception has occurred.

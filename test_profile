@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+# Sets the LD_LIBRARY_PATH required for running ITs dependent on libjvm.
+# See CONTRIBUTING.md for details.
+
+JAVA_HOME="${JAVA_HOME:-$(java -XshowSettings:properties -version \
+    2>&1 > /dev/null |\
+    grep 'java.home' |\
+    awk '{print $3}')}"
+
+# As JDK 8 and 9+ use different relative paths for libjvm, find the library:
+LIBJVM_PATH="$(find "${JAVA_HOME}" -type f -name 'libjvm.*' -print0 | xargs -0 -n1 dirname)"
+
+export LD_LIBRARY_PATH="${LIBJVM_PATH}"
