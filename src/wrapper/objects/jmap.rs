@@ -38,7 +38,7 @@ impl<'a: 'b, 'b> JMap<'a, 'b> {
     /// necessary class and method ids to call all of the methods on it so that
     /// exra work doesn't need to be done on every method call.
     pub fn from_env(env: &'b JNIEnv<'a>, obj: JObject<'a>) -> Result<JMap<'a, 'b>> {
-        let class = env.auto_local(env.find_class("java/util/Map")?.into());
+        let class = env.auto_local(env.find_class("java/util/Map")?);
 
         let get = env.get_method_id(&class, "get", "(Ljava/lang/Object;)Ljava/lang/Object;")?;
         let put = env.get_method_id(
@@ -123,7 +123,7 @@ impl<'a: 'b, 'b> JMap<'a, 'b> {
     pub fn iter(&self) -> Result<JMapIter<'a, 'b, '_>> {
         let iter_class = self
             .env
-            .auto_local(self.env.find_class("java/util/Iterator")?.into());
+            .auto_local(self.env.find_class("java/util/Iterator")?);
 
         let has_next = self.env.get_method_id(&iter_class, "hasNext", "()Z")?;
 
@@ -133,7 +133,7 @@ impl<'a: 'b, 'b> JMap<'a, 'b> {
 
         let entry_class = self
             .env
-            .auto_local(self.env.find_class("java/util/Map$Entry")?.into());
+            .auto_local(self.env.find_class("java/util/Map$Entry")?);
 
         let get_key = self
             .env

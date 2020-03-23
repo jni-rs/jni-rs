@@ -87,7 +87,7 @@ impl Counter {
     pub fn increment(&mut self, env: JNIEnv) {
         self.count = self.count + 1;
         env.call_method(
-            self.callback.as_obj(),
+            &self.callback,
             "counterCallback",
             "(I)V",
             &[self.count.into()],
@@ -154,13 +154,10 @@ pub extern "system" fn Java_HelloWorld_asyncComputation(
         // Use the `JavaVM` interface to attach a `JNIEnv` to the current thread.
         let env = jvm.attach_current_thread().unwrap();
 
-        // Then use the `callback` with this newly obtained `JNIEnv`.
-        let callback = callback.as_obj();
-
         for i in 0..11 {
             let progress = (i * 10) as jint;
             // Now we can use all available `JNIEnv` functionality normally.
-            env.call_method(callback, "asyncCallback", "(I)V", &[progress.into()])
+            env.call_method(&callback, "asyncCallback", "(I)V", &[progress.into()])
                 .unwrap();
             thread::sleep(Duration::from_millis(100));
         }

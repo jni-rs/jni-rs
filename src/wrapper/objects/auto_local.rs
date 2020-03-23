@@ -55,7 +55,7 @@ impl<'a, 'b> AutoLocal<'a, 'b> {
     ///
     /// Unlike `forget`, this ensures the wrapper from being dropped while the
     /// returned `JObject` is still live.
-    pub fn as_obj<'c>(&'c self) -> JObject<'c>
+    pub fn as_obj<'c>(&self) -> JObject<'c>
     where
         'a: 'c,
     {
@@ -70,5 +70,11 @@ impl<'a, 'b> Drop for AutoLocal<'a, 'b> {
             Ok(()) => {}
             Err(e) => debug!("error dropping global ref: {:#?}", e),
         }
+    }
+}
+
+impl<'a> From<&'a AutoLocal<'a, '_>> for JObject<'a> {
+    fn from(other: &'a AutoLocal) -> JObject<'a> {
+        other.as_obj()
     }
 }

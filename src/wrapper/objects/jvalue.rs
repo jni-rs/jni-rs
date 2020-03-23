@@ -166,9 +166,9 @@ impl<'a> JValue<'a> {
     }
 }
 
-impl<'a> From<JObject<'a>> for JValue<'a> {
-    fn from(other: JObject<'a>) -> Self {
-        JValue::Object(other)
+impl<'a, T: Into<JObject<'a>>> From<T> for JValue<'a> {
+    fn from(other: T) -> Self {
+        JValue::Object(other.into())
     }
 }
 
