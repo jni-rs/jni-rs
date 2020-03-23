@@ -1847,7 +1847,7 @@ impl<'a> JNIEnv<'a> {
             // attempt to acquire the lock. This prevents us from consuming the
             // mutex if there's an outstanding lock. No one else will be able to
             // get a new one as long as we're in the guarded scope.
-            let _ = mbox.try_lock()?;
+            drop(mbox.try_lock()?);
 
             self.set_field_unchecked(
                 obj,
