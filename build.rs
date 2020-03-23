@@ -23,7 +23,7 @@ const EXPECTED_JVM_FILENAME: &str = "jvm.dll";
 #[cfg(target_os = "linux")]
 const EXPECTED_JVM_FILENAME: &str = "libjvm.so";
 #[cfg(target_os = "macos")]
-const EXPECTED_JVM_FILENAME: &str = "libjvm.dylib";
+const EXPECTED_JVM_FILENAME: &str = "libjli.dylib";
 
 fn main() {
     if cfg!(feature = "invocation") {
@@ -48,7 +48,15 @@ fn main() {
         }
 
         println!("cargo:rerun-if-env-changed=JAVA_HOME");
-        println!("cargo:rustc-link-lib=dylib=jvm");
+
+        // On MacOS, we need to link to libjli instead of libjvm as a workaround
+        // to a Java8 bug. See here for more information:
+        // https://bugs.openjdk.java.net/browse/JDK-7131356
+        if cfg!(target_os = "macos") {
+            println!("cargo:rustc-link-lib=dylib=jli");
+        } else {
+            println!("cargo:rustc-link-lib=dylib=jvm");
+        }
     }
 }
 
