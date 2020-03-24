@@ -18,7 +18,7 @@ edition = "2018"
 
 [dependencies]
 cesu8 = "1.1.0"
-combine = "3.4.1"
+combine = "4.0.1"
 jni-sys = "0.3.0"
 log = "0.4.4"
 
