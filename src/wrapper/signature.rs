@@ -1,6 +1,7 @@
-use std::str::FromStr;
+use std::{fmt, str::FromStr};
 
-use combine::{stream::state::State, *};
+//use combine::{stream::state::State, *};
+use combine::{self, ParseError, Parser, StdParseResult, Stream};
 
 use crate::errors::*;
 
@@ -20,8 +21,8 @@ pub enum Primitive {
     Void,    // V
 }
 
-impl ::std::fmt::Display for Primitive {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+impl fmt::Display for Primitive {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Primitive::Boolean => write!(f, "Z"),
             Primitive::Byte => write!(f, "B"),
@@ -49,16 +50,16 @@ pub enum JavaType {
 impl FromStr for JavaType {
     type Err = String;
 
-    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
-        parser(parse_type)
-            .parse(State::new(s))
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        combine::parser(parse_type)
+            .parse(s)
             .map(|res| res.0)
             .map_err(|e| format_error_message(&e, s))
     }
 }
 
-impl ::std::fmt::Display for JavaType {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+impl std::fmt::Display for JavaType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             JavaType::Primitive(ref ty) => ty.fmt(f),
             JavaType::Object(ref name) => write!(f, "L{};", name),
@@ -84,8 +85,8 @@ impl TypeSignature {
     #[allow(clippy::should_implement_trait)]
     pub fn from_str<S: AsRef<str>>(s: S) -> Result<TypeSignature> {
         Ok(
-            match parser(parse_sig)
-                .parse(State::new(s.as_ref()))
+            match combine::parser(parse_sig)
+                .parse(s.as_ref())
                 .map(|res| res.0)
             {
                 Ok(JavaType::Method(sig)) => *sig,
@@ -96,8 +97,8 @@ impl TypeSignature {
     }
 }
 
-impl ::std::fmt::Display for TypeSignature {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+impl fmt::Display for TypeSignature {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "(")?;
         for a in &self.args {
             write!(f, "{}", a)?;
@@ -108,10 +109,12 @@ impl ::std::fmt::Display for TypeSignature {
     }
 }
 
-fn parse_primitive<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S>
+fn parse_primitive<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<JavaType, S>
 where
     S::Error: ParseError<char, S::Range, S::Position>,
 {
+    use combine::token;
+
     let boolean = token('Z').map(|_| Primitive::Boolean);
     let byte = token('B').map(|_| Primitive::Byte);
     let char_type = token('C').map(|_| Primitive::Char);
@@ -133,58 +136,70 @@ where
         .or(void))
     .map(JavaType::Primitive)
     .parse_stream(input)
+    .into()
 }
 
-fn parse_array<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S>
+fn parse_array<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<JavaType, S>
 where
     S::Error: ParseError<char, S::Range, S::Position>,
 {
-    let marker = token('[');
-    (marker, parser(parse_type))
+    let marker = combine::token('[');
+    (marker, combine::parser(parse_type))
         .map(|(_, ty)| JavaType::Array(Box::new(ty)))
         .parse_stream(input)
+        .into()
 }
 
-fn parse_object<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S>
+fn parse_object<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<JavaType, S>
 where
     S::Error: ParseError<char, S::Range, S::Position>,
 {
-    let marker = token('L');
-    let end = token(';');
-    let obj = between(marker, end, many1(satisfy(|c| c != ';')));
+    let marker = combine::token('L');
+    let end = combine::token(';');
+    let obj = combine::between(marker, end, combine::many1(combine::satisfy(|c| c != ';')));
 
-    obj.map(JavaType::Object).parse_stream(input)
+    obj.map(JavaType::Object).parse_stream(input).into()
 }
 
-fn parse_type<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S>
+fn parse_type<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<JavaType, S>
 where
     S::Error: ParseError<char, S::Range, S::Position>,
 {
+    use combine::parser;
+
     parser(parse_primitive)
         .or(parser(parse_array))
         .or(parser(parse_object))
         .or(parser(parse_sig))
         .parse_stream(input)
+        .into()
 }
 
-fn parse_args<S: Stream<Item = char>>(input: &mut S) -> ParseResult<Vec<JavaType>, S>
+fn parse_args<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<Vec<JavaType>, S>
 where
     S::Error: ParseError<char, S::Range, S::Position>,
 {
-    between(token('('), token(')'), many(parser(parse_type))).parse_stream(input)
+    combine::between(
+        combine::token('('),
+        combine::token(')'),
+        combine::many(combine::parser(parse_type)),
+    )
+    .parse_stream(input)
+    .into()
 }
 
-fn parse_sig<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S>
+fn parse_sig<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<JavaType, S>
 where
     S::Error: ParseError<char, S::Range, S::Position>,
 {
-    (parser(parse_args), parser(parse_type))
+    (combine::parser(parse_args), combine::parser(parse_type))
         .map(|(a, r)| TypeSignature { args: a, ret: r })
         .map(|sig| JavaType::Method(Box::new(sig)))
         .parse_stream(input)
+        .into()
 }
 
-fn format_error_message<E: ::std::fmt::Display>(err: &E, input_string: &str) -> String {
+fn format_error_message<E: fmt::Display>(err: &E, input_string: &str) -> String {
     format!("{}Input: {}", err, input_string)
 }
 
