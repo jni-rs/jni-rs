@@ -1,6 +1,8 @@
-use std::str::FromStr;
+use std::{fmt, str::FromStr};
 
-use combine::{stream::state::State, *};
+use combine::{
+    between, many, many1, parser, satisfy, token, ParseError, Parser, StdParseResult, Stream,
+};
 
 use crate::errors::*;
 
@@ -20,8 +22,8 @@ pub enum Primitive {
     Void,    // V
 }
 
-impl ::std::fmt::Display for Primitive {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+impl fmt::Display for Primitive {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Primitive::Boolean => write!(f, "Z"),
             Primitive::Byte => write!(f, "B"),
@@ -49,16 +51,16 @@ pub enum JavaType {
 impl FromStr for JavaType {
     type Err = String;
 
-    fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         parser(parse_type)
-            .parse(State::new(s))
+            .parse(s)
             .map(|res| res.0)
             .map_err(|e| format_error_message(&e, s))
     }
 }
 
-impl ::std::fmt::Display for JavaType {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+impl fmt::Display for JavaType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             JavaType::Primitive(ref ty) => ty.fmt(f),
             JavaType::Object(ref name) => write!(f, "L{};", name),
@@ -83,21 +85,16 @@ impl TypeSignature {
     // Clippy suggests implementing `FromStr` or renaming it which is not possible in our case.
     #[allow(clippy::should_implement_trait)]
     pub fn from_str<S: AsRef<str>>(s: S) -> Result<TypeSignature> {
-        Ok(
-            match parser(parse_sig)
-                .parse(State::new(s.as_ref()))
-                .map(|res| res.0)
-            {
-                Ok(JavaType::Method(sig)) => *sig,
-                Err(e) => return Err(format_error_message(&e, s.as_ref()).into()),
-                _ => unreachable!(),
-            },
-        )
+        Ok(match parser(parse_sig).parse(s.as_ref()).map(|res| res.0) {
+            Ok(JavaType::Method(sig)) => *sig,
+            Err(e) => return Err(format_error_message(&e, s.as_ref()).into()),
+            _ => unreachable!(),
+        })
     }
 }
 
-impl ::std::fmt::Display for TypeSignature {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+impl fmt::Display for TypeSignature {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "(")?;
         for a in &self.args {
             write!(f, "{}", a)?;
@@ -108,7 +105,7 @@ impl ::std::fmt::Display for TypeSignature {
     }
 }
 
-fn parse_primitive<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S>
+fn parse_primitive<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<JavaType, S>
 where
     S::Error: ParseError<char, S::Range, S::Position>,
 {
@@ -133,9 +130,10 @@ where
         .or(void))
     .map(JavaType::Primitive)
     .parse_stream(input)
+    .into()
 }
 
-fn parse_array<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S>
+fn parse_array<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<JavaType, S>
 where
     S::Error: ParseError<char, S::Range, S::Position>,
 {
@@ -143,9 +141,10 @@ where
     (marker, parser(parse_type))
         .map(|(_, ty)| JavaType::Array(Box::new(ty)))
         .parse_stream(input)
+        .into()
 }
 
-fn parse_object<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S>
+fn parse_object<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<JavaType, S>
 where
     S::Error: ParseError<char, S::Range, S::Position>,
 {
@@ -153,10 +152,10 @@ where
     let end = token(';');
     let obj = between(marker, end, many1(satisfy(|c| c != ';')));
 
-    obj.map(JavaType::Object).parse_stream(input)
+    obj.map(JavaType::Object).parse_stream(input).into()
 }
 
-fn parse_type<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S>
+fn parse_type<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<JavaType, S>
 where
     S::Error: ParseError<char, S::Range, S::Position>,
 {
@@ -165,16 +164,19 @@ where
         .or(parser(parse_object))
         .or(parser(parse_sig))
         .parse_stream(input)
+        .into()
 }
 
-fn parse_args<S: Stream<Item = char>>(input: &mut S) -> ParseResult<Vec<JavaType>, S>
+fn parse_args<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<Vec<JavaType>, S>
 where
     S::Error: ParseError<char, S::Range, S::Position>,
 {
-    between(token('('), token(')'), many(parser(parse_type))).parse_stream(input)
+    between(token('('), token(')'), many(parser(parse_type)))
+        .parse_stream(input)
+        .into()
 }
 
-fn parse_sig<S: Stream<Item = char>>(input: &mut S) -> ParseResult<JavaType, S>
+fn parse_sig<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<JavaType, S>
 where
     S::Error: ParseError<char, S::Range, S::Position>,
 {
@@ -182,9 +184,10 @@ where
         .map(|(a, r)| TypeSignature { args: a, ret: r })
         .map(|sig| JavaType::Method(Box::new(sig)))
         .parse_stream(input)
+        .into()
 }
 
-fn format_error_message<E: ::std::fmt::Display>(err: &E, input_string: &str) -> String {
+fn format_error_message<E: fmt::Display>(err: &E, input_string: &str) -> String {
     format!("{}Input: {}", err, input_string)
 }
 
