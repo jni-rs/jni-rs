@@ -1,7 +1,8 @@
 use std::{fmt, str::FromStr};
 
-//use combine::{stream::state::State, *};
-use combine::{self, ParseError, Parser, StdParseResult, Stream};
+use combine::{
+    between, many, many1, parser, satisfy, token, ParseError, Parser, StdParseResult, Stream,
+};
 
 use crate::errors::*;
 
@@ -51,7 +52,7 @@ impl FromStr for JavaType {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        combine::parser(parse_type)
+        parser(parse_type)
             .parse(s)
             .map(|res| res.0)
             .map_err(|e| format_error_message(&e, s))
@@ -84,16 +85,11 @@ impl TypeSignature {
     // Clippy suggests implementing `FromStr` or renaming it which is not possible in our case.
     #[allow(clippy::should_implement_trait)]
     pub fn from_str<S: AsRef<str>>(s: S) -> Result<TypeSignature> {
-        Ok(
-            match combine::parser(parse_sig)
-                .parse(s.as_ref())
-                .map(|res| res.0)
-            {
-                Ok(JavaType::Method(sig)) => *sig,
-                Err(e) => return Err(format_error_message(&e, s.as_ref()).into()),
-                _ => unreachable!(),
-            },
-        )
+        Ok(match parser(parse_sig).parse(s.as_ref()).map(|res| res.0) {
+            Ok(JavaType::Method(sig)) => *sig,
+            Err(e) => return Err(format_error_message(&e, s.as_ref()).into()),
+            _ => unreachable!(),
+        })
     }
 }
 
@@ -113,8 +109,6 @@ fn parse_primitive<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<Jav
 where
     S::Error: ParseError<char, S::Range, S::Position>,
 {
-    use combine::token;
-
     let boolean = token('Z').map(|_| Primitive::Boolean);
     let byte = token('B').map(|_| Primitive::Byte);
     let char_type = token('C').map(|_| Primitive::Char);
@@ -143,8 +137,8 @@ fn parse_array<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<JavaTyp
 where
     S::Error: ParseError<char, S::Range, S::Position>,
 {
-    let marker = combine::token('[');
-    (marker, combine::parser(parse_type))
+    let marker = token('[');
+    (marker, parser(parse_type))
         .map(|(_, ty)| JavaType::Array(Box::new(ty)))
         .parse_stream(input)
         .into()
@@ -154,9 +148,9 @@ fn parse_object<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<JavaTy
 where
     S::Error: ParseError<char, S::Range, S::Position>,
 {
-    let marker = combine::token('L');
-    let end = combine::token(';');
-    let obj = combine::between(marker, end, combine::many1(combine::satisfy(|c| c != ';')));
+    let marker = token('L');
+    let end = token(';');
+    let obj = between(marker, end, many1(satisfy(|c| c != ';')));
 
     obj.map(JavaType::Object).parse_stream(input).into()
 }
@@ -165,8 +159,6 @@ fn parse_type<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<JavaType
 where
     S::Error: ParseError<char, S::Range, S::Position>,
 {
-    use combine::parser;
-
     parser(parse_primitive)
         .or(parser(parse_array))
         .or(parser(parse_object))
@@ -179,20 +171,16 @@ fn parse_args<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<Vec<Java
 where
     S::Error: ParseError<char, S::Range, S::Position>,
 {
-    combine::between(
-        combine::token('('),
-        combine::token(')'),
-        combine::many(combine::parser(parse_type)),
-    )
-    .parse_stream(input)
-    .into()
+    between(token('('), token(')'), many(parser(parse_type)))
+        .parse_stream(input)
+        .into()
 }
 
 fn parse_sig<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<JavaType, S>
 where
     S::Error: ParseError<char, S::Range, S::Position>,
 {
-    (combine::parser(parse_args), combine::parser(parse_type))
+    (parser(parse_args), parser(parse_type))
         .map(|(a, r)| TypeSignature { args: a, ret: r })
         .map(|sig| JavaType::Method(Box::new(sig)))
         .parse_stream(input)
