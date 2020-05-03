@@ -59,7 +59,7 @@ impl FromStr for JavaType {
     }
 }
 
-impl std::fmt::Display for JavaType {
+impl fmt::Display for JavaType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             JavaType::Primitive(ref ty) => ty.fmt(f),
