@@ -1933,7 +1933,7 @@ impl<'a> JNIEnv<'a> {
         jni_error_code_to_result(res)
     }
 
-    /// Return elements of the given Java byte array.
+    /// Return a pointer to elements of the given Java byte array.
     ///
     /// The result is valid until the corresponding release_byte_array_elements() function is
     /// called. Since the returned array may be a copy of the Java array, changes made to the
@@ -1983,6 +1983,63 @@ impl<'a> JNIEnv<'a> {
         jni_void_call!(
             self.internal,
             ReleaseByteArrayElements,
+            array,
+            elems,
+            mode
+        );
+        Ok(())
+    }
+
+    /// Return a pointer to elements of the given Java array.
+    ///
+    /// The semantics of this function is very similar to the existing
+    /// get_<primitivetype>_array_elements functions. If possible, the VM returns a pointer to the
+    /// primitive array; otherwise, a copy is made. However, there are significant restrictions
+    /// on how these functions can be used.
+    ///
+    /// After calling get_primitive_array_critical, the native code should not run for an extended
+    /// period of time before it calls release_primitive_array_critical. We must treat the code
+    /// inside this pair of functions as running in a "critical region." Inside a critical region,
+    /// native code must not call other JNI functions, or any system call that may cause the
+    /// current thread to block and wait for another Java thread. (For example, the current
+    /// thread must not call read on a stream being written by another Java thread.)
+    ///
+    /// These restrictions make it more likely that the native code will obtain an uncopied version
+    /// of the array, even if the VM does not support pinning. For example, a VM may temporarily
+    /// disable garbage collection when the native code is holding a pointer to an array obtained
+    /// via get_primitive_array_critical.
+    ///
+    /// Note that get_primitive_array_critical might still make a copy of the array if the VM
+    /// internally represents arrays in a different format. Therefore, we need to check its
+    /// return value against NULL for possible out of memory situations.
+    pub fn get_primitive_array_critical(
+        &self,
+        array: jarray,
+        is_copy: *mut jboolean,
+    ) -> Result<*mut c_void> {
+        non_null!(array, "get_primitive_array_critical array argument");
+        let res = jni_non_void_call!(
+            self.internal,
+            GetPrimitiveArrayCritical,
+            array,
+            is_copy
+        );
+        Ok(res)
+    }
+
+    /// Release elements of the given array.
+    ///
+    /// See get_primitive_array_critical for a discussion on how these functions can be used.
+    pub fn release_primitive_array_critical(
+        &self,
+        array: jarray,
+        elems: *mut c_void,
+        mode: jint
+    ) -> Result<()> {
+        non_null!(array, "release_primitive_array_critical array argument");
+        jni_void_call!(
+            self.internal,
+            ReleasePrimitiveArrayCritical,
             array,
             elems,
             mode
