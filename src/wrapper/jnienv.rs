@@ -1932,6 +1932,63 @@ impl<'a> JNIEnv<'a> {
         let res = jni_non_void_call!(self.internal, UnregisterNatives, class.into_inner());
         jni_error_code_to_result(res)
     }
+
+    /// Return elements of the given Java byte array.
+    ///
+    /// The result is valid until the corresponding release_byte_array_elements() function is
+    /// called. Since the returned array may be a copy of the Java array, changes made to the
+    /// returned array will not necessarily be reflected in the original array until
+    /// release_array_elements() is called.
+    ///
+    /// If is_copy is not null, then *is_copy is set to JNI_TRUE if a copy is made; or it is set to
+    /// JNI_FALSE if no copy is made.
+    pub fn get_byte_array_elements(
+        &self,
+        array: jbyteArray,
+        is_copy: *mut jboolean,
+    ) -> Result<*mut jbyte> {
+        non_null!(array, "get_byte_array_elements array argument");
+        let res = jni_non_void_call!(
+            self.internal,
+            GetByteArrayElements,
+            array,
+            is_copy
+        );
+        Ok(res)
+    }
+
+    /// Release elements of the given byte array.
+    ///
+    /// Informs the VM that the native code no longer needs access to elems. The elems argument
+    /// is a pointer derived from array using the corresponding get_byte_array_elements() function.
+    /// If necessary, this function copies back all changes made to elems to the original array.
+    ///
+    /// The mode argument provides information on how the array buffer should be released. mode
+    /// has no effect if elems is not a copy of the elements in array. Otherwise, mode has the
+    /// following impact:
+    /// 0: Copy back the content and free the elems buffer.
+    /// JNI_COMMIT: Copy back the content but do not free the elems buffer.
+    /// JNI_ABORT: Free the buffer without copying back the possible changes.
+    ///
+    /// In most cases, programmers pass “0” to the mode argument to ensure consistent behavior
+    /// for both pinned and copied arrays. The other options give the programmer more control
+    /// over memory management, and should be used with extreme care.
+    pub fn release_byte_array_elements(
+        &self,
+        array: jbyteArray,
+        elems: *mut jbyte,
+        mode: jint
+    ) -> Result<()> {
+        non_null!(array, "release_byte_array_elements array argument");
+        jni_void_call!(
+            self.internal,
+            ReleaseByteArrayElements,
+            array,
+            elems,
+            mode
+        );
+        Ok(())
+    }
 }
 
 /// Native method descriptor.
