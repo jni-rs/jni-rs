@@ -1,8 +1,8 @@
 #![cfg(feature = "invocation")]
 
-use std::str::FromStr;
 use jni::sys;
 use jni_sys::jboolean;
+use std::str::FromStr;
 
 use jni::{
     descriptors::Desc,
@@ -325,18 +325,20 @@ pub fn java_get_byte_array_elements() {
     // Create original Java array
     let buf: &[u8] = &[1, 2, 3];
     let java_array = env
-      .byte_array_from_slice(buf)
-      .expect("JNIEnv#byte_array_from_slice must create a java array from slice");
+        .byte_array_from_slice(buf)
+        .expect("JNIEnv#byte_array_from_slice must create a java array from slice");
 
     // Get array elements
     let mut is_copy: jboolean = 0xff;
-    let ptr = env.get_byte_array_elements(java_array, &mut is_copy).unwrap();
+    let ptr = env
+        .get_byte_array_elements(java_array, &mut is_copy)
+        .unwrap();
 
     // Check
     assert!(is_copy == sys::JNI_FALSE || is_copy == sys::JNI_TRUE);
-    assert_eq!(unsafe {*ptr.offset(0)}, 1);
-    assert_eq!(unsafe {*ptr.offset(1)}, 2);
-    assert_eq!(unsafe {*ptr.offset(2)}, 3);
+    assert_eq!(unsafe { *ptr.offset(0) }, 1);
+    assert_eq!(unsafe { *ptr.offset(1) }, 2);
+    assert_eq!(unsafe { *ptr.offset(2) }, 3);
 
     // Modify
     unsafe {
@@ -347,7 +349,7 @@ pub fn java_get_byte_array_elements() {
 
     // Release
     env.release_byte_array_elements(java_array, ptr, 0)
-      .expect("JNIEnv#release_byte_array_elements must release Java array");
+        .expect("JNIEnv#release_byte_array_elements must release Java array");
 
     // Confirm modification of original Java array
     let mut res: [i8; 3] = [0; 3];
@@ -364,18 +366,18 @@ pub fn java_get_primitive_array_critical() {
     // Create original Java array
     let buf: &[u8] = &[1, 2, 3];
     let java_array = env
-      .byte_array_from_slice(buf)
-      .expect("JNIEnv#byte_array_from_slice must create a java array from slice");
+        .byte_array_from_slice(buf)
+        .expect("JNIEnv#byte_array_from_slice must create a java array from slice");
 
     // Get array elements
     let mut is_copy: jboolean = 0xff;
-    let ptr = env.get_primitive_array_critical(java_array, &mut is_copy).unwrap();
+    let ptr = env
+        .get_primitive_array_critical(java_array, &mut is_copy)
+        .unwrap();
 
     // Convert void pointer to an unsigned byte array, without copy
     let mut vec;
-    unsafe {
-        vec = Vec::from_raw_parts(ptr as *mut u8, 3, 3)
-    }
+    unsafe { vec = Vec::from_raw_parts(ptr as *mut u8, 3, 3) }
 
     // Check
     assert!(is_copy == sys::JNI_FALSE || is_copy == sys::JNI_TRUE);
@@ -394,7 +396,7 @@ pub fn java_get_primitive_array_critical() {
     std::mem::ManuallyDrop::new(vec);
 
     env.release_primitive_array_critical(java_array, ptr, 0)
-      .expect("JNIEnv#release_primitive_array_critical must release Java array");
+        .expect("JNIEnv#release_primitive_array_critical must release Java array");
 
     // Confirm modification of original Java array
     let mut res: [i8; 3] = [0; 3];

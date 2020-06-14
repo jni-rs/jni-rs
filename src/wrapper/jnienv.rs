@@ -1948,12 +1948,7 @@ impl<'a> JNIEnv<'a> {
         is_copy: *mut jboolean,
     ) -> Result<*mut jbyte> {
         non_null!(array, "get_byte_array_elements array argument");
-        let res = jni_non_void_call!(
-            self.internal,
-            GetByteArrayElements,
-            array,
-            is_copy
-        );
+        let res = jni_non_void_call!(self.internal, GetByteArrayElements, array, is_copy);
         Ok(res)
     }
 
@@ -1977,16 +1972,10 @@ impl<'a> JNIEnv<'a> {
         &self,
         array: jbyteArray,
         elems: *mut jbyte,
-        mode: jint
+        mode: jint,
     ) -> Result<()> {
         non_null!(array, "release_byte_array_elements array argument");
-        jni_void_call!(
-            self.internal,
-            ReleaseByteArrayElements,
-            array,
-            elems,
-            mode
-        );
+        jni_void_call!(self.internal, ReleaseByteArrayElements, array, elems, mode);
         Ok(())
     }
 
@@ -2018,12 +2007,7 @@ impl<'a> JNIEnv<'a> {
         is_copy: *mut jboolean,
     ) -> Result<*mut c_void> {
         non_null!(array, "get_primitive_array_critical array argument");
-        let res = jni_non_void_call!(
-            self.internal,
-            GetPrimitiveArrayCritical,
-            array,
-            is_copy
-        );
+        let res = jni_non_void_call!(self.internal, GetPrimitiveArrayCritical, array, is_copy);
         Ok(res)
     }
 
@@ -2034,7 +2018,7 @@ impl<'a> JNIEnv<'a> {
         &self,
         array: jarray,
         elems: *mut c_void,
-        mode: jint
+        mode: jint,
     ) -> Result<()> {
         non_null!(array, "release_primitive_array_critical array argument");
         jni_void_call!(
