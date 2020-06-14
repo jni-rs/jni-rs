@@ -1940,12 +1940,11 @@ impl<'a> JNIEnv<'a> {
     /// returned array will not necessarily be reflected in the original array until
     /// release_array_elements() is called.
     ///
-    /// If is_copy is not null, then *is_copy is set to JNI_TRUE if a copy is made; or it is set to
-    /// JNI_FALSE if no copy is made.
+    /// is_copy is set to JNI_TRUE if a copy is made; or it is set to JNI_FALSE if no copy is made.
     pub fn get_byte_array_elements(
         &self,
         array: jbyteArray,
-        is_copy: *mut jboolean,
+        is_copy: &mut jboolean,
     ) -> Result<*mut jbyte> {
         non_null!(array, "get_byte_array_elements array argument");
         let res = jni_non_void_call!(self.internal, GetByteArrayElements, array, is_copy);
@@ -1971,7 +1970,7 @@ impl<'a> JNIEnv<'a> {
     pub fn release_byte_array_elements(
         &self,
         array: jbyteArray,
-        elems: *mut jbyte,
+        elems: &mut jbyte,
         mode: jint,
     ) -> Result<()> {
         non_null!(array, "release_byte_array_elements array argument");
@@ -2004,7 +2003,7 @@ impl<'a> JNIEnv<'a> {
     pub fn get_primitive_array_critical(
         &self,
         array: jarray,
-        is_copy: *mut jboolean,
+        is_copy: &mut jboolean,
     ) -> Result<*mut c_void> {
         non_null!(array, "get_primitive_array_critical array argument");
         let res = jni_non_void_call!(self.internal, GetPrimitiveArrayCritical, array, is_copy);
@@ -2017,7 +2016,7 @@ impl<'a> JNIEnv<'a> {
     pub fn release_primitive_array_critical(
         &self,
         array: jarray,
-        elems: *mut c_void,
+        elems: &mut c_void,
         mode: jint,
     ) -> Result<()> {
         non_null!(array, "release_primitive_array_critical array argument");

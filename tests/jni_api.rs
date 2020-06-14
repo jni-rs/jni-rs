@@ -348,7 +348,7 @@ pub fn java_get_byte_array_elements() {
     }
 
     // Release
-    env.release_byte_array_elements(java_array, ptr, 0)
+    env.release_byte_array_elements(java_array, unsafe { ptr.as_mut().unwrap() }, 0)
         .expect("JNIEnv#release_byte_array_elements must release Java array");
 
     // Confirm modification of original Java array
@@ -395,7 +395,7 @@ pub fn java_get_primitive_array_critical() {
     // of scope (so release_primitive_array_critical() can properly free it)
     std::mem::ManuallyDrop::new(vec);
 
-    env.release_primitive_array_critical(java_array, ptr, 0)
+    env.release_primitive_array_critical(java_array, unsafe { ptr.as_mut().unwrap() }, 0)
         .expect("JNIEnv#release_primitive_array_critical must release Java array");
 
     // Confirm modification of original Java array
