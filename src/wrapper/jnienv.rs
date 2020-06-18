@@ -8,12 +8,14 @@ use std::{
 
 use log::warn;
 
+use crate::wrapper::objects::ReleaseMode;
 use crate::{
     descriptors::Desc,
     errors::*,
     objects::{
-        AutoLocal, GlobalRef, JByteBuffer, JClass, JFieldID, JList, JMap, JMethodID, JObject,
-        JStaticFieldID, JStaticMethodID, JString, JThrowable, JValue,
+        AutoByteArray, AutoLocal, AutoPrimitiveArray, GlobalRef, JByteBuffer, JClass, JFieldID,
+        JList, JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID, JString, JThrowable,
+        JValue,
     },
     signature::{JavaType, Primitive, TypeSignature},
     strings::{JNIString, JavaStr},
@@ -435,6 +437,38 @@ impl<'a> JNIEnv<'a> {
             AllocObject,
             class.into_inner()
         ))
+    }
+
+    /// Creates a new auto-released byte array.
+    ///
+    /// See also [`get_byte_array_elements_auto`](struct.JNIEnv.html#method.get_byte_array_elements_auto)
+    pub fn auto_byte_array<'b, O>(
+        &'b self,
+        obj: O,
+        ptr: *mut jbyte,
+        mode: ReleaseMode,
+        is_copy: bool,
+    ) -> AutoByteArray<'a, 'b>
+    where
+        O: Into<JObject<'a>>,
+    {
+        AutoByteArray::new(self, obj.into(), ptr, mode, is_copy)
+    }
+
+    /// Creates a new auto-released primitive array.
+    ///
+    /// See also [`get_primitive_array_critical_auto`](struct.JNIEnv.html#method.get_primitive_array_critical_auto)
+    pub fn auto_primitive_array<'b, O>(
+        &'b self,
+        obj: O,
+        ptr: *mut c_void,
+        mode: ReleaseMode,
+        is_copy: bool,
+    ) -> AutoPrimitiveArray<'a, 'b>
+    where
+        O: Into<JObject<'a>>,
+    {
+        AutoPrimitiveArray::new(self, obj.into(), ptr, mode, is_copy)
     }
 
     /// Common functionality for finding methods.
@@ -1960,9 +1994,8 @@ impl<'a> JNIEnv<'a> {
     /// The mode argument provides information on how the array buffer should be released. mode
     /// has no effect if elems is not a copy of the elements in array. Otherwise, mode has the
     /// following impact:
-    /// 0: Copy back the content and free the elems buffer.
-    /// JNI_COMMIT: Copy back the content but do not free the elems buffer.
-    /// JNI_ABORT: Free the buffer without copying back the possible changes.
+    /// Copy: Copy back the content and free the elems buffer.
+    /// NoCopy: Free the buffer without copying back the possible changes.
     ///
     /// In most cases, programmers pass “0” to the mode argument to ensure consistent behavior
     /// for both pinned and copied arrays. The other options give the programmer more control
@@ -1971,16 +2004,61 @@ impl<'a> JNIEnv<'a> {
         &self,
         array: jbyteArray,
         elems: &mut jbyte,
-        mode: jint,
+        mode: ReleaseMode,
     ) -> Result<()> {
         non_null!(array, "release_byte_array_elements array argument");
-        jni_void_call!(self.internal, ReleaseByteArrayElements, array, elems, mode);
+        jni_void_call!(
+            self.internal,
+            ReleaseByteArrayElements,
+            array,
+            elems,
+            mode as i32
+        );
         Ok(())
     }
 
-    /// Return a pointer to elements of the given Java array.
+    /// Commit elements of the given byte array.
     ///
-    /// The semantics of this function is very similar to the existing
+    /// This function has no effect if elems is not a copy of the elements in array. Otherwise,
+    /// this function copies back the content of the array (and does not free the elems buffer).
+    pub fn commit_byte_array_elements(&self, array: jbyteArray, elems: &mut jbyte) -> Result<()> {
+        non_null!(array, "commit_byte_array_elements array argument");
+        jni_void_call!(
+            self.internal,
+            ReleaseByteArrayElements,
+            array,
+            elems,
+            jni_sys::JNI_COMMIT
+        );
+        Ok(())
+    }
+
+    /// Return an AutoByteArray of the given Java byte array.
+    ///
+    /// The result is valid until the corresponding AutoByteArray object goes out of scope, when the
+    /// release happens automatically according to the mode parameter.
+    ///
+    /// Since the returned array may be a copy of the Java array, changes made to the
+    /// returned array will not necessarily be reflected in the original array until
+    /// release_array_elements() is called.
+    /// AutoByteArray has a commit() method, to force a copy of the array if needed (and without
+    /// releasing it).
+    ///
+    /// See also [`get_byte_array_elements`](struct.JNIEnv.html#method.get_byte_array_elements)
+    pub fn get_byte_array_elements_auto(
+        &self,
+        array: jbyteArray,
+        mode: ReleaseMode,
+    ) -> Result<AutoByteArray> {
+        let mut is_copy: jboolean = 0xff;
+        let ptr = self.get_byte_array_elements(array, &mut is_copy).unwrap();
+        let res = self.auto_byte_array(array, ptr, mode, is_copy != 0);
+        Ok(res)
+    }
+
+    /// Return a pointer to elements of the given Java primitive array.
+    ///
+    /// The semantics of this function are very similar to the existing
     /// get_<primitivetype>_array_elements functions. If possible, the VM returns a pointer to the
     /// primitive array; otherwise, a copy is made. However, there are significant restrictions
     /// on how these functions can be used.
@@ -2017,7 +2095,7 @@ impl<'a> JNIEnv<'a> {
         &self,
         array: jarray,
         elems: &mut c_void,
-        mode: jint,
+        mode: ReleaseMode,
     ) -> Result<()> {
         non_null!(array, "release_primitive_array_critical array argument");
         jni_void_call!(
@@ -2025,9 +2103,54 @@ impl<'a> JNIEnv<'a> {
             ReleasePrimitiveArrayCritical,
             array,
             elems,
-            mode
+            mode as i32
         );
         Ok(())
+    }
+
+    /// Commit elements of the given primitive array.
+    ///
+    /// This function has no effect if elems is not a copy of the elements in array. Otherwise,
+    /// this function copies back the content of the array (and does not free the elems buffer).
+    pub fn commit_primitive_array_critical(
+        &self,
+        array: jbyteArray,
+        elems: &mut c_void,
+    ) -> Result<()> {
+        non_null!(array, "commit_primitive_array_critical array argument");
+        jni_void_call!(
+            self.internal,
+            ReleasePrimitiveArrayCritical,
+            array,
+            elems,
+            jni_sys::JNI_COMMIT
+        );
+        Ok(())
+    }
+
+    /// Return an AutoPrimitiveArray of the given Java primitive array.
+    ///
+    /// The result is valid until the corresponding AutoPrimitiveArray object goes out of scope,
+    /// when the release happens automatically according to the mode parameter.
+    ///
+    /// Since the returned array may be a copy of the Java array, changes made to the
+    /// returned array will not necessarily be reflected in the original array until
+    /// release_primitive_array_critical() is called.
+    /// AutoByteArray has a commit() method, to force a copy of the array if needed (and without
+    /// releasing it).
+    ///
+    /// See also [`get_primitive_array_critical`](struct.JNIEnv.html#method.get_primitive_array_critical)
+    pub fn get_primitive_array_critical_auto(
+        &self,
+        array: jarray,
+        mode: ReleaseMode,
+    ) -> Result<AutoPrimitiveArray> {
+        let mut is_copy: jboolean = 0xff;
+        let ptr = self
+            .get_primitive_array_critical(array, &mut is_copy)
+            .unwrap();
+        let res = self.auto_primitive_array(array, ptr, mode, is_copy != 0);
+        Ok(res)
     }
 }
 
