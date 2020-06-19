@@ -361,7 +361,7 @@ pub fn java_get_byte_array_elements() {
 }
 
 #[test]
-pub fn java_get_byte_array_elements_auto() {
+pub fn get_byte_array_elements_auto() {
     let env = attach_current_thread();
 
     // Create original Java array
@@ -372,7 +372,7 @@ pub fn java_get_byte_array_elements_auto() {
 
     // Use a scope to test Drop
     {
-        // Get array elements auto wrapper
+        // Get byte array elements auto wrapper
         let auto_ptr = env.get_byte_array_elements_auto(java_array, Copy).unwrap();
 
         // Check pointer access
@@ -400,7 +400,7 @@ pub fn java_get_byte_array_elements_auto() {
             *ptr.offset(2) += 1;
         }
 
-        // Commit would work equally well, if there's no scope
+        // Commit would be necessary here, if there were no closure
         //auto_ptr.commit();
     }
 
@@ -450,6 +450,54 @@ pub fn java_get_primitive_array_critical() {
 
     env.release_primitive_array_critical(java_array, unsafe { ptr.as_mut().unwrap() }, Copy)
         .expect("JNIEnv#release_primitive_array_critical must release Java array");
+
+    // Confirm modification of original Java array
+    let mut res: [i8; 3] = [0; 3];
+    env.get_byte_array_region(java_array, 0, &mut res).unwrap();
+    assert_eq!(res[0], 2);
+    assert_eq!(res[1], 3);
+    assert_eq!(res[2], 4);
+}
+
+#[test]
+pub fn get_primitive_array_critical_auto() {
+    let env = attach_current_thread();
+
+    // Create original Java array
+    let buf: &[u8] = &[1, 2, 3];
+    let java_array = env
+        .byte_array_from_slice(buf)
+        .expect("JNIEnv#byte_array_from_slice must create a java array from slice");
+
+    // Use a scope to test Drop
+    {
+        // Get primitive array elements auto wrapper
+        let auto_ptr = env
+            .get_primitive_array_critical_auto(java_array, Copy)
+            .unwrap();
+
+        // Get pointer
+        let ptr = auto_ptr.as_ptr();
+
+        // Convert void pointer to an unsigned byte array, without copy
+        let mut vec;
+        unsafe { vec = Vec::from_raw_parts(ptr as *mut u8, 3, 3) }
+
+        // Check
+        assert_eq!(vec[0], 1);
+        assert_eq!(vec[1], 2);
+        assert_eq!(vec[2], 3);
+
+        // Modify
+        vec[0] += 1;
+        vec[1] += 1;
+        vec[2] += 1;
+
+        // Release
+        // Make sure vec's destructor doesn't free the data it thinks it owns when it goes out
+        // of scope (avoid double free)
+        std::mem::ManuallyDrop::new(vec);
+    }
 
     // Confirm modification of original Java array
     let mut res: [i8; 3] = [0; 3];
