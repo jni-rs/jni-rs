@@ -1,7 +1,7 @@
 #![cfg(feature = "invocation")]
 
 use jni::sys;
-use jni_sys::jboolean;
+use jni_sys::{jboolean, jbyte};
 use std::str::FromStr;
 
 use jni::{
@@ -351,6 +351,58 @@ pub fn java_get_byte_array_elements() {
     // Release
     env.release_byte_array_elements(java_array, unsafe { ptr.as_mut().unwrap() }, Copy)
         .expect("JNIEnv#release_byte_array_elements must release Java array");
+
+    // Confirm modification of original Java array
+    let mut res: [i8; 3] = [0; 3];
+    env.get_byte_array_region(java_array, 0, &mut res).unwrap();
+    assert_eq!(res[0], 2);
+    assert_eq!(res[1], 3);
+    assert_eq!(res[2], 4);
+}
+
+#[test]
+pub fn java_get_byte_array_elements_auto() {
+    let env = attach_current_thread();
+
+    // Create original Java array
+    let buf: &[u8] = &[1, 2, 3];
+    let java_array = env
+        .byte_array_from_slice(buf)
+        .expect("JNIEnv#byte_array_from_slice must create a java array from slice");
+
+    // Use a scope to test Drop
+    {
+        // Get array elements auto wrapper
+        let auto_ptr = env.get_byte_array_elements_auto(java_array, Copy).unwrap();
+
+        // Check pointer access
+        let ptr = auto_ptr.as_ptr();
+        assert_eq!(unsafe { *ptr.offset(0) }, 1);
+        assert_eq!(unsafe { *ptr.offset(1) }, 2);
+        assert_eq!(unsafe { *ptr.offset(2) }, 3);
+
+        // Check pointer From access
+        let ptr: *mut jbyte = std::convert::From::from(&auto_ptr);
+        assert_eq!(unsafe { *ptr.offset(0) }, 1);
+        assert_eq!(unsafe { *ptr.offset(1) }, 2);
+        assert_eq!(unsafe { *ptr.offset(2) }, 3);
+
+        // Check pointer into() access
+        let ptr: *mut jbyte = (&auto_ptr).into();
+        assert_eq!(unsafe { *ptr.offset(0) }, 1);
+        assert_eq!(unsafe { *ptr.offset(1) }, 2);
+        assert_eq!(unsafe { *ptr.offset(2) }, 3);
+
+        // Modify
+        unsafe {
+            *ptr.offset(0) += 1;
+            *ptr.offset(1) += 1;
+            *ptr.offset(2) += 1;
+        }
+
+        // Commit would work equally well, if there's no scope
+        //auto_ptr.commit();
+    }
 
     // Confirm modification of original Java array
     let mut res: [i8; 3] = [0; 3];
