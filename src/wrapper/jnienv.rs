@@ -2135,11 +2135,20 @@ impl<'a> JNIEnv<'a> {
     /// The result is valid until the corresponding AutoPrimitiveArray object goes out of scope,
     /// when the release happens automatically according to the mode parameter.
     ///
+    /// Given that Critical sections must be as short as possible, and that they come with a
+    /// number of important restrictions (see get_primitive_array_critical), use this
+    /// wrapper wisely, to avoid holding the array longer that strictly necessary.
+    /// In any case, you can:
+    ///  - Use the manual variants instead (i.e. get/release_primitive_array_critical).
+    ///  - Use std::mem::drop explicitly, to force / anticipate resource release.
+    ///  - Use a nested scope, to release the array at the nested scope's exit.
+    ///
     /// Since the returned array may be a copy of the Java array, changes made to the
     /// returned array will not necessarily be reflected in the original array until
-    /// release_primitive_array_critical() is called.
-    /// AutoPrimitiveArray has a commit() method, to force a copy of the array if needed (and
-    /// without releasing it).
+    /// release_primitive_array_critical() is called, which happens at AutoPrimitiveArray
+    /// destruction.
+    /// AutoPrimitiveArray has a commit() method, to force a copy of the array if needed (without
+    /// releasing it).
     ///
     /// See also [`get_primitive_array_critical`](struct.JNIEnv.html#method.get_primitive_array_critical)
     pub fn get_primitive_array_critical_auto(
