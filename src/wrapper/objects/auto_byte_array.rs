@@ -1,5 +1,3 @@
-use std::mem;
-
 use jni_sys::{jbyte, JNI_ABORT};
 use log::debug;
 
@@ -36,7 +34,7 @@ impl<'a, 'b> AutoByteArray<'a, 'b> {
     ///
     /// Once this wrapper goes out of scope, `release_byte_array_elements` will be
     /// called on the object. While wrapped, the object can be accessed via
-    /// the `Deref` impl.
+    /// the `From` impl.
     pub fn new(
         env: &'b JNIEnv<'a>,
         obj: JObject<'a>,
@@ -53,32 +51,13 @@ impl<'a, 'b> AutoByteArray<'a, 'b> {
         }
     }
 
-    /// Forget the wrapper, returning the original pointer.
-    ///
-    /// This prevents `release_byte_array_elements` from being called when the `AutoArray`
-    /// gets dropped. You must remember to release the array manually.
-    pub fn forget(self) -> *mut jbyte {
-        let ptr = self.ptr;
-        mem::forget(self);
-        ptr
-    }
-
     /// Get a reference to the wrapped pointer
-    ///
-    /// Unlike `forget`, this ensures the wrapper from being dropped while the
-    /// returned `JObject` is still live.
-    pub fn as_ptr<'c>(&self) -> *mut jbyte
-    where
-        'a: 'c,
-    {
+    pub fn as_ptr(&self) -> *mut jbyte {
         self.ptr
     }
 
     /// Commits the result of the array, if it is a copy
     pub fn commit(&self) {
-        if !self.is_copy {
-            return;
-        }
         let res = self
             .env
             .commit_byte_array_elements(*self.obj, unsafe { self.ptr.as_mut() }.unwrap());
@@ -88,7 +67,7 @@ impl<'a, 'b> AutoByteArray<'a, 'b> {
         }
     }
 
-    /// Indicates the array is a copy or not
+    /// Indicates if the array is a copy or not
     pub fn is_copy(&self) -> bool {
         self.is_copy
     }

@@ -1,5 +1,3 @@
-use std::mem;
-
 use log::debug;
 
 use crate::wrapper::objects::ReleaseMode;
@@ -25,7 +23,7 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
     /// Creates a new auto-release wrapper for a pointer-based primitive array.
     ///
     /// Once this wrapper goes out of scope, `release_primitive_array_critical` will be
-    /// called on the object. While wrapped, the object can be accessed via the `Deref` impl.
+    /// called on the object. While wrapped, the object can be accessed via the `From` impl.
     pub fn new(
         env: &'b JNIEnv<'a>,
         obj: JObject<'a>,
@@ -42,33 +40,13 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
         }
     }
 
-    /// Forget the wrapper, returning the original pointer.
-    ///
-    /// This prevents `release_primitive_array_critical` from being called when the
-    /// `AutoArrayCritical` gets dropped. You must remember to release the primitive array
-    /// manually.
-    pub fn forget(self) -> *mut c_void {
-        let ptr = self.ptr;
-        mem::forget(self);
-        ptr
-    }
-
     /// Get a reference to the wrapped pointer
-    ///
-    /// Unlike `forget`, this ensures the wrapper from being dropped while the
-    /// returned `JObject` is still live.
-    pub fn as_ptr<'c>(&self) -> *mut c_void
-    where
-        'a: 'c,
-    {
+    pub fn as_ptr(&self) -> *mut c_void {
         self.ptr
     }
 
     /// Commits the result of the array, if it is a copy
     pub fn commit(&self) {
-        if !self.is_copy {
-            return;
-        }
         let res = self
             .env
             .commit_primitive_array_critical(*self.obj, unsafe { self.ptr.as_mut() }.unwrap());
@@ -78,7 +56,7 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
         }
     }
 
-    /// Indicates the array is a copy or not
+    /// Indicates if the array is a copy or not
     pub fn is_copy(&self) -> bool {
         self.is_copy
     }
