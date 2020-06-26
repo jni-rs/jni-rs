@@ -8,11 +8,12 @@ use crate::{objects::JObject, JNIEnv};
 /// This defines the release mode of AutoByteArray (and AutoPrimitiveArray) resources, and
 /// related release array functions.
 #[derive(Clone, Copy)]
+#[repr(i32)]
 pub enum ReleaseMode {
     /// Copy back the content and free the elems buffer.
     Copy = 0,
     /// Free the buffer without copying back the possible changes.
-    NoCopy = JNI_ABORT as isize,
+    NoCopy = JNI_ABORT,
 }
 
 /// Auto-release wrapper for pointer-based byte arrays.
