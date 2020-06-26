@@ -8,14 +8,13 @@ use std::{
 
 use log::warn;
 
-use crate::wrapper::objects::ReleaseMode;
 use crate::{
     descriptors::Desc,
     errors::*,
     objects::{
         AutoByteArray, AutoLocal, AutoPrimitiveArray, GlobalRef, JByteBuffer, JClass, JFieldID,
         JList, JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID, JString, JThrowable,
-        JValue,
+        JValue, ReleaseMode,
     },
     signature::{JavaType, Primitive, TypeSignature},
     strings::{JNIString, JavaStr},
@@ -438,38 +437,6 @@ impl<'a> JNIEnv<'a> {
             AllocObject,
             class.into_inner()
         ))
-    }
-
-    /// Creates a new auto-released byte array.
-    ///
-    /// See also [`get_byte_array_elements_auto`](struct.JNIEnv.html#method.get_byte_array_elements_auto)
-    fn auto_byte_array<'b, O>(
-        &'b self,
-        obj: O,
-        ptr: *mut jbyte,
-        mode: ReleaseMode,
-        is_copy: bool,
-    ) -> AutoByteArray<'a, 'b>
-    where
-        O: Into<JObject<'a>>,
-    {
-        AutoByteArray::new(self, obj.into(), ptr, mode, is_copy)
-    }
-
-    /// Creates a new auto-released primitive array.
-    ///
-    /// See also [`get_primitive_array_critical_auto`](struct.JNIEnv.html#method.get_primitive_array_critical_auto)
-    fn auto_primitive_array<'b, O>(
-        &'b self,
-        obj: O,
-        ptr: *mut c_void,
-        mode: ReleaseMode,
-        is_copy: bool,
-    ) -> AutoPrimitiveArray<'a, 'b>
-    where
-        O: Into<JObject<'a>>,
-    {
-        AutoPrimitiveArray::new(self, obj.into(), ptr, mode, is_copy)
     }
 
     /// Common functionality for finding methods.
@@ -2048,14 +2015,14 @@ impl<'a> JNIEnv<'a> {
     /// releasing it).
     ///
     /// See also [`get_byte_array_elements`](struct.JNIEnv.html#method.get_byte_array_elements)
-    pub fn get_byte_array_elements_auto(
+    pub fn get_auto_byte_array_elements(
         &self,
         array: jbyteArray,
         mode: ReleaseMode,
     ) -> Result<AutoByteArray> {
         let mut is_copy: jboolean = 0xff;
         let ptr = self.get_byte_array_elements(array, &mut is_copy).unwrap();
-        let res = self.auto_byte_array(array, ptr, mode, is_copy != JNI_FALSE);
+        let res = AutoByteArray::new(self, array.into(), ptr, mode, is_copy != JNI_FALSE);
         Ok(res)
     }
 
@@ -2151,7 +2118,7 @@ impl<'a> JNIEnv<'a> {
     /// releasing it).
     ///
     /// See also [`get_primitive_array_critical`](struct.JNIEnv.html#method.get_primitive_array_critical)
-    pub fn get_primitive_array_critical_auto(
+    pub fn get_auto_primitive_array_critical(
         &self,
         array: jarray,
         mode: ReleaseMode,
@@ -2160,7 +2127,7 @@ impl<'a> JNIEnv<'a> {
         let ptr = self
             .get_primitive_array_critical(array, &mut is_copy)
             .unwrap();
-        let res = self.auto_primitive_array(array, ptr, mode, is_copy != JNI_FALSE);
+        let res = AutoPrimitiveArray::new(self, array.into(), ptr, mode, is_copy != JNI_FALSE);
         Ok(res)
     }
 }

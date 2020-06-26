@@ -1,4 +1,4 @@
-use jni_sys::{jbyte, JNI_ABORT};
+use crate::sys::{jbyte, JNI_ABORT};
 use log::debug;
 
 use crate::{objects::JObject, JNIEnv};
@@ -11,9 +11,9 @@ use crate::{objects::JObject, JNIEnv};
 #[repr(i32)]
 pub enum ReleaseMode {
     /// Copy back the content and free the elems buffer.
-    Copy = 0,
+    CopyBack = 0,
     /// Free the buffer without copying back the possible changes.
-    NoCopy = JNI_ABORT,
+    NoCopyBack = JNI_ABORT,
 }
 
 /// Auto-release wrapper for pointer-based byte arrays.

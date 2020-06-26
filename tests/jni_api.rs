@@ -15,7 +15,7 @@ use jni::{
 };
 
 mod util;
-use jni::objects::ReleaseMode::Copy;
+use jni::objects::ReleaseMode;
 use util::{attach_current_thread, unwrap};
 
 static ARRAYLIST_CLASS: &str = "java/util/ArrayList";
@@ -349,8 +349,12 @@ pub fn java_get_byte_array_elements() {
     }
 
     // Release
-    env.release_byte_array_elements(java_array, unsafe { ptr.as_mut().unwrap() }, Copy)
-        .expect("JNIEnv#release_byte_array_elements must release Java array");
+    env.release_byte_array_elements(
+        java_array,
+        unsafe { ptr.as_mut().unwrap() },
+        ReleaseMode::CopyBack,
+    )
+    .expect("JNIEnv#release_byte_array_elements must release Java array");
 
     // Confirm modification of original Java array
     let mut res: [i8; 3] = [0; 3];
@@ -373,7 +377,9 @@ pub fn get_byte_array_elements_auto() {
     // Use a scope to test Drop
     {
         // Get byte array elements auto wrapper
-        let auto_ptr = env.get_byte_array_elements_auto(java_array, Copy).unwrap();
+        let auto_ptr = env
+            .get_auto_byte_array_elements(java_array, ReleaseMode::CopyBack)
+            .unwrap();
 
         // Check pointer access
         let ptr = auto_ptr.as_ptr();
@@ -446,10 +452,14 @@ pub fn java_get_primitive_array_critical() {
     // Release
     // First, make sure vec's destructor doesn't free the data it thinks it owns when it goes out
     // of scope (so release_primitive_array_critical() can properly free it)
-    std::mem::ManuallyDrop::new(vec);
+    std::mem::forget(vec);
 
-    env.release_primitive_array_critical(java_array, unsafe { ptr.as_mut().unwrap() }, Copy)
-        .expect("JNIEnv#release_primitive_array_critical must release Java array");
+    env.release_primitive_array_critical(
+        java_array,
+        unsafe { ptr.as_mut().unwrap() },
+        ReleaseMode::CopyBack,
+    )
+    .expect("JNIEnv#release_primitive_array_critical must release Java array");
 
     // Confirm modification of original Java array
     let mut res: [i8; 3] = [0; 3];
@@ -473,7 +483,7 @@ pub fn get_primitive_array_critical_auto() {
     {
         // Get primitive array elements auto wrapper
         let auto_ptr = env
-            .get_primitive_array_critical_auto(java_array, Copy)
+            .get_auto_primitive_array_critical(java_array, ReleaseMode::CopyBack)
             .unwrap();
 
         // Get pointer
@@ -496,7 +506,7 @@ pub fn get_primitive_array_critical_auto() {
         // Release
         // Make sure vec's destructor doesn't free the data it thinks it owns when it goes out
         // of scope (avoid double free)
-        std::mem::ManuallyDrop::new(vec);
+        std::mem::forget(vec);
     }
 
     // Confirm modification of original Java array
