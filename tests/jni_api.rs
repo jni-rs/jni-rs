@@ -1,7 +1,6 @@
 #![cfg(feature = "invocation")]
 
-use jni::sys;
-use jni_sys::{jboolean, jbyte};
+use jni_sys::jbyte;
 use std::str::FromStr;
 
 use jni::{
@@ -330,13 +329,9 @@ pub fn java_get_byte_array_elements() {
         .expect("JNIEnv#byte_array_from_slice must create a java array from slice");
 
     // Get array elements
-    let mut is_copy: jboolean = 0xff;
-    let ptr = env
-        .get_byte_array_elements(java_array, &mut is_copy)
-        .unwrap();
+    let (ptr, _is_copy) = env.get_byte_array_elements(java_array).unwrap();
 
     // Check
-    assert!(is_copy == sys::JNI_FALSE || is_copy == sys::JNI_TRUE);
     assert_eq!(unsafe { *ptr.offset(0) }, 1);
     assert_eq!(unsafe { *ptr.offset(1) }, 2);
     assert_eq!(unsafe { *ptr.offset(2) }, 3);
@@ -429,17 +424,13 @@ pub fn java_get_primitive_array_critical() {
         .expect("JNIEnv#byte_array_from_slice must create a java array from slice");
 
     // Get array elements
-    let mut is_copy: jboolean = 0xff;
-    let ptr = env
-        .get_primitive_array_critical(java_array, &mut is_copy)
-        .unwrap();
+    let (ptr, _is_copy) = env.get_primitive_array_critical(java_array).unwrap();
 
     // Convert void pointer to an unsigned byte array, without copy
     let mut vec;
     unsafe { vec = Vec::from_raw_parts(ptr as *mut u8, 3, 3) }
 
     // Check
-    assert!(is_copy == sys::JNI_FALSE || is_copy == sys::JNI_TRUE);
     assert_eq!(vec[0], 1);
     assert_eq!(vec[1], 2);
     assert_eq!(vec[2], 3);
