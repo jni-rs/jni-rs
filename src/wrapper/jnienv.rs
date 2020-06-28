@@ -2019,7 +2019,7 @@ impl<'a> JNIEnv<'a> {
         array: jbyteArray,
         mode: ReleaseMode,
     ) -> Result<AutoByteArray> {
-        let (ptr, is_copy) = self.get_byte_array_elements(array).unwrap();
+        let (ptr, is_copy) = self.get_byte_array_elements(array)?;
         let res = AutoByteArray::new(self, array.into(), ptr, mode, is_copy);
         Ok(res)
     }
