@@ -2132,7 +2132,7 @@ impl<'a> JNIEnv<'a> {
         array: jarray,
         mode: ReleaseMode,
     ) -> Result<AutoPrimitiveArray> {
-        let (ptr, is_copy) = self.get_primitive_array_critical(array).unwrap();
+        let (ptr, is_copy) = self.get_primitive_array_critical(array)?;
         let res = AutoPrimitiveArray::new(self, array.into(), ptr, mode, is_copy);
         Ok(res)
     }
