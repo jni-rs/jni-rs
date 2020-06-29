@@ -2020,8 +2020,7 @@ impl<'a> JNIEnv<'a> {
         mode: ReleaseMode,
     ) -> Result<AutoByteArray> {
         let (ptr, is_copy) = self.get_byte_array_elements(array)?;
-        let res = AutoByteArray::new(self, array.into(), ptr, mode, is_copy);
-        Ok(res)
+        AutoByteArray::new(self, array.into(), ptr, mode, is_copy)
     }
 
     /// Return a tuple with a pointer to elements of the given Java primitive array as first
@@ -2133,8 +2132,7 @@ impl<'a> JNIEnv<'a> {
         mode: ReleaseMode,
     ) -> Result<AutoPrimitiveArray> {
         let (ptr, is_copy) = self.get_primitive_array_critical(array)?;
-        let res = AutoPrimitiveArray::new(self, array.into(), ptr, mode, is_copy);
-        Ok(res)
+        AutoPrimitiveArray::new(self, array.into(), ptr, mode, is_copy)
     }
 }
 

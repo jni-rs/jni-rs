@@ -1,7 +1,7 @@
 use log::debug;
 
 use crate::wrapper::objects::ReleaseMode;
-use crate::{objects::JObject, JNIEnv};
+use crate::{errors::*, objects::JObject, JNIEnv};
 use std::os::raw::c_void;
 use std::ptr::NonNull;
 
@@ -31,14 +31,14 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
         ptr: *mut c_void,
         mode: ReleaseMode,
         is_copy: bool,
-    ) -> Self {
-        AutoPrimitiveArray {
+    ) -> Result<Self> {
+        Ok(AutoPrimitiveArray {
             obj,
-            ptr: NonNull::new(ptr).expect("Non-null pointer expected"),
+            ptr: NonNull::new(ptr).ok_or_else(|| ErrorKind::NullPtr("Non-null ptr expected"))?,
             mode,
             is_copy,
             env,
-        }
+        })
     }
 
     /// Get a reference to the wrapped pointer

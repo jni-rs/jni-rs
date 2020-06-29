@@ -1,7 +1,7 @@
 use crate::sys::{jbyte, JNI_ABORT};
 use log::debug;
 
-use crate::{objects::JObject, JNIEnv};
+use crate::{errors::*, objects::JObject, JNIEnv};
 use std::ptr::NonNull;
 
 /// ReleaseMode
@@ -43,14 +43,14 @@ impl<'a, 'b> AutoByteArray<'a, 'b> {
         ptr: *mut jbyte,
         mode: ReleaseMode,
         is_copy: bool,
-    ) -> Self {
-        AutoByteArray {
+    ) -> Result<Self> {
+        Ok(AutoByteArray {
             obj,
-            ptr: NonNull::new(ptr).expect("Non-null pointer expected"),
+            ptr: NonNull::new(ptr).ok_or_else(|| ErrorKind::NullPtr("Non-null ptr expected"))?,
             mode,
             is_copy,
             env,
-        }
+        })
     }
 
     /// Get a reference to the wrapped pointer
