@@ -2,6 +2,7 @@ use crate::sys::{jbyte, JNI_ABORT};
 use log::debug;
 
 use crate::{objects::JObject, JNIEnv};
+use std::ptr::NonNull;
 
 /// ReleaseMode
 ///
@@ -24,7 +25,7 @@ pub enum ReleaseMode {
 /// This wrapper provides automatic array release when it goes out of scope.
 pub struct AutoByteArray<'a: 'b, 'b> {
     obj: JObject<'a>,
-    ptr: *mut jbyte,
+    ptr: NonNull<jbyte>,
     mode: ReleaseMode,
     is_copy: bool,
     env: &'b JNIEnv<'a>,
@@ -45,7 +46,7 @@ impl<'a, 'b> AutoByteArray<'a, 'b> {
     ) -> Self {
         AutoByteArray {
             obj,
-            ptr,
+            ptr: NonNull::new(ptr).expect("Non-null pointer expected"),
             mode,
             is_copy,
             env,
@@ -54,14 +55,14 @@ impl<'a, 'b> AutoByteArray<'a, 'b> {
 
     /// Get a reference to the wrapped pointer
     pub fn as_ptr(&self) -> *mut jbyte {
-        self.ptr
+        self.ptr.as_ptr()
     }
 
     /// Commits the result of the array, if it is a copy
-    pub fn commit(&self) {
+    pub fn commit(&mut self) {
         let res = self
             .env
-            .commit_byte_array_elements(*self.obj, unsafe { self.ptr.as_mut() }.unwrap());
+            .commit_byte_array_elements(*self.obj, unsafe { self.ptr.as_mut() });
         match res {
             Ok(()) => {}
             Err(e) => debug!("error committing byte array: {:#?}", e),
@@ -78,7 +79,7 @@ impl<'a, 'b> Drop for AutoByteArray<'a, 'b> {
     fn drop(&mut self) {
         let res = self.env.release_byte_array_elements(
             *self.obj,
-            unsafe { self.ptr.as_mut() }.unwrap(),
+            unsafe { self.ptr.as_mut() },
             self.mode,
         );
         match res {

@@ -3,6 +3,7 @@ use log::debug;
 use crate::wrapper::objects::ReleaseMode;
 use crate::{objects::JObject, JNIEnv};
 use std::os::raw::c_void;
+use std::ptr::NonNull;
 
 /// Auto-release wrapper for pointer-based primitive arrays.
 ///
@@ -13,7 +14,7 @@ use std::os::raw::c_void;
 /// This wrapper provides automatic pointer-based array release when it goes out of scope.
 pub struct AutoPrimitiveArray<'a: 'b, 'b> {
     obj: JObject<'a>,
-    ptr: *mut c_void,
+    ptr: NonNull<c_void>,
     mode: ReleaseMode,
     is_copy: bool,
     env: &'b JNIEnv<'a>,
@@ -33,7 +34,7 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
     ) -> Self {
         AutoPrimitiveArray {
             obj,
-            ptr,
+            ptr: NonNull::new(ptr).expect("Non-null pointer expected"),
             mode,
             is_copy,
             env,
@@ -42,14 +43,14 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
 
     /// Get a reference to the wrapped pointer
     pub fn as_ptr(&self) -> *mut c_void {
-        self.ptr
+        self.ptr.as_ptr()
     }
 
     /// Commits the result of the array, if it is a copy
-    pub fn commit(&self) {
+    pub fn commit(&mut self) {
         let res = self
             .env
-            .commit_primitive_array_critical(*self.obj, unsafe { self.ptr.as_mut() }.unwrap());
+            .commit_primitive_array_critical(*self.obj, unsafe { self.ptr.as_mut() });
         match res {
             Ok(()) => {}
             Err(e) => debug!("error committing primitive array: {:#?}", e),
@@ -66,7 +67,7 @@ impl<'a, 'b> Drop for AutoPrimitiveArray<'a, 'b> {
     fn drop(&mut self) {
         let res = self.env.release_primitive_array_critical(
             *self.obj,
-            unsafe { self.ptr.as_mut() }.unwrap(),
+            unsafe { self.ptr.as_mut() },
             self.mode,
         );
         match res {
