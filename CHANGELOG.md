@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.17.0] — 2020-06-30
+
+### Added
+- Get/ReleaseByteArrayElements, and Get/ReleasePrimitiveArrayCritical. (#237)
+
 ## [0.16.0] — 2020-02-28
 
 ### Fixed
@@ -183,7 +188,8 @@ to call if there is a pending exception (#124):
 ## [0.10.1]
 - No changes has been made to the Changelog until this release.
 
-[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/jni-rs/jni-rs/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/jni-rs/jni-rs/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/jni-rs/jni-rs/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/jni-rs/jni-rs/compare/v0.13.1...v0.14.0
