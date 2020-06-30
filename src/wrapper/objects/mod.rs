@@ -42,3 +42,11 @@ pub use self::global_ref::*;
 // For automatic local ref deletion
 mod auto_local;
 pub use self::auto_local::*;
+
+// For automatic pointer-based byte array deletion
+mod auto_byte_array;
+pub use self::auto_byte_array::*;
+
+// For automatic pointer-based primitive array deletion
+mod auto_primitive_array;
+pub use self::auto_primitive_array::*;
