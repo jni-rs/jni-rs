@@ -102,6 +102,11 @@ jobs:
           profile: minimal
           override: true
 
+      - name: Install java
+        uses: actions/setup-java@v1
+        with:
+          java-version: '13'
+
       - name: Build
         uses: actions-rs/cargo@v1
         with:
@@ -112,10 +117,8 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all
 
       - name: Test invocation
-        if: matrix.rust == 'nightly'
         uses: actions-rs/cargo@v1
         with:
           command: test
