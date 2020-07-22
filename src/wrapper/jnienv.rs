@@ -844,7 +844,7 @@ impl<'a> JNIEnv<'a> {
         // parse the signature
         let parsed = TypeSignature::from_str(sig.as_ref())?;
         if parsed.args.len() != args.len() {
-            return Err(Error::InvalidArgList);
+            return Err(Error::InvalidArgList(parsed));
         }
 
         let class = self.auto_local(self.get_object_class(obj)?);
@@ -877,7 +877,7 @@ impl<'a> JNIEnv<'a> {
     {
         let parsed = TypeSignature::from_str(&sig)?;
         if parsed.args.len() != args.len() {
-            return Err(Error::InvalidArgList);
+            return Err(Error::InvalidArgList(parsed));
         }
 
         // go ahead and look up the class since it's already Copy,
@@ -903,7 +903,7 @@ impl<'a> JNIEnv<'a> {
         let parsed = TypeSignature::from_str(&ctor_sig)?;
 
         if parsed.args.len() != ctor_args.len() {
-            return Err(Error::InvalidArgList);
+            return Err(Error::InvalidArgList(parsed));
         }
 
         if parsed.ret != JavaType::Primitive(Primitive::Void) {
