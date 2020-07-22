@@ -34,7 +34,7 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
     ) -> Result<Self> {
         Ok(AutoPrimitiveArray {
             obj,
-            ptr: NonNull::new(ptr).ok_or_else(|| ErrorKind::NullPtr("Non-null ptr expected"))?,
+            ptr: NonNull::new(ptr).ok_or_else(|| Error::NullPtr("Non-null ptr expected"))?,
             mode,
             is_copy,
             env,

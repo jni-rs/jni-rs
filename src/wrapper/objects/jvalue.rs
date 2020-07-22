@@ -89,7 +89,7 @@ impl<'a> JValue<'a> {
     pub fn l(self) -> Result<JObject<'a>> {
         match self {
             JValue::Object(obj) => Ok(obj),
-            _ => Err(ErrorKind::WrongJValueType("object", self.type_name()).into()),
+            _ => Err(Error::WrongJValueType("object", self.type_name())),
         }
     }
 
@@ -97,7 +97,7 @@ impl<'a> JValue<'a> {
     pub fn z(self) -> Result<bool> {
         match self {
             JValue::Bool(b) => Ok(b == JNI_TRUE),
-            _ => Err(ErrorKind::WrongJValueType("bool", self.type_name()).into()),
+            _ => Err(Error::WrongJValueType("bool", self.type_name())),
         }
     }
 
@@ -105,7 +105,7 @@ impl<'a> JValue<'a> {
     pub fn b(self) -> Result<jbyte> {
         match self {
             JValue::Byte(b) => Ok(b),
-            _ => Err(ErrorKind::WrongJValueType("jbyte", self.type_name()).into()),
+            _ => Err(Error::WrongJValueType("jbyte", self.type_name())),
         }
     }
 
@@ -113,7 +113,7 @@ impl<'a> JValue<'a> {
     pub fn c(self) -> Result<jchar> {
         match self {
             JValue::Char(b) => Ok(b),
-            _ => Err(ErrorKind::WrongJValueType("jchar", self.type_name()).into()),
+            _ => Err(Error::WrongJValueType("jchar", self.type_name())),
         }
     }
 
@@ -121,7 +121,7 @@ impl<'a> JValue<'a> {
     pub fn d(self) -> Result<jdouble> {
         match self {
             JValue::Double(b) => Ok(b),
-            _ => Err(ErrorKind::WrongJValueType("jdouble", self.type_name()).into()),
+            _ => Err(Error::WrongJValueType("jdouble", self.type_name())),
         }
     }
 
@@ -129,7 +129,7 @@ impl<'a> JValue<'a> {
     pub fn f(self) -> Result<jfloat> {
         match self {
             JValue::Float(b) => Ok(b),
-            _ => Err(ErrorKind::WrongJValueType("jfloat", self.type_name()).into()),
+            _ => Err(Error::WrongJValueType("jfloat", self.type_name())),
         }
     }
 
@@ -137,7 +137,7 @@ impl<'a> JValue<'a> {
     pub fn i(self) -> Result<jint> {
         match self {
             JValue::Int(b) => Ok(b),
-            _ => Err(ErrorKind::WrongJValueType("jint", self.type_name()).into()),
+            _ => Err(Error::WrongJValueType("jint", self.type_name())),
         }
     }
 
@@ -145,7 +145,7 @@ impl<'a> JValue<'a> {
     pub fn j(self) -> Result<jlong> {
         match self {
             JValue::Long(b) => Ok(b),
-            _ => Err(ErrorKind::WrongJValueType("jlong", self.type_name()).into()),
+            _ => Err(Error::WrongJValueType("jlong", self.type_name())),
         }
     }
 
@@ -153,7 +153,7 @@ impl<'a> JValue<'a> {
     pub fn s(self) -> Result<jshort> {
         match self {
             JValue::Short(b) => Ok(b),
-            _ => Err(ErrorKind::WrongJValueType("jshort", self.type_name()).into()),
+            _ => Err(Error::WrongJValueType("jshort", self.type_name())),
         }
     }
 
@@ -161,7 +161,7 @@ impl<'a> JValue<'a> {
     pub fn v(self) -> Result<()> {
         match self {
             JValue::Void => Ok(()),
-            _ => Err(ErrorKind::WrongJValueType("void", self.type_name()).into()),
+            _ => Err(Error::WrongJValueType("void", self.type_name())),
         }
     }
 }

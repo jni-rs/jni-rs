@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use jni::{
     descriptors::Desc,
-    errors::{Error, ErrorKind},
+    errors::Error,
     objects::{AutoLocal, JByteBuffer, JList, JObject, JString, JThrowable, JValue},
     signature::JavaType,
     strings::JNIString,
@@ -272,8 +272,8 @@ pub fn call_static_method_throws() {
             MATH_TO_INT_SIGNATURE,
             &[x],
         )
-        .map_err(|error| match error.0 {
-            ErrorKind::JavaException => true,
+        .map_err(|error| match error {
+            Error::JavaException => true,
             _ => false,
         })
         .expect_err("JNIEnv#call_static_method_unsafe should return error");
@@ -523,8 +523,8 @@ pub fn get_object_class_null_arg() {
     let null_obj = JObject::null();
     let result = env
         .get_object_class(null_obj)
-        .map_err(|error| match *error.kind() {
-            ErrorKind::NullPtr(_) => true,
+        .map_err(|error| match error {
+            Error::NullPtr(_) => true,
             _ => false,
         })
         .expect_err("JNIEnv#get_object_class should return error for null argument");
@@ -850,8 +850,8 @@ where
 fn assert_exception(res: Result<jobject, Error>, expect_message: &str) {
     assert!(res.is_err());
     assert!(res
-        .map_err(|error| match *error.kind() {
-            ErrorKind::JavaException => true,
+        .map_err(|error| match error {
+            Error::JavaException => true,
             _ => false,
         })
         .expect_err(expect_message));

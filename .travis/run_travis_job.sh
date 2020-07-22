@@ -42,4 +42,4 @@ if [[ ${TRAVIS_RUST_VERSION} == "stable" ]]; then
 fi
 
 # Run all tests with invocation feature (enables JavaVM ITs)
-cargo test --features=backtrace,invocation
+cargo test --features=invocation

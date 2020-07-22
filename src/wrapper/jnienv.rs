@@ -217,7 +217,7 @@ impl<'a> JNIEnv<'a> {
         if res == 0 {
             Ok(())
         } else {
-            Err(format!("throw failed with code {}", res).into())
+            Err(Error::ThrowFailed(res))
         }
     }
 
@@ -239,7 +239,7 @@ impl<'a> JNIEnv<'a> {
         if res == 0 {
             Ok(())
         } else {
-            Err(format!("throw_new failed with code {}", res).into())
+            Err(Error::ThrowFailed(res))
         }
     }
 
@@ -311,7 +311,7 @@ impl<'a> JNIEnv<'a> {
     pub fn get_direct_buffer_capacity(&self, buf: JByteBuffer) -> Result<jlong> {
         let capacity = jni_unchecked!(self.internal, GetDirectBufferCapacity, buf.into_inner());
         match capacity {
-            -1 => Err(Error::from(ErrorKind::Other(sys::JNI_ERR))),
+            -1 => Err(Error::Other(sys::JNI_ERR)),
             _ => Ok(capacity),
         }
     }
@@ -461,11 +461,11 @@ impl<'a> JNIEnv<'a> {
 
         match res {
             Ok(m) => Ok(m),
-            Err(e) => match *e.kind() {
-                ErrorKind::NullPtr(_) => {
+            Err(e) => match e {
+                Error::NullPtr(_) => {
                     let name: String = ffi_name.into();
                     let sig: String = sig.into();
-                    Err(ErrorKind::MethodNotFound(name, sig).into())
+                    Err(Error::MethodNotFound { name, sig })
                 }
                 _ => Err(e),
             },
@@ -555,11 +555,11 @@ impl<'a> JNIEnv<'a> {
 
         match res {
             Ok(m) => Ok(m),
-            Err(e) => match *e.kind() {
-                ErrorKind::NullPtr(_) => {
+            Err(e) => match e {
+                Error::NullPtr(_) => {
                     let name: String = ffi_name.into();
                     let sig: String = ffi_sig.into();
-                    Err(ErrorKind::FieldNotFound(name, sig).into())
+                    Err(Error::FieldNotFound { name, sig })
                 }
                 _ => Err(e),
             },
@@ -599,11 +599,11 @@ impl<'a> JNIEnv<'a> {
 
         match res {
             Ok(m) => Ok(m),
-            Err(e) => match *e.kind() {
-                ErrorKind::NullPtr(_) => {
+            Err(e) => match e {
+                Error::NullPtr(_) => {
                     let name: String = ffi_name.into();
                     let sig: String = ffi_sig.into();
-                    Err(ErrorKind::FieldNotFound(name, sig).into())
+                    Err(Error::FieldNotFound { name, sig })
                 }
                 _ => Err(e),
             },
@@ -844,7 +844,7 @@ impl<'a> JNIEnv<'a> {
         // parse the signature
         let parsed = TypeSignature::from_str(sig.as_ref())?;
         if parsed.args.len() != args.len() {
-            return Err(ErrorKind::InvalidArgList.into());
+            return Err(Error::InvalidArgList);
         }
 
         let class = self.auto_local(self.get_object_class(obj)?);
@@ -877,7 +877,7 @@ impl<'a> JNIEnv<'a> {
     {
         let parsed = TypeSignature::from_str(&sig)?;
         if parsed.args.len() != args.len() {
-            return Err(ErrorKind::InvalidArgList.into());
+            return Err(Error::InvalidArgList);
         }
 
         // go ahead and look up the class since it's already Copy,
@@ -903,11 +903,11 @@ impl<'a> JNIEnv<'a> {
         let parsed = TypeSignature::from_str(&ctor_sig)?;
 
         if parsed.args.len() != ctor_args.len() {
-            return Err(ErrorKind::InvalidArgList.into());
+            return Err(Error::InvalidArgList);
         }
 
         if parsed.ret != JavaType::Primitive(Primitive::Void) {
-            return Err(ErrorKind::InvalidCtorReturn.into());
+            return Err(Error::InvalidCtorReturn);
         }
 
         // build strings
@@ -1564,7 +1564,7 @@ impl<'a> JNIEnv<'a> {
                 }
                 Primitive::Byte => jni_unchecked!(self.internal, GetByteField, obj, field).into(),
                 Primitive::Void => {
-                    return Err(ErrorKind::WrongJValueType("void", "see java field").into());
+                    return Err(Error::WrongJValueType("void", "see java field"));
                 }
             },
         })
@@ -1613,7 +1613,7 @@ impl<'a> JNIEnv<'a> {
                 jni_unchecked!(self.internal, SetByteField, obj, field, b);
             }
             JValue::Void => {
-                return Err(ErrorKind::WrongJValueType("void", "see java field").into());
+                return Err(Error::WrongJValueType("void", "see java field"));
             }
         };
 
@@ -1653,9 +1653,7 @@ impl<'a> JNIEnv<'a> {
         match parsed {
             JavaType::Object(_) | JavaType::Array(_) => {
                 if in_type.is_some() {
-                    return Err(
-                        ErrorKind::WrongJValueType(val.type_name(), "see java field").into(),
-                    );
+                    return Err(Error::WrongJValueType(val.type_name(), "see java field"));
                 }
             }
             JavaType::Primitive(p) => {
@@ -1663,14 +1661,10 @@ impl<'a> JNIEnv<'a> {
                     if in_p == p {
                         // good
                     } else {
-                        return Err(
-                            ErrorKind::WrongJValueType(val.type_name(), "see java field").into(),
-                        );
+                        return Err(Error::WrongJValueType(val.type_name(), "see java field"));
                     }
                 } else {
-                    return Err(
-                        ErrorKind::WrongJValueType(val.type_name(), "see java field").into(),
-                    );
+                    return Err(Error::WrongJValueType(val.type_name(), "see java field"));
                 }
             }
             JavaType::Method(_) => unimplemented!(),
@@ -1705,9 +1699,7 @@ impl<'a> JNIEnv<'a> {
                 obj.into()
             }
             // JavaType::Object
-            JavaType::Method(_) => {
-                return Err(ErrorKind::WrongJValueType("Method", "see java field").into())
-            }
+            JavaType::Method(_) => return Err(Error::WrongJValueType("Method", "see java field")),
             JavaType::Primitive(p) => match p {
                 Primitive::Boolean => {
                     jni_unchecked!(self.internal, GetStaticBooleanField, class, field_id).into()
@@ -1734,7 +1726,7 @@ impl<'a> JNIEnv<'a> {
                     jni_unchecked!(self.internal, GetStaticByteField, class, field_id).into()
                 }
                 Primitive::Void => {
-                    return Err(ErrorKind::WrongJValueType("void", "see java field").into());
+                    return Err(Error::WrongJValueType("void", "see java field"));
                 }
             },
         })
@@ -1786,7 +1778,7 @@ impl<'a> JNIEnv<'a> {
             .get_field_unchecked(obj, field_id, JavaType::Primitive(Primitive::Long))?
             .j()? as *mut Mutex<T>;
         if !field_ptr.is_null() {
-            return Err(format!("field already set: {}", field.as_ref()).into());
+            return Err(Error::FieldAlreadySet(field.as_ref().to_owned()));
         }
 
         let mbox = Box::new(::std::sync::Mutex::new(rust_object));

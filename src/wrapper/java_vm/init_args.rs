@@ -1,20 +1,19 @@
 use std::{ffi::CString, os::raw::c_void};
 
-use error_chain::*;
+use thiserror::Error;
 
 use crate::{
     sys::{JavaVMInitArgs, JavaVMOption},
     JNIVersion,
 };
 
-error_chain! {
-    errors {
-        /// Opt string had internal null
-        NullOptString(opt: String) {
-            display("internal null in option: {}", opt)
-            description("internal null in option string")
-        }
-    }
+/// Errors that can occur when invoking a [`JavaVM`](super::vm::JavaVM) with the
+/// [Invocation API](https://docs.oracle.com/en/java/javase/12/docs/specs/jni/invocation.html).
+#[derive(Debug, Error)]
+pub enum JvmError {
+    /// An internal `0` byte was found when constructing a string.
+    #[error("internal null in option: {0}")]
+    NullOptString(String),
 }
 
 /// Builder for JavaVM InitArgs.
@@ -86,11 +85,11 @@ impl InitArgsBuilder {
     ///
     /// This will check for internal nulls in the option strings and will return
     /// an error if one is found.
-    pub fn build(self) -> Result<InitArgs> {
+    pub fn build(self) -> Result<InitArgs, JvmError> {
         let mut opts = Vec::with_capacity(self.opts.len());
         for opt in self.opts {
             let option_string =
-                CString::new(opt.as_str()).map_err(|_| ErrorKind::NullOptString(opt))?;
+                CString::new(opt.as_str()).map_err(|_| JvmError::NullOptString(opt))?;
             let jvm_opt = JavaVMOption {
                 optionString: option_string.into_raw(),
                 extraInfo: ::std::ptr::null_mut(),
