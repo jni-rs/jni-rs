@@ -30,8 +30,18 @@ pub enum Error {
     TryLock,
     #[error("JavaVM null method pointer for {0}")]
     JavaVMMethodNotFound(&'static str),
-    #[error("Current thread is not attached to the java VM")]
+    #[error("Unknown error")]
+    Unknown,
+    #[error("Current thread is not attached to the Java VM")]
     ThreadDetached,
+    #[error("Problem due to JNI version mismatch")]
+    WrongVersion,
+    #[error("Not enough memory available")]
+    NoMemory,
+    #[error("Java VM already created")]
+    AlreadyCreated,
+    #[error("Invalid arguments provided")]
+    InvalidArguments,
     #[error("Field already set: {0}")]
     FieldAlreadySet(String),
     #[error("Throw failed with error code {0}")]
@@ -51,7 +61,12 @@ impl<T> From<::std::sync::TryLockError<T>> for Error {
 pub fn jni_error_code_to_result(code: sys::jint) -> Result<()> {
     match code {
         sys::JNI_OK => Ok(()),
+        sys::JNI_ERR => Err(Error::Unknown),
         sys::JNI_EDETACHED => Err(Error::ThreadDetached),
+        sys::JNI_EVERSION => Err(Error::WrongVersion),
+        sys::JNI_ENOMEM => Err(Error::NoMemory),
+        sys::JNI_EEXIST => Err(Error::AlreadyCreated),
+        sys::JNI_EINVAL => Err(Error::InvalidArguments),
         _ => Err(Error::Other(code)),
     }
 }
