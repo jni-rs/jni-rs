@@ -8,7 +8,13 @@ JAVA_HOME="${JAVA_HOME:-$(java -XshowSettings:properties -version \
     grep 'java.home' |\
     awk '{print $3}')}"
 
+if [[ "$(uname -s)" == "Darwin" ]]; then
+    LIB_NAME="libjli"
+else
+    LIB_NAME="libjvm"
+fi
+
 # As JDK 8 and 9+ use different relative paths for libjvm, find the library:
-LIBJVM_PATH="$(find "${JAVA_HOME}" -type f -name 'libjvm.*' -print0 | xargs -0 -n1 dirname)"
+LIBJVM_PATH="$(find "${JAVA_HOME}" -type f -name "${LIB_NAME}.*" -print0 | xargs -0 -n1 dirname)"
 
 export LD_LIBRARY_PATH="${LIBJVM_PATH}"
