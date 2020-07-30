@@ -1,6 +1,4 @@
 use crate::sys::{jbyte, JNI_ABORT};
-use log::debug;
-
 use crate::{errors::*, objects::JObject, JNIEnv};
 use std::ptr::NonNull;
 
@@ -65,7 +63,7 @@ impl<'a, 'b> AutoByteArray<'a, 'b> {
             .commit_byte_array_elements(*self.obj, unsafe { self.ptr.as_mut() });
         match res {
             Ok(()) => {}
-            Err(e) => debug!("error committing byte array: {:#?}", e),
+            Err(e) => panic!("error committing byte array: {:#?}", e),
         }
     }
 
@@ -84,7 +82,7 @@ impl<'a, 'b> Drop for AutoByteArray<'a, 'b> {
         );
         match res {
             Ok(()) => {}
-            Err(e) => debug!("error releasing byte array: {:#?}", e),
+            Err(e) => panic!("error releasing byte array: {:#?}", e),
         }
     }
 }

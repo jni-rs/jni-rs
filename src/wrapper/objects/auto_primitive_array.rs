@@ -1,5 +1,3 @@
-use log::debug;
-
 use crate::wrapper::objects::ReleaseMode;
 use crate::{errors::*, objects::JObject, JNIEnv};
 use std::os::raw::c_void;
@@ -53,7 +51,7 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
             .commit_primitive_array_critical(*self.obj, unsafe { self.ptr.as_mut() });
         match res {
             Ok(()) => {}
-            Err(e) => debug!("error committing primitive array: {:#?}", e),
+            Err(e) => panic!("error committing primitive array: {:#?}", e),
         }
     }
 
@@ -72,7 +70,7 @@ impl<'a, 'b> Drop for AutoPrimitiveArray<'a, 'b> {
         );
         match res {
             Ok(()) => {}
-            Err(e) => debug!("error releasing primitive array: {:#?}", e),
+            Err(e) => panic!("error releasing primitive array: {:#?}", e),
         }
     }
 }
