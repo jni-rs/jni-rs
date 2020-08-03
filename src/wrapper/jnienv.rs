@@ -143,6 +143,29 @@ impl<'a> JNIEnv<'a> {
         Ok(unsafe { JClass::from_raw(class) })
     }
 
+    /// Load a class from a buffer of raw class data. The name of the class must match the name
+    /// encoded within the class file data.
+    pub fn define_class_bytearray<S>(
+        &self,
+        name: S,
+        loader: JObject<'a>,
+        buf: AutoArray<'_, jbyte>,
+    ) -> Result<JClass<'a>>
+    where
+        S: Into<JNIString>,
+    {
+        let name = name.into();
+        let class = jni_non_null_call!(
+            self.internal,
+            DefineClass,
+            name.as_ptr(),
+            loader.into_raw(),
+            buf.as_ptr(),
+            buf.size()?
+        );
+        Ok(unsafe { JClass::from_raw(class) })
+    }
+
     /// Look up a class by name.
     ///
     /// # Example
