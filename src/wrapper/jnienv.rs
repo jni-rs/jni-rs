@@ -100,17 +100,34 @@ impl<'a> JNIEnv<'a> {
         Ok(jni_unchecked!(self.internal, GetVersion).into())
     }
 
-    /// Define a new java class. See the JNI docs for more details - I've never
-    /// had occasion to use this and haven't researched it fully.
+    /// Load a class from a buffer of raw class data. The name of the class must match the name
+    /// encoded within the class file data.
     pub fn define_class<S>(&self, name: S, loader: JObject<'a>, buf: &[u8]) -> Result<JClass<'a>>
     where
         S: Into<JNIString>,
     {
         let name = name.into();
+        self.define_class_impl(name.as_ptr(), loader, buf)
+    }
+
+    /// Load a class from a buffer of raw class data.
+    pub fn define_unnamed_class<S>(&self, loader: JObject<'a>, buf: &[u8]) -> Result<JClass<'a>>
+    where
+        S: Into<JNIString>,
+    {
+        self.define_class_impl(ptr::null(), loader, buf)
+    }
+
+    fn define_class_impl(
+        &self,
+        name: *const c_char,
+        loader: JObject<'a>,
+        buf: &[u8],
+    ) -> Result<JClass<'a>> {
         let class = jni_non_null_call!(
             self.internal,
             DefineClass,
-            name.as_ptr(),
+            name,
             loader.into_inner(),
             buf.as_ptr() as *const jbyte,
             buf.len() as jsize
