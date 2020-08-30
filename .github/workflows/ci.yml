@@ -3,14 +3,13 @@ name: CI
 on: [pull_request, push]
 
 jobs:
+  # Check code formatting.
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
-
       - name: Install rust
         uses: actions-rs/toolchain@v1
         with:
@@ -18,21 +17,19 @@ jobs:
           components: rustfmt
           profile: minimal
           override: true
-
       - name: Run rustfmt
         uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
 
+  # Static analyzer.
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
-
       - name: Install rust
         uses: actions-rs/toolchain@v1
         with:
@@ -40,31 +37,29 @@ jobs:
           components: clippy
           profile: minimal
           override: true
-
       - name: Run clippy
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: -- -D warnings
 
+  # Security audit.
   audit:
     name: Security audit
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/audit-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  build:
+  # Tests.
+  test:
     name: ${{ matrix.build }}
     runs-on: ${{ matrix.os }}
-
     strategy:
       matrix:
         build: [Linux, macOS, Win32-msvc, Win32-gnu, Win64-msvc, Win64-gnu]
-
         include:
           - build: Linux
             os: ubuntu-latest
@@ -89,11 +84,9 @@ jobs:
             os: windows-latest
             rust: stable-x86_64-pc-windows-msvc
             target: x86_64-pc-windows-msvc
-
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
-
       - name: Install rust
         uses: actions-rs/toolchain@v1
         with:
@@ -101,23 +94,19 @@ jobs:
           target: ${{ matrix.target }}
           profile: minimal
           override: true
-
       - name: Install java
         uses: actions/setup-java@v1
         with:
           java-version: '13'
-
       - name: Build
         uses: actions-rs/cargo@v1
         with:
           command: build
           args: --examples --all
-
       - name: Test
         uses: actions-rs/cargo@v1
         with:
           command: test
-
       - name: Test invocation
         uses: actions-rs/cargo@v1
         with:
