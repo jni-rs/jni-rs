@@ -98,6 +98,10 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: '1.8.0'
+#      - name: FIXME
+#        run: find /usr/lib/jvm/adoptopenjdk-8-hotspot-amd64 -name "libjvm.so"
+      - name: Add libjvm to LD_LIBRARY_PATH
+        run: echo "::set-env name=LD_LIBRARY_PATH::/usr/lib/jvm/adoptopenjdk-8-hotspot-amd64/jre/lib/amd64/server"
       - name: Build
         uses: actions-rs/cargo@v1
         with:
