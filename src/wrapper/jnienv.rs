@@ -1693,51 +1693,47 @@ impl<'a> JNIEnv<'a> {
         T: Desc<'a, JClass<'c>>,
         U: Desc<'a, JStaticFieldID<'f>>,
     {
+        use JavaType::Primitive as JP;
+
         let class = class.lookup(self)?.into_inner();
+        let field = field.lookup(self)?.into_inner();
 
-        let field_id = field.lookup(self)?.into_inner();
-
-        // TODO clean this up
-        Ok(match ty {
+        let result = match ty {
             JavaType::Object(_) | JavaType::Array(_) => {
-                let obj: JObject =
-                    jni_non_void_call!(self.internal, GetStaticObjectField, class, field_id).into();
-                obj.into()
+                jni_non_void_call!(self.internal, GetStaticObjectField, class, field).into()
             }
-            // JavaType::Object
             JavaType::Method(_) => {
                 return Err(ErrorKind::WrongJValueType("Method", "see java field").into())
             }
-            JavaType::Primitive(p) => match p {
-                Primitive::Boolean => {
-                    jni_unchecked!(self.internal, GetStaticBooleanField, class, field_id).into()
-                }
-                Primitive::Char => {
-                    jni_unchecked!(self.internal, GetStaticCharField, class, field_id).into()
-                }
-                Primitive::Short => {
-                    jni_unchecked!(self.internal, GetStaticShortField, class, field_id).into()
-                }
-                Primitive::Int => {
-                    jni_unchecked!(self.internal, GetStaticIntField, class, field_id).into()
-                }
-                Primitive::Long => {
-                    jni_unchecked!(self.internal, GetStaticLongField, class, field_id).into()
-                }
-                Primitive::Float => {
-                    jni_unchecked!(self.internal, GetStaticFloatField, class, field_id).into()
-                }
-                Primitive::Double => {
-                    jni_unchecked!(self.internal, GetStaticDoubleField, class, field_id).into()
-                }
-                Primitive::Byte => {
-                    jni_unchecked!(self.internal, GetStaticByteField, class, field_id).into()
-                }
-                Primitive::Void => {
-                    return Err(ErrorKind::WrongJValueType("void", "see java field").into());
-                }
-            },
-        })
+            JP(Primitive::Boolean) => {
+                jni_unchecked!(self.internal, GetStaticBooleanField, class, field).into()
+            }
+            JP(Primitive::Char) => {
+                jni_unchecked!(self.internal, GetStaticCharField, class, field).into()
+            }
+            JP(Primitive::Short) => {
+                jni_unchecked!(self.internal, GetStaticShortField, class, field).into()
+            }
+            JP(Primitive::Int) => {
+                jni_unchecked!(self.internal, GetStaticIntField, class, field).into()
+            }
+            JP(Primitive::Long) => {
+                jni_unchecked!(self.internal, GetStaticLongField, class, field).into()
+            }
+            JP(Primitive::Float) => {
+                jni_unchecked!(self.internal, GetStaticFloatField, class, field).into()
+            }
+            JP(Primitive::Double) => {
+                jni_unchecked!(self.internal, GetStaticDoubleField, class, field).into()
+            }
+            JP(Primitive::Byte) => {
+                jni_unchecked!(self.internal, GetStaticByteField, class, field).into()
+            }
+            JP(Primitive::Void) => {
+                return Err(ErrorKind::WrongJValueType("void", "see java field").into())
+            }
+        };
+        return Ok(result);
     }
 
     /// Get a static field. Requires a class lookup and a field id lookup
@@ -1755,6 +1751,42 @@ impl<'a> JNIEnv<'a> {
         let class = class.lookup(self)?;
 
         self.get_static_field_unchecked(class, (class, field, sig), ty)
+    }
+
+    /// Set a static field. Requires a class lookup and a field id lookup internally.
+    pub fn set_static_field<'c, 'f, T, U>(&self, class: T, field: U, value: JValue) -> Result<()>
+    where
+        T: Desc<'a, JClass<'c>>,
+        U: Desc<'a, JStaticFieldID<'f>>,
+        //U: Into<JNIString>,
+    {
+        let class = class.lookup(self)?.into_inner();
+        let field = field.lookup(self)?.into_inner();
+
+        match value {
+            JValue::Object(v) => jni_unchecked!(
+                self.internal,
+                SetStaticObjectField,
+                class,
+                field,
+                v.into_inner()
+            ),
+            JValue::Byte(v) => jni_unchecked!(self.internal, SetStaticByteField, class, field, v),
+            JValue::Char(v) => jni_unchecked!(self.internal, SetStaticCharField, class, field, v),
+            JValue::Short(v) => jni_unchecked!(self.internal, SetStaticShortField, class, field, v),
+            JValue::Int(v) => jni_unchecked!(self.internal, SetStaticIntField, class, field, v),
+            JValue::Long(v) => jni_unchecked!(self.internal, SetStaticLongField, class, field, v),
+            JValue::Bool(v) => {
+                jni_unchecked!(self.internal, SetStaticBooleanField, class, field, v)
+            }
+            JValue::Float(v) => jni_unchecked!(self.internal, SetStaticFloatField, class, field, v),
+            JValue::Double(v) => {
+                jni_unchecked!(self.internal, SetStaticDoubleField, class, field, v)
+            }
+            JValue::Void => return Err(ErrorKind::WrongJValueType("void", "?").into()),
+        }
+
+        Ok(())
     }
 
     /// Surrenders ownership of a rust object to Java. Requires an object with a

@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+- SetStatic<type>Field. (#248)
+
 ## [0.17.0] — 2020-06-30
 
 ### Added
