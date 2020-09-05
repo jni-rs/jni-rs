@@ -59,31 +59,34 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        build: [Linux, macOS, Win32-msvc, Win32-gnu, Win64-msvc, Win64-gnu]
+#        build: [Linux, macOS, Win32-msvc, Win32-gnu, Win64-msvc, Win64-gnu]
         include:
-          - build: Linux
-            os: ubuntu-latest
-          - build: Linux-nightly
-            os: ubuntu-latest
-            rust: nightly
-          - build: macOS
-            os: macOS-latest
+#          - build: Linux
+#            os: ubuntu-latest
+#            libjvm: /usr/lib/jvm/adoptopenjdk-8-hotspot-amd64/jre/lib/amd64/server
+#          - build: macOS
+#            os: macOS-latest
+#            libjvm: /Users/runner/hostedtoolcache/jdk/8.0.265/x64/jre/lib/jli/
           - build: Win32-msvc
             os: windows-latest
             rust: stable-i686-pc-windows-msvc
             target: i686-pc-windows-msvc
+            libjvm: C:\hostedtoolcache\windows\jdk\8.0.265\x86\jre\bin\server
           - build: Win32-gnu
             os: windows-latest
             rust: stable-i686-pc-windows-gnu
             target: i686-pc-windows-gnu
-          - build: Win64-msvc
-            os: windows-latest
-            rust: stable-x86_64-pc-windows-msvc
-            target: x86_64-pc-windows-msvc
-          - build: Win64-gnu
-            os: windows-latest
-            rust: stable-x86_64-pc-windows-msvc
-            target: x86_64-pc-windows-msvc
+            libjvm: C:\hostedtoolcache\windows\jdk\8.0.265\x86\jre\bin\server
+#          - build: Win64-msvc
+#            os: windows-latest
+#            rust: stable-x86_64-pc-windows-msvc
+#            target: x86_64-pc-windows-msvc
+#            libjvm: C:\hostedtoolcache\windows\jdk\8.0.265\x64\jre\bin\server
+#          - build: Win64-gnu
+#            os: windows-latest
+#            rust: stable-x86_64-pc-windows-msvc
+#            target: x86_64-pc-windows-msvc
+#            libjvm: C:\hostedtoolcache\windows\jdk\8.0.265\x64\jre\bin\server
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -98,10 +101,17 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: '1.8.0'
-#      - name: FIXME
+      - name: FIXME
+#        run: echo %JAVA_HOME%
+        run: |
+          cd C:/hostedtoolcache/windows/jdk
+          gci -recurse -filter "jvm.dll"
 #        run: find /usr/lib/jvm/adoptopenjdk-8-hotspot-amd64 -name "libjvm.so"
+#        run: find /Users/runner/hostedtoolcache/jdk/8.0.265/x64 -name "libjli.dylib"
       - name: Add libjvm to LD_LIBRARY_PATH
-        run: echo "::set-env name=LD_LIBRARY_PATH::/usr/lib/jvm/adoptopenjdk-8-hotspot-amd64/jre/lib/amd64/server"
+        run: echo "::set-env name=LD_LIBRARY_PATH::${{ matrix.libjvm }}"
+      - name: Add libjvm to PATH
+        run: echo "::add-path::${{ matrix.libjvm }}"
       - name: Build
         uses: actions-rs/cargo@v1
         with:
