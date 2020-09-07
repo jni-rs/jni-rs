@@ -1733,7 +1733,7 @@ impl<'a> JNIEnv<'a> {
                 return Err(ErrorKind::WrongJValueType("void", "see java field").into())
             }
         };
-        return Ok(result);
+        Ok(result)
     }
 
     /// Get a static field. Requires a class lookup and a field id lookup
@@ -1758,7 +1758,6 @@ impl<'a> JNIEnv<'a> {
     where
         T: Desc<'a, JClass<'c>>,
         U: Desc<'a, JStaticFieldID<'f>>,
-        //U: Into<JNIString>,
     {
         let class = class.lookup(self)?.into_inner();
         let field = field.lookup(self)?.into_inner();
