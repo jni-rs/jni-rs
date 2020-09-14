@@ -110,7 +110,8 @@ impl<'a> JNIEnv<'a> {
         self.define_class_impl(name.as_ptr(), loader, buf)
     }
 
-    /// Load a class from a buffer of raw class data.
+    /// Load a class from a buffer of raw class data. The name of the class is inferred from the
+    /// buffer.
     pub fn define_unnamed_class<S>(&self, loader: JObject<'a>, buf: &[u8]) -> Result<JClass<'a>>
     where
         S: Into<JNIString>,
