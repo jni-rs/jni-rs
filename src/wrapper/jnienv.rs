@@ -311,7 +311,7 @@ impl<'a> JNIEnv<'a> {
     pub fn get_direct_buffer_capacity(&self, buf: JByteBuffer) -> Result<jlong> {
         let capacity = jni_unchecked!(self.internal, GetDirectBufferCapacity, buf.into_inner());
         match capacity {
-            -1 => Err(Error::Other(sys::JNI_ERR)),
+            -1 => Err(Error::JniCall(JniError::Unknown)),
             _ => Ok(capacity),
         }
     }

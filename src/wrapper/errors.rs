@@ -31,25 +31,31 @@ pub enum Error {
     TryLock,
     #[error("JavaVM null method pointer for {0}")]
     JavaVMMethodNotFound(&'static str),
-    #[error("Unknown error")]
-    Unknown,
-    #[error("Current thread is not attached to the Java VM")]
-    ThreadDetached,
-    #[error("Problem due to JNI version mismatch")]
-    WrongVersion,
-    #[error("Not enough memory available")]
-    NoMemory,
-    #[error("Java VM already created")]
-    AlreadyCreated,
-    #[error("Invalid arguments provided")]
-    InvalidArguments,
     #[error("Field already set: {0}")]
     FieldAlreadySet(String),
     #[error("Throw failed with error code {0}")]
     ThrowFailed(i32),
     #[error("Parse failed for input: {1}")]
     ParseFailed(#[source] combine::error::StringStreamError, String),
-    #[error("JNI error: {0}")]
+    #[error("JNI call failed")]
+    JniCall(#[source] JniError),
+}
+
+#[derive(Debug, Error)]
+pub enum JniError {
+    #[error("Unknown error")]
+    Unknown,
+    #[error("Thread was detached from the VM")]
+    ThreadDetached,
+    #[error("JNI version error")]
+    WrongVersion,
+    #[error("Not enough memory")]
+    NoMemory,
+    #[error("VM already created")]
+    AlreadyCreated,
+    #[error("Invalid arguments")]
+    InvalidArguments,
+    #[error("Error code {0}")]
     Other(sys::jint),
 }
 
@@ -62,14 +68,15 @@ impl<T> From<::std::sync::TryLockError<T>> for Error {
 pub fn jni_error_code_to_result(code: sys::jint) -> Result<()> {
     match code {
         sys::JNI_OK => Ok(()),
-        sys::JNI_ERR => Err(Error::Unknown),
-        sys::JNI_EDETACHED => Err(Error::ThreadDetached),
-        sys::JNI_EVERSION => Err(Error::WrongVersion),
-        sys::JNI_ENOMEM => Err(Error::NoMemory),
-        sys::JNI_EEXIST => Err(Error::AlreadyCreated),
-        sys::JNI_EINVAL => Err(Error::InvalidArguments),
-        _ => Err(Error::Other(code)),
+        sys::JNI_ERR => Err(JniError::Unknown),
+        sys::JNI_EDETACHED => Err(JniError::ThreadDetached),
+        sys::JNI_EVERSION => Err(JniError::WrongVersion),
+        sys::JNI_ENOMEM => Err(JniError::NoMemory),
+        sys::JNI_EEXIST => Err(JniError::AlreadyCreated),
+        sys::JNI_EINVAL => Err(JniError::InvalidArguments),
+        _ => Err(JniError::Other(code)),
     }
+    .map_err(Error::JniCall)
 }
 
 pub struct Exception {
