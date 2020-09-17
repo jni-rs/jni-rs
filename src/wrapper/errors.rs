@@ -45,7 +45,7 @@ pub enum Error {
 pub enum JniError {
     #[error("Unknown error")]
     Unknown,
-    #[error("Thread was detached from the VM")]
+    #[error("Current thread is not attached to the Java VM")]
     ThreadDetached,
     #[error("JNI version error")]
     WrongVersion,
