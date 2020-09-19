@@ -17,7 +17,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 - `JNIEnv#define_unnamed_class` function that allows loading a class without
-  specifying its name. (#246)
+  specifying its name. The name is inferred from the class data. (#246)
+- `SetStatic<type>Field`. (#248)
 
 ## [0.17.0] — 2020-06-30
 
