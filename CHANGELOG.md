@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+- `JNIEnv#define_unnamed_class` function that allows loading a class without
+  specifying its name. The name is inferred from the class data. (#246)
+- `SetStatic<type>Field`. (#248)
+
 ### Changed
 
 - Switch from `error-chain` to `thiserror`, making all errors `Send`. Also, support all JNI errors
