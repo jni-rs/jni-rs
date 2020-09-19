@@ -2,7 +2,10 @@
 
 use std::{sync::Arc, thread::spawn};
 
-use jni::{errors::ErrorKind, Executor, JavaVM};
+use jni::{
+    errors::{Error, JniError},
+    Executor, JavaVM,
+};
 
 mod util;
 use util::jvm;
@@ -51,8 +54,8 @@ fn check_detached(vm: &JavaVM) {
 fn is_attached(vm: &JavaVM) -> bool {
     vm.get_env()
         .map(|_| true)
-        .or_else(|jni_err| match jni_err.0 {
-            ErrorKind::ThreadDetached => Ok(false),
+        .or_else(|jni_err| match jni_err {
+            Error::JniCall(JniError::ThreadDetached) => Ok(false),
             _ => Err(jni_err),
         })
         .expect("An unexpected JNI error occurred")

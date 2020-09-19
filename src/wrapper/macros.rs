@@ -26,7 +26,7 @@ macro_rules! jni_non_void_call {
 macro_rules! non_null {
     ( $obj:expr, $ctx:expr ) => {
         if $obj.is_null() {
-            return Err($crate::errors::ErrorKind::NullPtr($ctx).into());
+            return Err($crate::errors::Error::NullPtr($ctx));
         } else {
             $obj
         }
@@ -70,10 +70,9 @@ macro_rules! jni_method {
             }
             None => {
                 log::trace!("jnienv method not defined, returning error");
-                return Err($crate::errors::Error::from(
-                    $crate::errors::ErrorKind::JNIEnvMethodNotFound(stringify!($name)),
-                )
-                .into());
+                return Err($crate::errors::Error::JNIEnvMethodNotFound(stringify!(
+                    $name
+                )));
             }
         }
     }};
@@ -85,9 +84,7 @@ macro_rules! check_exception {
         let check = { jni_unchecked!($jnienv, ExceptionCheck) } == $crate::sys::JNI_TRUE;
         if check {
             log::trace!("exception found, returning error");
-            return Err(
-                $crate::errors::Error::from($crate::errors::ErrorKind::JavaException).into(),
-            );
+            return Err($crate::errors::Error::JavaException);
         }
         log::trace!("no exception found");
     };
@@ -120,10 +117,9 @@ macro_rules! java_vm_method {
             }
             None => {
                 log::trace!("JavaVM method not defined, returning error");
-                return Err($crate::errors::Error::from(
-                    $crate::errors::ErrorKind::JavaVMMethodNotFound(stringify!($name)),
-                )
-                .into());
+                return Err($crate::errors::Error::JavaVMMethodNotFound(stringify!(
+                    $name
+                )));
             }
         }
     }};
@@ -132,7 +128,7 @@ macro_rules! java_vm_method {
 macro_rules! deref {
     ( $obj:expr, $ctx:expr ) => {
         if $obj.is_null() {
-            return Err($crate::errors::ErrorKind::NullDeref($ctx).into());
+            return Err($crate::errors::Error::NullDeref($ctx));
         } else {
             #[allow(unused_unsafe)]
             unsafe {

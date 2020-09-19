@@ -1,6 +1,5 @@
 #![cfg(feature = "invocation")]
 
-use error_chain::ChainedError;
 use jni::{objects::JObject, objects::JValue};
 
 mod util;
@@ -38,7 +37,7 @@ fn test_java_integers() {
         })
         .unwrap_or_else(|e| {
             print_exception(&env);
-            panic!(e.display_chain().to_string());
+            panic!("{:#?}", e);
         });
     }
 }

@@ -73,8 +73,8 @@ impl<'a: 'b, 'b> JMap<'a, 'b> {
 
         match result {
             Ok(val) => Ok(Some(val.l()?)),
-            Err(e) => match *e.kind() {
-                ErrorKind::NullPtr(_) => Ok(None),
+            Err(e) => match e {
+                Error::NullPtr(_) => Ok(None),
                 _ => Err(e),
             },
         }
@@ -92,8 +92,8 @@ impl<'a: 'b, 'b> JMap<'a, 'b> {
 
         match result {
             Ok(val) => Ok(Some(val.l()?)),
-            Err(e) => match *e.kind() {
-                ErrorKind::NullPtr(_) => Ok(None),
+            Err(e) => match e {
+                Error::NullPtr(_) => Ok(None),
                 _ => Err(e),
             },
         }
@@ -111,8 +111,8 @@ impl<'a: 'b, 'b> JMap<'a, 'b> {
 
         match result {
             Ok(val) => Ok(Some(val.l()?)),
-            Err(e) => match *e.kind() {
-                ErrorKind::NullPtr(_) => Ok(None),
+            Err(e) => match e {
+                Error::NullPtr(_) => Ok(None),
                 _ => Err(e),
             },
         }
