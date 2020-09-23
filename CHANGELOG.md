@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.18.0] — 2020-09-23
+
 ### Added
 - `JNIEnv#define_unnamed_class` function that allows loading a class without
   specifying its name. The name is inferred from the class data. (#246)
@@ -200,7 +202,8 @@ to call if there is a pending exception (#124):
 ## [0.10.1]
 - No changes has been made to the Changelog until this release.
 
-[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.18.0...HEAD
+[0.17.0]: https://github.com/jni-rs/jni-rs/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/jni-rs/jni-rs/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/jni-rs/jni-rs/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/jni-rs/jni-rs/compare/v0.14.0...v0.15.0

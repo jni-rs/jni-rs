@@ -58,7 +58,7 @@ use crate::InitArgs;
 /// in the Cargo.toml:
 ///
 /// ```toml
-/// jni = { version = "0.17.0", features = ["invocation"] }
+/// jni = { version = "0.18.0", features = ["invocation"] }
 /// ```
 ///
 /// The application will require linking to the dynamic `jvm` library, which is distributed
