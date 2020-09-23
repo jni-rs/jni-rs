@@ -47,7 +47,6 @@ pub fn nested_attaches_should_not_detach_permanent_thread() {
     assert_eq!(jvm().threads_attached(), 1);
 
     // Dropping JNIEnv obtained from a permanent attach has no effect on the thread status.
-    drop(env);
     assert_eq!(jvm().threads_attached(), 1);
     assert!(jvm().get_env().is_ok());
 }

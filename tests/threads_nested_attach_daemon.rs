@@ -45,7 +45,5 @@ pub fn nested_attaches_should_not_detach_daemon_thread() {
         assert_eq!(jvm().threads_attached(), 1);
     }
     assert_eq!(jvm().threads_attached(), 1);
-
-    drop(env);
     assert_eq!(jvm().threads_attached(), 1);
 }

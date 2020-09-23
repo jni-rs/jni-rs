@@ -272,10 +272,7 @@ pub fn call_static_method_throws() {
             MATH_TO_INT_SIGNATURE,
             &[x],
         )
-        .map_err(|error| match error {
-            Error::JavaException => true,
-            _ => false,
-        })
+        .map_err(|error| matches!(error, Error::JavaException))
         .expect_err("JNIEnv#call_static_method_unsafe should return error");
 
     assert!(
@@ -523,10 +520,7 @@ pub fn get_object_class_null_arg() {
     let null_obj = JObject::null();
     let result = env
         .get_object_class(null_obj)
-        .map_err(|error| match error {
-            Error::NullPtr(_) => true,
-            _ => false,
-        })
+        .map_err(|error| matches!(error, Error::NullPtr(_)))
         .expect_err("JNIEnv#get_object_class should return error for null argument");
     assert!(result, "ErrorKind::NullPtr expected as error");
 }
@@ -850,10 +844,7 @@ where
 fn assert_exception(res: Result<jobject, Error>, expect_message: &str) {
     assert!(res.is_err());
     assert!(res
-        .map_err(|error| match error {
-            Error::JavaException => true,
-            _ => false,
-        })
+        .map_err(|error| matches!(error, Error::JavaException))
         .expect_err(expect_message));
 }
 
