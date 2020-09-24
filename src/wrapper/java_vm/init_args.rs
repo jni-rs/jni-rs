@@ -3,6 +3,7 @@ use std::{ffi::CString, os::raw::c_void};
 use thiserror::Error;
 
 use crate::{
+    errors::Error as JniError,
     sys::{JavaVMInitArgs, JavaVMOption},
     JNIVersion,
 };
@@ -14,6 +15,12 @@ pub enum JvmError {
     /// An internal `0` byte was found when constructing a string.
     #[error("internal null in option: {0}")]
     NullOptString(String),
+}
+
+impl From<JvmError> for JniError {
+    fn from(e: JvmError) -> Self {
+        JniError::JvmError(format!("{}", e))
+    }
 }
 
 /// Builder for JavaVM InitArgs.

@@ -37,6 +37,8 @@ pub enum Error {
     ThrowFailed(i32),
     #[error("Parse failed for input: {1}")]
     ParseFailed(#[source] combine::error::StringStreamError, String),
+    #[error("Error occurred in JavaVM: {0}")]
+    JvmError(String),
     #[error("JNI call failed")]
     JniCall(#[source] JniError),
 }
