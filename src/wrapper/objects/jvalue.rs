@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::mem::transmute;
 
 use log::trace;
@@ -185,10 +186,32 @@ impl<'a> From<jboolean> for JValue<'a> {
     }
 }
 
+impl<'a> TryFrom<JValue<'a>> for jboolean {
+    type Error = Error;
+
+    fn try_from(value: JValue<'a>) -> Result<Self> {
+        match value {
+            JValue::Bool(b) => Ok(b),
+            _ => Err(Error::WrongJValueType("bool", value.type_name())),
+        }
+    }
+}
+
 // jchar
 impl<'a> From<jchar> for JValue<'a> {
     fn from(other: jchar) -> Self {
         JValue::Char(other)
+    }
+}
+
+impl<'a> TryFrom<JValue<'a>> for jchar {
+    type Error = Error;
+
+    fn try_from(value: JValue<'a>) -> Result<Self> {
+        match value {
+            JValue::Char(c) => Ok(c),
+            _ => Err(Error::WrongJValueType("char", value.type_name())),
+        }
     }
 }
 
@@ -199,10 +222,32 @@ impl<'a> From<jshort> for JValue<'a> {
     }
 }
 
+impl<'a> TryFrom<JValue<'a>> for jshort {
+    type Error = Error;
+
+    fn try_from(value: JValue<'a>) -> Result<Self> {
+        match value {
+            JValue::Short(s) => Ok(s),
+            _ => Err(Error::WrongJValueType("short", value.type_name())),
+        }
+    }
+}
+
 // jfloat
 impl<'a> From<jfloat> for JValue<'a> {
     fn from(other: jfloat) -> Self {
         JValue::Float(other)
+    }
+}
+
+impl<'a> TryFrom<JValue<'a>> for jfloat {
+    type Error = Error;
+
+    fn try_from(value: JValue<'a>) -> Result<Self> {
+        match value {
+            JValue::Float(f) => Ok(f),
+            _ => Err(Error::WrongJValueType("float", value.type_name())),
+        }
     }
 }
 
@@ -213,10 +258,32 @@ impl<'a> From<jdouble> for JValue<'a> {
     }
 }
 
+impl<'a> TryFrom<JValue<'a>> for jdouble {
+    type Error = Error;
+
+    fn try_from(value: JValue<'a>) -> Result<Self> {
+        match value {
+            JValue::Double(d) => Ok(d),
+            _ => Err(Error::WrongJValueType("double", value.type_name())),
+        }
+    }
+}
+
 // jint
 impl<'a> From<jint> for JValue<'a> {
     fn from(other: jint) -> Self {
         JValue::Int(other)
+    }
+}
+
+impl<'a> TryFrom<JValue<'a>> for jint {
+    type Error = Error;
+
+    fn try_from(value: JValue<'a>) -> Result<Self> {
+        match value {
+            JValue::Int(i) => Ok(i),
+            _ => Err(Error::WrongJValueType("int", value.type_name())),
+        }
     }
 }
 
@@ -227,6 +294,17 @@ impl<'a> From<jlong> for JValue<'a> {
     }
 }
 
+impl<'a> TryFrom<JValue<'a>> for jlong {
+    type Error = Error;
+
+    fn try_from(value: JValue<'a>) -> Result<Self> {
+        match value {
+            JValue::Long(l) => Ok(l),
+            _ => Err(Error::WrongJValueType("long", value.type_name())),
+        }
+    }
+}
+
 // jbyte
 impl<'a> From<jbyte> for JValue<'a> {
     fn from(other: jbyte) -> Self {
@@ -234,9 +312,31 @@ impl<'a> From<jbyte> for JValue<'a> {
     }
 }
 
+impl<'a> TryFrom<JValue<'a>> for jbyte {
+    type Error = Error;
+
+    fn try_from(value: JValue<'a>) -> Result<Self> {
+        match value {
+            JValue::Byte(b) => Ok(b),
+            _ => Err(Error::WrongJValueType("byte", value.type_name())),
+        }
+    }
+}
+
 // jvoid
 impl<'a> From<()> for JValue<'a> {
     fn from(_: ()) -> Self {
         JValue::Void
+    }
+}
+
+impl<'a> TryFrom<JValue<'a>> for () {
+    type Error = Error;
+
+    fn try_from(value: JValue<'a>) -> Result<Self> {
+        match value {
+            JValue::Void => Ok(()),
+            _ => Err(Error::WrongJValueType("void", value.type_name())),
+        }
     }
 }
