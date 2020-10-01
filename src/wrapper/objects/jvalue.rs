@@ -173,6 +173,17 @@ impl<'a, T: Into<JObject<'a>>> From<T> for JValue<'a> {
     }
 }
 
+impl<'a> TryFrom<JValue<'a>> for JObject<'a> {
+    type Error = Error;
+
+    fn try_from(value: JValue<'a>) -> Result<Self> {
+        match value {
+            JValue::Object(o) => Ok(o),
+            _ => Err(Error::WrongJValueType("object", value.type_name())),
+        }
+    }
+}
+
 impl<'a> From<bool> for JValue<'a> {
     fn from(other: bool) -> Self {
         JValue::Bool(if other { JNI_TRUE } else { JNI_FALSE })
