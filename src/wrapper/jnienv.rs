@@ -14,7 +14,7 @@ use crate::{
     objects::{
         AutoByteArray, AutoLocal, AutoPrimitiveArray, GlobalRef, JByteBuffer, JClass, JFieldID,
         JList, JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID, JString, JThrowable,
-        JValue, ReleaseMode,
+        JValue, JWeak, ReleaseMode, WeakGlobalRef,
     },
     signature::{JavaType, Primitive, TypeSignature},
     strings::{JNIString, JavaStr},
@@ -345,6 +345,38 @@ impl<'a> JNIEnv<'a> {
             jni_unchecked!(self.internal, NewGlobalRef, obj.into().into_inner()).into();
         let global = unsafe { GlobalRef::from_raw(self.get_java_vm()?, new_ref.into_inner()) };
         Ok(global)
+    }
+
+    /// Turns an object into a weak global ref.
+    ///
+    /// `WeakGlobalRef` doesn't prevent the underlying object from been garbage
+    /// collected. It's not safe to access the underlying object via `WeakGlobalRef`.
+    /// Instead, consider using [upgrade_weak_global_ref](#method.upgrade_weak_global_ref) for
+    /// create `GlobalRef` and check the `GlobalRef` is not null.
+    pub fn new_weak_global_ref<O>(&self, obj: O) -> Result<WeakGlobalRef>
+    where
+        O: Into<JObject<'a>>,
+    {
+        let new_ref: JWeak =
+            jni_unchecked!(self.internal, NewWeakGlobalRef, obj.into().into_inner()).into();
+        let weak_global =
+            unsafe { WeakGlobalRef::from_raw(self.get_java_vm()?, new_ref.into_inner()) };
+        Ok(weak_global)
+    }
+
+    /// Try to upgrade a weak global ref into a global ref.
+    ///
+    /// Returned `GlobalRef` may be null if the underlying object was garbage collected.
+    pub fn upgrade_weak_global_ref(&self, weak_global_ref: &WeakGlobalRef) -> Result<GlobalRef> {
+        let new_ref: JObject = jni_unchecked!(
+            self.internal,
+            NewGlobalRef,
+            weak_global_ref.as_weak().into_inner()
+        )
+        .into();
+
+        let weak_global = unsafe { GlobalRef::from_raw(self.get_java_vm()?, new_ref.into_inner()) };
+        Ok(weak_global)
     }
 
     /// Create a new local ref to an object.

@@ -50,3 +50,9 @@ pub use self::auto_byte_array::*;
 // For automatic pointer-based primitive array deletion
 mod auto_primitive_array;
 pub use self::auto_primitive_array::*;
+
+mod jweak;
+pub use self::jweak::*;
+
+mod weak_global_ref;
+pub use self::weak_global_ref::*;
