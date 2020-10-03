@@ -49,13 +49,13 @@ pub enum JavaType {
 }
 
 impl FromStr for JavaType {
-    type Err = String;
+    type Err = Error;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         parser(parse_type)
             .parse(s)
             .map(|res| res.0)
-            .map_err(|e| format_error_message(&e, s))
+            .map_err(|e| Error::ParseFailed(e, s.to_owned()))
     }
 }
 
@@ -87,7 +87,7 @@ impl TypeSignature {
     pub fn from_str<S: AsRef<str>>(s: S) -> Result<TypeSignature> {
         Ok(match parser(parse_sig).parse(s.as_ref()).map(|res| res.0) {
             Ok(JavaType::Method(sig)) => *sig,
-            Err(e) => return Err(format_error_message(&e, s.as_ref()).into()),
+            Err(e) => return Err(Error::ParseFailed(e, s.as_ref().to_owned())),
             _ => unreachable!(),
         })
     }
@@ -187,10 +187,6 @@ where
         .into()
 }
 
-fn format_error_message<E: fmt::Display>(err: &E, input_string: &str) -> String {
-    format!("{}Input: {}", err, input_string)
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -224,7 +220,7 @@ mod test {
                 panic!("Unexpected result: {}", any);
             }
             Err(err) => {
-                assert!(err.contains("Input: ()Ljava/lang/List"));
+                assert!(err.to_string().contains("input: ()Ljava/lang/List"));
             }
         }
     }

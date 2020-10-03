@@ -1,6 +1,5 @@
 use std::sync::{Arc, Once};
 
-use error_chain::ChainedError;
 use jni::{
     errors::Result, objects::JValue, sys::jint, AttachGuard, InitArgsBuilder, JNIEnv, JNIVersion,
     JavaVM,
@@ -18,10 +17,9 @@ pub fn jvm() -> &'static Arc<JavaVM> {
             .version(JNIVersion::V8)
             .option("-Xcheck:jni")
             .build()
-            .unwrap_or_else(|e| panic!("{}", e.display_chain().to_string()));
+            .unwrap_or_else(|e| panic!("{:#?}", e));
 
-        let jvm =
-            JavaVM::new(jvm_args).unwrap_or_else(|e| panic!("{}", e.display_chain().to_string()));
+        let jvm = JavaVM::new(jvm_args).unwrap_or_else(|e| panic!("{:#?}", e));
 
         unsafe {
             JVM = Some(Arc::new(jvm));
@@ -82,6 +80,6 @@ pub fn print_exception(env: &JNIEnv) {
 pub fn unwrap<T>(env: &JNIEnv, res: Result<T>) -> T {
     res.unwrap_or_else(|e| {
         print_exception(&env);
-        panic!("{}", e.display_chain().to_string());
+        panic!("{:#?}", e);
     })
 }

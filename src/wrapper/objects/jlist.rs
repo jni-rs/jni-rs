@@ -6,8 +6,8 @@ use crate::{
     JNIEnv,
 };
 
-/// Wrapper for JObjects that implement `java/util/Map`. Provides methods to get
-/// and set entries and a way to iterate over key/value pairs.
+/// Wrapper for JObjects that implement `java/util/List`. Provides methods to get,
+/// add, and remove elements.
 ///
 /// Looks up the class and method ids on creation rather than for every method
 /// call.
@@ -71,8 +71,8 @@ impl<'a: 'b, 'b> JList<'a, 'b> {
 
         match result {
             Ok(val) => Ok(Some(val.l()?)),
-            Err(e) => match *e.kind() {
-                ErrorKind::NullPtr(_) => Ok(None),
+            Err(e) => match e {
+                Error::NullPtr(_) => Ok(None),
                 _ => Err(e),
             },
         }
@@ -115,8 +115,8 @@ impl<'a: 'b, 'b> JList<'a, 'b> {
 
         match result {
             Ok(val) => Ok(Some(val.l()?)),
-            Err(e) => match *e.kind() {
-                ErrorKind::NullPtr(_) => Ok(None),
+            Err(e) => match e {
+                Error::NullPtr(_) => Ok(None),
                 _ => Err(e),
             },
         }
@@ -152,8 +152,8 @@ impl<'a: 'b, 'b> JList<'a, 'b> {
 
         match result {
             Ok(val) => Ok(Some(val.l()?)),
-            Err(e) => match *e.kind() {
-                ErrorKind::NullPtr(_) => Ok(None),
+            Err(e) => match e {
+                Error::NullPtr(_) => Ok(None),
                 _ => Err(e),
             },
         }
