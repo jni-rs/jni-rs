@@ -15,6 +15,7 @@ else
 fi
 
 # As JDK 8 and 9+ use different relative paths for libjvm, find the library:
-LIBJVM_PATH="$(find "${JAVA_HOME}" -type f -name "${LIB_NAME}.*" -print0 | xargs -0 -n1 dirname)"
+LIBJVM_PATH="$(find "${JAVA_HOME}" -type f -name "${LIB_NAME}.*" -print0 -quit | xargs -0 -n1 dirname)"
 
 export LD_LIBRARY_PATH="${LIBJVM_PATH}"
+echo $LD_LIBRARY_PATH
