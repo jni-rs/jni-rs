@@ -42,14 +42,14 @@ pub extern "system" fn Java_com_github_jni_1rs_jnibook_NativeAPI_increment_all(
    number may vary based on your OS). Fix the code using one of the following
    approaches:
     1. Releasing the local reference when you’re done with it, using
-       `[delete_local_ref](https://docs.rs/jni/0.15.0/jni/struct.JNIEnv.html#method.delete_local_ref)`,
+       [`delete_local_ref`](https://docs.rs/jni/0.15.0/jni/struct.JNIEnv.html#method.delete_local_ref),
        as you might in C++.
     2. Give each iteration its own local reference frame using
-       `[with_local_frame](https://docs.rs/jni/0.15.0/jni/struct.JNIEnv.html#method.with_local_frame)`,
+       [`with_local_frame`](https://docs.rs/jni/0.15.0/jni/struct.JNIEnv.html#method.with_local_frame),
        so that all references within that frame are released by the next
        iteration.
     3. Use the
-       `[AutoLocal](https://docs.rs/jni/0.15.0/jni/struct.JNIEnv.html#method.auto_local)`
+       [`AutoLocal`](https://docs.rs/jni/0.15.0/jni/struct.JNIEnv.html#method.auto_local)
        helper implemented within the JNI crate, so you don’t have to manually
        track the usage of that reference at all.
 

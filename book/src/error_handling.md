@@ -44,7 +44,7 @@ pub extern "system" fn Java_com_github_jni_1rs_jnibook_NativeAPI_divide(
 1. Instead of waiting for the operation to complete, identify an illegal divisor
    ahead of time and throw an `IllegalArgumentException` instead.
 2. The function
-   `[catch_unwind](https://doc.rust-lang.org/std/panic/fn.catch_unwind.html)`
+   `(catch_unwind)[https://doc.rust-lang.org/std/panic/fn.catch_unwind.html]`
    will allow you to execute code and recover from a call to `panic!`. This is
    discouraged since it won’t catch all panics (in some cases, a panic may just
    abort the process). However, to be really safe, update the code so that all

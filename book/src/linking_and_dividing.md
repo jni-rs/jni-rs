@@ -135,8 +135,9 @@ compilers may still rely upon one another. In Rust, functions default to using
 the "Rust" ABI, which is usually desirable, but not for calling Rust from Java.
 
 Therefore, it's necessary to explicitly set the ABI using `pub extern "system"`.
-For further information, see https://doc.rust-lang.org/std/keyword.extern.html
-and https://doc.rust-lang.org/beta/reference/items/external-blocks.html#abi
+For further information, see
+[extern](https://doc.rust-lang.org/std/keyword.extern.html) and
+[abi](https://doc.rust-lang.org/beta/reference/items/external-blocks.html#abi).
 
 Applying these two rules, we wind up with:
 
