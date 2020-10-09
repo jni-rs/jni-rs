@@ -12,9 +12,9 @@ java.lang.UnsatisfiedLinkError: no jnibookrs in java.library.path: [/usr/java/pa
 ```
 
 Read the directories listed in the Exception message. It tells you where
-Java looked for the shared library. If you don’t see your path listed, then you
+Java looked for the native library. If you don’t see your path listed, then you
 need to try a different variable. Otherwise, you must ensure it contains the
-shared library.
+native library.
 
 If you're using OS X, check whether you're using a recent version. Since El
 Capitan, SIP prevents setting `LD_LIBRARY_PATH`. If you aren't sure which
@@ -64,3 +64,68 @@ instead of as an environment variable.
 ### CLion Instructions
 If you're using CLion, follow ["Attaching to a Local
    Process"](https://www.jetbrains.com/help/clion/attaching-to-local-process.html)
+
+
+## Function Linking Rules The Hard Way
+
+JNI identifies the functions it should link to using the package path, class
+name, and method name by following [these
+rules](https://docs.oracle.com/en/java/javase/11/docs/specs/jni/design.html).
+Since `.` isn’t allowed in C function names, the Java function's package path's
+`.` is mapped to `_`. However, since `_` could appear in a function name, it
+needs a different representation. So `_` gets replaced by `_1` before replacing
+`.` with `_`. And finally, the function name has to be prefixed with `Java_`, to
+avoid conflicts with other languages that support similar naming schemes.
+
+### LookingGlass - Function Linking Rules
+
+Since the naming rules are esoteric, you'll practice them as they are introduced
+using an example called `LookingGlass`. This example is purely for discussion
+and it won't be necessary to code it. We'll return back to the `LookingGlass`
+example for "Parameters" and "ABI and disabling mangling."
+
+The definition of `LookingGlass` on the Java side will be:
+
+```java
+package com.github.imaginarypackagename;
+
+class LookingGlass {
+
+    native static void test_call();
+}
+```
+
+And now, lets apply the naming rules discussed in "Function Linking Rules." We'll start with this code in Rust:
+
+```rust
+fn test_call() {
+
+}
+```
+
+Prefix the Rust function name with `Java.` +
+   `com.github.imaginarypackagename.` + `LookingGlass`.
+
+```rust
+fn Java.com.github.imaginarypackagename.LookingGlass.test_call() {
+
+}
+```
+
+Then, replace `_` with `_1`.
+
+```rust
+fn Java.com.github.imaginarypackagename.LookingGlass.test_1call() {
+
+}
+```
+
+Finally, replace `.` with `_`.
+
+```rust
+fn Java_com_github_imaginarypackagename_LookingGlass_test_1call() {
+
+}
+```
+
+Now the native function is named correctly for JNI.

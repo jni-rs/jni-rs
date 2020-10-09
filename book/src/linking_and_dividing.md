@@ -42,195 +42,103 @@ class NativeAPI {
 }
 ```
 
-
 ## Function Linking Rules
+To get a native Java function to correctly bind to a Rust function underneath,
+we need to ensure that it's named properly, and that the parameters and return
+type match. First, we'll discuss getting the Rust function name.
 
-JNI identifies the functions it should link to using the package path, class
-name, and method name by following [these
-rules](https://docs.oracle.com/en/java/javase/11/docs/specs/jni/design.html).
-Since `.` isn’t allowed in C function names, the Java function's package path's
-`.` is mapped to `_`. However, since `_` could appear in a function name, it
-needs a different representation. So `_` gets replaced by `_1` before replacing
-`.` with `_`. And finally, the function name has to be prefixed with `Java_`, to
-avoid conflicts with other languages that support similar naming schemes.
+### Naming the Rust Function
+JNI has a long list of rules that it uses to encode the package path, class name
+and function name into a valid C function name. Fortunately, you don't have to
+learn them all, as `javac` can be used to generate a C function for you, which
+you can then copy for use with Rust. For this example, we'll work with
+`NativeAPI` and the `verify_link` function.
 
-## LookingGlass - Function Linking Rules
+To get a name for a function, follow these steps.
 
-Since the naming rules are esoteric, you'll practice them as they are introduced
-using an example called `LookingGlass`. This example is purely for discussion
-and it won't be necessary to code it. We'll return back to the `LookingGlass`
-example for "Parameters" and "ABI and disabling mangling."
+1. Add a `native` function to a Java class. Remember that the package path,
+   class name, and function name are all encoded into the C function name, so
+   make sure those are as you want them. 
+2. Run `javac -h . NativeAPI.java` to produce C headers. (We assume that the
+   class resides in `NativeAPI.java`, but it doesn't have to.)
+3. Copy the C function name out of the header file it produced.
 
-The definition of `LookingGlass` on the Java side will be:
+Upon completing these steps, you will see a file called
+`com_github_jni_rs_jnibook_NativeAPI.h` that contains the following:
 
-```java
-package com.github.imaginarypackagename;
+```c
+/* Header for class com_github_jni_rs_jnibook_NativeAPI */
 
-class LookingGlass {
+#ifndef _Included_com_github_jni_rs_jnibook_NativeAPI
+#define _Included_com_github_jni_rs_jnibook_NativeAPI
+#ifdef __cplusplus
+extern "C" {
+#endif
+/*
+ * Class:     com_github_jni_rs_jnibook_NativeAPI
+ * Method:    verify_link
+ * Signature: ()I
+ */
+JNIEXPORT jint JNICALL Java_com_github_jni_1rs_jnibook_NativeAPI_verify_1link
+  (JNIEnv *, jclass);
 
-    native static void test_call();
+#ifdef __cplusplus
 }
+#endif
+#endif
 ```
 
-And now, lets apply the naming rules discussed in "Function Linking Rules." We'll start with this code in Rust:
+`Java_com_github_jni_1rs_jnibook_NativeAPI_verify_1link` is the name of the Rust
+function that corresponds to `verify_link`. `Java_` identifies that the function
+is for Java, followed by the path, classname, and `verify_1link`. You may wonder
+what the `_1` is for: it's the JNI way of encoding underscores, since `.` uses
+`_`. Now that you know how to name the Rust functions that Java will use, we'll
+discuss the parameters and return types.
 
-```rust
-fn test_call() {
+### Parameters
+The first argument to every JNI function is `JNIEnv`, which is an object you can
+use to call into the JVM. The second argument is a reference to `this`, which is
+a `JClass` for static methods and `JObject` for instance methods. The next
+arguments map 1:1 with parameters specified in the Java method's signature. For
+example, if the signature was `void add(int a, int b)`, then the 3rd and 4th
+arguments in the native function would be of type `jni::sys::jint`.
 
-}
-```
-
-Prefix the Rust function name with `Java.` +
-   `com.github.imaginarypackagename.` + `LookingGlass`.
-
-```rust
-fn Java.com.github.imaginarypackagename.LookingGlass.test_call() {
-
-}
-```
-
-Then, replace `_` with `_1`.
-
-```rust
-fn Java.com.github.imaginarypackagename.LookingGlass.test_1call() {
-
-}
-```
-
-Finally, replace `.` with `_`.
-
-```rust
-fn Java_com_github_imaginarypackagename_LookingGlass_test_1call() {
-
-}
-```
-
-Now the native function is named correctly for JNI.
-
-## Parameters and Return Types
-`JNIEnv` and `JObject` are arguments one and two of every JNI Function. When the
-native method is static, the second argument can be tagged more specifically as
-`JClass`. `JNIEnv` is an object you can use to call into the JVM, while the
-second argument corresponds to the `this` reference in Java for nonstatic
-methods. For static native methods, the second argument refers to the class
-containing the static native method.
-
-```rust
-// Imports for `JClass and JEnv`
-use jni::objects::JClass;
-use jni::JNIEnv;
-```
-
-The next arguments map 1:1 with parameters specified in the Java method's
-signature. For example, if the signature was `void add(int a, int b)`, then the
-3rd and 4th arguments in the native function would be of type `jni::sys::jint`.
-For reference, these are the jni-rs types that you can include in your JNI
-signatures:
-
-```
-// from jni-rs
-pub type jint = i32;
-pub type jlong = i64;
-pub type jbyte = i8;
-pub type jboolean = u8;
-pub type jchar = u16;
-pub type jshort = i16;
-pub type jfloat = f32;
-pub type jdouble = f64;
-pub type jsize = jint;
-
-pub enum _jobject {}
-pub type jobject = *mut _jobject;
-pub type jclass = jobject;
-pub type jthrowable = jobject;
-pub type jstring = jobject;
-pub type jarray = jobject;
-pub type jbooleanArray = jarray;
-pub type jbyteArray = jarray;
-pub type jcharArray = jarray;
-pub type jshortArray = jarray;
-pub type jintArray = jarray;
-pub type jlongArray = jarray;
-pub type jfloatArray = jarray;
-pub type jdoubleArray = jarray;
-pub type jobjectArray = jarray;
-pub type jweak = jobject;
-```
-
-You'll notice that all of these are type aliases for existing signatures. In
-reality, JNI only passes down `jobject`, `jarray`, and various primitive types.
-Whenever possible, you should use the `jni-rs` type aliases above to take advantage of
-stronger typing and methods in the `jni-rs` project.
-
-## LookingGlass - Parameters and Return Types
-
-Since `test_call` in `LookingGlass` is static and takes no additional arguments,
-the function should be written as:
+Since `verify_link` is static and takes no additional arguments, the function
+should be written as:
 
 ```rust
 use jni::objects::JClass;
 use jni::JNIEnv;
 
-pub fn Java_com_github_imaginarypackagename_LookingGlass_test_1call(
+// Although no arguments are used in this function, the first two arguments must
+// always be in the native method's signature.
+pub fn Java_com_github_jni_1rs_jnibook_NativeAPI_verify_1link(
     _env: JNIEnv,
     _class: JClass
 ) {}
 ```
 
-Although no arguments are used in this function, the first two arguments must
-always be in the native method's signature. The return type is void, and so
-nothing needs to be added to the Rust signature.
+Now that the parameters are correct, we need to give some hints to the compiler
+to ensure that none of our work is undone. The next section wraps up the last of
+the details we need to cover for calling Rust from Java.
 
-Hypothetically, if the method returned an integer, it would look something like
-this:
+### Specifying the ABI and Disabling Mangling
+Thus far, we've given the Rust function a very specific name. Since the compiler
+leverages a technique called name mangling that assigns a unique name to each
+function, we have to annotate JNI methods with `#[no_mangle]` to ensure that the
+name is exactly as we've specified. Otherwise, the name would be transformed to
+something that Java wouldn't expect.
 
-```rust
-use jni::objects::JClass;
-use jni::sys::jint;
-use jni::JNIEnv;
-
-pub fn Java_com_github_imaginarypackagename_LookingGlass_test_1call_1with_1jint(
-    _env: JNIEnv,
-    _class: JClass
-) -> jint {
-    123 as jint
-}
-```
-
-By the way, `LookingGlass` is almost done. Specifying ABIs and Disabling
-Mangling is last, and much less work.
-
-## Specifying the ABI and Disabling Mangling
-ABIs (Application Binary Interfaces) standardize low-level details, so that
-object code built using different compilers may still rely upon one another. In
-Rust, functions default to using the "Rust" ABI, which is usually desirable, but
-not for shared libraries.
+Secondly, we need to specify the ABI. ABIs (Application Binary Interfaces)
+standardize low-level details, so that object code built using different
+compilers may still rely upon one another. In Rust, functions default to using
+the "Rust" ABI, which is usually desirable, but not for calling Rust from Java.
 
 Therefore, it's necessary to explicitly set the ABI using `pub extern "system"`.
 For further information, see https://doc.rust-lang.org/std/keyword.extern.html
 and https://doc.rust-lang.org/beta/reference/items/external-blocks.html#abi
 
-Lastly, name mangling is a compiler technique that assigns a unique name to each
-function. FFI functions must have mangling disabled using `#[no_mangle]`, or
-else the name would be transformed beyond what `JNI` expects.
-
-
-## LookingGlass - Specifying the ABI and Disabling Mangling
-
-First step, specify the ABI.
-
-```rust
-use jni::objects::JClass;
-use jni::JNIEnv;
-
-// Added pub extern "system"
-pub extern "system" fn Java_com_github_imaginarypackagename_LookingGlass_test_1call(
-    _env: JNIEnv,
-    _class: JClass
-) {}
-```
-
-Second, disable mangling.
+Applying these two rules, we wind up with:
 
 ```rust
 use jni::objects::JClass;
@@ -238,19 +146,20 @@ use jni::JNIEnv;
 
 // Added no_mangle
 #[no_mangle]
-pub extern "system" fn Java_com_github_imaginarypackagename_LookingGlass_test_1call(
+pub extern "system" fn Java_com_github_jni_1rs_jnibook_NativeAPI_verify_1link(
     _env: JNIEnv,
     _class: JClass
 ) {}
 ```
 
-With that, we're done with `LookingGlass`. If you so desired, you could now
+With that, we're done. You'll find thats exactly what the Rust starter code
+contains.
 
 # Dividing with Native Code
 
-Now that you've seen an example applied via `LookingGlass`, it's time to get
-familiar with writing your own signatures. On the Java side, add a signature
-to `NativeAPI` with this signature:
+Now that you've seen an example applied via `verify_link`, it's time to get
+familiar with writing your own signatures. On the Java side, add a signature to
+`NativeAPI` with this signature:
 
 ```java 
 static native int divide(int a, int b);
@@ -258,7 +167,7 @@ static native int divide(int a, int b);
 
 Your goal is to implement this method in Rust. If you get stuck, refer to the
 walkthrough below: however, try to make it as far as you can by following the
-rules described with the `LookingGlass` example.
+previous example.
 
 ## Rust-side Walkthrough
 
@@ -272,15 +181,8 @@ use jni::sys::jint;
 use jni::JNIEnv;
 ```
 
-Now, we're going to walk through some steps to transform a `fn divide(i32,i32)->i32` into one that works with JNI. Start with this:
-
-```rust
-pub fn divide(a: i32, b:i32) -> i32 {
-    a/b
-}
-```
-
-Follow the function naming rules discussed earlier:
+On the Java-side, declare `static native int divide(int a, int b);` in
+`NativeAPI`. Then use javac to get the function name:
 
 ```rust
 pub fn Java_com_github_jni_1rs_jnibook_NativeAPI_divide(jint a, jint b) -> jint {
@@ -298,7 +200,8 @@ pub fn Java_com_github_jni_1rs_jnibook_NativeAPI_divide(jint a, jint b) -> jint 
 }
 ```
 
-Add the required JNI function arguments, and the two `jint` parameters:
+Add the required JNI function arguments, the two `jint` parameters, and the
+return type:
 
 ```rust
 #[no_mangle]
@@ -311,7 +214,7 @@ pub fn Java_com_github_jni_1rs_jnibook_NativeAPI_divide(
 }
 ```
 
-Finally, set the ABI using `pub extern “system”`. 
+Finally, specify the ABI using `pub extern "system"`.
 
 ```rust
 #[no_mangle] 
@@ -332,6 +235,6 @@ division works as expected.
 
 `JNIEnv` instances share the lifetime of the calling thread, which means you
 should avoid holding onto `JNIEnv` instances. Once the calling thread is
-deallocated, it the `JNIEnv` instance will no longer be valid. [JNI00]
+deallocated, the `JNIEnv` instance will no longer be valid. [JNI00]
 
 [JNI00]: https://docs.oracle.com/en/java/javase/11/docs/specs/jni/design.html

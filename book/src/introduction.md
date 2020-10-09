@@ -1,46 +1,46 @@
 # Introduction
-This book is about building shared libraries in Rust that work with Java via JNI
-(Java Native Interface). JNI is a Java API for using shared libraries from Java.
-The book is intended for people that know a bit of Rust and Java, and want to
-learn how to use them together in-process, hopefully without hitting their head
-against the wall. Suggestions, corrections and improvements are welcome and
-wanted.
 
-JNI, regardless of the language used to build the shared library, comes with a
-lot of sharp edges. The shared library needs to be built for each platform you
-support, you have to figure out a distribution strategy for them (e.g., have the
-consumer unzip the jar and put in on their load path), and JNI misuse can lead
-to resource leaks or JVM crashes. There are also performance implications of
-using JNI in certain ways. For example, Java Strings and Buffers sometimes have
-to be copied when they're used in the shared library. Due to the drawbacks of
-JNI, it's usually more appropriate to build using pure Java.
+The JNI(Java Native Interface) allows Java code that runs inside a Java Virtual
+Machine (VM) to interoperate with applications and libraries written in other
+programming languages, such as C, C++, assembly, and Rust. This book is about
+writing Rust that works with Java over JNI. It's intended for people that know a
+bit of Rust and Java, and want to learn how to use them together in-process,
+hopefully without hitting their head against the wall. Suggestions, corrections
+and improvements are welcome and wanted.
 
-There are plenty of reasons why you should consider Rust if you need to build a
-shared library for Java. Most notably, you can separate JNI code into a specific
-layer, so that all benefits you get from Rust in normal application or library
-development apply to the core. Within the JNI layer itself, similar benefits
-still apply with the caveat that JNI API misuse is still highly possible, and
-unsafe Rust is often necessary. Expect the JNI code for Rust to look similar to
-what you would see in C, with additional safety when calling into the core of
-your library from the Rust JNI functions.
+JNI comes with a lot of sharp edges. The native portion needs to be built for
+each platform you support, and JNI misuse can lead to resource leaks or JVM
+crashes. There are also performance implications of using JNI in certain ways.
+For example, Java Strings and Buffers sometimes have to be copied when they're
+used on the native side. Due to the drawbacks of JNI, it's often worth
+considering alternatives (like reimplementation in one language or IPC/RPC).
+Eventually, [Project Panama](https://openjdk.java.net/projects/panama/) may also
+offer a simpler or more efficient API.
 
-You should check if any of Rust's limitations outweigh the benefits as well.
-Shared libraries will be larger and take longer to build than what you would get
-from gcc, some systems will never have Rust debuggers, and it's possible that
-you need wider platform support than what Rust supports today. If these problems
-outweigh the benefits for you, then C may be better option, unless you are
-interested in improving the toolchain.
+There are plenty of reasons why you should consider Rust if you need to write
+native code that works with Java. Most notably, you can separate JNI code into a
+specific layer, so that all benefits you get from Rust in normal application or
+library development apply to the core. Expect the JNI code for Rust to look
+similar to what you would see in C, with additional safety when calling into the
+core of your application or library from the Rust JNI functions.
+
+You should check if any of Rust's limitations outweigh the benefits as well. The
+compilation artifacts will be larger and take longer to build than what you
+would get from gcc, some systems will never have Rust debuggers, and it's
+possible that you need wider platform support than what Rust supports today. If
+these problems outweigh the benefits for you, then C may be better option,
+unless you are interested in improving the toolchain.
 
 ## Prerequisites
 For Java, you need experience with defining classes. For Rust, you should have
 experience with `Box`, and defining `struct`s and `function`s.
 
-Your system needs Java 11+, recent versions of Cargo and Rust, and one Java
-build tool of your choice. The book has Java starter code that relies on
-`gradle`, which you can easily adapt to a different build system. It should also
-have Java debugger support, preferably exposed to your IDE. You can get by with
-Java 8 or greater if you don't mind skipping *Cleaning Up Resource Leaks* or
-*Debugging*.
+Although `jni-rs` is compatible with JVMs since 1.5, this tutorial is written
+for Java 11+. You'll also need a recent version of Cargo and Rust, and one Java
+build tool of your choice. The book has Java starter code that relies on Gradle,
+which you can easily adapt to a different build system. It should also have Java
+debugger support, preferably exposed to your IDE. You can get by with Java 8 or
+greater if you don't mind skipping *Cleaning Up Resource Leaks* or *Debugging*.
 
 To verify you have everything, run these commands from your terminal:
 
@@ -48,12 +48,10 @@ To verify you have everything, run these commands from your terminal:
 which cargo
 java -version
 rustc -V
-gradle -v
 ```
 
 If any are missing, refer to these pages:
 
-* [Gradle Installation](https://docs.gradle.org/current/userguide/installation.html) (optional, should you choose to adapt the starter code):
 * [Cargo and Rust Installation](https://rustup.rs/):
 * Java: your distribution's instructions
 
@@ -84,9 +82,9 @@ for the rest of the book.
 ## Java Setup
 The document uses `jnibookjava` to refer to the Java project that you're using,
 such as `jnibookgradle`. Next, you'll configure `jnibookjava` so that it can
-locate locate your shared libraries. This step is very platform dependent. If
-you're using Linux, Windows, or OSX Yosemite or older, then you can proceed to
-"Java Environment Variables."
+locate native libraries. This step is very platform dependent. If you're using
+Linux, Windows, or OSX Yosemite or older, then you can proceed to "Java
+Environment Variables."
 
 ### OSX El Capitan and Newer Instructions
 This section is only provided as a note for users on El Capitan and newer. It
@@ -114,7 +112,8 @@ test {
 Similar settings would need to be applied for other build systems. Next, run the tests:
 
 ```bash
-gradle test --info
+# in the jnibookgradle directory
+./gradlew test --info
 ```
 
 If the test passes, continue on to Java Environment Variables. Otherwise, refer
@@ -122,7 +121,7 @@ to Troubleshooting in the Appendix.
 
 ### Java Environment Variables
 
-The environment variables that Java uses to find your shared library are very
+The environment variables that Java uses to find native libraries are very
 platform-specific.
 
 1. On Linux and Windows, it's called `LD_LIBRARY_PATH`.
@@ -139,13 +138,13 @@ you have readlink, then you may use it to interpolate these paths for Java.
 ```bash
 # If you are inclined, you can tinker with the path and see
 # some exceptions on load failure.
-LD_LIBRARY_PATH=/path/to/jnibookrs/target/debug gradle test --info
+LD_LIBRARY_PATH=/path/to/jnibookrs/target/debug ./gradlew test --info
 ```
 
 ```bash
 # If you have readlink, it can save you the effort of
 # finding the absolute path yourself.
-LD_LIBRARY_PATH=`readlink -m ../jnibookrs/target/debug` gradle test --info
+LD_LIBRARY_PATH=`readlink -m ../jnibookrs/target/debug` ./gradlew test --info
 ```
 
 Optionally, set `RUST_BACKTRACE=1` so that Rust provides stacktraces during
@@ -153,12 +152,12 @@ development. When you invoke code from Java, it should typically look something
 like this:
 
 ```bash
-RUST_BACKTRACE=1 LD_LIBRARY_PATH=/path/to/jnibookrs/target/debug gradle test --info 
+RUST_BACKTRACE=1 LD_LIBRARY_PATH=/path/to/jnibookrs/target/debug ./gradlew test --info
 ```
 
 ```bash
 # with readlink, to resolve the directory to an absolute path.
-RUST_BACKTRACE=1 LD_LIBRARY_PATH=`readlink -m ../jnibookrs/target/debug` gradle test --info 
+RUST_BACKTRACE=1 LD_LIBRARY_PATH=`readlink -m ../jnibookrs/target/debug` ./gradlew test --info
 ```
 
 Assuming that the test succeeded, you're done! Consider setting up the same

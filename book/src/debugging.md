@@ -11,7 +11,7 @@ fatal runtime error: failed to initiate panic, error 5
 ```
 
 Dividing by zero triggers a panic. All panics across the FFI boundary cause
-undefined behavior. In this chapter, we'll learn about how to debug shared
+undefined behavior. In this chapter, we'll learn about how to debug native 
 libraries.
 
 ## Putting a Debugger in a Debugger
