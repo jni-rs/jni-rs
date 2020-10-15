@@ -1,3 +1,4 @@
+use std::any::type_name;
 use std::{
     marker::PhantomData,
     os::raw::{c_char, c_void},
@@ -1971,6 +1972,43 @@ impl<'a> JNIEnv<'a> {
         let class = class.lookup(self)?;
         let res = jni_non_void_call!(self.internal, UnregisterNatives, class.into_inner());
         jni_error_code_to_result(res)
+    }
+
+    /// Return a tuple with a pointer to elements of the given Java array as first element.
+    /// The tuple's second element indicates if the pointed-to array is a copy or not.
+    ///
+    /// The result is valid until the corresponding release_byte_array_elements() function is
+    /// called. Since the returned array may be a copy of the Java array, changes made to the
+    /// returned array will not necessarily be reflected in the original array until
+    /// release_byte_array_elements() is called.
+    ///
+    /// See also [`release_array_elements`](struct.JNIEnv.html#method.release_array_elements)
+    pub fn get_array_elements<T>(&self, array: jarray) -> Result<(*mut T, bool)> {
+        non_null!(array, "get_array_elements array argument");
+        let mut is_copy: jboolean = 0xff;
+        let type_name = type_name::<T>();
+        let ptr = match type_name {
+            "i32" => jni_non_void_call!(self.internal, GetIntArrayElements, array, &mut is_copy)
+                as *mut c_void,
+            "i64" => jni_non_void_call!(self.internal, GetLongArrayElements, array, &mut is_copy)
+                as *mut c_void,
+            "i8" => jni_non_void_call!(self.internal, GetByteArrayElements, array, &mut is_copy)
+                as *mut c_void,
+            "u8" => jni_non_void_call!(self.internal, GetBooleanArrayElements, array, &mut is_copy)
+                as *mut c_void,
+            "u16" => jni_non_void_call!(self.internal, GetCharArrayElements, array, &mut is_copy)
+                as *mut c_void,
+            "i16" => jni_non_void_call!(self.internal, GetShortArrayElements, array, &mut is_copy)
+                as *mut c_void,
+            "f32" => jni_non_void_call!(self.internal, GetFloatArrayElements, array, &mut is_copy)
+                as *mut c_void,
+            "f64" => jni_non_void_call!(self.internal, GetDoubleArrayElements, array, &mut is_copy)
+                as *mut c_void,
+            &_ => {
+                return Err(Error::WrongJValueType(type_name, "?"));
+            }
+        };
+        Ok((ptr as *mut T, is_copy == sys::JNI_TRUE))
     }
 
     /// Return an AutoByteArray of the given Java byte array.
