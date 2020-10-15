@@ -1982,6 +1982,11 @@ impl<'a> JNIEnv<'a> {
     /// returned array will not necessarily be reflected in the original array until
     /// release_array_elements() is called.
     ///
+    /// To determine the type, type annotation can be required on the return value:
+    /// let (ptr, is_copy): (*mut jbyte, _) = env.get_array_elements(java_array)?;
+    /// If preferred, this method can be invoked using explicit type annotation:
+    /// let (ptr, is_copy) = env.get_array_elements::<jbyte>(java_array)?;
+    ///
     /// See also [`release_array_elements`](struct.JNIEnv.html#method.release_array_elements)
     pub fn get_array_elements<T>(&self, array: jarray) -> Result<(*mut T, bool)> {
         non_null!(array, "get_array_elements array argument");
