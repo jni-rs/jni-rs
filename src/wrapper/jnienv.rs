@@ -1977,10 +1977,10 @@ impl<'a> JNIEnv<'a> {
     /// Return a tuple with a pointer to elements of the given Java array as first element.
     /// The tuple's second element indicates if the pointed-to array is a copy or not.
     ///
-    /// The result is valid until the corresponding release_byte_array_elements() function is
+    /// The result is valid until the corresponding release_array_elements() function is
     /// called. Since the returned array may be a copy of the Java array, changes made to the
     /// returned array will not necessarily be reflected in the original array until
-    /// release_byte_array_elements() is called.
+    /// release_array_elements() is called.
     ///
     /// See also [`release_array_elements`](struct.JNIEnv.html#method.release_array_elements)
     pub fn get_array_elements<T>(&self, array: jarray) -> Result<(*mut T, bool)> {
