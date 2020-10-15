@@ -29,3 +29,6 @@ impl<'a> JMethodID<'a> {
         self.internal
     }
 }
+
+unsafe impl Send for JMethodID<'_> {}
+unsafe impl Sync for JMethodID<'_> {}
