@@ -1,4 +1,4 @@
-use std::any::type_name;
+use std::any::{type_name, TypeId};
 use std::{
     marker::PhantomData,
     os::raw::{c_char, c_void},
@@ -1988,30 +1988,36 @@ impl<'a> JNIEnv<'a> {
     /// let (ptr, is_copy) = env.get_array_elements::<jbyte>(java_array)?;
     ///
     /// See also [`release_array_elements`](struct.JNIEnv.html#method.release_array_elements)
-    pub fn get_array_elements<T>(&self, array: jarray) -> Result<(*mut T, bool)> {
+    pub fn get_array_elements<T: 'static>(&self, array: jarray) -> Result<(*mut T, bool)> {
         non_null!(array, "get_array_elements array argument");
         let mut is_copy: jboolean = 0xff;
-        let type_name = type_name::<T>();
-        let ptr = match type_name {
-            "i32" => jni_non_void_call!(self.internal, GetIntArrayElements, array, &mut is_copy)
-                as *mut c_void,
-            "i64" => jni_non_void_call!(self.internal, GetLongArrayElements, array, &mut is_copy)
-                as *mut c_void,
-            "i8" => jni_non_void_call!(self.internal, GetByteArrayElements, array, &mut is_copy)
-                as *mut c_void,
-            "u8" => jni_non_void_call!(self.internal, GetBooleanArrayElements, array, &mut is_copy)
-                as *mut c_void,
-            "u16" => jni_non_void_call!(self.internal, GetCharArrayElements, array, &mut is_copy)
-                as *mut c_void,
-            "i16" => jni_non_void_call!(self.internal, GetShortArrayElements, array, &mut is_copy)
-                as *mut c_void,
-            "f32" => jni_non_void_call!(self.internal, GetFloatArrayElements, array, &mut is_copy)
-                as *mut c_void,
-            "f64" => jni_non_void_call!(self.internal, GetDoubleArrayElements, array, &mut is_copy)
-                as *mut c_void,
-            &_ => {
-                return Err(Error::WrongJValueType(type_name, "?"));
-            }
+        let type_id = TypeId::of::<T>();
+        let ptr = if type_id == TypeId::of::<i32>() {
+            jni_non_void_call!(self.internal, GetIntArrayElements, array, &mut is_copy)
+                as *mut c_void
+        } else if type_id == TypeId::of::<i64>() {
+            jni_non_void_call!(self.internal, GetLongArrayElements, array, &mut is_copy)
+                as *mut c_void
+        } else if type_id == TypeId::of::<i8>() {
+            jni_non_void_call!(self.internal, GetByteArrayElements, array, &mut is_copy)
+                as *mut c_void
+        } else if type_id == TypeId::of::<u8>() {
+            jni_non_void_call!(self.internal, GetBooleanArrayElements, array, &mut is_copy)
+                as *mut c_void
+        } else if type_id == TypeId::of::<u16>() {
+            jni_non_void_call!(self.internal, GetCharArrayElements, array, &mut is_copy)
+                as *mut c_void
+        } else if type_id == TypeId::of::<i16>() {
+            jni_non_void_call!(self.internal, GetShortArrayElements, array, &mut is_copy)
+                as *mut c_void
+        } else if type_id == TypeId::of::<f32>() {
+            jni_non_void_call!(self.internal, GetFloatArrayElements, array, &mut is_copy)
+                as *mut c_void
+        } else if type_id == TypeId::of::<f64>() {
+            jni_non_void_call!(self.internal, GetDoubleArrayElements, array, &mut is_copy)
+                as *mut c_void
+        } else {
+            return Err(Error::WrongJValueType(type_name::<T>(), "?"));
         };
         Ok((ptr as *mut T, is_copy == sys::JNI_TRUE))
     }
