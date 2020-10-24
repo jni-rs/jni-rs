@@ -1,7 +1,7 @@
 use log::debug;
 
 use crate::wrapper::objects::ReleaseMode;
-use crate::{errors::*, objects::JObject, JNIEnv};
+use crate::{errors::*, objects::JObject, sys, JNIEnv};
 use std::os::raw::c_void;
 use std::ptr::NonNull;
 
@@ -46,11 +46,31 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
         self.ptr.as_ptr()
     }
 
+    fn commit_primitive_array_critical(&mut self) -> Result<()> {
+        jni_void_call!(
+            self.env.get_native_interface(),
+            ReleasePrimitiveArrayCritical,
+            *self.obj,
+            self.ptr.as_mut(),
+            sys::JNI_COMMIT
+        );
+        Ok(())
+    }
+
+    fn release_primitive_array_critical(&mut self) -> Result<()> {
+        jni_void_call!(
+            self.env.get_native_interface(),
+            ReleasePrimitiveArrayCritical,
+            *self.obj,
+            self.ptr.as_mut(),
+            self.mode as i32
+        );
+        Ok(())
+    }
+
     /// Commits the changes to the array, if it is a copy
     pub fn commit(&mut self) {
-        let res = self
-            .env
-            .commit_primitive_array_critical(*self.obj, unsafe { self.ptr.as_mut() });
+        let res = self.commit_primitive_array_critical();
         match res {
             Ok(()) => {}
             Err(e) => debug!("error committing primitive array: {:#?}", e),
@@ -73,11 +93,7 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
 
 impl<'a, 'b> Drop for AutoPrimitiveArray<'a, 'b> {
     fn drop(&mut self) {
-        let res = self.env.release_primitive_array_critical(
-            *self.obj,
-            unsafe { self.ptr.as_mut() },
-            self.mode,
-        );
+        let res = self.release_primitive_array_critical();
         match res {
             Ok(()) => {}
             Err(e) => debug!("error releasing primitive array: {:#?}", e),
