@@ -375,7 +375,7 @@ impl<'a> JNIEnv<'a> {
         )
         .into();
 
-        let weak_global = unsafe { GlobalRef::from_raw(self.get_java_vm()?, new_ref.into_inner()) };
+        let global = unsafe { GlobalRef::from_raw(self.get_java_vm()?, new_ref.into_inner()) };
         Ok(weak_global)
     }
 
