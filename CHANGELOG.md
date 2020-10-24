@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `JNIEnv#define_unnamed_class` function that allows loading a class without
   specifying its name. The name is inferred from the class data. (#246)
 - `SetStatic<type>Field`. (#248)
+- `TryFrom<JValue>` for types inside JValue variants
 
 ### Changed
 
@@ -41,10 +42,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 - Ability to pass object wrappers that are convertible to `JObject` as arguments to the majority
- of JNIEnv methods without explicit conversion (#213)
-- `JNIEnv#is_same_object` implementation (#213)
-- `JNIEnv#register_native_methods` (#214)
-- Conversion from `Into<JObject>` to `JValue::Object`
+ of JNIEnv methods without explicit conversion. (#213)
+- `JNIEnv#is_same_object` implementation. (#213)
+- `JNIEnv#register_native_methods`. (#214)
+- Conversion from `Into<JObject>` to `JValue::Object`.
 
 ### Fixed
 - Passing `null` as class loader to `define_class` method now allowed according
@@ -52,9 +53,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [0.14.0] — 2019-10-31
 
+### Changed
 - Relaxed some lifetime restrictions in JNIEnv to support the case when
   method, field ids; and global references to classes
-  have a different (larger) lifetime than JNIEnv (#209)
+  have a different (larger) lifetime than JNIEnv. (#209)
 
 ## [0.13.1] — 2019-08-22
 
