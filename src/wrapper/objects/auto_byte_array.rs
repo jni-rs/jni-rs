@@ -1,21 +1,9 @@
-use crate::sys::{jbyte, JNI_ABORT};
+use crate::sys::jbyte;
 use log::debug;
 
 use crate::{errors::*, objects::JObject, sys, JNIEnv};
 use std::ptr::NonNull;
-
-/// ReleaseMode
-///
-/// This defines the release mode of AutoByteArray (and AutoPrimitiveArray) resources, and
-/// related release array functions.
-#[derive(Clone, Copy)]
-#[repr(i32)]
-pub enum ReleaseMode {
-    /// Copy back the content and free the elems buffer.
-    CopyBack = 0,
-    /// Free the buffer without copying back the possible changes.
-    NoCopyBack = JNI_ABORT,
-}
+use crate::objects::release_mode::ReleaseMode;
 
 /// Auto-release wrapper for pointer-based byte arrays.
 ///

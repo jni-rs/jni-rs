@@ -25,6 +25,7 @@ use crate::{
     },
     JNIVersion, JavaVM,
 };
+use crate::objects::AutoLongArray;
 
 /// FFI-compatible JNIEnv struct. You can safely use this as the JNIEnv argument
 /// to exported methods that will be called by java. This is where most of the
@@ -2142,6 +2143,27 @@ impl<'a> JNIEnv<'a> {
             sys::JNI_COMMIT
         );
         Ok(())
+    }
+
+    /// Return an AutoLongArray of the given Java long array.
+    ///
+    /// The result is valid until the AutoLongArray object goes out of scope, when the
+    /// release happens automatically according to the mode parameter.
+    ///
+    /// Since the returned array may be a copy of the Java array, changes made to the
+    /// returned array will not necessarily be reflected in the original array until
+    /// release_array_elements() is called.
+    /// AutoLongArray has a commit() method, to force a copy of the array if needed (and without
+    /// releasing it).
+    ///
+    /// See also [`get_long_array_elements`](struct.JNIEnv.html#method.get_long_array_elements)
+    pub fn get_auto_long_array_elements(
+        &self,
+        array: jlongArray,
+        mode: ReleaseMode,
+    ) -> Result<AutoLongArray> {
+        let (ptr, is_copy) = self.get_long_array_elements(array)?;
+        AutoLongArray::new(self, array.into(), ptr, mode, is_copy)
     }
 
     /// Return a tuple with a pointer to elements of the given Java primitive array as first

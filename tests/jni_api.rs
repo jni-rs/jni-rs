@@ -1,6 +1,6 @@
 #![cfg(feature = "invocation")]
 
-use jni_sys::jbyte;
+use jni_sys::{jbyte, jlong};
 use std::str::FromStr;
 
 use jni::{
@@ -421,7 +421,7 @@ pub fn java_get_long_array_elements() {
         .expect("JNIEnv#new_long_array must create a java array with given size");
 
     // Insert array elements
-    env.set_long_array_region(java_array, 0, buf);
+    let _ = env.set_long_array_region(java_array, 0, buf);
 
     // Get array elements
     let (ptr, _is_copy) = env.get_long_array_elements(java_array).unwrap();
@@ -453,6 +453,65 @@ pub fn java_get_long_array_elements() {
     assert_eq!(res[1], 3);
     assert_eq!(res[2], 4);
 }
+
+#[test]
+pub fn get_long_array_elements_auto() {
+    let env = attach_current_thread();
+
+    // Create original Java array
+    // Create original Java array
+    let buf: &[i64] = &[1, 2, 3];
+    let java_array = env
+        .new_long_array(3)
+        .expect("JNIEnv#new_long_array must create a java array with given size");
+
+    // Insert array elements
+    let _ = env.set_long_array_region(java_array, 0, buf);
+
+    // Use a scope to test Drop
+    {
+        // Get byte array elements auto wrapper
+        let auto_ptr = env
+            .get_auto_long_array_elements(java_array, ReleaseMode::CopyBack)
+            .unwrap();
+
+        // Check pointer access
+        let ptr = auto_ptr.as_ptr();
+        assert_eq!(unsafe { *ptr.offset(0) }, 1);
+        assert_eq!(unsafe { *ptr.offset(1) }, 2);
+        assert_eq!(unsafe { *ptr.offset(2) }, 3);
+
+        // Check pointer From access
+        let ptr: *mut jlong = std::convert::From::from(&auto_ptr);
+        assert_eq!(unsafe { *ptr.offset(0) }, 1);
+        assert_eq!(unsafe { *ptr.offset(1) }, 2);
+        assert_eq!(unsafe { *ptr.offset(2) }, 3);
+
+        // Check pointer into() access
+        let ptr: *mut jlong = (&auto_ptr).into();
+        assert_eq!(unsafe { *ptr.offset(0) }, 1);
+        assert_eq!(unsafe { *ptr.offset(1) }, 2);
+        assert_eq!(unsafe { *ptr.offset(2) }, 3);
+
+        // Modify
+        unsafe {
+            *ptr.offset(0) += 1;
+            *ptr.offset(1) += 1;
+            *ptr.offset(2) += 1;
+        }
+
+        // Commit would be necessary here, if there were no closure
+        //auto_ptr.commit();
+    }
+
+    // Confirm modification of original Java array
+    let mut res: [i8; 3] = [0; 3];
+    env.get_byte_array_region(java_array, 0, &mut res).unwrap();
+    assert_eq!(res[0], 2);
+    assert_eq!(res[1], 3);
+    assert_eq!(res[2], 4);
+}
+
 
 #[test]
 pub fn java_get_primitive_array_critical() {

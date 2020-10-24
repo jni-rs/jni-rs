@@ -43,10 +43,18 @@ pub use self::global_ref::*;
 mod auto_local;
 pub use self::auto_local::*;
 
+mod release_mode;
+pub use self::release_mode::*;
+
 // For automatic pointer-based byte array deletion
 mod auto_byte_array;
 pub use self::auto_byte_array::*;
 
+// For automatic pointer-based long array deletion
+mod auto_long_array;
+pub use self::auto_long_array::*;
+
 // For automatic pointer-based primitive array deletion
 mod auto_primitive_array;
+
 pub use self::auto_primitive_array::*;
