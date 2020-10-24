@@ -8,7 +8,7 @@ use crate::{errors::Result, objects::JWeak, sys, JNIEnv, JavaVM};
 /// garbage collected.** Still, `WeakGlobalRef` is allowed to outlive the `JNIEnv` that
 /// it came from and can be used in other threads.
 ///
-/// `WeakGloablRef` may be created via
+/// `WeakGlobalRef` can be created via
 /// [JNIEnv::new_weak_global_ref](../struct.JNIEnv.html#method.new_weak_global_ref).
 ///
 /// `WeakGloablRef` doesn't allow access to the underlying object but may be
