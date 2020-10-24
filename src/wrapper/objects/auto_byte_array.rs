@@ -58,7 +58,7 @@ impl<'a, 'b> AutoByteArray<'a, 'b> {
         self.ptr.as_ptr()
     }
 
-    /// Commits the result of the array, if it is a copy
+    /// Commits the changes to the array, if it is a copy
     pub fn commit(&mut self) {
         let res = self
             .env
@@ -67,6 +67,14 @@ impl<'a, 'b> AutoByteArray<'a, 'b> {
             Ok(()) => {}
             Err(e) => debug!("error committing byte array: {:#?}", e),
         }
+    }
+
+    /// Don't commit the changes to the array on release (if it is a copy).
+    /// This has no effect if the array is not a copy.
+    /// This method is useful to change the release mode of an array originally created
+    /// with `ReleaseMode::CopyBack`.
+    pub fn discard(&mut self) {
+        self.mode = ReleaseMode::NoCopyBack;
     }
 
     /// Indicates if the array is a copy or not
