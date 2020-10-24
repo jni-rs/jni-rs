@@ -4,7 +4,7 @@ use log::{debug, warn};
 
 use crate::{errors::Result, objects::JWeak, sys, JNIEnv, JavaVM};
 
-/// A weak global JVM reference. **It doesn't protect underlaying object from been
+/// A weak global JVM reference. **It doesn't protect the underlying object from being
 /// garbage collected.** Still, `WeakGlobalRef` is allowed to outlive the `JNIEnv` that
 /// it came from and can be used in other threads.
 ///
