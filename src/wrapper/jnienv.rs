@@ -376,7 +376,7 @@ impl<'a> JNIEnv<'a> {
         .into();
 
         let global = unsafe { GlobalRef::from_raw(self.get_java_vm()?, new_ref.into_inner()) };
-        Ok(weak_global)
+        Ok(global)
     }
 
     /// Create a new local ref to an object.
