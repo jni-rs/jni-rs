@@ -2070,8 +2070,10 @@ impl<'a> JNIEnv<'a> {
         array: jbyteArray,
         mode: ReleaseMode,
     ) -> Result<AutoByteArray> {
-        let (ptr, is_copy) = self.get_byte_array_elements(array)?;
-        AutoByteArray::new(self, array.into(), ptr, mode, is_copy)
+        non_null!(array, "get_auto_byte_array_elements array argument");
+        let mut is_copy: jboolean = 0xff;
+        let ptr = jni_non_void_call!(self.internal, GetByteArrayElements, array, &mut is_copy);
+        AutoByteArray::new(self, array.into(), ptr, mode, is_copy == sys::JNI_TRUE)
     }
 
     /// Return a tuple with a pointer to elements of the given Java primitive array as first

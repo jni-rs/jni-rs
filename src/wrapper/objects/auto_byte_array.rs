@@ -1,7 +1,7 @@
 use crate::sys::{jbyte, JNI_ABORT};
 use log::debug;
 
-use crate::{errors::*, objects::JObject, JNIEnv};
+use crate::{errors::*, objects::JObject, sys, JNIEnv};
 use std::ptr::NonNull;
 
 /// ReleaseMode
@@ -58,11 +58,31 @@ impl<'a, 'b> AutoByteArray<'a, 'b> {
         self.ptr.as_ptr()
     }
 
+    fn commit_byte_array_elements(&mut self) -> Result<()> {
+        jni_void_call!(
+            self.env.get_native_interface(),
+            ReleaseByteArrayElements,
+            *self.obj,
+            self.ptr.as_mut(),
+            sys::JNI_COMMIT
+        );
+        Ok(())
+    }
+
+    fn release_byte_array_elements(&mut self) -> Result<()> {
+        jni_void_call!(
+            self.env.get_native_interface(),
+            ReleaseByteArrayElements,
+            *self.obj,
+            self.ptr.as_mut(),
+            self.mode as i32
+        );
+        Ok(())
+    }
+
     /// Commits the changes to the array, if it is a copy
     pub fn commit(&mut self) {
-        let res = self
-            .env
-            .commit_byte_array_elements(*self.obj, unsafe { self.ptr.as_mut() });
+        let res = self.commit_byte_array_elements();
         match res {
             Ok(()) => {}
             Err(e) => debug!("error committing byte array: {:#?}", e),
@@ -85,11 +105,7 @@ impl<'a, 'b> AutoByteArray<'a, 'b> {
 
 impl<'a, 'b> Drop for AutoByteArray<'a, 'b> {
     fn drop(&mut self) {
-        let res = self.env.release_byte_array_elements(
-            *self.obj,
-            unsafe { self.ptr.as_mut() },
-            self.mode,
-        );
+        let res = self.release_byte_array_elements();
         match res {
             Ok(()) => {}
             Err(e) => debug!("error releasing byte array: {:#?}", e),
