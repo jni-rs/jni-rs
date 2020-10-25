@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Switch from `error-chain` to `thiserror`, making all errors `Send`. Also, support all JNI errors
   in the `jni_error_code_to_result` function and add more information to the `InvalidArgList`
   error. ([#242](https://github.com/jni-rs/jni-rs/pull/242))
+- `AutoByte/PrimitiveArray.commit()` now returns `Result`. (#275)
 
 ## [0.17.0] — 2020-06-30
 
