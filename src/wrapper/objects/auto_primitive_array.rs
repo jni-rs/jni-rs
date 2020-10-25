@@ -1,7 +1,7 @@
 use log::debug;
 
 use crate::wrapper::objects::ReleaseMode;
-use crate::{errors::*, objects::JObject, JNIEnv};
+use crate::{errors::*, objects::JObject, sys, JNIEnv};
 use std::os::raw::c_void;
 use std::ptr::NonNull;
 
@@ -46,15 +46,28 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
         self.ptr.as_ptr()
     }
 
-    /// Commits the result of the array, if it is a copy
-    pub fn commit(&mut self) {
-        let res = self
-            .env
-            .commit_primitive_array_critical(*self.obj, unsafe { self.ptr.as_mut() });
-        match res {
-            Ok(()) => {}
-            Err(e) => debug!("error committing primitive array: {:#?}", e),
-        }
+    /// Commits the changes to the array, if it is a copy
+    pub fn commit(&mut self) -> Result<()> {
+        self.release_primitive_array_critical(sys::JNI_COMMIT)
+    }
+
+    fn release_primitive_array_critical(&mut self, mode: i32) -> Result<()> {
+        jni_void_call!(
+            self.env.get_native_interface(),
+            ReleasePrimitiveArrayCritical,
+            *self.obj,
+            self.ptr.as_mut(),
+            mode
+        );
+        Ok(())
+    }
+
+    /// Don't commit the changes to the array on release (if it is a copy).
+    /// This has no effect if the array is not a copy.
+    /// This method is useful to change the release mode of an array originally created
+    /// with `ReleaseMode::CopyBack`.
+    pub fn discard(&mut self) {
+        self.mode = ReleaseMode::NoCopyBack;
     }
 
     /// Indicates if the array is a copy or not
@@ -65,11 +78,7 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
 
 impl<'a, 'b> Drop for AutoPrimitiveArray<'a, 'b> {
     fn drop(&mut self) {
-        let res = self.env.release_primitive_array_critical(
-            *self.obj,
-            unsafe { self.ptr.as_mut() },
-            self.mode,
-        );
+        let res = self.release_primitive_array_critical(self.mode as i32);
         match res {
             Ok(()) => {}
             Err(e) => debug!("error releasing primitive array: {:#?}", e),

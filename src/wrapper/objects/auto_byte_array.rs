@@ -1,7 +1,7 @@
 use crate::sys::{jbyte, JNI_ABORT};
 use log::debug;
 
-use crate::{errors::*, objects::JObject, JNIEnv};
+use crate::{errors::*, objects::JObject, sys, JNIEnv};
 use std::ptr::NonNull;
 
 /// ReleaseMode
@@ -58,15 +58,28 @@ impl<'a, 'b> AutoByteArray<'a, 'b> {
         self.ptr.as_ptr()
     }
 
-    /// Commits the result of the array, if it is a copy
-    pub fn commit(&mut self) {
-        let res = self
-            .env
-            .commit_byte_array_elements(*self.obj, unsafe { self.ptr.as_mut() });
-        match res {
-            Ok(()) => {}
-            Err(e) => debug!("error committing byte array: {:#?}", e),
-        }
+    /// Commits the changes to the array, if it is a copy
+    pub fn commit(&mut self) -> Result<()> {
+        self.release_byte_array_elements(sys::JNI_COMMIT)
+    }
+
+    fn release_byte_array_elements(&mut self, mode: i32) -> Result<()> {
+        jni_void_call!(
+            self.env.get_native_interface(),
+            ReleaseByteArrayElements,
+            *self.obj,
+            self.ptr.as_mut(),
+            mode
+        );
+        Ok(())
+    }
+
+    /// Don't commit the changes to the array on release (if it is a copy).
+    /// This has no effect if the array is not a copy.
+    /// This method is useful to change the release mode of an array originally created
+    /// with `ReleaseMode::CopyBack`.
+    pub fn discard(&mut self) {
+        self.mode = ReleaseMode::NoCopyBack;
     }
 
     /// Indicates if the array is a copy or not
@@ -77,11 +90,7 @@ impl<'a, 'b> AutoByteArray<'a, 'b> {
 
 impl<'a, 'b> Drop for AutoByteArray<'a, 'b> {
     fn drop(&mut self) {
-        let res = self.env.release_byte_array_elements(
-            *self.obj,
-            unsafe { self.ptr.as_mut() },
-            self.mode,
-        );
+        let res = self.release_byte_array_elements(self.mode as i32);
         match res {
             Ok(()) => {}
             Err(e) => debug!("error releasing byte array: {:#?}", e),
