@@ -21,14 +21,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `JNIEnv#define_unnamed_class` function that allows loading a class without
   specifying its name. The name is inferred from the class data. (#246)
 - `SetStatic<type>Field`. (#248)
-- `TryFrom<JValue>` for types inside JValue variants
+- `TryFrom<JValue>` for types inside JValue variants (#264).
+- Implemented Copy for JNIEnv (#255).
+- `repr(transparent)` attribute to JavaVM struct (#259)
 
 ### Changed
-
 - Switch from `error-chain` to `thiserror`, making all errors `Send`. Also, support all JNI errors
   in the `jni_error_code_to_result` function and add more information to the `InvalidArgList`
   error. ([#242](https://github.com/jni-rs/jni-rs/pull/242))
-- Implemented Copy for JNIEnv (#255).
 
 ## [0.17.0] — 2020-06-30
 
