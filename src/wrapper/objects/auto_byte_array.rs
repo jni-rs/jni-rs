@@ -58,6 +58,15 @@ impl<'a, 'b> AutoByteArray<'a, 'b> {
         self.ptr.as_ptr()
     }
 
+    /// Commits the changes to the array, if it is a copy
+    pub fn commit(&mut self) {
+        let res = self.commit_byte_array_elements();
+        match res {
+            Ok(()) => {}
+            Err(e) => debug!("error committing byte array: {:#?}", e),
+        }
+    }
+
     fn commit_byte_array_elements(&mut self) -> Result<()> {
         jni_void_call!(
             self.env.get_native_interface(),
@@ -78,15 +87,6 @@ impl<'a, 'b> AutoByteArray<'a, 'b> {
             self.mode as i32
         );
         Ok(())
-    }
-
-    /// Commits the changes to the array, if it is a copy
-    pub fn commit(&mut self) {
-        let res = self.commit_byte_array_elements();
-        match res {
-            Ok(()) => {}
-            Err(e) => debug!("error committing byte array: {:#?}", e),
-        }
     }
 
     /// Don't commit the changes to the array on release (if it is a copy).

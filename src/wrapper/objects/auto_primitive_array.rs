@@ -46,6 +46,15 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
         self.ptr.as_ptr()
     }
 
+    /// Commits the changes to the array, if it is a copy
+    pub fn commit(&mut self) {
+        let res = self.commit_primitive_array_critical();
+        match res {
+            Ok(()) => {}
+            Err(e) => debug!("error committing primitive array: {:#?}", e),
+        }
+    }
+
     fn commit_primitive_array_critical(&mut self) -> Result<()> {
         jni_void_call!(
             self.env.get_native_interface(),
@@ -66,15 +75,6 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
             self.mode as i32
         );
         Ok(())
-    }
-
-    /// Commits the changes to the array, if it is a copy
-    pub fn commit(&mut self) {
-        let res = self.commit_primitive_array_critical();
-        match res {
-            Ok(()) => {}
-            Err(e) => debug!("error committing primitive array: {:#?}", e),
-        }
     }
 
     /// Don't commit the changes to the array on release (if it is a copy).
