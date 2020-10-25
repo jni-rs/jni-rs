@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+- `discard()` method to `AutoByteArray` and `AutoPrimitiveArray`. (#275)
+- deprecation notice for get/release/commit_byte/primitive_array_{elements|critical}. (#275)
+
+### Changed
+- `AutoByte/PrimitiveArray.commit()` now returns `Result`. (#275)
+
 ## [0.18.0] — 2020-09-23
 
 ### Added
@@ -24,14 +31,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `TryFrom<JValue>` for types inside JValue variants (#264).
 - Implemented Copy for JNIEnv (#255).
 - `repr(transparent)` attribute to JavaVM struct (#259)
-- `discard()` method to `AutoByteArray` and `AutoPrimitiveArray`. (#275)
-- deprecation notice for get/release/commit_byte/primitive_array_{elements|critical}. (#275)
 
 ### Changed
 - Switch from `error-chain` to `thiserror`, making all errors `Send`. Also, support all JNI errors
   in the `jni_error_code_to_result` function and add more information to the `InvalidArgList`
   error. ([#242](https://github.com/jni-rs/jni-rs/pull/242))
-- `AutoByte/PrimitiveArray.commit()` now returns `Result`. (#275)
 
 ## [0.17.0] — 2020-06-30
 

@@ -1983,7 +1983,7 @@ impl<'a> JNIEnv<'a> {
     ///
     /// See also [`release_byte_array_elements`](struct.JNIEnv.html#method.release_byte_array_elements)
     #[deprecated(
-        since = "0.18.0",
+        since = "0.19.0",
         note = "Please use get_auto_byte_array_elements instead"
     )]
     pub fn get_byte_array_elements(&self, array: jbyteArray) -> Result<(*mut jbyte, bool)> {
@@ -2013,7 +2013,7 @@ impl<'a> JNIEnv<'a> {
     ///
     /// See also [`commit_byte_array_elements`](struct.JNIEnv.html#method.commit_byte_array_elements)
     #[deprecated(
-        since = "0.18.0",
+        since = "0.19.0",
         note = "Please use get_auto_byte_array_elements instead"
     )]
     pub fn release_byte_array_elements(
@@ -2038,7 +2038,7 @@ impl<'a> JNIEnv<'a> {
     /// This function has no effect if elems is not a copy of the elements in array. Otherwise,
     /// this function copies back the content of the array (and does not free the elems buffer).
     #[deprecated(
-        since = "0.18.0",
+        since = "0.19.0",
         note = "Please use get_auto_byte_array_elements instead"
     )]
     pub fn commit_byte_array_elements(&self, array: jbyteArray, elems: &mut jbyte) -> Result<()> {
@@ -2103,7 +2103,7 @@ impl<'a> JNIEnv<'a> {
     /// See also [`get_byte_array_elements`](struct.JNIEnv.html#method.get_byte_array_elements)
     /// See also [`release_primitive_array_critical`](struct.JNIEnv.html#method.release_primitive_array_critical)
     #[deprecated(
-        since = "0.18.0",
+        since = "0.19.0",
         note = "Please use get_auto_primitive_array_critical instead"
     )]
     pub fn get_primitive_array_critical(&self, array: jarray) -> Result<(*mut c_void, bool)> {
@@ -2126,7 +2126,7 @@ impl<'a> JNIEnv<'a> {
     /// See also [`get_primitive_array_critical`](struct.JNIEnv.html#method.get_primitive_array_critical)
     /// See also [`commit_primitive_array_critical`](struct.JNIEnv.html#method.commit_primitive_array_critical)
     #[deprecated(
-        since = "0.18.0",
+        since = "0.19.0",
         note = "Please use get_auto_primitive_array_critical instead"
     )]
     pub fn release_primitive_array_critical(
@@ -2151,7 +2151,7 @@ impl<'a> JNIEnv<'a> {
     /// This function has no effect if elems is not a copy of the elements in array. Otherwise,
     /// this function copies back the content of the array (and does not free the elems buffer).
     #[deprecated(
-        since = "0.18.0",
+        since = "0.19.0",
         note = "Please use get_auto_primitive_array_critical instead"
     )]
     pub fn commit_primitive_array_critical(
