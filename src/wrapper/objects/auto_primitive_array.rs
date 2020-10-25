@@ -47,15 +47,7 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
     }
 
     /// Commits the changes to the array, if it is a copy
-    pub fn commit(&mut self) {
-        let res = self.commit_primitive_array_critical();
-        match res {
-            Ok(()) => {}
-            Err(e) => debug!("error committing primitive array: {:#?}", e),
-        }
-    }
-
-    fn commit_primitive_array_critical(&mut self) -> Result<()> {
+    pub fn commit(&mut self) -> Result<()> {
         jni_void_call!(
             self.env.get_native_interface(),
             ReleasePrimitiveArrayCritical,

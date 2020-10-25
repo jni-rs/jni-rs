@@ -59,15 +59,7 @@ impl<'a, 'b> AutoByteArray<'a, 'b> {
     }
 
     /// Commits the changes to the array, if it is a copy
-    pub fn commit(&mut self) {
-        let res = self.commit_byte_array_elements();
-        match res {
-            Ok(()) => {}
-            Err(e) => debug!("error committing byte array: {:#?}", e),
-        }
-    }
-
-    fn commit_byte_array_elements(&mut self) -> Result<()> {
+    pub fn commit(&mut self) -> Result<()> {
         jni_void_call!(
             self.env.get_native_interface(),
             ReleaseByteArrayElements,
