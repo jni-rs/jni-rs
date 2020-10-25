@@ -272,10 +272,7 @@ pub fn call_static_method_throws() {
             MATH_TO_INT_SIGNATURE,
             &[x],
         )
-        .map_err(|error| match error {
-            Error::JavaException => true,
-            _ => false,
-        })
+        .map_err(|error| matches!(error, Error::JavaException))
         .expect_err("JNIEnv#call_static_method_unsafe should return error");
 
     assert!(
@@ -523,10 +520,7 @@ pub fn get_object_class_null_arg() {
     let null_obj = JObject::null();
     let result = env
         .get_object_class(null_obj)
-        .map_err(|error| match error {
-            Error::NullPtr(_) => true,
-            _ => false,
-        })
+        .map_err(|error| matches!(error, Error::NullPtr(_)))
         .expect_err("JNIEnv#get_object_class should return error for null argument");
     assert!(result, "ErrorKind::NullPtr expected as error");
 }
@@ -634,43 +628,35 @@ pub fn new_primitive_array_wrong() {
     const WRONG_SIZE: jsize = -1;
 
     let result = env.new_boolean_array(WRONG_SIZE);
-    assert!(result.is_err());
-    assert_exception(result, "JNIEnv#new_boolean_array should throw exception");
+    assert_exception(&result, "JNIEnv#new_boolean_array should throw exception");
     assert_pending_java_exception(&env);
 
     let result = env.new_byte_array(WRONG_SIZE);
-    assert!(result.is_err());
-    assert_exception(result, "JNIEnv#new_byte_array should throw exception");
+    assert_exception(&result, "JNIEnv#new_byte_array should throw exception");
     assert_pending_java_exception(&env);
 
     let result = env.new_char_array(WRONG_SIZE);
-    assert!(result.is_err());
-    assert_exception(result, "JNIEnv#new_char_array should throw exception");
+    assert_exception(&result, "JNIEnv#new_char_array should throw exception");
     assert_pending_java_exception(&env);
 
     let result = env.new_short_array(WRONG_SIZE);
-    assert!(result.is_err());
-    assert_exception(result, "JNIEnv#new_short_array should throw exception");
+    assert_exception(&result, "JNIEnv#new_short_array should throw exception");
     assert_pending_java_exception(&env);
 
     let result = env.new_int_array(WRONG_SIZE);
-    assert!(result.is_err());
-    assert_exception(result, "JNIEnv#new_int_array should throw exception");
+    assert_exception(&result, "JNIEnv#new_int_array should throw exception");
     assert_pending_java_exception(&env);
 
     let result = env.new_long_array(WRONG_SIZE);
-    assert!(result.is_err());
-    assert_exception(result, "JNIEnv#new_long_array should throw exception");
+    assert_exception(&result, "JNIEnv#new_long_array should throw exception");
     assert_pending_java_exception(&env);
 
     let result = env.new_float_array(WRONG_SIZE);
-    assert!(result.is_err());
-    assert_exception(result, "JNIEnv#new_float_array should throw exception");
+    assert_exception(&result, "JNIEnv#new_float_array should throw exception");
     assert_pending_java_exception(&env);
 
     let result = env.new_double_array(WRONG_SIZE);
-    assert!(result.is_err());
-    assert_exception(result, "JNIEnv#new_double_array should throw exception");
+    assert_exception(&result, "JNIEnv#new_double_array should throw exception");
     assert_pending_java_exception(&env);
 }
 
@@ -847,13 +833,11 @@ where
 }
 
 // Helper method that asserts that result is Error and the cause is JavaException.
-fn assert_exception(res: Result<jobject, Error>, expect_message: &str) {
+fn assert_exception(res: &Result<jobject, Error>, expect_message: &str) {
     assert!(res.is_err());
     assert!(res
-        .map_err(|error| match error {
-            Error::JavaException => true,
-            _ => false,
-        })
+        .as_ref()
+        .map_err(|error| matches!(error, Error::JavaException))
         .expect_err(expect_message));
 }
 

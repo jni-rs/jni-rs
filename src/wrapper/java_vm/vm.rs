@@ -130,6 +130,7 @@ use crate::InitArgs;
 /// [actp]: struct.JavaVM.html#method.attach_current_thread_permanently
 /// [actd]: struct.JavaVM.html#method.attach_current_thread_as_daemon
 /// [spec-references]: https://docs.oracle.com/en/java/javase/12/docs/specs/jni/design.html#referencing-java-objects
+#[repr(transparent)]
 pub struct JavaVM(*mut sys::JavaVM);
 
 unsafe impl Send for JavaVM {}
