@@ -48,23 +48,16 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
 
     /// Commits the changes to the array, if it is a copy
     pub fn commit(&mut self) -> Result<()> {
-        jni_void_call!(
-            self.env.get_native_interface(),
-            ReleasePrimitiveArrayCritical,
-            *self.obj,
-            self.ptr.as_mut(),
-            sys::JNI_COMMIT
-        );
-        Ok(())
+        self.release_primitive_array_critical(sys::JNI_COMMIT)
     }
 
-    fn release_primitive_array_critical(&mut self) -> Result<()> {
+    fn release_primitive_array_critical(&mut self, mode: i32) -> Result<()> {
         jni_void_call!(
             self.env.get_native_interface(),
             ReleasePrimitiveArrayCritical,
             *self.obj,
             self.ptr.as_mut(),
-            self.mode as i32
+            mode
         );
         Ok(())
     }
@@ -85,7 +78,7 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
 
 impl<'a, 'b> Drop for AutoPrimitiveArray<'a, 'b> {
     fn drop(&mut self) {
-        let res = self.release_primitive_array_critical();
+        let res = self.release_primitive_array_critical(self.mode as i32);
         match res {
             Ok(()) => {}
             Err(e) => debug!("error releasing primitive array: {:#?}", e),

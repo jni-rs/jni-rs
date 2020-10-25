@@ -60,23 +60,16 @@ impl<'a, 'b> AutoByteArray<'a, 'b> {
 
     /// Commits the changes to the array, if it is a copy
     pub fn commit(&mut self) -> Result<()> {
-        jni_void_call!(
-            self.env.get_native_interface(),
-            ReleaseByteArrayElements,
-            *self.obj,
-            self.ptr.as_mut(),
-            sys::JNI_COMMIT
-        );
-        Ok(())
+        self.release_byte_array_elements(sys::JNI_COMMIT)
     }
 
-    fn release_byte_array_elements(&mut self) -> Result<()> {
+    fn release_byte_array_elements(&mut self, mode: i32) -> Result<()> {
         jni_void_call!(
             self.env.get_native_interface(),
             ReleaseByteArrayElements,
             *self.obj,
             self.ptr.as_mut(),
-            self.mode as i32
+            mode
         );
         Ok(())
     }
@@ -97,7 +90,7 @@ impl<'a, 'b> AutoByteArray<'a, 'b> {
 
 impl<'a, 'b> Drop for AutoByteArray<'a, 'b> {
     fn drop(&mut self) {
-        let res = self.release_byte_array_elements();
+        let res = self.release_byte_array_elements(self.mode as i32);
         match res {
             Ok(()) => {}
             Err(e) => debug!("error releasing byte array: {:#?}", e),
