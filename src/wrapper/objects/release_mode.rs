@@ -2,7 +2,7 @@ use crate::sys::JNI_ABORT;
 
 /// ReleaseMode
 ///
-/// This defines the release mode of Auto*Array (and AutoPrimitiveArray) resources, and
+/// This defines the release mode of AutoArray (and AutoPrimitiveArray) resources, and
 /// related release array functions.
 #[derive(Clone, Copy)]
 #[repr(i32)]

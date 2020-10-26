@@ -1,6 +1,6 @@
 use log::debug;
 
-use crate::wrapper::objects::ReleaseMode;
+use crate::objects::release_mode::ReleaseMode;
 use crate::{errors::*, objects::JObject, sys, JNIEnv};
 use std::os::raw::c_void;
 use std::ptr::NonNull;
