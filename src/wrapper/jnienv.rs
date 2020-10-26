@@ -1,4 +1,3 @@
-use std::any::{type_name, TypeId};
 use std::{
     marker::PhantomData,
     os::raw::{c_char, c_void},
@@ -1972,54 +1971,6 @@ impl<'a> JNIEnv<'a> {
         let class = class.lookup(self)?;
         let res = jni_non_void_call!(self.internal, UnregisterNatives, class.into_inner());
         jni_error_code_to_result(res)
-    }
-
-    /// Return a tuple with a pointer to elements of the given Java array as first element.
-    /// The tuple's second element indicates if the pointed-to array is a copy or not.
-    ///
-    /// The result is valid until the corresponding release_array_elements() function is
-    /// called. Since the returned array may be a copy of the Java array, changes made to the
-    /// returned array will not necessarily be reflected in the original array until
-    /// release_array_elements() is called.
-    ///
-    /// To determine the type, type annotation can be required on the return value:
-    /// let (ptr, is_copy): (*mut jbyte, _) = env.get_array_elements(java_array)?;
-    /// If preferred, this method can be invoked using explicit type annotation:
-    /// let (ptr, is_copy) = env.get_array_elements::<jbyte>(java_array)?;
-    ///
-    /// See also [`release_array_elements`](struct.JNIEnv.html#method.release_array_elements)
-    pub fn get_array_elements<T: 'static>(&self, array: jarray) -> Result<(*mut T, bool)> {
-        non_null!(array, "get_array_elements array argument");
-        let mut is_copy: jboolean = 0xff;
-        let type_id = TypeId::of::<T>();
-        let ptr = if type_id == TypeId::of::<i32>() {
-            jni_non_void_call!(self.internal, GetIntArrayElements, array, &mut is_copy)
-                as *mut c_void
-        } else if type_id == TypeId::of::<i64>() {
-            jni_non_void_call!(self.internal, GetLongArrayElements, array, &mut is_copy)
-                as *mut c_void
-        } else if type_id == TypeId::of::<i8>() {
-            jni_non_void_call!(self.internal, GetByteArrayElements, array, &mut is_copy)
-                as *mut c_void
-        } else if type_id == TypeId::of::<u8>() {
-            jni_non_void_call!(self.internal, GetBooleanArrayElements, array, &mut is_copy)
-                as *mut c_void
-        } else if type_id == TypeId::of::<u16>() {
-            jni_non_void_call!(self.internal, GetCharArrayElements, array, &mut is_copy)
-                as *mut c_void
-        } else if type_id == TypeId::of::<i16>() {
-            jni_non_void_call!(self.internal, GetShortArrayElements, array, &mut is_copy)
-                as *mut c_void
-        } else if type_id == TypeId::of::<f32>() {
-            jni_non_void_call!(self.internal, GetFloatArrayElements, array, &mut is_copy)
-                as *mut c_void
-        } else if type_id == TypeId::of::<f64>() {
-            jni_non_void_call!(self.internal, GetDoubleArrayElements, array, &mut is_copy)
-                as *mut c_void
-        } else {
-            return Err(Error::WrongJValueType(type_name::<T>(), "?"));
-        };
-        Ok((ptr as *mut T, is_copy == sys::JNI_TRUE))
     }
 
     /// Return an AutoArray<jbyte> of the given Java byte array.
