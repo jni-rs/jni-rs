@@ -2042,9 +2042,7 @@ impl<'a> JNIEnv<'a> {
         mode: ReleaseMode,
     ) -> Result<AutoArray<jbyte>> {
         non_null!(array, "get_byte_array_elements array argument");
-        let mut is_copy: jboolean = 0xff;
-        let ptr = jni_non_void_call!(self.internal, GetByteArrayElements, array, &mut is_copy);
-        AutoArray::new(self, array.into(), ptr, mode, is_copy == sys::JNI_TRUE)
+        AutoArray::new(self, array.into(), mode)
     }
 
     /// Creates a new auto-release wrapper for a pointer-based long array.
@@ -2065,9 +2063,7 @@ impl<'a> JNIEnv<'a> {
         mode: ReleaseMode,
     ) -> Result<AutoArray<jlong>> {
         non_null!(array, "get_long_array_elements array argument");
-        let mut is_copy: jboolean = 0xff;
-        let ptr = jni_non_void_call!(self.internal, GetLongArrayElements, array, &mut is_copy);
-        AutoArray::new(self, array.into(), ptr, mode, is_copy == sys::JNI_TRUE)
+        AutoArray::new(self, array.into(), mode)
     }
 
     /// Return an AutoPrimitiveArray of the given Java primitive array.

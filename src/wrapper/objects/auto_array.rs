@@ -3,6 +3,7 @@ use log::debug;
 use crate::objects::release_mode::ReleaseMode;
 use crate::{errors::*, objects::JObject, sys, JNIEnv};
 use combine::lib::any::TypeId;
+use jni_sys::jboolean;
 use std::any::type_name;
 use std::ptr::NonNull;
 
@@ -27,18 +28,40 @@ impl<'a, 'b, T: 'static> AutoArray<'a, 'b, T> {
     /// Once this wrapper goes out of scope, `Release<Type>ArrayElements` will be
     /// called on the object. While wrapped, the object can be accessed via
     /// the `From` impl.
-    pub fn new(
-        env: &'b JNIEnv<'a>,
-        obj: JObject<'a>,
-        ptr: *mut T,
-        mode: ReleaseMode,
-        is_copy: bool,
-    ) -> Result<Self> {
+    pub fn new(env: &'b JNIEnv<'a>, obj: JObject<'a>, mode: ReleaseMode) -> Result<Self> {
+        let mut is_copy: jboolean = 0xff;
         Ok(AutoArray {
             obj,
-            ptr: NonNull::new(ptr).ok_or(Error::NullPtr("Non-null ptr expected"))?,
+            ptr: {
+                let internal = env.get_native_interface();
+                let type_id = TypeId::of::<T>();
+                let ptr = if type_id == TypeId::of::<i32>() {
+                    jni_non_void_call!(internal, GetIntArrayElements, *obj, &mut is_copy) as *mut T
+                } else if type_id == TypeId::of::<i64>() {
+                    jni_non_void_call!(internal, GetLongArrayElements, *obj, &mut is_copy) as *mut T
+                } else if type_id == TypeId::of::<i8>() {
+                    jni_non_void_call!(internal, GetByteArrayElements, *obj, &mut is_copy) as *mut T
+                } else if type_id == TypeId::of::<u8>() {
+                    jni_non_void_call!(internal, GetBooleanArrayElements, *obj, &mut is_copy)
+                        as *mut T
+                } else if type_id == TypeId::of::<u16>() {
+                    jni_non_void_call!(internal, GetCharArrayElements, *obj, &mut is_copy) as *mut T
+                } else if type_id == TypeId::of::<i16>() {
+                    jni_non_void_call!(internal, GetShortArrayElements, *obj, &mut is_copy)
+                        as *mut T
+                } else if type_id == TypeId::of::<f32>() {
+                    jni_non_void_call!(internal, GetFloatArrayElements, *obj, &mut is_copy)
+                        as *mut T
+                } else if type_id == TypeId::of::<f64>() {
+                    jni_non_void_call!(internal, GetDoubleArrayElements, *obj, &mut is_copy)
+                        as *mut T
+                } else {
+                    return Err(Error::WrongJValueType(type_name::<T>(), "?"));
+                };
+                NonNull::new(ptr).ok_or(Error::NullPtr("Non-null ptr expected"))?
+            },
             mode,
-            is_copy,
+            is_copy: is_copy == sys::JNI_TRUE,
             env,
             type_id: TypeId::of::<T>(),
         })
