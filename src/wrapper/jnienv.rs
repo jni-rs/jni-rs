@@ -13,9 +13,9 @@ use crate::{
     descriptors::Desc,
     errors::*,
     objects::{
-        AutoByteArray, AutoLocal, AutoLongArray, AutoPrimitiveArray, GlobalRef, JByteBuffer,
-        JClass, JFieldID, JList, JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID,
-        JString, JThrowable, JValue, ReleaseMode,
+        AutoArray, AutoLocal, AutoPrimitiveArray, GlobalRef, JByteBuffer, JClass, JFieldID, JList,
+        JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID, JString, JThrowable, JValue,
+        ReleaseMode,
     },
     signature::{JavaType, Primitive, TypeSignature},
     strings::{JNIString, JavaStr},
@@ -2022,15 +2022,15 @@ impl<'a> JNIEnv<'a> {
         Ok((ptr as *mut T, is_copy == sys::JNI_TRUE))
     }
 
-    /// Return an AutoByteArray of the given Java byte array.
+    /// Return an AutoArray<jbyte> of the given Java byte array.
     ///
-    /// The result is valid until the AutoByteArray object goes out of scope, when the
+    /// The result is valid until the AutoArray object goes out of scope, when the
     /// release happens automatically according to the mode parameter.
     ///
     /// Since the returned array may be a copy of the Java array, changes made to the
     /// returned array will not necessarily be reflected in the original array until
     /// ReleaseByteArrayElements is called.
-    /// AutoByteArray has a commit() method, to force a copy of the array if needed (and without
+    /// AutoArray has a commit() method, to force a copy of the array if needed (and without
     /// releasing it).
     ///
     /// If the given array is `null`, an `Error::NullPtr` is returned.
@@ -2040,11 +2040,11 @@ impl<'a> JNIEnv<'a> {
         &self,
         array: jbyteArray,
         mode: ReleaseMode,
-    ) -> Result<AutoByteArray> {
+    ) -> Result<AutoArray<jbyte>> {
         non_null!(array, "get_byte_array_elements array argument");
         let mut is_copy: jboolean = 0xff;
         let ptr = jni_non_void_call!(self.internal, GetByteArrayElements, array, &mut is_copy);
-        AutoByteArray::new(self, array.into(), ptr, mode, is_copy == sys::JNI_TRUE)
+        AutoArray::new(self, array.into(), ptr, mode, is_copy == sys::JNI_TRUE)
     }
 
     /// Creates a new auto-release wrapper for a pointer-based long array.
@@ -2055,7 +2055,7 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Since the returned array may be a copy of the Java array, changes made to the
     /// returned array will not necessarily be reflected in the original array until
-    /// it goes out of scope. AutoLongArray has a commit() method, to force a copy of
+    /// it goes out of scope. AutoArray has a commit() method, to force a copy of
     /// the array if needed and without releasing it.
     ///
     /// If the given array is `null`, an `Error::NullPtr` is returned.
@@ -2063,11 +2063,11 @@ impl<'a> JNIEnv<'a> {
         &self,
         array: jlongArray,
         mode: ReleaseMode,
-    ) -> Result<AutoLongArray> {
+    ) -> Result<AutoArray<jlong>> {
         non_null!(array, "get_long_array_elements array argument");
         let mut is_copy: jboolean = 0xff;
         let ptr = jni_non_void_call!(self.internal, GetLongArrayElements, array, &mut is_copy);
-        AutoLongArray::new(self, array.into(), ptr, mode, is_copy == sys::JNI_TRUE)
+        AutoArray::new(self, array.into(), ptr, mode, is_copy == sys::JNI_TRUE)
     }
 
     /// Return an AutoPrimitiveArray of the given Java primitive array.
