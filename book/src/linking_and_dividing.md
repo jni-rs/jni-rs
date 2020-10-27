@@ -153,7 +153,7 @@ pub extern "system" fn Java_com_github_jni_1rs_jnibook_NativeAPI_verify_1link(
 ) {}
 ```
 
-With that, we're done. You'll find thats exactly what the Rust starter code
+With that, we're done. You'll find that’s exactly what the Rust starter code
 contains.
 
 # Dividing with Native Code
