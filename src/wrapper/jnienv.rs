@@ -2162,8 +2162,10 @@ impl<'a> JNIEnv<'a> {
         array: jlongArray,
         mode: ReleaseMode,
     ) -> Result<AutoLongArray> {
-        let (ptr, is_copy) = self.get_long_array_elements(array)?;
-        AutoLongArray::new(self, array.into(), ptr, mode, is_copy)
+        non_null!(array, "get_long_array_elements array argument");
+        let mut is_copy: jboolean = 0xff;
+        let ptr = jni_non_void_call!(self.internal, GetLongArrayElements, array, &mut is_copy);
+        AutoLongArray::new(self, array.into(), ptr, mode, is_copy == sys::JNI_TRUE)
     }
 
     /// Return a tuple with a pointer to elements of the given Java primitive array as first

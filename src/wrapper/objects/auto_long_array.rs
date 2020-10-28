@@ -2,7 +2,7 @@ use std::ptr::NonNull;
 
 use log::debug;
 
-use crate::{errors::*, JNIEnv, objects::JObject};
+use crate::{errors::*, JNIEnv, objects::JObject, sys};
 use crate::objects::release_mode::ReleaseMode;
 use crate::sys::jlong;
 
@@ -48,14 +48,27 @@ impl<'a, 'b> AutoLongArray<'a, 'b> {
     }
 
     /// Commits the result of the array, if it is a copy
-    pub fn commit(&mut self) {
-        let res = self
-            .env
-            .commit_long_array_elements(*self.obj, unsafe { self.ptr.as_mut() });
-        match res {
-            Ok(()) => {}
-            Err(e) => debug!("error committing long array: {:#?}", e),
-        }
+    pub fn commit(&mut self) -> Result<()> {
+        self.release_long_array_elements(sys::JNI_COMMIT)
+    }
+
+    fn release_long_array_elements(&mut self, mode: i32) -> Result<()> {
+        jni_void_call!(
+            self.env.get_native_interface(),
+            ReleaseLongArrayElements,
+            *self.obj,
+            self.ptr.as_mut(),
+            mode
+        );
+        Ok(())
+    }
+
+    /// Don't commit the changes to the array on release (if it is a copy).
+    /// This has no effect if the array is not a copy.
+    /// This method is useful to change the release mode of an array originally created
+    /// with `ReleaseMode::CopyBack`.
+    pub fn discard(&mut self) {
+        self.mode = ReleaseMode::NoCopyBack;
     }
 
     /// Indicates if the array is a copy or not
@@ -66,11 +79,7 @@ impl<'a, 'b> AutoLongArray<'a, 'b> {
 
 impl<'a, 'b> Drop for AutoLongArray<'a, 'b> {
     fn drop(&mut self) {
-        let res = self.env.release_long_array_elements(
-            *self.obj,
-            unsafe { self.ptr.as_mut() },
-            self.mode,
-        );
+        let res = self.release_long_array_elements(self.mode as i32);
         match res {
             Ok(()) => {}
             Err(e) => debug!("error releasing long array: {:#?}", e),
