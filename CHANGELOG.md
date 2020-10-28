@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - `discard()` method to `AutoByteArray` and `AutoPrimitiveArray`. (#275)
 - deprecation notice for get/release/commit_byte/primitive_array_{elements|critical}. (#275)
+- Added `AutoLongArray`. (#276)
 
 ### Changed
 - `AutoByte/PrimitiveArray.commit()` now returns `Result`. (#275)
