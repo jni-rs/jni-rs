@@ -1,6 +1,6 @@
 use std::ptr::NonNull;
 
-use log::debug;
+use log::error;
 
 use crate::{errors::*, JNIEnv, objects::JObject, sys};
 use crate::objects::release_mode::ReleaseMode;
@@ -18,8 +18,7 @@ pub struct AutoLongArray<'a: 'b, 'b> {
 }
 
 impl<'a, 'b> AutoLongArray<'a, 'b> {
-
-    pub fn new(
+    pub(crate) fn new(
         env: &'b JNIEnv<'a>,
         obj: JObject<'a>,
         ptr: *mut jlong,
@@ -75,7 +74,7 @@ impl<'a, 'b> Drop for AutoLongArray<'a, 'b> {
         let res = self.release_long_array_elements(self.mode as i32);
         match res {
             Ok(()) => {}
-            Err(e) => debug!("error releasing long array: {:#?}", e),
+            Err(e) => error!("error releasing long array: {:#?}", e),
         }
     }
 }

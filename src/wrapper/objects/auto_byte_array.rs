@@ -1,5 +1,5 @@
 use crate::sys::jbyte;
-use log::debug;
+use log::error;
 
 use crate::{errors::*, objects::JObject, sys, JNIEnv};
 use std::ptr::NonNull;
@@ -25,7 +25,7 @@ impl<'a, 'b> AutoByteArray<'a, 'b> {
     /// Once this wrapper goes out of scope, `release_byte_array_elements` will be
     /// called on the object. While wrapped, the object can be accessed via
     /// the `From` impl.
-    pub fn new(
+    pub(crate) fn new(
         env: &'b JNIEnv<'a>,
         obj: JObject<'a>,
         ptr: *mut jbyte,
@@ -81,7 +81,7 @@ impl<'a, 'b> Drop for AutoByteArray<'a, 'b> {
         let res = self.release_byte_array_elements(self.mode as i32);
         match res {
             Ok(()) => {}
-            Err(e) => debug!("error releasing byte array: {:#?}", e),
+            Err(e) => error!("error releasing byte array: {:#?}", e),
         }
     }
 }
