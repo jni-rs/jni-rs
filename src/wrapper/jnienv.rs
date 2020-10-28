@@ -1838,7 +1838,7 @@ impl<'a> JNIEnv<'a> {
     /// Gets a lock on a Rust value that's been given to a Java object. Java
     /// still retains ownership and `take_rust_field` will still need to be
     /// called at some point. Checks for a null pointer, but assumes that the
-    /// data it ponts to is valid for T.
+    /// data it points to is valid for T.
     #[allow(unused_variables)]
     pub fn get_rust_field<O, S, T>(&self, obj: O, field: S) -> Result<MutexGuard<T>>
     where
@@ -2065,6 +2065,8 @@ impl<'a> JNIEnv<'a> {
     /// AutoByteArray has a commit() method, to force a copy of the array if needed (and without
     /// releasing it).
     ///
+    /// If the given array is `null`, an `Error::NullPtr` is returned.
+    ///
     /// See also [`get_byte_array_elements`](struct.JNIEnv.html#method.get_byte_array_elements)
     pub fn get_auto_byte_array_elements(
         &self,
@@ -2077,24 +2079,24 @@ impl<'a> JNIEnv<'a> {
         AutoByteArray::new(self, array.into(), ptr, mode, is_copy == sys::JNI_TRUE)
     }
 
-    /// Return an AutoLongArray of the given Java long array.
+    /// Creates a new auto-release wrapper for a pointer-based long array.
     ///
-    /// The result is valid until the AutoLongArray object goes out of scope, when the
-    /// release happens automatically according to the mode parameter.
+    /// Once this wrapper goes out of scope, the wrapped array will be released
+    /// according to the `mode` parameter.
+    /// While wrapped, the object can be accessed via the `From` impl.
     ///
     /// Since the returned array may be a copy of the Java array, changes made to the
     /// returned array will not necessarily be reflected in the original array until
-    /// release_array_elements() is called.
-    /// AutoLongArray has a commit() method, to force a copy of the array if needed (and without
-    /// releasing it).
+    /// it goes out of scope. AutoLongArray has a commit() method, to force a copy of
+    /// the array if needed and without releasing it.
     ///
-    /// See also [`get_long_array_elements`](struct.JNIEnv.html#method.get_long_array_elements)
+    /// If the given array is `null`, an `Error::NullPtr` is returned.
     pub fn get_auto_long_array_elements(
         &self,
         array: jlongArray,
         mode: ReleaseMode,
     ) -> Result<AutoLongArray> {
-        non_null!(array, "get_long_array_elements array argument");
+        non_null!(array, "get_auto_long_array_elements array argument");
         let mut is_copy: jboolean = 0xff;
         let ptr = jni_non_void_call!(self.internal, GetLongArrayElements, array, &mut is_copy);
         AutoLongArray::new(self, array.into(), ptr, mode, is_copy == sys::JNI_TRUE)
@@ -2213,6 +2215,8 @@ impl<'a> JNIEnv<'a> {
     /// destruction.
     /// AutoPrimitiveArray also has a commit() method, to force a copy of the array if needed
     /// (without releasing it).
+    ///
+    /// If the given array is `null`, an `Error::NullPtr` is returned.
     ///
     /// See also [`get_primitive_array_critical`](struct.JNIEnv.html#method.get_primitive_array_critical)
     pub fn get_auto_primitive_array_critical(

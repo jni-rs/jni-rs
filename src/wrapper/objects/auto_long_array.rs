@@ -8,9 +8,6 @@ use crate::sys::jlong;
 
 /// Auto-release wrapper for pointer-based long arrays.
 ///
-/// This wrapper is used to wrap pointers returned by get_long_array_elements.
-///
-/// These arrays need to be released through a call to release_long_array_elements.
 /// This wrapper provides automatic array release when it goes out of scope.
 pub struct AutoLongArray<'a: 'b, 'b> {
     obj: JObject<'a>,
@@ -21,11 +18,7 @@ pub struct AutoLongArray<'a: 'b, 'b> {
 }
 
 impl<'a, 'b> AutoLongArray<'a, 'b> {
-    /// Creates a new auto-release wrapper for a pointer-based long array
-    ///
-    /// Once this wrapper goes out of scope, `release_long_array_elements` will be
-    /// called on the object. While wrapped, the object can be accessed via
-    /// the `From` impl.
+
     pub fn new(
         env: &'b JNIEnv<'a>,
         obj: JObject<'a>,

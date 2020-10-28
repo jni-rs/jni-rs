@@ -415,7 +415,6 @@ pub fn get_long_array_elements_auto() {
     let env = attach_current_thread();
 
     // Create original Java array
-    // Create original Java array
     let buf: &[i64] = &[1, 2, 3];
     let java_array = env
         .new_long_array(3)
@@ -426,7 +425,7 @@ pub fn get_long_array_elements_auto() {
 
     // Use a scope to test Drop
     {
-        // Get byte array elements auto wrapper
+        // Get long array elements auto wrapper
         let auto_ptr = env
             .get_auto_long_array_elements(java_array, ReleaseMode::CopyBack)
             .unwrap();
