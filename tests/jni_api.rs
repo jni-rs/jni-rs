@@ -357,7 +357,7 @@ pub fn java_get_byte_array_elements() {
 }
 
 #[test]
-pub fn get_byte_array_elements_auto() {
+pub fn get_auto_byte_array_elements() {
     let env = attach_current_thread();
 
     // Create original Java array
@@ -411,7 +411,7 @@ pub fn get_byte_array_elements_auto() {
 }
 
 #[test]
-pub fn get_long_array_elements_auto() {
+pub fn get_auto_long_array_elements() {
     let env = attach_current_thread();
 
     // Create original Java array
@@ -460,8 +460,52 @@ pub fn get_long_array_elements_auto() {
     }
 
     // Confirm modification of original Java array
-    let mut res: [i8; 3] = [0; 3];
-    env.get_byte_array_region(java_array, 0, &mut res).unwrap();
+    let mut res: [i64; 3] = [0; 3];
+    env.get_long_array_region(java_array, 0, &mut res).unwrap();
+    assert_eq!(res[0], 2);
+    assert_eq!(res[1], 3);
+    assert_eq!(res[2], 4);
+}
+
+#[test]
+pub fn get_auto_long_array_elements_commit() {
+    let env = attach_current_thread();
+
+    // Create original Java array
+    let buf: &[i64] = &[1, 2, 3];
+    let java_array = env
+        .new_long_array(3)
+        .expect("JNIEnv#new_long_array must create a java array with given size");
+
+    // Insert array elements
+    let _ = env.set_long_array_region(java_array, 0, buf);
+
+    // Get long array elements auto wrapper
+    let mut auto_ptr = env
+        .get_auto_long_array_elements(java_array, ReleaseMode::CopyBack)
+        .unwrap();
+
+    // Check pointer access
+    let ptr = auto_ptr.as_ptr();
+
+    // Modify
+    unsafe {
+        *ptr.offset(0) += 1;
+        *ptr.offset(1) += 1;
+        *ptr.offset(2) += 1;
+    }
+
+    // Check that original Java array is unmodified
+    let mut res: [i64; 3] = [0; 3];
+    env.get_long_array_region(java_array, 0, &mut res).unwrap();
+    assert_eq!(res[0], 1);
+    assert_eq!(res[1], 2);
+    assert_eq!(res[2], 3);
+
+    auto_ptr.commit();
+
+    // Confirm modification of original Java array
+    env.get_long_array_region(java_array, 0, &mut res).unwrap();
     assert_eq!(res[0], 2);
     assert_eq!(res[1], 3);
     assert_eq!(res[2], 4);
@@ -516,7 +560,7 @@ pub fn java_get_primitive_array_critical() {
 }
 
 #[test]
-pub fn get_primitive_array_critical_auto() {
+pub fn get_auto_primitive_array_critical() {
     let env = attach_current_thread();
 
     // Create original Java array
