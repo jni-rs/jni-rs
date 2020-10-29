@@ -485,6 +485,12 @@ pub fn get_auto_long_array_elements_commit() {
         .get_auto_long_array_elements(java_array, ReleaseMode::CopyBack)
         .unwrap();
 
+    // Copying the array depends on the VM vendor/version/GC combinations.
+    // If the wrapped array is not being copied, we can skip the test.
+    if !auto_ptr.is_copy() {
+        return;
+    }
+
     // Check pointer access
     let ptr = auto_ptr.as_ptr();
 
