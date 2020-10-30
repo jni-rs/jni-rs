@@ -8,6 +8,7 @@ use std::{
 
 use log::warn;
 
+use crate::objects::AutoLongArray;
 use crate::{
     descriptors::Desc,
     errors::*,
@@ -25,7 +26,6 @@ use crate::{
     },
     JNIVersion, JavaVM,
 };
-use crate::objects::AutoLongArray;
 
 /// FFI-compatible JNIEnv struct. You can safely use this as the JNIEnv argument
 /// to exported methods that will be called by java. This is where most of the

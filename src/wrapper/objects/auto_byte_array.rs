@@ -1,9 +1,9 @@
 use crate::sys::jbyte;
 use log::error;
 
+use crate::objects::release_mode::ReleaseMode;
 use crate::{errors::*, objects::JObject, sys, JNIEnv};
 use std::ptr::NonNull;
-use crate::objects::release_mode::ReleaseMode;
 
 /// Auto-release wrapper for pointer-based byte arrays.
 ///
