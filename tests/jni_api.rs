@@ -508,7 +508,7 @@ pub fn get_auto_long_array_elements_commit() {
     assert_eq!(res[1], 2);
     assert_eq!(res[2], 3);
 
-    auto_ptr.commit();
+    let _ = auto_ptr.commit();
 
     // Confirm modification of original Java array
     env.get_long_array_region(java_array, 0, &mut res).unwrap();
