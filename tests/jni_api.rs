@@ -517,7 +517,6 @@ pub fn get_auto_long_array_elements_commit() {
     assert_eq!(res[2], 4);
 }
 
-
 #[test]
 pub fn java_get_primitive_array_critical() {
     let env = attach_current_thread();

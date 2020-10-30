@@ -2,9 +2,9 @@ use std::ptr::NonNull;
 
 use log::error;
 
-use crate::{errors::*, JNIEnv, objects::JObject, sys};
 use crate::objects::release_mode::ReleaseMode;
 use crate::sys::jlong;
+use crate::{errors::*, objects::JObject, sys, JNIEnv};
 
 /// Auto-release wrapper for pointer-based long arrays.
 ///
