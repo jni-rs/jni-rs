@@ -34,7 +34,7 @@ echo 'Performing checks over the rust code'
 cargo fmt --all -- --check
 
 # Run clippy static analysis.
-cargo clippy --all --tests --all-features -- -D warnings
+cargo clippy --all --tests --all-features -- -D warnings -A deprecated
 
 # Run tests with default features (stable-only)
 if [[ ${TRAVIS_RUST_VERSION} == "stable" ]]; then
