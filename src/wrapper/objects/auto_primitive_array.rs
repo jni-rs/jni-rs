@@ -25,7 +25,7 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
     ///
     /// Once this wrapper goes out of scope, `release_primitive_array_critical` will be
     /// called on the object. While wrapped, the object can be accessed via the `From` impl.
-    pub fn new(
+    pub(crate) fn new(
         env: &'b JNIEnv<'a>,
         obj: JObject<'a>,
         ptr: *mut c_void,
