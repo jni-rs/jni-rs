@@ -41,7 +41,7 @@ jobs:
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: -- -D warnings
+          args: --all --tests --all-features -- -D warnings
 
   # Security audit.
   audit:
@@ -91,7 +91,7 @@ jobs:
         with:
           command: build
           args: --examples --all
-      - name: Test
+      - name: Test default features
         uses: actions-rs/cargo@v1
         with:
           command: test
