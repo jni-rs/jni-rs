@@ -20,7 +20,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   specifying its name. The name is inferred from the class data. (#246)
 - `SetStatic<type>Field`. (#248)
 - `TryFrom<JValue>` for types inside JValue variants
-- `Send` and `Sync` implementations for `JMethodID` and `JFieldID`.
+- `Send` and `Sync` implementations for `JMethodID`, `JStaticMethodID`, `JFieldID` and
+  `JStaticFieldID`. (#274)
 
 ### Changed
 

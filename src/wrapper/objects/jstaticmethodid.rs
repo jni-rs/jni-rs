@@ -30,3 +30,6 @@ impl<'a> JStaticMethodID<'a> {
         self.internal
     }
 }
+
+unsafe impl Send for JStaticMethodID<'_> {}
+unsafe impl Sync for JStaticMethodID<'_> {}

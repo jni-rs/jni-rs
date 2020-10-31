@@ -29,3 +29,6 @@ impl<'a> JStaticFieldID<'a> {
         self.internal
     }
 }
+
+unsafe impl Send for JStaticFieldID<'_> {}
+unsafe impl Sync for JStaticFieldID<'_> {}
