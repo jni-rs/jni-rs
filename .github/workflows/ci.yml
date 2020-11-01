@@ -64,22 +64,15 @@ jobs:
             os: ubuntu-latest
           - build: macOS
             os: macOS-latest
-          - build: Win64-msvc
+          - build: Windows
             os: windows-latest
-            rust: stable-x86_64-pc-windows-msvc
-            target: x86_64-pc-windows-msvc
-          - build: Win64-gnu
-            os: windows-latest
-            rust: stable-x86_64-pc-windows-msvc
-            target: x86_64-pc-windows-msvc
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
       - name: Install rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: ${{ matrix.rust || 'stable' }}
-          target: ${{ matrix.target }}
+          toolchain: stable
           profile: minimal
           override: true
       - name: Install java
