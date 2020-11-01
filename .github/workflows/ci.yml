@@ -88,6 +88,9 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
+      - name: Shellcheck
+        if: runner.os == 'Linux'
+        run: .github/workflows/shellcheck.sh
       - name: Test invocation
         if: runner.os != 'Windows'
         run: .github/workflows/run_invocation_tests.sh
