@@ -316,7 +316,7 @@ pub fn java_byte_array_from_slice() {
 }
 
 #[test]
-pub fn get_auto_byte_array_elements() {
+pub fn get_byte_array_elements() {
     let env = attach_current_thread();
 
     // Create original Java array
@@ -370,7 +370,7 @@ pub fn get_auto_byte_array_elements() {
 }
 
 #[test]
-pub fn get_auto_long_array_elements() {
+pub fn get_long_array_elements() {
     let env = attach_current_thread();
 
     // Create original Java array
@@ -427,7 +427,7 @@ pub fn get_auto_long_array_elements() {
 }
 
 #[test]
-pub fn get_auto_long_array_elements_commit() {
+pub fn get_long_array_elements_commit() {
     let env = attach_current_thread();
 
     // Create original Java array
@@ -477,7 +477,7 @@ pub fn get_auto_long_array_elements_commit() {
 }
 
 #[test]
-pub fn get_auto_primitive_array_critical() {
+pub fn get_primitive_array_critical() {
     let env = attach_current_thread();
 
     // Create original Java array
