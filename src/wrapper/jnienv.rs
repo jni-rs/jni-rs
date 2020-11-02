@@ -8,14 +8,13 @@ use std::{
 
 use log::warn;
 
-use crate::objects::AutoLongArray;
 use crate::{
     descriptors::Desc,
     errors::*,
     objects::{
-        AutoByteArray, AutoLocal, AutoPrimitiveArray, GlobalRef, JByteBuffer, JClass, JFieldID,
-        JList, JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID, JString, JThrowable,
-        JValue, ReleaseMode,
+        AutoByteArray, AutoLocal, AutoLongArray, AutoPrimitiveArray, GlobalRef, JByteBuffer,
+        JClass, JFieldID, JList, JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID,
+        JString, JThrowable, JValue, ReleaseMode,
     },
     signature::{JavaType, Primitive, TypeSignature},
     strings::{JNIString, JavaStr},
@@ -1981,19 +1980,19 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Since the returned array may be a copy of the Java array, changes made to the
     /// returned array will not necessarily be reflected in the original array until
-    /// release_array_elements() is called.
+    /// ReleaseByteArrayElements is called.
     /// AutoByteArray has a commit() method, to force a copy of the array if needed (and without
     /// releasing it).
     ///
     /// If the given array is `null`, an `Error::NullPtr` is returned.
     ///
-    /// See also [`get_byte_array_elements`](struct.JNIEnv.html#method.get_byte_array_elements)
-    pub fn get_auto_byte_array_elements(
+    /// See also [`get_primitive_array_critical`](struct.JNIEnv.html#method.get_primitive_array_critical)
+    pub fn get_byte_array_elements(
         &self,
         array: jbyteArray,
         mode: ReleaseMode,
     ) -> Result<AutoByteArray> {
-        non_null!(array, "get_auto_byte_array_elements array argument");
+        non_null!(array, "get_byte_array_elements array argument");
         let mut is_copy: jboolean = 0xff;
         let ptr = jni_non_void_call!(self.internal, GetByteArrayElements, array, &mut is_copy);
         AutoByteArray::new(self, array.into(), ptr, mode, is_copy == sys::JNI_TRUE)
@@ -2011,12 +2010,12 @@ impl<'a> JNIEnv<'a> {
     /// the array if needed and without releasing it.
     ///
     /// If the given array is `null`, an `Error::NullPtr` is returned.
-    pub fn get_auto_long_array_elements(
+    pub fn get_long_array_elements(
         &self,
         array: jlongArray,
         mode: ReleaseMode,
     ) -> Result<AutoLongArray> {
-        non_null!(array, "get_auto_long_array_elements array argument");
+        non_null!(array, "get_long_array_elements array argument");
         let mut is_copy: jboolean = 0xff;
         let ptr = jni_non_void_call!(self.internal, GetLongArrayElements, array, &mut is_copy);
         AutoLongArray::new(self, array.into(), ptr, mode, is_copy == sys::JNI_TRUE)
@@ -2028,29 +2027,28 @@ impl<'a> JNIEnv<'a> {
     /// when the release happens automatically according to the mode parameter.
     ///
     /// Given that Critical sections must be as short as possible, and that they come with a
-    /// number of important restrictions (see get_primitive_array_critical), use this
+    /// number of important restrictions (see GetPrimitiveArrayCritical JNI doc), use this
     /// wrapper wisely, to avoid holding the array longer that strictly necessary.
     /// In any case, you can:
-    ///  - Use the manual variants instead (i.e. get/release_primitive_array_critical).
     ///  - Use std::mem::drop explicitly, to force / anticipate resource release.
     ///  - Use a nested scope, to release the array at the nested scope's exit.
     ///
     /// Since the returned array may be a copy of the Java array, changes made to the
     /// returned array will not necessarily be reflected in the original array until
-    /// release_primitive_array_critical() is called; which happens at AutoPrimitiveArray
+    /// ReleasePrimitiveArrayCritical is called; which happens at AutoPrimitiveArray
     /// destruction.
     /// AutoPrimitiveArray also has a commit() method, to force a copy of the array if needed
     /// (without releasing it).
     ///
     /// If the given array is `null`, an `Error::NullPtr` is returned.
     ///
-    /// See also [`get_primitive_array_critical`](struct.JNIEnv.html#method.get_primitive_array_critical)
-    pub fn get_auto_primitive_array_critical(
+    /// See also [`get_byte_array_elements`](struct.JNIEnv.html#method.get_byte_array_elements)
+    pub fn get_primitive_array_critical(
         &self,
         array: jarray,
         mode: ReleaseMode,
     ) -> Result<AutoPrimitiveArray> {
-        non_null!(array, "get_auto_primitive_array_critical array argument");
+        non_null!(array, "get_primitive_array_critical array argument");
         let mut is_copy: jboolean = 0xff;
         let ptr = jni_non_void_call!(
             self.internal,

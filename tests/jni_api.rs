@@ -329,7 +329,7 @@ pub fn get_auto_byte_array_elements() {
     {
         // Get byte array elements auto wrapper
         let auto_ptr = env
-            .get_auto_byte_array_elements(java_array, ReleaseMode::CopyBack)
+            .get_byte_array_elements(java_array, ReleaseMode::CopyBack)
             .unwrap();
 
         // Check pointer access
@@ -358,7 +358,7 @@ pub fn get_auto_byte_array_elements() {
         }
 
         // Commit would be necessary here, if there were no closure
-        //auto_ptr.commit();
+        //auto_ptr.commit().unwrap();
     }
 
     // Confirm modification of original Java array
@@ -386,7 +386,7 @@ pub fn get_auto_long_array_elements() {
     {
         // Get long array elements auto wrapper
         let auto_ptr = env
-            .get_auto_long_array_elements(java_array, ReleaseMode::CopyBack)
+            .get_long_array_elements(java_array, ReleaseMode::CopyBack)
             .unwrap();
 
         // Check pointer access
@@ -415,7 +415,7 @@ pub fn get_auto_long_array_elements() {
         }
 
         // Commit would be necessary here, if there were no closure
-        //auto_ptr.commit();
+        //auto_ptr.commit().unwrap();
     }
 
     // Confirm modification of original Java array
@@ -441,7 +441,7 @@ pub fn get_auto_long_array_elements_commit() {
 
     // Get long array elements auto wrapper
     let mut auto_ptr = env
-        .get_auto_long_array_elements(java_array, ReleaseMode::CopyBack)
+        .get_long_array_elements(java_array, ReleaseMode::CopyBack)
         .unwrap();
 
     // Copying the array depends on the VM vendor/version/GC combinations.
@@ -467,7 +467,7 @@ pub fn get_auto_long_array_elements_commit() {
     assert_eq!(res[1], 2);
     assert_eq!(res[2], 3);
 
-    auto_ptr.commit();
+    auto_ptr.commit().unwrap();
 
     // Confirm modification of original Java array
     env.get_long_array_region(java_array, 0, &mut res).unwrap();
@@ -490,7 +490,7 @@ pub fn get_auto_primitive_array_critical() {
     {
         // Get primitive array elements auto wrapper
         let auto_ptr = env
-            .get_auto_primitive_array_critical(java_array, ReleaseMode::CopyBack)
+            .get_primitive_array_critical(java_array, ReleaseMode::CopyBack)
             .unwrap();
 
         // Get pointer
