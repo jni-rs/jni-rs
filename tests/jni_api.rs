@@ -316,47 +316,6 @@ pub fn java_byte_array_from_slice() {
 }
 
 #[test]
-pub fn java_get_byte_array_elements() {
-    let env = attach_current_thread();
-
-    // Create original Java array
-    let buf: &[u8] = &[1, 2, 3];
-    let java_array = env
-        .byte_array_from_slice(buf)
-        .expect("JNIEnv#byte_array_from_slice must create a java array from slice");
-
-    // Get array elements
-    let (ptr, _is_copy) = env.get_byte_array_elements(java_array).unwrap();
-
-    // Check
-    assert_eq!(unsafe { *ptr.offset(0) }, 1);
-    assert_eq!(unsafe { *ptr.offset(1) }, 2);
-    assert_eq!(unsafe { *ptr.offset(2) }, 3);
-
-    // Modify
-    unsafe {
-        *ptr.offset(0) += 1;
-        *ptr.offset(1) += 1;
-        *ptr.offset(2) += 1;
-    }
-
-    // Release
-    env.release_byte_array_elements(
-        java_array,
-        unsafe { ptr.as_mut().unwrap() },
-        ReleaseMode::CopyBack,
-    )
-    .expect("JNIEnv#release_byte_array_elements must release Java array");
-
-    // Confirm modification of original Java array
-    let mut res: [i8; 3] = [0; 3];
-    env.get_byte_array_region(java_array, 0, &mut res).unwrap();
-    assert_eq!(res[0], 2);
-    assert_eq!(res[1], 3);
-    assert_eq!(res[2], 4);
-}
-
-#[test]
 pub fn get_auto_byte_array_elements() {
     let env = attach_current_thread();
 
