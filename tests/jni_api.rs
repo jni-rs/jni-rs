@@ -15,6 +15,7 @@ use jni::{
 
 mod util;
 use jni::objects::ReleaseMode;
+use jni::objects::ReleaseMode::CopyBackNoFree;
 use util::{attach_current_thread, unwrap};
 
 static ARRAYLIST_CLASS: &str = "java/util/ArrayList";
@@ -356,9 +357,6 @@ pub fn get_byte_array_elements() {
             *ptr.offset(1) += 1;
             *ptr.offset(2) += 1;
         }
-
-        // Commit would be necessary here, if there were no closure
-        //auto_ptr.commit().unwrap();
     }
 
     // Confirm modification of original Java array
@@ -413,9 +411,6 @@ pub fn get_long_array_elements() {
             *ptr.offset(1) += 1;
             *ptr.offset(2) += 1;
         }
-
-        // Commit would be necessary here, if there were no closure
-        //auto_ptr.commit().unwrap();
     }
 
     // Confirm modification of original Java array
@@ -467,13 +462,19 @@ pub fn get_long_array_elements_commit() {
     assert_eq!(res[1], 2);
     assert_eq!(res[2], 3);
 
-    auto_ptr.commit().unwrap();
+    // Change to copy back but don't free (JNI_COMMIT) native buffer
+    auto_ptr.set_release_mode(CopyBackNoFree);
+
+    // Call drop explicitly
+    std::mem::drop(auto_ptr);
 
     // Confirm modification of original Java array
     env.get_long_array_region(java_array, 0, &mut res).unwrap();
     assert_eq!(res[0], 2);
     assert_eq!(res[1], 3);
     assert_eq!(res[2], 4);
+
+    // Native buffer automatically released here anyway
 }
 
 #[test]

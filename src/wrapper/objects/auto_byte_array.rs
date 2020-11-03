@@ -2,7 +2,7 @@ use crate::sys::jbyte;
 use log::error;
 
 use crate::objects::release_mode::ReleaseMode;
-use crate::{errors::*, objects::JObject, sys, JNIEnv};
+use crate::{errors::*, objects::JObject, JNIEnv};
 use std::ptr::NonNull;
 
 /// Auto-release wrapper for pointer-based byte arrays.
@@ -46,39 +46,38 @@ impl<'a, 'b> AutoByteArray<'a, 'b> {
         self.ptr.as_ptr()
     }
 
-    /// Commits the changes to the array, if it is a copy
-    pub fn commit(&mut self) -> Result<()> {
-        self.release_byte_array_elements(sys::JNI_COMMIT)
+    /// Get the release mode
+    /// See [`ReleaseMode`](objects/enum.ReleaseMode.html) for details.
+    pub fn get_release_mode(&self) -> ReleaseMode {
+        self.mode
     }
 
-    fn release_byte_array_elements(&mut self, mode: i32) -> Result<()> {
-        jni_void_call!(
-            self.env.get_native_interface(),
-            ReleaseByteArrayElements,
-            *self.obj,
-            self.ptr.as_mut(),
-            mode
-        );
-        Ok(())
-    }
-
-    /// Don't commit the changes to the array on release (if it is a copy).
-    /// This has no effect if the array is not a copy.
-    /// This method is useful to change the release mode of an array originally created
-    /// with `ReleaseMode::CopyBack`.
-    pub fn discard(&mut self) {
-        self.mode = ReleaseMode::NoCopyBack;
+    /// Set/Change the release mode
+    /// See [`ReleaseMode`](objects/enum.ReleaseMode.html) for details.
+    pub fn set_release_mode(&mut self, mode: ReleaseMode) {
+        self.mode = mode;
     }
 
     /// Indicates if the array is a copy or not
     pub fn is_copy(&self) -> bool {
         self.is_copy
     }
+
+    fn release_byte_array_elements(&self) -> Result<()> {
+        jni_void_call!(
+            self.env.get_native_interface(),
+            ReleaseByteArrayElements,
+            *self.obj,
+            self.ptr.as_ptr(),
+            self.mode as i32
+        );
+        Ok(())
+    }
 }
 
 impl<'a, 'b> Drop for AutoByteArray<'a, 'b> {
     fn drop(&mut self) {
-        let res = self.release_byte_array_elements(self.mode as i32);
+        let res = self.release_byte_array_elements();
         match res {
             Ok(()) => {}
             Err(e) => error!("error releasing byte array: {:#?}", e),

@@ -1,14 +1,15 @@
-use crate::sys::JNI_ABORT;
+use crate::sys::{JNI_ABORT, JNI_COMMIT};
 
 /// ReleaseMode
 ///
-/// This defines the release mode of Auto*Array (and AutoPrimitiveArray) resources, and
-/// related release array functions.
+/// This defines the release mode of Auto*Array (and AutoPrimitiveArray) resources.
 #[derive(Clone, Copy)]
 #[repr(i32)]
 pub enum ReleaseMode {
-    /// Copy back the content and free the elems buffer.
+    /// Copy back the content and free the native buffer.
     CopyBack = 0,
-    /// Free the buffer without copying back the possible changes.
+    /// Copy back the content and don't free the native buffer.
+    CopyBackNoFree = JNI_COMMIT,
+    /// Free the native buffer without copying back the possible changes.
     NoCopyBack = JNI_ABORT,
 }
