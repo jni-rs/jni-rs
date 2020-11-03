@@ -316,48 +316,7 @@ pub fn java_byte_array_from_slice() {
 }
 
 #[test]
-pub fn java_get_byte_array_elements() {
-    let env = attach_current_thread();
-
-    // Create original Java array
-    let buf: &[u8] = &[1, 2, 3];
-    let java_array = env
-        .byte_array_from_slice(buf)
-        .expect("JNIEnv#byte_array_from_slice must create a java array from slice");
-
-    // Get array elements
-    let (ptr, _is_copy) = env.get_byte_array_elements(java_array).unwrap();
-
-    // Check
-    assert_eq!(unsafe { *ptr.offset(0) }, 1);
-    assert_eq!(unsafe { *ptr.offset(1) }, 2);
-    assert_eq!(unsafe { *ptr.offset(2) }, 3);
-
-    // Modify
-    unsafe {
-        *ptr.offset(0) += 1;
-        *ptr.offset(1) += 1;
-        *ptr.offset(2) += 1;
-    }
-
-    // Release
-    env.release_byte_array_elements(
-        java_array,
-        unsafe { ptr.as_mut().unwrap() },
-        ReleaseMode::CopyBack,
-    )
-    .expect("JNIEnv#release_byte_array_elements must release Java array");
-
-    // Confirm modification of original Java array
-    let mut res: [i8; 3] = [0; 3];
-    env.get_byte_array_region(java_array, 0, &mut res).unwrap();
-    assert_eq!(res[0], 2);
-    assert_eq!(res[1], 3);
-    assert_eq!(res[2], 4);
-}
-
-#[test]
-pub fn get_auto_byte_array_elements() {
+pub fn get_byte_array_elements() {
     let env = attach_current_thread();
 
     // Create original Java array
@@ -370,7 +329,7 @@ pub fn get_auto_byte_array_elements() {
     {
         // Get byte array elements auto wrapper
         let auto_ptr = env
-            .get_auto_byte_array_elements(java_array, ReleaseMode::CopyBack)
+            .get_byte_array_elements(java_array, ReleaseMode::CopyBack)
             .unwrap();
 
         // Check pointer access
@@ -399,7 +358,7 @@ pub fn get_auto_byte_array_elements() {
         }
 
         // Commit would be necessary here, if there were no closure
-        //auto_ptr.commit();
+        //auto_ptr.commit().unwrap();
     }
 
     // Confirm modification of original Java array
@@ -411,7 +370,7 @@ pub fn get_auto_byte_array_elements() {
 }
 
 #[test]
-pub fn get_auto_long_array_elements() {
+pub fn get_long_array_elements() {
     let env = attach_current_thread();
 
     // Create original Java array
@@ -427,7 +386,7 @@ pub fn get_auto_long_array_elements() {
     {
         // Get long array elements auto wrapper
         let auto_ptr = env
-            .get_auto_long_array_elements(java_array, ReleaseMode::CopyBack)
+            .get_long_array_elements(java_array, ReleaseMode::CopyBack)
             .unwrap();
 
         // Check pointer access
@@ -456,7 +415,7 @@ pub fn get_auto_long_array_elements() {
         }
 
         // Commit would be necessary here, if there were no closure
-        //auto_ptr.commit();
+        //auto_ptr.commit().unwrap();
     }
 
     // Confirm modification of original Java array
@@ -468,7 +427,7 @@ pub fn get_auto_long_array_elements() {
 }
 
 #[test]
-pub fn get_auto_long_array_elements_commit() {
+pub fn get_long_array_elements_commit() {
     let env = attach_current_thread();
 
     // Create original Java array
@@ -482,7 +441,7 @@ pub fn get_auto_long_array_elements_commit() {
 
     // Get long array elements auto wrapper
     let mut auto_ptr = env
-        .get_auto_long_array_elements(java_array, ReleaseMode::CopyBack)
+        .get_long_array_elements(java_array, ReleaseMode::CopyBack)
         .unwrap();
 
     // Copying the array depends on the VM vendor/version/GC combinations.
@@ -508,7 +467,7 @@ pub fn get_auto_long_array_elements_commit() {
     assert_eq!(res[1], 2);
     assert_eq!(res[2], 3);
 
-    auto_ptr.commit();
+    auto_ptr.commit().unwrap();
 
     // Confirm modification of original Java array
     env.get_long_array_region(java_array, 0, &mut res).unwrap();
@@ -518,54 +477,7 @@ pub fn get_auto_long_array_elements_commit() {
 }
 
 #[test]
-pub fn java_get_primitive_array_critical() {
-    let env = attach_current_thread();
-
-    // Create original Java array
-    let buf: &[u8] = &[1, 2, 3];
-    let java_array = env
-        .byte_array_from_slice(buf)
-        .expect("JNIEnv#byte_array_from_slice must create a java array from slice");
-
-    // Get array elements
-    let (ptr, _is_copy) = env.get_primitive_array_critical(java_array).unwrap();
-
-    // Convert void pointer to an unsigned byte array, without copy
-    let mut vec;
-    unsafe { vec = Vec::from_raw_parts(ptr as *mut u8, 3, 3) }
-
-    // Check
-    assert_eq!(vec[0], 1);
-    assert_eq!(vec[1], 2);
-    assert_eq!(vec[2], 3);
-
-    // Modify
-    vec[0] += 1;
-    vec[1] += 1;
-    vec[2] += 1;
-
-    // Release
-    // First, make sure vec's destructor doesn't free the data it thinks it owns when it goes out
-    // of scope (so release_primitive_array_critical() can properly free it)
-    std::mem::forget(vec);
-
-    env.release_primitive_array_critical(
-        java_array,
-        unsafe { ptr.as_mut().unwrap() },
-        ReleaseMode::CopyBack,
-    )
-    .expect("JNIEnv#release_primitive_array_critical must release Java array");
-
-    // Confirm modification of original Java array
-    let mut res: [i8; 3] = [0; 3];
-    env.get_byte_array_region(java_array, 0, &mut res).unwrap();
-    assert_eq!(res[0], 2);
-    assert_eq!(res[1], 3);
-    assert_eq!(res[2], 4);
-}
-
-#[test]
-pub fn get_auto_primitive_array_critical() {
+pub fn get_primitive_array_critical() {
     let env = attach_current_thread();
 
     // Create original Java array
@@ -578,7 +490,7 @@ pub fn get_auto_primitive_array_critical() {
     {
         // Get primitive array elements auto wrapper
         let auto_ptr = env
-            .get_auto_primitive_array_critical(java_array, ReleaseMode::CopyBack)
+            .get_primitive_array_critical(java_array, ReleaseMode::CopyBack)
             .unwrap();
 
         // Get pointer
