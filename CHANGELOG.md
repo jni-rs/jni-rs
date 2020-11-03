@@ -16,14 +16,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [Unreleased]
 
 ### Added
-- `discard()` method to `AutoByteArray` and `AutoPrimitiveArray`. (#275)
 - Added `AutoLongArray`. (#276)
+- Added `CopyBackNoFree` mode to `ReleaseMode` enum. (#283)
+- Added `get/set_release_mode()` to `Auto*Array`. (#283)
 
 ### Changed
-- `AutoByte/PrimitiveArray.commit()` now returns `Result`. (#275)
 - Removed methods get/release/commit_byte/primitive_array_{elements|critical}. (#281)
 - Renamed methods get_auto_byte/long/primitive_array_{elements|critical} to
 	get_byte/long/primitive_array_{elements|critical}. (#281)
+- Removed buggy `AutoByte/PrimitiveArray.commit()`. (#283)
 
 ## [0.18.0] — 2020-09-23
 
