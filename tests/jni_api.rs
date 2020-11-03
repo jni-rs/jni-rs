@@ -453,6 +453,7 @@ pub fn get_long_array_elements_commit() {
         *ptr.offset(0) += 1;
         *ptr.offset(1) += 1;
         *ptr.offset(2) += 1;
+        assert_eq!(ptr.read(), 2);
     }
 
     // Check that original Java array is unmodified
@@ -474,7 +475,12 @@ pub fn get_long_array_elements_commit() {
     assert_eq!(res[1], 3);
     assert_eq!(res[2], 4);
 
-    // Native buffer automatically released here anyway
+    // Confirm original pointer contents are not valid anymore
+    unsafe {
+        let val = ptr.read();
+        assert_ne!(val, 2);
+        println!("*ptr: {:?}", val);
+    }
 }
 
 #[test]
