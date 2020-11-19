@@ -1,0 +1,19 @@
+[package]
+name = "jnibookrs"
+version = "0.1.0"
+authors = [""]
+edition = "2018"
+publish = false
+
+[dependencies]
+jni = "0.18"
+lazy_static = "1.4"
+plotlib = "0.5"
+anyhow = "1.0"
+
+[lib]
+crate_type = ["cdylib"]
+
+[profile.release]
+debug = true
+lto = true
