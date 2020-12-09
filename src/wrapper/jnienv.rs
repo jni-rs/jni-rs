@@ -1993,11 +1993,7 @@ impl<'a> JNIEnv<'a> {
     /// [`get_auto_float_array_elements`](struct.JNIEnv.html#method.get_auto_float_array_elements)
     /// [`get_auto_double_array_elements`](struct.JNIEnv.html#method.get_auto_double_array_elements)
     /// And the associated [`AutoArray`](struct.objects.AutoArray) struct.
-    pub fn get_array_elements<T>(
-        &self,
-        array: jarray,
-        mode: ReleaseMode,
-    ) -> Result<AutoArray<T>> {
+    pub fn get_array_elements<T>(&self, array: jarray, mode: ReleaseMode) -> Result<AutoArray<T>> {
         non_null!(array, "get_auto_array_elements array argument");
         AutoArray::new(self, array.into(), mode)
     }
