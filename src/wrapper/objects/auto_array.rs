@@ -2,9 +2,9 @@ use log::debug;
 
 use crate::objects::release_mode::ReleaseMode;
 use crate::{errors::*, objects::JObject, sys, JNIEnv};
-use std::any::TypeId;
 use jni_sys::jboolean;
 use std::any::type_name;
+use std::any::TypeId;
 use std::ptr::NonNull;
 
 /// Auto-release wrapper for pointer-based generic arrays.
