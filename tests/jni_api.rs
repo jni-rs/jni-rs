@@ -433,6 +433,7 @@ pub fn get_long_array_elements() {
 }
 
 #[test]
+#[ignore]
 pub fn get_long_array_elements_commit() {
     let env = attach_current_thread();
 
