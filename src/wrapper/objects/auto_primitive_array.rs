@@ -7,10 +7,10 @@ use std::ptr::NonNull;
 
 /// Auto-release wrapper for pointer-based primitive arrays.
 ///
-/// This wrapper is used to wrap pointers returned by get_primitive_array_critical.
+/// This wrapper is used to wrap pointers returned by GetPrimitiveArrayCritical.
 ///
 /// These pointers normally need to be released manually, through a call to
-/// release_primitive_array_critical.
+/// ReleasePrimitiveArrayCritical.
 /// This wrapper provides automatic pointer-based array release when it goes out of scope.
 pub struct AutoPrimitiveArray<'a: 'b, 'b> {
     obj: JObject<'a>,
@@ -23,7 +23,7 @@ pub struct AutoPrimitiveArray<'a: 'b, 'b> {
 impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
     /// Creates a new auto-release wrapper for a pointer-based primitive array.
     ///
-    /// Once this wrapper goes out of scope, `release_primitive_array_critical` will be
+    /// Once this wrapper goes out of scope, `ReleasePrimitiveArrayCritical` will be
     /// called on the object. While wrapped, the object can be accessed via the `From` impl.
     pub(crate) fn new(
         env: &'b JNIEnv<'a>,

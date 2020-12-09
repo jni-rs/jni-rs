@@ -1973,7 +1973,7 @@ impl<'a> JNIEnv<'a> {
         jni_error_code_to_result(res)
     }
 
-    /// Return an AutoArray<jbyte> of the given Java byte array.
+    /// Return an AutoArray of the given Java array.
     ///
     /// The result is valid until the AutoArray object goes out of scope, when the
     /// release happens automatically according to the mode parameter.
@@ -1984,21 +1984,21 @@ impl<'a> JNIEnv<'a> {
     /// AutoArray has a commit() method, to force a copy of the array if needed (and without
     /// releasing it).
     /// See also the convenience wrappers:
-    /// [`get_auto_int_array_elements`](struct.JNIEnv.html#method.get_auto_int_array_elements)
-    /// [`get_auto_long_array_elements`](struct.JNIEnv.html#method.get_auto_long_array_elements)
-    /// [`get_auto_byte_array_elements`](struct.JNIEnv.html#method.get_auto_byte_array_elements)
-    /// [`get_auto_boolean_array_elements`](struct.JNIEnv.html#method.get_auto_boolean_array_elements)
-    /// [`get_auto_char_array_elements`](struct.JNIEnv.html#method.get_auto_char_array_elements)
-    /// [`get_auto_short_array_elements`](struct.JNIEnv.html#method.get_auto_short_array_elements)
-    /// [`get_auto_float_array_elements`](struct.JNIEnv.html#method.get_auto_float_array_elements)
-    /// [`get_auto_double_array_elements`](struct.JNIEnv.html#method.get_auto_double_array_elements)
+    /// [`get_int_array_elements`](struct.JNIEnv.html#method.get_int_array_elements)
+    /// [`get_long_array_elements`](struct.JNIEnv.html#method.get_long_array_elements)
+    /// [`get_byte_array_elements`](struct.JNIEnv.html#method.get_byte_array_elements)
+    /// [`get_boolean_array_elements`](struct.JNIEnv.html#method.get_boolean_array_elements)
+    /// [`get_char_array_elements`](struct.JNIEnv.html#method.get_char_array_elements)
+    /// [`get_short_array_elements`](struct.JNIEnv.html#method.get_short_array_elements)
+    /// [`get_float_array_elements`](struct.JNIEnv.html#method.get_float_array_elements)
+    /// [`get_double_array_elements`](struct.JNIEnv.html#method.get_double_array_elements)
     /// And the associated [`AutoArray`](struct.objects.AutoArray) struct.
     pub fn get_array_elements<T>(&self, array: jarray, mode: ReleaseMode) -> Result<AutoArray<T>> {
-        non_null!(array, "get_auto_array_elements array argument");
+        non_null!(array, "get_array_elements array argument");
         AutoArray::new(self, array.into(), mode)
     }
 
-    /// See also [`get_auto_array_elements`](struct.JNIEnv.html#method.get_auto_array_elements)
+    /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
     pub fn get_int_array_elements(
         &self,
         array: jintArray,
@@ -2007,7 +2007,7 @@ impl<'a> JNIEnv<'a> {
         self.get_array_elements(array, mode)
     }
 
-    /// See also [`get_auto_array_elements`](struct.JNIEnv.html#method.get_auto_array_elements)
+    /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
     pub fn get_long_array_elements(
         &self,
         array: jlongArray,
@@ -2016,7 +2016,7 @@ impl<'a> JNIEnv<'a> {
         self.get_array_elements(array, mode)
     }
 
-    /// See also [`get_auto_array_elements`](struct.JNIEnv.html#method.get_auto_array_elements)
+    /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
     pub fn get_byte_array_elements(
         &self,
         array: jbyteArray,
@@ -2025,7 +2025,7 @@ impl<'a> JNIEnv<'a> {
         self.get_array_elements(array, mode)
     }
 
-    /// See also [`get_auto_array_elements`](struct.JNIEnv.html#method.get_auto_array_elements)
+    /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
     pub fn get_boolean_array_elements(
         &self,
         array: jbooleanArray,
@@ -2034,7 +2034,7 @@ impl<'a> JNIEnv<'a> {
         self.get_array_elements(array, mode)
     }
 
-    /// See also [`get_auto_array_elements`](struct.JNIEnv.html#method.get_auto_array_elements)
+    /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
     pub fn get_char_array_elements(
         &self,
         array: jcharArray,
@@ -2043,7 +2043,7 @@ impl<'a> JNIEnv<'a> {
         self.get_array_elements(array, mode)
     }
 
-    /// See also [`get_auto_array_elements`](struct.JNIEnv.html#method.get_auto_array_elements)
+    /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
     pub fn get_short_array_elements(
         &self,
         array: jshortArray,
@@ -2052,7 +2052,7 @@ impl<'a> JNIEnv<'a> {
         self.get_array_elements(array, mode)
     }
 
-    /// See also [`get_auto_array_elements`](struct.JNIEnv.html#method.get_auto_array_elements)
+    /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
     pub fn get_float_array_elements(
         &self,
         array: jfloatArray,
@@ -2061,7 +2061,7 @@ impl<'a> JNIEnv<'a> {
         self.get_array_elements(array, mode)
     }
 
-    /// See also [`get_auto_array_elements`](struct.JNIEnv.html#method.get_auto_array_elements)
+    /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
     pub fn get_double_array_elements(
         &self,
         array: jdoubleArray,
