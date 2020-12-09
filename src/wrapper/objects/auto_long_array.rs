@@ -27,7 +27,7 @@ impl<'a, 'b> AutoLongArray<'a, 'b> {
     ) -> Result<Self> {
         Ok(AutoLongArray {
             obj,
-            ptr: NonNull::new(ptr).ok_or_else(|| Error::NullPtr("Non-null ptr expected"))?,
+            ptr: NonNull::new(ptr).ok_or(Error::NullPtr("Non-null ptr expected"))?,
             mode,
             is_copy,
             env,
