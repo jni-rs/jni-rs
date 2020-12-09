@@ -1,4 +1,4 @@
-use crate::sys::jbyte;
+use crate::sys::{jbyte, jsize};
 use log::error;
 
 use crate::objects::release_mode::ReleaseMode;
@@ -73,6 +73,11 @@ impl<'a, 'b> AutoByteArray<'a, 'b> {
     /// Indicates if the array is a copy or not
     pub fn is_copy(&self) -> bool {
         self.is_copy
+    }
+
+    /// Returns the array size
+    pub fn size(&self) -> Result<jsize> {
+        self.env.get_array_length(*self.obj)
     }
 }
 
