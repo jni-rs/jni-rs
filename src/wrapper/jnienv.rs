@@ -14,7 +14,7 @@ use crate::{
     objects::{
         AutoArray, AutoLocal, AutoPrimitiveArray, GlobalRef, JByteBuffer, JClass, JFieldID, JList,
         JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID, JString, JThrowable, JValue,
-        ReleaseMode,
+        ReleaseMode, TypeArray,
     },
     signature::{JavaType, Primitive, TypeSignature},
     strings::{JNIString, JavaStr},
@@ -1993,19 +1993,23 @@ impl<'a> JNIEnv<'a> {
     /// [`get_float_array_elements`](struct.JNIEnv.html#method.get_float_array_elements)
     /// [`get_double_array_elements`](struct.JNIEnv.html#method.get_double_array_elements)
     /// And the associated [`AutoArray`](struct.objects.AutoArray) struct.
-    pub fn get_array_elements<T>(&self, array: jarray, mode: ReleaseMode) -> Result<AutoArray<T>> {
+    pub fn get_array_elements<T: TypeArray>(
+        &self,
+        array: jarray,
+        mode: ReleaseMode,
+    ) -> Result<AutoArray<T>> {
         non_null!(array, "get_array_elements array argument");
         AutoArray::new(self, array.into(), mode)
     }
 
     /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
-    pub fn get_int_array_elements(
-        &self,
-        array: jintArray,
-        mode: ReleaseMode,
-    ) -> Result<AutoArray<jint>> {
-        self.get_array_elements(array, mode)
-    }
+    // pub fn get_int_array_elements(
+    //     &self,
+    //     array: jintArray,
+    //     mode: ReleaseMode,
+    // ) -> Result<AutoArray<jint>> {
+    //     self.get_array_elements(array, mode)
+    // }
 
     /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
     pub fn get_long_array_elements(
@@ -2026,49 +2030,49 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
-    pub fn get_boolean_array_elements(
-        &self,
-        array: jbooleanArray,
-        mode: ReleaseMode,
-    ) -> Result<AutoArray<jboolean>> {
-        self.get_array_elements(array, mode)
-    }
+    // pub fn get_boolean_array_elements(
+    //     &self,
+    //     array: jbooleanArray,
+    //     mode: ReleaseMode,
+    // ) -> Result<AutoArray<jboolean>> {
+    //     self.get_array_elements(array, mode)
+    // }
 
     /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
-    pub fn get_char_array_elements(
-        &self,
-        array: jcharArray,
-        mode: ReleaseMode,
-    ) -> Result<AutoArray<jchar>> {
-        self.get_array_elements(array, mode)
-    }
+    // pub fn get_char_array_elements(
+    //     &self,
+    //     array: jcharArray,
+    //     mode: ReleaseMode,
+    // ) -> Result<AutoArray<jchar>> {
+    //     self.get_array_elements(array, mode)
+    // }
 
     /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
-    pub fn get_short_array_elements(
-        &self,
-        array: jshortArray,
-        mode: ReleaseMode,
-    ) -> Result<AutoArray<jshort>> {
-        self.get_array_elements(array, mode)
-    }
+    // pub fn get_short_array_elements(
+    //     &self,
+    //     array: jshortArray,
+    //     mode: ReleaseMode,
+    // ) -> Result<AutoArray<jshort>> {
+    //     self.get_array_elements(array, mode)
+    // }
 
     /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
-    pub fn get_float_array_elements(
-        &self,
-        array: jfloatArray,
-        mode: ReleaseMode,
-    ) -> Result<AutoArray<jfloat>> {
-        self.get_array_elements(array, mode)
-    }
+    // pub fn get_float_array_elements(
+    //     &self,
+    //     array: jfloatArray,
+    //     mode: ReleaseMode,
+    // ) -> Result<AutoArray<jfloat>> {
+    //     self.get_array_elements(array, mode)
+    // }
 
     /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
-    pub fn get_double_array_elements(
-        &self,
-        array: jdoubleArray,
-        mode: ReleaseMode,
-    ) -> Result<AutoArray<jdouble>> {
-        self.get_array_elements(array, mode)
-    }
+    // pub fn get_double_array_elements(
+    //     &self,
+    //     array: jdoubleArray,
+    //     mode: ReleaseMode,
+    // ) -> Result<AutoArray<jdouble>> {
+    //     self.get_array_elements(array, mode)
+    // }
 
     /// Return an AutoPrimitiveArray of the given Java primitive array.
     ///
