@@ -1,11 +1,11 @@
 use crate::sys::jsize;
 use log::debug;
 
-use crate::objects::release_mode::ReleaseMode;
-use crate::sys::{jbyte, jlong};
-use crate::{errors::*, objects::JObject, sys, JNIEnv};
-use jni_sys::jboolean;
 use std::ptr::NonNull;
+
+use crate::objects::release_mode::ReleaseMode;
+use crate::sys::{jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jshort};
+use crate::{errors::*, objects::JObject, sys, JNIEnv};
 
 /// Trait to define type array access/release
 pub trait TypeArray {
@@ -14,6 +14,36 @@ pub trait TypeArray {
 
     /// releaser
     fn release(env: *mut sys::JNIEnv, obj: JObject, ptr: *mut Self, mode: i32) -> Result<()>;
+}
+
+/// jint array access/release impl
+impl TypeArray for jint {
+    /// get Java int array
+    fn get(env: *mut sys::JNIEnv, obj: JObject, is_copy: &mut jboolean) -> Result<*mut Self> {
+        let res = jni_non_void_call!(env, GetIntArrayElements, *obj, is_copy);
+        Ok(res)
+    }
+
+    /// release Java int array
+    fn release(env: *mut sys::JNIEnv, obj: JObject, ptr: *mut Self, mode: i32) -> Result<()> {
+        jni_void_call!(env, ReleaseIntArrayElements, *obj, ptr, mode as i32);
+        Ok(())
+    }
+}
+
+/// jlong array access/release impl
+impl TypeArray for jlong {
+    /// get Java long array
+    fn get(env: *mut sys::JNIEnv, obj: JObject, is_copy: &mut jboolean) -> Result<*mut Self> {
+        let res = jni_non_void_call!(env, GetLongArrayElements, *obj, is_copy);
+        Ok(res)
+    }
+
+    /// release Java long array
+    fn release(env: *mut sys::JNIEnv, obj: JObject, ptr: *mut Self, mode: i32) -> Result<()> {
+        jni_void_call!(env, ReleaseLongArrayElements, *obj, ptr, mode as i32);
+        Ok(())
+    }
 }
 
 /// jbyte array access/release impl
@@ -31,17 +61,77 @@ impl TypeArray for jbyte {
     }
 }
 
-/// jlong array access/release impl
-impl TypeArray for jlong {
-    /// get Java long array
+/// jboolean array access/release impl
+impl TypeArray for jboolean {
+    /// get Java boolean array
     fn get(env: *mut sys::JNIEnv, obj: JObject, is_copy: &mut jboolean) -> Result<*mut Self> {
-        let res = jni_non_void_call!(env, GetLongArrayElements, *obj, is_copy);
+        let res = jni_non_void_call!(env, GetBooleanArrayElements, *obj, is_copy);
         Ok(res)
     }
 
-    /// release Java long array
+    /// release Java boolean array
     fn release(env: *mut sys::JNIEnv, obj: JObject, ptr: *mut Self, mode: i32) -> Result<()> {
-        jni_void_call!(env, ReleaseLongArrayElements, *obj, ptr, mode as i32);
+        jni_void_call!(env, ReleaseBooleanArrayElements, *obj, ptr, mode);
+        Ok(())
+    }
+}
+
+/// jchar array access/release impl
+impl TypeArray for jchar {
+    /// get Java char array
+    fn get(env: *mut sys::JNIEnv, obj: JObject, is_copy: &mut jboolean) -> Result<*mut Self> {
+        let res = jni_non_void_call!(env, GetCharArrayElements, *obj, is_copy);
+        Ok(res)
+    }
+
+    /// release Java char array
+    fn release(env: *mut sys::JNIEnv, obj: JObject, ptr: *mut Self, mode: i32) -> Result<()> {
+        jni_void_call!(env, ReleaseCharArrayElements, *obj, ptr, mode);
+        Ok(())
+    }
+}
+
+/// jshort array access/release impl
+impl TypeArray for jshort {
+    /// get Java short array
+    fn get(env: *mut sys::JNIEnv, obj: JObject, is_copy: &mut jboolean) -> Result<*mut Self> {
+        let res = jni_non_void_call!(env, GetShortArrayElements, *obj, is_copy);
+        Ok(res)
+    }
+
+    /// release Java short array
+    fn release(env: *mut sys::JNIEnv, obj: JObject, ptr: *mut Self, mode: i32) -> Result<()> {
+        jni_void_call!(env, ReleaseShortArrayElements, *obj, ptr, mode);
+        Ok(())
+    }
+}
+
+/// jfloat array access/release impl
+impl TypeArray for jfloat {
+    /// get Java float array
+    fn get(env: *mut sys::JNIEnv, obj: JObject, is_copy: &mut jboolean) -> Result<*mut Self> {
+        let res = jni_non_void_call!(env, GetFloatArrayElements, *obj, is_copy);
+        Ok(res)
+    }
+
+    /// release Java float array
+    fn release(env: *mut sys::JNIEnv, obj: JObject, ptr: *mut Self, mode: i32) -> Result<()> {
+        jni_void_call!(env, ReleaseFloatArrayElements, *obj, ptr, mode);
+        Ok(())
+    }
+}
+
+/// jdouble array access/release impl
+impl TypeArray for jdouble {
+    /// get Java double array
+    fn get(env: *mut sys::JNIEnv, obj: JObject, is_copy: &mut jboolean) -> Result<*mut Self> {
+        let res = jni_non_void_call!(env, GetDoubleArrayElements, *obj, is_copy);
+        Ok(res)
+    }
+
+    /// release Java double array
+    fn release(env: *mut sys::JNIEnv, obj: JObject, ptr: *mut Self, mode: i32) -> Result<()> {
+        jni_void_call!(env, ReleaseDoubleArrayElements, *obj, ptr, mode);
         Ok(())
     }
 }
