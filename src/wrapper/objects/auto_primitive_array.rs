@@ -1,6 +1,7 @@
 use log::debug;
 
-use crate::objects::release_mode::ReleaseMode;
+use crate::sys::jsize;
+use crate::wrapper::objects::ReleaseMode;
 use crate::{errors::*, objects::JObject, sys, JNIEnv};
 use std::os::raw::c_void;
 use std::ptr::NonNull;
@@ -73,6 +74,11 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
     /// Indicates if the array is a copy or not
     pub fn is_copy(&self) -> bool {
         self.is_copy
+    }
+
+    /// Returns the array size
+    pub fn size(&self) -> Result<jsize> {
+        self.env.get_array_length(*self.obj)
     }
 }
 

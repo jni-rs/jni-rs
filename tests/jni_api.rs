@@ -332,6 +332,9 @@ pub fn get_byte_array_elements() {
             .get_byte_array_elements(java_array, ReleaseMode::CopyBack)
             .unwrap();
 
+        // Check array size
+        assert_eq!(auto_ptr.size().unwrap(), 3);
+
         // Check pointer access
         let ptr = auto_ptr.as_ptr();
         assert_eq!(unsafe { *ptr.offset(0) }, 1);
@@ -388,6 +391,9 @@ pub fn get_long_array_elements() {
         let auto_ptr = env
             .get_long_array_elements(java_array, ReleaseMode::CopyBack)
             .unwrap();
+
+        // Check array size
+        assert_eq!(auto_ptr.size().unwrap(), 3);
 
         // Check pointer access
         let ptr = auto_ptr.as_ptr();
@@ -493,6 +499,9 @@ pub fn get_primitive_array_critical() {
         let auto_ptr = env
             .get_primitive_array_critical(java_array, ReleaseMode::CopyBack)
             .unwrap();
+
+        // Check array size
+        assert_eq!(auto_ptr.size().unwrap(), 3);
 
         // Get pointer
         let ptr = auto_ptr.as_ptr();
