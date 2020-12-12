@@ -3,7 +3,7 @@ use std::ptr::NonNull;
 use log::error;
 
 use crate::objects::release_mode::ReleaseMode;
-use crate::sys::jlong;
+use crate::sys::{jlong, jsize};
 use crate::{errors::*, objects::JObject, sys, JNIEnv};
 
 /// Auto-release wrapper for pointer-based long arrays.
@@ -27,7 +27,7 @@ impl<'a, 'b> AutoLongArray<'a, 'b> {
     ) -> Result<Self> {
         Ok(AutoLongArray {
             obj,
-            ptr: NonNull::new(ptr).ok_or_else(|| Error::NullPtr("Non-null ptr expected"))?,
+            ptr: NonNull::new(ptr).ok_or(Error::NullPtr("Non-null ptr expected"))?,
             mode,
             is_copy,
             env,
@@ -66,6 +66,11 @@ impl<'a, 'b> AutoLongArray<'a, 'b> {
     /// Indicates if the array is a copy or not
     pub fn is_copy(&self) -> bool {
         self.is_copy
+    }
+
+    /// Returns the array size
+    pub fn size(&self) -> Result<jsize> {
+        self.env.get_array_length(*self.obj)
     }
 }
 

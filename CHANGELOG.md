@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [Unreleased]
 
 ### Added
+- `size()` method to `AutoByteArray`, `AutoLongArray` and `AutoPrimitiveArray`. (#278)
 - `discard()` method to `AutoByteArray` and `AutoPrimitiveArray`. (#275)
 - Added `AutoLongArray`. (#276)
 
