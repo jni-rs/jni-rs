@@ -341,21 +341,21 @@ macro_rules! test_get_array_elements {
 
                 // Check pointer access
                 let ptr = auto_ptr.as_ptr();
-                assert_eq!(unsafe { *ptr.offset(0) }, 1 as $jni_type);
-                assert_eq!(unsafe { *ptr.offset(1) }, 2 as $jni_type);
-                assert_eq!(unsafe { *ptr.offset(2) }, 3 as $jni_type);
+                assert_eq!(unsafe { *ptr.offset(0) } as i32, 1);
+                assert_eq!(unsafe { *ptr.offset(1) } as i32, 2);
+                assert_eq!(unsafe { *ptr.offset(2) } as i32, 3);
 
                 // Check pointer From access
                 let ptr: *mut $jni_type = std::convert::From::from(&auto_ptr);
-                assert_eq!(unsafe { *ptr.offset(0) }, 1 as $jni_type);
-                assert_eq!(unsafe { *ptr.offset(1) }, 2 as $jni_type);
-                assert_eq!(unsafe { *ptr.offset(2) }, 3 as $jni_type);
+                assert_eq!(unsafe { *ptr.offset(0) } as i32, 1);
+                assert_eq!(unsafe { *ptr.offset(1) } as i32, 2);
+                assert_eq!(unsafe { *ptr.offset(2) } as i32, 3);
 
                 // Check pointer into() access
                 let ptr: *mut $jni_type = (&auto_ptr).into();
-                assert_eq!(unsafe { *ptr.offset(0) }, 1 as $jni_type);
-                assert_eq!(unsafe { *ptr.offset(1) }, 2 as $jni_type);
-                assert_eq!(unsafe { *ptr.offset(2) }, 3 as $jni_type);
+                assert_eq!(unsafe { *ptr.offset(0) } as i32, 1);
+                assert_eq!(unsafe { *ptr.offset(1) } as i32, 2);
+                assert_eq!(unsafe { *ptr.offset(2) } as i32, 3);
 
                 // Modify
                 unsafe {
@@ -371,9 +371,9 @@ macro_rules! test_get_array_elements {
             // Confirm modification of original Java array
             let mut res: [$jni_type; 3] = [0 as $jni_type; 3];
             env.$get_array(java_array, 0, &mut res).unwrap();
-            assert_eq!(res[0], 2 as $jni_type);
-            assert_eq!(res[1], 3 as $jni_type);
-            assert_eq!(res[2], 4 as $jni_type);
+            assert_eq!(res[0] as i32, 2);
+            assert_eq!(res[1] as i32, 3);
+            assert_eq!(res[2] as i32, 4);
         }
     };
 }
