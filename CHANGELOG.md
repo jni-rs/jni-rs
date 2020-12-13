@@ -16,9 +16,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [Unreleased]
 
 ### Added
-- `size()` method to `AutoByteArray`, `AutoLongArray` and `AutoPrimitiveArray`. (#278)
-- `discard()` method to `AutoByteArray` and `AutoPrimitiveArray`. (#275)
-- Added `AutoLongArray`. (#276)
+- `AutoArray` and generic `get_array_elements()`, along with `get_<type>_array_elements` helpers. (#287)
+- `size()` method to `AutoArray` and `AutoPrimitiveArray`. (#278 / #287)
+- `discard()` method to `AutoArray` and `AutoPrimitiveArray`. (#275 / #287)
 
 ### Changed
 - `AutoByte/PrimitiveArray.commit()` now returns `Result`. (#275)
