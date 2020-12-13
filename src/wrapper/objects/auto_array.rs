@@ -10,10 +10,10 @@ use crate::{errors::*, objects::JObject, sys, JNIEnv};
 /// Trait to define type array access/release
 pub trait TypeArray {
     /// getter
-    fn get(env: *mut sys::JNIEnv, obj: JObject, is_copy: &mut jboolean) -> Result<*mut Self>;
+    fn get(env: &JNIEnv, obj: JObject, is_copy: &mut jboolean) -> Result<*mut Self>;
 
     /// releaser
-    fn release(env: *mut sys::JNIEnv, obj: JObject, ptr: *mut Self, mode: i32) -> Result<()>;
+    fn release(env: &JNIEnv, obj: JObject, ptr: NonNull<Self>, mode: i32) -> Result<()>;
 }
 
 // TypeArray builder
@@ -22,23 +22,16 @@ macro_rules! type_array {
         /// $jni_type array access/release impl
         impl TypeArray for $jni_type {
             /// Get Java $jni_type array
-            fn get(
-                env: *mut sys::JNIEnv,
-                obj: JObject,
-                is_copy: &mut jboolean,
-            ) -> Result<*mut Self> {
-                let res = jni_non_void_call!(env, $jni_get, *obj, is_copy);
+            fn get(env: &JNIEnv, obj: JObject, is_copy: &mut jboolean) -> Result<*mut Self> {
+                let internal = env.get_native_interface();
+                let res = jni_non_void_call!(internal, $jni_get, *obj, is_copy);
                 Ok(res)
             }
 
             /// Release Java $jni_type array
-            fn release(
-                env: *mut sys::JNIEnv,
-                obj: JObject,
-                ptr: *mut Self,
-                mode: i32,
-            ) -> Result<()> {
-                jni_void_call!(env, $jni_release, *obj, ptr, mode as i32);
+            fn release(env: &JNIEnv, obj: JObject, ptr: NonNull<Self>, mode: i32) -> Result<()> {
+                let internal = env.get_native_interface();
+                jni_void_call!(internal, $jni_release, *obj, ptr.as_ptr(), mode as i32);
                 Ok(())
             }
         }
@@ -83,8 +76,7 @@ impl<'a, 'b, T: TypeArray> AutoArray<'a, 'b, T> {
         Ok(AutoArray {
             obj,
             ptr: {
-                let internal = env.get_native_interface();
-                let ptr = T::get(internal, obj, &mut is_copy)?;
+                let ptr = T::get(env, obj, &mut is_copy)?;
                 NonNull::new(ptr).ok_or(Error::NullPtr("Non-null ptr expected"))?
             },
             mode,
@@ -104,9 +96,7 @@ impl<'a, 'b, T: TypeArray> AutoArray<'a, 'b, T> {
     }
 
     fn release_array_elements(&mut self, mode: i32) -> Result<()> {
-        let internal = self.env.get_native_interface();
-        let ptr = self.ptr.as_ptr();
-        T::release(internal, self.obj, ptr, mode)
+        T::release(self.env, self.obj, self.ptr, mode)
     }
 
     /// Don't commit the changes to the array on release (if it is a copy).
