@@ -433,7 +433,7 @@ pub fn get_long_array_elements() {
 }
 
 #[test]
-#[ignore]
+#[ignore] // Disabled until issue #283 is resolved
 pub fn get_long_array_elements_commit() {
     let env = attach_current_thread();
 
@@ -535,6 +535,7 @@ pub fn get_primitive_array_critical() {
 }
 
 #[test]
+#[ignore] // Disabled until issue #283 is resolved
 pub fn get_primitive_array_critical_commit() {
     let env = attach_current_thread();
 
