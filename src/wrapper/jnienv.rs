@@ -1994,7 +1994,7 @@ impl<'a> JNIEnv<'a> {
     ) -> Result<AutoByteArray> {
         non_null!(array, "get_byte_array_elements array argument");
         let mut is_copy: jboolean = 0xff;
-        let ptr = jni_non_void_call!(self.internal, GetByteArrayElements, array, &mut is_copy);
+        let ptr = jni_unchecked!(self.internal, GetByteArrayElements, array, &mut is_copy);
         AutoByteArray::new(self, array.into(), ptr, mode, is_copy == sys::JNI_TRUE)
     }
 
@@ -2017,7 +2017,7 @@ impl<'a> JNIEnv<'a> {
     ) -> Result<AutoLongArray> {
         non_null!(array, "get_long_array_elements array argument");
         let mut is_copy: jboolean = 0xff;
-        let ptr = jni_non_void_call!(self.internal, GetLongArrayElements, array, &mut is_copy);
+        let ptr = jni_unchecked!(self.internal, GetLongArrayElements, array, &mut is_copy);
         AutoLongArray::new(self, array.into(), ptr, mode, is_copy == sys::JNI_TRUE)
     }
 
