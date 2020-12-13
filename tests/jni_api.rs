@@ -1,20 +1,20 @@
 #![cfg(feature = "invocation")]
 
-use jni_sys::{jbyte, jlong};
 use std::str::FromStr;
 
 use jni::{
     descriptors::Desc,
     errors::Error,
-    objects::{AutoLocal, JByteBuffer, JList, JObject, JString, JThrowable, JValue},
+    objects::{
+        AutoArray, AutoLocal, JByteBuffer, JList, JObject, JString, JThrowable, JValue, ReleaseMode,
+    },
     signature::JavaType,
     strings::JNIString,
-    sys::{jint, jobject, jsize},
+    sys::{jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jobject, jshort, jsize},
     JNIEnv,
 };
 
 mod util;
-use jni::objects::ReleaseMode;
 use util::{attach_current_thread, unwrap};
 
 static ARRAYLIST_CLASS: &str = "java/util/ArrayList";
@@ -315,122 +315,140 @@ pub fn java_byte_array_from_slice() {
     assert_eq!(res[2], 3);
 }
 
-#[test]
-pub fn get_byte_array_elements() {
-    let env = attach_current_thread();
+macro_rules! test_get_array_elements {
+    ( $jni_get:tt, $jni_type:ty, $new_array:tt, $get_array:tt, $set_array:tt ) => {
+        #[test]
+        pub fn $jni_get() {
+            let env = attach_current_thread();
 
-    // Create original Java array
-    let buf: &[u8] = &[1, 2, 3];
-    let java_array = env
-        .byte_array_from_slice(buf)
-        .expect("JNIEnv#byte_array_from_slice must create a java array from slice");
+            // Create original Java array
+            let buf: &[$jni_type] = &[1 as $jni_type, 2 as $jni_type, 3 as $jni_type];
+            let java_array = env
+                .$new_array(3)
+                .expect(stringify!(JNIEnv#$new_array must create a Java $jni_type array with given size));
 
-    // Use a scope to test Drop
-    {
-        // Get byte array elements auto wrapper
-        let auto_ptr = env
-            .get_byte_array_elements(java_array, ReleaseMode::CopyBack)
-            .unwrap();
+            // Insert array elements
+            let _ = env.$set_array(java_array, 0, buf);
 
-        // Check array size
-        assert_eq!(auto_ptr.size().unwrap(), 3);
+            // Use a scope to test Drop
+            {
+                // Get byte array elements auto wrapper
+                let auto_ptr: AutoArray<$jni_type> =
+                    env.$jni_get(java_array, ReleaseMode::CopyBack).unwrap();
 
-        // Check pointer access
-        let ptr = auto_ptr.as_ptr();
-        assert_eq!(unsafe { *ptr.offset(0) }, 1);
-        assert_eq!(unsafe { *ptr.offset(1) }, 2);
-        assert_eq!(unsafe { *ptr.offset(2) }, 3);
+                // Check array size
+                assert_eq!(auto_ptr.size().unwrap(), 3);
 
-        // Check pointer From access
-        let ptr: *mut jbyte = std::convert::From::from(&auto_ptr);
-        assert_eq!(unsafe { *ptr.offset(0) }, 1);
-        assert_eq!(unsafe { *ptr.offset(1) }, 2);
-        assert_eq!(unsafe { *ptr.offset(2) }, 3);
+                // Check pointer access
+                let ptr = auto_ptr.as_ptr();
+                assert_eq!(unsafe { *ptr.offset(0) }, 1 as $jni_type);
+                assert_eq!(unsafe { *ptr.offset(1) }, 2 as $jni_type);
+                assert_eq!(unsafe { *ptr.offset(2) }, 3 as $jni_type);
 
-        // Check pointer into() access
-        let ptr: *mut jbyte = (&auto_ptr).into();
-        assert_eq!(unsafe { *ptr.offset(0) }, 1);
-        assert_eq!(unsafe { *ptr.offset(1) }, 2);
-        assert_eq!(unsafe { *ptr.offset(2) }, 3);
+                // Check pointer From access
+                let ptr: *mut $jni_type = std::convert::From::from(&auto_ptr);
+                assert_eq!(unsafe { *ptr.offset(0) }, 1 as $jni_type);
+                assert_eq!(unsafe { *ptr.offset(1) }, 2 as $jni_type);
+                assert_eq!(unsafe { *ptr.offset(2) }, 3 as $jni_type);
 
-        // Modify
-        unsafe {
-            *ptr.offset(0) += 1;
-            *ptr.offset(1) += 1;
-            *ptr.offset(2) += 1;
+                // Check pointer into() access
+                let ptr: *mut $jni_type = (&auto_ptr).into();
+                assert_eq!(unsafe { *ptr.offset(0) }, 1 as $jni_type);
+                assert_eq!(unsafe { *ptr.offset(1) }, 2 as $jni_type);
+                assert_eq!(unsafe { *ptr.offset(2) }, 3 as $jni_type);
+
+                // Modify
+                unsafe {
+                    *ptr.offset(0) += 1 as $jni_type;
+                    *ptr.offset(1) += 1 as $jni_type;
+                    *ptr.offset(2) += 1 as $jni_type;
+                }
+
+                // Commit would be necessary here, if there were no closure
+                //auto_ptr.commit().unwrap();
+            }
+
+            // Confirm modification of original Java array
+            let mut res: [$jni_type; 3] = [0 as $jni_type; 3];
+            env.$get_array(java_array, 0, &mut res).unwrap();
+            assert_eq!(res[0], 2 as $jni_type);
+            assert_eq!(res[1], 3 as $jni_type);
+            assert_eq!(res[2], 4 as $jni_type);
         }
-
-        // Commit would be necessary here, if there were no closure
-        //auto_ptr.commit().unwrap();
-    }
-
-    // Confirm modification of original Java array
-    let mut res: [i8; 3] = [0; 3];
-    env.get_byte_array_region(java_array, 0, &mut res).unwrap();
-    assert_eq!(res[0], 2);
-    assert_eq!(res[1], 3);
-    assert_eq!(res[2], 4);
+    };
 }
 
-#[test]
-pub fn get_long_array_elements() {
-    let env = attach_current_thread();
+test_get_array_elements!(
+    get_array_elements,
+    jint,
+    new_int_array,
+    get_int_array_region,
+    set_int_array_region
+);
 
-    // Create original Java array
-    let buf: &[i64] = &[1, 2, 3];
-    let java_array = env
-        .new_long_array(3)
-        .expect("JNIEnv#new_long_array must create a java array with given size");
+test_get_array_elements!(
+    get_int_array_elements,
+    jint,
+    new_int_array,
+    get_int_array_region,
+    set_int_array_region
+);
 
-    // Insert array elements
-    let _ = env.set_long_array_region(java_array, 0, buf);
+test_get_array_elements!(
+    get_long_array_elements,
+    jlong,
+    new_long_array,
+    get_long_array_region,
+    set_long_array_region
+);
 
-    // Use a scope to test Drop
-    {
-        // Get long array elements auto wrapper
-        let auto_ptr = env
-            .get_long_array_elements(java_array, ReleaseMode::CopyBack)
-            .unwrap();
+test_get_array_elements!(
+    get_byte_array_elements,
+    jbyte,
+    new_byte_array,
+    get_byte_array_region,
+    set_byte_array_region
+);
 
-        // Check array size
-        assert_eq!(auto_ptr.size().unwrap(), 3);
+test_get_array_elements!(
+    get_boolean_array_elements,
+    jboolean,
+    new_boolean_array,
+    get_boolean_array_region,
+    set_boolean_array_region
+);
 
-        // Check pointer access
-        let ptr = auto_ptr.as_ptr();
-        assert_eq!(unsafe { *ptr.offset(0) }, 1);
-        assert_eq!(unsafe { *ptr.offset(1) }, 2);
-        assert_eq!(unsafe { *ptr.offset(2) }, 3);
+test_get_array_elements!(
+    get_char_array_elements,
+    jchar,
+    new_char_array,
+    get_char_array_region,
+    set_char_array_region
+);
 
-        // Check pointer From access
-        let ptr: *mut jlong = std::convert::From::from(&auto_ptr);
-        assert_eq!(unsafe { *ptr.offset(0) }, 1);
-        assert_eq!(unsafe { *ptr.offset(1) }, 2);
-        assert_eq!(unsafe { *ptr.offset(2) }, 3);
+test_get_array_elements!(
+    get_short_array_elements,
+    jshort,
+    new_short_array,
+    get_short_array_region,
+    set_short_array_region
+);
 
-        // Check pointer into() access
-        let ptr: *mut jlong = (&auto_ptr).into();
-        assert_eq!(unsafe { *ptr.offset(0) }, 1);
-        assert_eq!(unsafe { *ptr.offset(1) }, 2);
-        assert_eq!(unsafe { *ptr.offset(2) }, 3);
+test_get_array_elements!(
+    get_float_array_elements,
+    jfloat,
+    new_float_array,
+    get_float_array_region,
+    set_float_array_region
+);
 
-        // Modify
-        unsafe {
-            *ptr.offset(0) += 1;
-            *ptr.offset(1) += 1;
-            *ptr.offset(2) += 1;
-        }
-
-        // Commit would be necessary here, if there were no closure
-        //auto_ptr.commit().unwrap();
-    }
-
-    // Confirm modification of original Java array
-    let mut res: [i64; 3] = [0; 3];
-    env.get_long_array_region(java_array, 0, &mut res).unwrap();
-    assert_eq!(res[0], 2);
-    assert_eq!(res[1], 3);
-    assert_eq!(res[2], 4);
-}
+test_get_array_elements!(
+    get_double_array_elements,
+    jdouble,
+    new_double_array,
+    get_double_array_region,
+    set_double_array_region
+);
 
 #[test]
 #[ignore]
