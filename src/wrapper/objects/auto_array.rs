@@ -24,7 +24,7 @@ macro_rules! type_array {
             /// Get Java $jni_type array
             fn get(env: &JNIEnv, obj: JObject, is_copy: &mut jboolean) -> Result<*mut Self> {
                 let internal = env.get_native_interface();
-                let res = jni_non_void_call!(internal, $jni_get, *obj, is_copy);
+                let res = jni_unchecked!(internal, $jni_get, *obj, is_copy);
                 Ok(res)
             }
 
