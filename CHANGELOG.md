@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added `AutoLongArray`. (#276)
 
 ### Changed
+- Removed AutoPrimitiveArray::commit(). (#290)
 - `AutoByte/PrimitiveArray.commit()` now returns `Result`. (#275)
 - Removed methods get/release/commit_byte/primitive_array_{elements|critical}. (#281)
 - Renamed methods get_auto_byte/long/primitive_array_{elements|critical} to
