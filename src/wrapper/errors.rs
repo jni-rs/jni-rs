@@ -87,3 +87,56 @@ pub struct Exception {
 pub trait ToException {
     fn to_exception(&self) -> Exception;
 }
+
+/// An error that occurred while starting the JVM using the JNI Invocation API.
+///
+/// This only exists if the "invocation" or "invocation-dyn" feature is enabled.
+#[cfg(feature = "invocation")]
+#[derive(Debug, Error)]
+#[non_exhaustive]
+pub enum StartJvmError {
+    /// An attempt was made to find a JVM using [java-locator], but it failed.
+    ///
+    /// If this happens, give an explicit location to [`JavaVM::with_libjvm`] or set the
+    /// `JAVA_HOME` environment variable.
+    ///
+    /// This can only happen if the "invocation-dyn" feature is enabled.
+    ///
+    /// [java-locator]: https://docs.rs/java-locator/
+    /// [`JavaVM::with_libjvm`]: crate::JavaVM::with_libjvm
+    #[cfg(feature = "invocation-dyn")]
+    #[error("Couldn't automatically discover the Java VM's location (try setting the JAVA_HOME environment variable): {0}")]
+    NotFound(
+        #[from]
+        #[source]
+        java_locator::errors::JavaLocatorError,
+    ),
+
+    #[cfg(not(feature = "invocation-dyn"))]
+    #[doc(hidden)]
+    #[error("{0}")]
+    NotFound(std::convert::Infallible),
+
+    /// An error occurred in trying to load the JVM shared library.
+    ///
+    /// This can only happen if the "invocation-dyn" feature is enabled.
+    #[cfg(feature = "invocation-dyn")]
+    #[error("Couldn't load the Java VM shared library ({0}): {1}")]
+    LoadError(String, #[source] libloading::Error),
+
+    #[cfg(not(feature = "invocation-dyn"))]
+    #[doc(hidden)]
+    #[error("{1}")]
+    LoadError(String, std::convert::Infallible),
+
+    /// The JNI function `JNI_CreateJavaVM` returned an error.
+    #[error("{0}")]
+    Create(
+        #[from]
+        #[source]
+        Error,
+    ),
+}
+
+#[cfg(feature = "invocation")]
+pub type StartJvmResult<T> = std::result::Result<T, StartJvmError>;

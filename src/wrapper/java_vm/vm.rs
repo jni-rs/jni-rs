@@ -3,7 +3,7 @@ use std::{
     ops::Deref,
     ptr,
     sync::atomic::{AtomicUsize, Ordering},
-    thread::current,
+    thread::{current, Thread},
 };
 
 use log::{debug, error};
@@ -11,8 +11,16 @@ use log::{debug, error};
 use crate::{errors::*, sys, JNIEnv};
 
 #[cfg(feature = "invocation")]
-use crate::InitArgs;
-use std::thread::Thread;
+use {crate::InitArgs, cfg_if::cfg_if, std::os::raw::c_void};
+
+#[cfg(feature = "invocation-dyn")]
+use {
+    once_cell::sync::OnceCell,
+    std::{ffi::OsStr, path::PathBuf},
+};
+
+#[cfg(feature = "invocation-dyn")]
+static LIBJVM: OnceCell<(String, libloading::Library)> = OnceCell::new();
 
 /// The Java VM, providing [Invocation API][invocation-api] support.
 ///
@@ -55,8 +63,8 @@ use std::thread::Thread;
 ///
 /// ## Launching JVM from Rust
 ///
-/// To [launch][launch-vm] a JVM from a native process, enable the `invocation` feature
-/// in the Cargo.toml:
+/// To [launch][launch-vm] a JVM from a native process, enable the `invocation` or `invocation-dyn`
+/// feature in the Cargo.toml:
 ///
 /// ```toml
 /// jni = { version = "0.20.0", features = ["invocation"] }
@@ -68,10 +76,9 @@ use std::thread::Thread;
 /// ```rust
 /// # use jni::errors;
 /// # //
-/// # fn main() -> errors::Result<()> {
 /// # // Ignore this test without invocation feature, so that simple `cargo test` works
-/// # #[cfg(feature = "invocation")] {
-/// # //
+/// # #[cfg(feature = "invocation")]
+/// # fn main() -> errors::StartJvmResult<()> {
 /// # use jni::{AttachGuard, objects::JValue, InitArgsBuilder, JNIEnv, JNIVersion, JavaVM, sys::jint};
 /// # //
 /// // Build the VM properties
@@ -102,8 +109,11 @@ use std::thread::Thread;
 ///
 /// assert_eq!(val, 10);
 ///
-/// # }
 /// # Ok(()) }
+/// #
+/// # // This is a stub that gets run instead if the invocation feature is not built
+/// # #[cfg(not(feature = "invocation"))]
+/// # fn main() {}
 /// ```
 ///
 /// During build time, the JVM installation path is determined:
@@ -147,25 +157,96 @@ impl JavaVM {
     ///
     /// *This API requires "invocation" feature to be enabled,
     /// see ["Launching JVM from Rust"](struct.JavaVM.html#launching-jvm-from-rust).*
+    ///
+    /// If the "invocation-dyn" feature is enabled, this will attempt to locate a JVM using
+    /// [java-locator], if the JVM has not already been loaded. Use the
+    /// [`with_libjvm`][Self::with_libjvm] method to give an explicit location for the JVM shared
+    /// library (`jvm.dll`, `libjvm.so`, or `libjvm.dylib`, depending on the platform).
     #[cfg(feature = "invocation")]
-    pub fn new(args: InitArgs) -> Result<Self> {
-        use std::os::raw::c_void;
+    pub fn new(args: InitArgs) -> StartJvmResult<Self> {
+        cfg_if! {
+            if #[cfg(feature = "invocation-dyn")] {
+                Self::with_libjvm(args, || {
+                    Ok([
+                        java_locator::locate_jvm_dyn_library()
+                            .map_err(StartJvmError::NotFound)?
+                            .as_str(),
+                        java_locator::get_jvm_dyn_lib_file_name()
+                    ].iter().collect::<PathBuf>())
+                })
+            } else {
+                unsafe { Self::with_create_fn_ptr(args, sys::JNI_CreateJavaVM) }
+                .map_err(StartJvmError::Create)
+            }
+        }
+    }
 
+    /// Launch a new JavaVM using the provided init args, loading it from the given shared library file if it's not already loaded.
+    ///
+    /// Unlike original JNI API, the main thread (the thread from which this method is called) will
+    /// not be attached to JVM. You must explicitly use `attach_current_thread…` methods (refer
+    /// to [Attaching Native Threads section](#attaching-native-threads)).
+    ///
+    /// *This API requires "invocation-dyn" feature to be enabled,
+    /// see ["Launching JVM from Rust"](struct.JavaVM.html#launching-jvm-from-rust).*
+    ///
+    /// The `libjvm_path` parameter takes a *closure* which returns the path to the JVM shared
+    /// library. The closure is only called if the JVM is not already loaded. Any work that needs
+    /// to be done to locate the JVM shared library should be done inside that closure.
+    #[cfg(feature = "invocation-dyn")]
+    pub fn with_libjvm<P: AsRef<OsStr>>(
+        args: InitArgs,
+        libjvm_path: impl FnOnce() -> StartJvmResult<P>,
+    ) -> StartJvmResult<Self> {
+        // Try to load the JVM shared library, if it hasn't been already.
+        let (libjvm_path, libjvm) = LIBJVM.get_or_try_init::<_, StartJvmError>(|| {
+            // Determine the path to the shared library.
+            let libjvm_path = libjvm_path()?;
+            let libjvm_path_string = libjvm_path.as_ref().to_string_lossy().into_owned();
+
+            // Try to load it.
+            let libjvm = match libloading::Library::new(libjvm_path.as_ref()) {
+                Ok(ok) => ok,
+                Err(error) => return Err(StartJvmError::LoadError(libjvm_path_string, error)),
+            };
+
+            // Done!
+            Ok((libjvm_path_string, libjvm))
+        })?;
+
+        unsafe {
+            // Try to find the `JNI_CreateJavaVM` function in the loaded library.
+            let create_fn = libjvm
+                .get(b"JNI_CreateJavaVM\0")
+                .map_err(|error| StartJvmError::LoadError(libjvm_path.to_owned(), error))?;
+
+            // Create the JVM.
+            Self::with_create_fn_ptr(args, *create_fn).map_err(StartJvmError::Create)
+        }
+    }
+
+    #[cfg(feature = "invocation")]
+    unsafe fn with_create_fn_ptr(
+        args: InitArgs,
+        create_fn_ptr: unsafe extern "system" fn(
+            pvm: *mut *mut sys::JavaVM,
+            penv: *mut *mut c_void,
+            args: *mut c_void,
+        ) -> sys::jint,
+    ) -> Result<Self> {
         let mut ptr: *mut sys::JavaVM = ::std::ptr::null_mut();
         let mut env: *mut sys::JNIEnv = ::std::ptr::null_mut();
 
-        unsafe {
-            jni_error_code_to_result(sys::JNI_CreateJavaVM(
-                &mut ptr as *mut _,
-                &mut env as *mut *mut sys::JNIEnv as *mut *mut c_void,
-                args.inner_ptr(),
-            ))?;
+        jni_error_code_to_result(create_fn_ptr(
+            &mut ptr as *mut _,
+            &mut env as *mut *mut sys::JNIEnv as *mut *mut c_void,
+            args.inner_ptr(),
+        ))?;
 
-            let vm = Self::from_raw(ptr)?;
-            java_vm_unchecked!(vm.0, DetachCurrentThread);
+        let vm = Self::from_raw(ptr)?;
+        java_vm_unchecked!(vm.0, DetachCurrentThread);
 
-            Ok(vm)
-        }
+        Ok(vm)
     }
 
     /// Create a JavaVM from a raw pointer.

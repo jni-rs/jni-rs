@@ -18,9 +18,13 @@ edition = "2018"
 
 [dependencies]
 cesu8 = "1.1.0"
+cfg-if = { version = "1", optional = true }
 combine = "4.1.0"
+java-locator = { version = "0.1", optional = true }
 jni-sys = "0.3.0"
+libloading = { version = "0.6", optional = true }
 log = "0.4.4"
+once_cell = { version = "1", optional = true }
 thiserror = "1.0.20"
 
 [build-dependencies]
@@ -31,8 +35,9 @@ lazy_static = "1"
 
 
 [features]
-invocation = []
+invocation = ["cfg-if"]
+invocation-dyn = ["invocation", "java-locator", "libloading", "once_cell"]
 default = []
 
 [package.metadata.docs.rs]
-features = ["invocation"]
+features = ["invocation-dyn"]

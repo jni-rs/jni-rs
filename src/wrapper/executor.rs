@@ -22,9 +22,9 @@ pub const DEFAULT_LOCAL_FRAME_CAPACITY: i32 = 32;
 /// ```rust
 /// # use jni::errors;
 /// # //
-/// # fn main() -> errors::Result<()> {
 /// # // Ignore this test without invocation feature, so that simple `cargo test` works
-/// # #[cfg(feature = "invocation")] {
+/// # #[cfg(feature = "invocation")]
+/// # fn main() -> errors::StartJvmResult<()> {
 /// # //
 /// # use jni::{objects::JValue, Executor, InitArgsBuilder, JavaVM, sys::jint};
 /// # use std::sync::Arc;
@@ -46,8 +46,11 @@ pub const DEFAULT_LOCAL_FRAME_CAPACITY: i32 = 32;
 ///
 /// assert_eq!(val, 10);
 ///
-/// # }
 /// # Ok(()) }
+/// #
+/// # // This is a stub that gets run instead if the invocation feature is not built
+/// # #[cfg(not(feature = "invocation"))]
+/// # fn main() {}
 /// ```
 #[derive(Clone)]
 pub struct Executor {
