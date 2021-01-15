@@ -20,7 +20,12 @@ use std::{
 
 #[cfg(target_os = "windows")]
 const EXPECTED_JVM_FILENAME: &str = "jvm.dll";
-#[cfg(target_os = "linux")]
+#[cfg(any(
+    target_os = "freebsd",
+    target_os = "linux",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
 const EXPECTED_JVM_FILENAME: &str = "libjvm.so";
 #[cfg(target_os = "macos")]
 const EXPECTED_JVM_FILENAME: &str = "libjli.dylib";
