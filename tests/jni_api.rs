@@ -322,9 +322,9 @@ macro_rules! test_get_array_elements {
             let env = attach_current_thread();
 
             // Create original Java array
-            let buf: &[$jni_type] = &[1 as $jni_type, 2 as $jni_type, 3 as $jni_type];
+            let buf: &[$jni_type] = &[0 as $jni_type, 1 as $jni_type];
             let java_array = env
-                .$new_array(3)
+                .$new_array(2)
                 .expect(stringify!(JNIEnv#$new_array must create a Java $jni_type array with given size));
 
             // Insert array elements
@@ -337,31 +337,27 @@ macro_rules! test_get_array_elements {
                     env.$jni_get(java_array, ReleaseMode::CopyBack).unwrap();
 
                 // Check array size
-                assert_eq!(auto_ptr.size().unwrap(), 3);
+                assert_eq!(auto_ptr.size().unwrap(), 2);
 
                 // Check pointer access
                 let ptr = auto_ptr.as_ptr();
-                assert_eq!(unsafe { *ptr.offset(0) } as i32, 1);
-                assert_eq!(unsafe { *ptr.offset(1) } as i32, 2);
-                assert_eq!(unsafe { *ptr.offset(2) } as i32, 3);
+                assert_eq!(unsafe { *ptr.offset(0) } as i32, 0);
+                assert_eq!(unsafe { *ptr.offset(1) } as i32, 1);
 
                 // Check pointer From access
                 let ptr: *mut $jni_type = std::convert::From::from(&auto_ptr);
-                assert_eq!(unsafe { *ptr.offset(0) } as i32, 1);
-                assert_eq!(unsafe { *ptr.offset(1) } as i32, 2);
-                assert_eq!(unsafe { *ptr.offset(2) } as i32, 3);
+                assert_eq!(unsafe { *ptr.offset(0) } as i32, 0);
+                assert_eq!(unsafe { *ptr.offset(1) } as i32, 1);
 
                 // Check pointer into() access
                 let ptr: *mut $jni_type = (&auto_ptr).into();
-                assert_eq!(unsafe { *ptr.offset(0) } as i32, 1);
-                assert_eq!(unsafe { *ptr.offset(1) } as i32, 2);
-                assert_eq!(unsafe { *ptr.offset(2) } as i32, 3);
+                assert_eq!(unsafe { *ptr.offset(0) } as i32, 0);
+                assert_eq!(unsafe { *ptr.offset(1) } as i32, 1);
 
                 // Modify
                 unsafe {
                     *ptr.offset(0) += 1 as $jni_type;
-                    *ptr.offset(1) += 1 as $jni_type;
-                    *ptr.offset(2) += 1 as $jni_type;
+                    *ptr.offset(1) -= 1 as $jni_type;
                 }
 
                 // Commit would be necessary here, if there were no closure
@@ -369,11 +365,10 @@ macro_rules! test_get_array_elements {
             }
 
             // Confirm modification of original Java array
-            let mut res: [$jni_type; 3] = [0 as $jni_type; 3];
+            let mut res: [$jni_type; 2] = [0 as $jni_type; 2];
             env.$get_array(java_array, 0, &mut res).unwrap();
-            assert_eq!(res[0] as i32, 2);
-            assert_eq!(res[1] as i32, 3);
-            assert_eq!(res[2] as i32, 4);
+            assert_eq!(res[0] as i32, 1);
+            assert_eq!(res[1] as i32, 0);
         }
     };
 }
