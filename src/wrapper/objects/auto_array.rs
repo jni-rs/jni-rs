@@ -123,7 +123,7 @@ impl<'a, 'b, T: TypeArray> Drop for AutoArray<'a, 'b, T> {
         let res = self.release_array_elements(self.mode as i32);
         match res {
             Ok(()) => {}
-            Err(e) => debug!("error releasing array: {:#?}", e),
+            Err(e) => error!("error releasing array: {:#?}", e),
         }
     }
 }
