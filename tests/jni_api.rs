@@ -553,25 +553,6 @@ pub fn get_primitive_array_critical() {
 }
 
 #[test]
-#[ignore] // Disabled until issue #283 is resolved
-pub fn get_primitive_array_critical_commit() {
-    let env = attach_current_thread();
-
-    // Create original Java array
-    let java_array = env
-        .new_long_array(3)
-        .expect("JNIEnv#new_long_array must create a java array with given size");
-
-    // Get primitive array elements auto wrapper
-    let mut auto_ptr = env
-        .get_primitive_array_critical(java_array, ReleaseMode::CopyBack)
-        .unwrap();
-
-    // Call commit
-    auto_ptr.commit().unwrap();
-}
-
-#[test]
 pub fn get_object_class() {
     let env = attach_current_thread();
     let string = env.new_string("test").unwrap();
