@@ -1983,7 +1983,8 @@ impl<'a> JNIEnv<'a> {
     /// the corresponding Release*ArrayElements JNI method is called.
     /// AutoArray has a commit() method, to force a copy of the array if needed (and without
     /// releasing it).
-    /// See also the convenience wrappers:
+
+    /// Prefer to use the convenience wrappers:
     /// [`get_int_array_elements`](struct.JNIEnv.html#method.get_int_array_elements)
     /// [`get_long_array_elements`](struct.JNIEnv.html#method.get_long_array_elements)
     /// [`get_byte_array_elements`](struct.JNIEnv.html#method.get_byte_array_elements)
