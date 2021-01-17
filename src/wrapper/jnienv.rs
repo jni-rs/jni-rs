@@ -2037,8 +2037,6 @@ impl<'a> JNIEnv<'a> {
     /// returned array will not necessarily be reflected in the original array until
     /// ReleasePrimitiveArrayCritical is called; which happens at AutoPrimitiveArray
     /// destruction.
-    /// AutoPrimitiveArray also has a commit() method, to force a copy of the array if needed
-    /// (without releasing it).
     ///
     /// If the given array is `null`, an `Error::NullPtr` is returned.
     ///

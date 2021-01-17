@@ -2,7 +2,7 @@ use log::debug;
 
 use crate::sys::jsize;
 use crate::wrapper::objects::ReleaseMode;
-use crate::{errors::*, objects::JObject, sys, JNIEnv};
+use crate::{errors::*, objects::JObject, JNIEnv};
 use std::os::raw::c_void;
 use std::ptr::NonNull;
 
@@ -47,11 +47,6 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
         self.ptr.as_ptr()
     }
 
-    /// Commits the changes to the array, if it is a copy
-    pub fn commit(&mut self) -> Result<()> {
-        self.release_primitive_array_critical(sys::JNI_COMMIT)
-    }
-
     fn release_primitive_array_critical(&mut self, mode: i32) -> Result<()> {
         jni_void_call!(
             self.env.get_native_interface(),
@@ -63,7 +58,7 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
         Ok(())
     }
 
-    /// Don't commit the changes to the array on release (if it is a copy).
+    /// Don't copy the changes to the array on release (if it is a copy).
     /// This has no effect if the array is not a copy.
     /// This method is useful to change the release mode of an array originally created
     /// with `ReleaseMode::CopyBack`.
