@@ -378,6 +378,7 @@ macro_rules! test_get_array_elements {
     };
 }
 
+// Test generic get_array_elements
 test_get_array_elements!(
     get_array_elements,
     jint,
@@ -386,6 +387,7 @@ test_get_array_elements!(
     set_int_array_region
 );
 
+// Test type-specific array accessors
 test_get_array_elements!(
     get_int_array_elements,
     jint,
