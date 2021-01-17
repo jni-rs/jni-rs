@@ -465,7 +465,7 @@ pub fn get_long_array_elements_commit() {
     let _ = env.set_long_array_region(java_array, 0, buf);
 
     // Get long array elements auto wrapper
-    let mut auto_ptr = env
+    let auto_ptr = env
         .get_long_array_elements(java_array, ReleaseMode::CopyBack)
         .unwrap();
 

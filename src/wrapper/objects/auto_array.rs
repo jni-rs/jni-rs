@@ -91,11 +91,11 @@ impl<'a, 'b, T: TypeArray> AutoArray<'a, 'b, T> {
     }
 
     /// Commits the changes to the array, if it is a copy
-    pub fn commit(&mut self) -> Result<()> {
+    pub fn commit(&self) -> Result<()> {
         self.release_array_elements(sys::JNI_COMMIT)
     }
 
-    fn release_array_elements(&mut self, mode: i32) -> Result<()> {
+    fn release_array_elements(&self, mode: i32) -> Result<()> {
         T::release(self.env, self.obj, self.ptr, mode)
     }
 
