@@ -1,5 +1,5 @@
 use crate::sys::jsize;
-use log::debug;
+use log::error;
 
 use std::ptr::NonNull;
 
