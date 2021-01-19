@@ -30,10 +30,10 @@ it handles errors. Note that the methods on `JNIEnv` never clear Exceptions.
 
 ## Throwing Exceptions from Rust
 
-Since Java doesn't understand Rust `Result` or `Option` types. These can be
-mapped into Exception types via
-[`throw_new`](https://docs.rs/jni/0.18.0/jni/struct.JNIEnv.html#method.throw_new),
-so that Java can decide on how to recover. For example:
+Java can't handle Rust `Result` or `Option` types, but it can handle exceptions.
+The Rust side can use
+[`throw_new`](https://docs.rs/jni/0.18.0/jni/struct.JNIEnv.html#method.throw_new)
+to throw exceptions, so that Java can decide on how to recover. For example:
 
 ```rust
 #[no_mangle]
@@ -56,6 +56,8 @@ pub extern "system" fn Java_jni_1rs_1book_NativeAPI_divide(
     }
 }
 ```
+
+
     
 ## Wrapping Result Handling into a Function
 
