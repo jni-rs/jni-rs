@@ -9,9 +9,10 @@ jni-rs has additional abstractions that haven't been discussed, like executors.
 JNI also has a few features that need their own sections (critical APIs, and
 local and global references).
 
-There are also performance optimizations that haven't been covered. It is more
-efficient to issue calls from Java to native code, than it is to go from native
-code to Java, and it's possible to cache class/methodIds/fieldIds.
+There are also performance optimizations that haven't been covered. For example,
+it is more efficient to issue calls from Java to native code than from native
+code to Java, and caching class/methodIds/fieldIds can reduce the number of
+upcalls that are necessary.
 
 There is open work that could simplify portions of the book. For example, [a
 native peer registry](https://github.com/jni-rs/jni-rs/issues/84) can help
