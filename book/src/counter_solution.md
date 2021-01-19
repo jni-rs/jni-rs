@@ -373,7 +373,7 @@ Java. You should be familiar with how panic can interact with `drop`, and some
 approaches for preventing resources from being dropped prematurely. There are
 still these problems with the counter:
 
-1. `increment` and `get` may use the counter after its been freed.
+1. `increment` and `get` may use the counter after it's been freed.
 2. it can be double freed ( via multiple `close` calls).
 3. or perhaps never freed (never call `close`).
 4. `close()` is not idempotent, as encouraged in the [`Autocloseable`
