@@ -378,5 +378,5 @@ still these problems with the counter:
 3. or perhaps never freed (never call `close`).
 4. `close()` is not idempotent, as encouraged in the [`Autocloseable`
    docs](https://docs.oracle.com/javase/8/docs/api/java/lang/AutoCloseable.html#close--).
-5. it's not threadsafe; it's possible to call `get` during `destroy`, for
+5. it's not thread-safe; it's possible to call `get` during `destroy`, for
    example.
