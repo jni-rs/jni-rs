@@ -9,8 +9,8 @@ First, we need to add a `close()` to the counter, so that we can free native
 resources.
 
 ```java
-// Autocloseable is used to allow try-with-resources
-class Counter implements Autocloseable {
+// AutoCloseable is used to allow try-with-resources
+class Counter implements AutoCloseable {
 
     // Allocate native resources
     public Counter() {}
