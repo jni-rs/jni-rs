@@ -65,9 +65,7 @@ These are some selections from the `jni-rs` docs that may help you.
 ### Reading Java Array Lengths
 [`JNIEnv::get_array_length(&self, array: jarray) ->
 Result<jsize>`](https://docs.rs/jni/0.18.0/jni/struct.JNIEnv.html#method.get_array_length)
-can be used to read the length of Java Arrays. Note that it can be better to
-pass the array length together with the array, down to the native layer, when
-that is an option, since it saves an upcall.
+can be used to read the length of Java Arrays.
 
 ```rust,noplaypen
     let size = env.get_array_length(my_array)? as usize;
