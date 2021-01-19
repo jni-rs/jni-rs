@@ -124,14 +124,18 @@ it's possible to set `panic` handlers to catch them.
 
 ## Handling Java Exceptions in Native Methods
 
-As mentioned earlier, there are APIs for clearing and checking Exceptions.
-`exception_check` indicates whether there is a pending Exception, and
-`exception_occurred` returns the `JThrowable` object. Use
-[`call_method`](https://docs.rs/jni/0.18.0/jni/struct.JNIEnv.html#method.call_method)
-to retrieve cause and description, if you need it.
+As mentioned earlier, there are APIs for checking and clearing Exceptions.
+`exception_check` indicates whether there is a pending exception,
+`exception_occurred` returns the `JThrowable` object.
 [`exception_describe`](https://docs.rs/jni/0.18.0/jni/struct.JNIEnv.html#method.exception_describe)
-can also be helpful during debugging, for collecting the exception and backtrace
-from stderr (or other system error reporting channel).
+can also be helpful during debugging, since it will print the exception and
+backtrace to stderr (or other system error reporting channel). Finally,
+[`exception_clear`](https://docs.rs/jni/0.18.0/jni/struct.JNIEnv.html#method.exception_clear)
+clears the pending exception.
+
+There are no specialized APIs related to exception causes or descriptions. To
+access them, use
+[`call_method`](https://docs.rs/jni/0.18.0/jni/struct.JNIEnv.html#method.call_method).
 
 ```rust 
 #[no_mangle]
@@ -149,7 +153,10 @@ pub extern "system" fn Java_jni_1rs_1book_NativeAPI_exception_1clearing(
             // object, if desired. The handle can then be used to get causes,
             // via call_method on JNIEnv.
             let _exception_object = env.exception_occurred()?;
-            // Clear the exception we just threw
+            // Both exception_occurred and exception_check leave
+            // the exception pending.
+            //
+            // Clear the exception we just threw.
             env.exception_clear()?;
         }
         Ok(())
