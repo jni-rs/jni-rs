@@ -100,7 +100,7 @@ java.lang.UnsatisfiedLinkError: no jnibookrs in java.library.path: [/usr/java/pa
     at com.github.jni_rs.jnibook.NativeAPI.<clinit>(NativeAPI.java:10)
 ```
 
-Then verify that your path is listed Exception message. If it's not, then you
+Then verify that your path is listed in the Exception message. If it's not, then you
 need to ensure that `java.library.path` is set. Otherwise, you must ensure it
 contains the shared library.
 
