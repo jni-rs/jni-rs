@@ -89,19 +89,17 @@ JNIEXPORT jint JNICALL Java_jni_1rs_1book_NativeAPI_verify_1link
 ```
 
 `Java_jni_1rs_1book_NativeAPI_verify_1link` is the name of the Rust function
-that corresponds to `verify_link`. `Java_` identifies that the function is for
-Java, followed by the path, classname, and `verify_1link`. You may wonder what
-the `_1` is for: it's the encoding mechanism that JNI uses to encode
-underscores, as described in the [JNI spec on Resolving Native Method
+that corresponds to `verify_link`. The method naming scheme is described in the
+[JNI spec on Resolving Native Method
 Names](https://docs.oracle.com/en/java/javase/11/docs/specs/jni/design.html#resolving-native-method-names).
 
 ### Disabling Mangling and Specifying the ABI
 There are a few annotations that must be applied to Rust functions, so that they
 work with JNI. First, `#[no_mangle]` must be added to opt-out of name mangling
 (a compiler technique that the Rust compiler leverages by default), so that the
-carefully chosen JNI function name is unchanged. Secondly, `extern "system"`
-must be used to specify the ABI (Application Binary Interface) to one that Java
-expects. For further information, see
+symbol name in the native artifact is the same as the function name. Secondly,
+`extern "system"` must be used to specify the ABI (Application Binary Interface)
+to one that Java expects. For further information, see
 [extern](https://doc.rust-lang.org/std/keyword.extern.html) and
 [abi](https://doc.rust-lang.org/beta/reference/items/external-blocks.html#abi).
 Applying these two, we wind up with:
