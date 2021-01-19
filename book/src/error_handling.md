@@ -49,7 +49,7 @@ pub extern "system" fn Java_jni_1rs_1book_NativeAPI_divide(
         result
     } else {
         // Divisor is zero -- throw an exception!
-        env.throw_new("java/lang/Exception", "Attempting to divide by zero.");
+        env.throw_new("java/lang/ArithmeticException", "Attempting to divide by zero.");
         // A dummy value must be returned, since the native method retains control
         // even after throwing an Exception.
         0
@@ -81,13 +81,13 @@ where
                     // don't throw another one.
                     jni::errors::Error::JavaException => {},
                     _ => {
-                        let _ = env.throw_new("java/lang/Exception", e.to_string());
+                        let _ = env.throw_new("java/lang/RuntimeException", e.to_string());
                     }
                 }
             } else {
             // This branch handles all other error types, such as those returned by
             // all non-JNI code
-                let _ = env.throw_new("java/lang/Exception", e.to_string());
+                let _ = env.throw_new("java/lang/RuntimeException", e.to_string());
             }
             default_value
         }
@@ -138,7 +138,7 @@ pub extern "system" fn Java_jni_1rs_1book_NativeAPI_exception_1clearing(
     _class: JClass
 ) {
     try_java(env, (), || {
-        env.throw_new("java/lang/Exception", "Any exception from Java")?;
+        env.throw_new("java/lang/RuntimeException", "Any exception from Java")?;
         // Check if an exception has been thrown, without getting a handle to
         // the exception itself.
         let pending_exception : bool = env.exception_check()?;
