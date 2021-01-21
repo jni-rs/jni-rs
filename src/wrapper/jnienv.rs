@@ -12,9 +12,9 @@ use crate::{
     descriptors::Desc,
     errors::*,
     objects::{
-        AutoByteArray, AutoLocal, AutoLongArray, AutoPrimitiveArray, GlobalRef, JByteBuffer,
-        JClass, JFieldID, JList, JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID,
-        JString, JThrowable, JValue, ReleaseMode,
+        AutoArray, AutoLocal, AutoPrimitiveArray, GlobalRef, JByteBuffer, JClass, JFieldID, JList,
+        JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID, JString, JThrowable, JValue,
+        ReleaseMode, TypeArray,
     },
     signature::{JavaType, Primitive, TypeSignature},
     strings::{JNIString, JavaStr},
@@ -1973,52 +1973,106 @@ impl<'a> JNIEnv<'a> {
         jni_error_code_to_result(res)
     }
 
-    /// Return an AutoByteArray of the given Java byte array.
+    /// Return an AutoArray of the given Java array.
     ///
-    /// The result is valid until the AutoByteArray object goes out of scope, when the
+    /// The result is valid until the AutoArray object goes out of scope, when the
     /// release happens automatically according to the mode parameter.
     ///
     /// Since the returned array may be a copy of the Java array, changes made to the
     /// returned array will not necessarily be reflected in the original array until
-    /// ReleaseByteArrayElements is called.
-    /// AutoByteArray has a commit() method, to force a copy of the array if needed (and without
+    /// the corresponding Release*ArrayElements JNI method is called.
+    /// AutoArray has a commit() method, to force a copy of the array if needed (and without
     /// releasing it).
-    ///
-    /// If the given array is `null`, an `Error::NullPtr` is returned.
-    ///
-    /// See also [`get_primitive_array_critical`](struct.JNIEnv.html#method.get_primitive_array_critical)
-    pub fn get_byte_array_elements(
+
+    /// Prefer to use the convenience wrappers:
+    /// [`get_int_array_elements`](struct.JNIEnv.html#method.get_int_array_elements)
+    /// [`get_long_array_elements`](struct.JNIEnv.html#method.get_long_array_elements)
+    /// [`get_byte_array_elements`](struct.JNIEnv.html#method.get_byte_array_elements)
+    /// [`get_boolean_array_elements`](struct.JNIEnv.html#method.get_boolean_array_elements)
+    /// [`get_char_array_elements`](struct.JNIEnv.html#method.get_char_array_elements)
+    /// [`get_short_array_elements`](struct.JNIEnv.html#method.get_short_array_elements)
+    /// [`get_float_array_elements`](struct.JNIEnv.html#method.get_float_array_elements)
+    /// [`get_double_array_elements`](struct.JNIEnv.html#method.get_double_array_elements)
+    /// And the associated [`AutoArray`](struct.objects.AutoArray) struct.
+    pub fn get_array_elements<T: TypeArray>(
         &self,
-        array: jbyteArray,
+        array: jarray,
         mode: ReleaseMode,
-    ) -> Result<AutoByteArray> {
-        non_null!(array, "get_byte_array_elements array argument");
-        let mut is_copy: jboolean = 0xff;
-        let ptr = jni_unchecked!(self.internal, GetByteArrayElements, array, &mut is_copy);
-        AutoByteArray::new(self, array.into(), ptr, mode, is_copy == sys::JNI_TRUE)
+    ) -> Result<AutoArray<T>> {
+        non_null!(array, "get_array_elements array argument");
+        AutoArray::new(self, array.into(), mode)
     }
 
-    /// Creates a new auto-release wrapper for a pointer-based long array.
-    ///
-    /// Once this wrapper goes out of scope, the wrapped array will be released
-    /// according to the `mode` parameter.
-    /// While wrapped, the object can be accessed via the `From` impl.
-    ///
-    /// Since the returned array may be a copy of the Java array, changes made to the
-    /// returned array will not necessarily be reflected in the original array until
-    /// it goes out of scope. AutoLongArray has a commit() method, to force a copy of
-    /// the array if needed and without releasing it.
-    ///
-    /// If the given array is `null`, an `Error::NullPtr` is returned.
+    /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
+    pub fn get_int_array_elements(
+        &self,
+        array: jintArray,
+        mode: ReleaseMode,
+    ) -> Result<AutoArray<jint>> {
+        self.get_array_elements(array, mode)
+    }
+
+    /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
     pub fn get_long_array_elements(
         &self,
         array: jlongArray,
         mode: ReleaseMode,
-    ) -> Result<AutoLongArray> {
-        non_null!(array, "get_long_array_elements array argument");
-        let mut is_copy: jboolean = 0xff;
-        let ptr = jni_unchecked!(self.internal, GetLongArrayElements, array, &mut is_copy);
-        AutoLongArray::new(self, array.into(), ptr, mode, is_copy == sys::JNI_TRUE)
+    ) -> Result<AutoArray<jlong>> {
+        self.get_array_elements(array, mode)
+    }
+
+    /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
+    pub fn get_byte_array_elements(
+        &self,
+        array: jbyteArray,
+        mode: ReleaseMode,
+    ) -> Result<AutoArray<jbyte>> {
+        self.get_array_elements(array, mode)
+    }
+
+    /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
+    pub fn get_boolean_array_elements(
+        &self,
+        array: jbooleanArray,
+        mode: ReleaseMode,
+    ) -> Result<AutoArray<jboolean>> {
+        self.get_array_elements(array, mode)
+    }
+
+    /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
+    pub fn get_char_array_elements(
+        &self,
+        array: jcharArray,
+        mode: ReleaseMode,
+    ) -> Result<AutoArray<jchar>> {
+        self.get_array_elements(array, mode)
+    }
+
+    /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
+    pub fn get_short_array_elements(
+        &self,
+        array: jshortArray,
+        mode: ReleaseMode,
+    ) -> Result<AutoArray<jshort>> {
+        self.get_array_elements(array, mode)
+    }
+
+    /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
+    pub fn get_float_array_elements(
+        &self,
+        array: jfloatArray,
+        mode: ReleaseMode,
+    ) -> Result<AutoArray<jfloat>> {
+        self.get_array_elements(array, mode)
+    }
+
+    /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
+    pub fn get_double_array_elements(
+        &self,
+        array: jdoubleArray,
+        mode: ReleaseMode,
+    ) -> Result<AutoArray<jdouble>> {
+        self.get_array_elements(array, mode)
     }
 
     /// Return an AutoPrimitiveArray of the given Java primitive array.
