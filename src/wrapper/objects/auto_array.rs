@@ -24,7 +24,13 @@ macro_rules! type_array {
             /// Get Java $jni_type array
             fn get(env: &JNIEnv, obj: JObject, is_copy: &mut jboolean) -> Result<*mut Self> {
                 let internal = env.get_native_interface();
-                let res = jni_non_null_call!(internal, $jni_get, *obj, is_copy);
+                // Even though this method may throw OoME, use `jni_unchecked`
+                // instead of `jni_non_null_call` to remove (a slight) overhead
+                // of exception checking. An error will still be detected as a `null`
+                // result inside AutoArray ctor. Also, modern Hotspot in case of lack
+                // of memory will return null and won't throw an exception:
+                // https://sourcegraph.com/github.com/openjdk/jdk/-/blob/src/hotspot/share/memory/allocation.hpp#L488-489
+                let res = jni_unchecked!(internal, $jni_get, *obj, is_copy);
                 Ok(res)
             }
 
