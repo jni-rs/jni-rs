@@ -2102,7 +2102,7 @@ impl<'a> JNIEnv<'a> {
     ) -> Result<AutoPrimitiveArray> {
         non_null!(array, "get_primitive_array_critical array argument");
         let mut is_copy: jboolean = 0xff;
-        let ptr = jni_unchecked!(
+        let ptr = jni_non_null_call!(
             self.internal,
             GetPrimitiveArrayCritical,
             array,

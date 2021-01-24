@@ -24,14 +24,14 @@ macro_rules! type_array {
             /// Get Java $jni_type array
             fn get(env: &JNIEnv, obj: JObject, is_copy: &mut jboolean) -> Result<*mut Self> {
                 let internal = env.get_native_interface();
-                let res = jni_unchecked!(internal, $jni_get, *obj, is_copy);
+                let res = jni_non_null_call!(internal, $jni_get, *obj, is_copy);
                 Ok(res)
             }
 
             /// Release Java $jni_type array
             fn release(env: &JNIEnv, obj: JObject, ptr: NonNull<Self>, mode: i32) -> Result<()> {
                 let internal = env.get_native_interface();
-                jni_void_call!(internal, $jni_release, *obj, ptr.as_ptr(), mode as i32);
+                jni_unchecked!(internal, $jni_release, *obj, ptr.as_ptr(), mode as i32);
                 Ok(())
             }
         }
