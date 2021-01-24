@@ -2106,7 +2106,7 @@ impl<'a> JNIEnv<'a> {
         // instead of `jni_non_null_call` to remove (a slight) overhead
         // of exception checking. An error will still be detected as a `null`
         // result inside AutoPrimitiveArray ctor; and, as this method is likely
-        // not to perform a copy, an OoME is not very likely.
+        // not to create a copy, an OoME is not very likely.
         let ptr = jni_unchecked!(
             self.internal,
             GetPrimitiveArrayCritical,
