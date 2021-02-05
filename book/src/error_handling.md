@@ -1,32 +1,32 @@
 # Error Handling with JNI
 
-In this section, we'll discuss what happens when an Exception is thrown, what
-you can do about it, and strategies for handling `Result` and `Option` in native
-methods.
+In this section, we'll discuss what happens when an exception is thrown or a
+panic is raised, what you can do about it, and strategies for handling `Result`
+and `Option` in native methods.
 
 ## Handling Java Exceptions from Native Methods
 
 [The Java Exceptions section of the JNI
 Spec](https://docs.oracle.com/en/java/javase/11/docs/specs/jni/design.html#java-exceptions)
 is the primary resource you should use to understand what is allowed when there
-is an Exception that's caused by calling into Java from the native method. The
+is an exception that's caused by calling into Java from the native method. The
 highlights include:
 
-1. Whenever you call into Java, it's possible for an Exception to be thrown.
+1. Whenever you call into Java, it's possible for an exception to be thrown.
 2. JNI offers a few APIs so that native methods may check for the presence of,
-   retrieve, or clear Exceptions.
-2. When a JNI call to Java throws an Exception, the native method must either
-   return early (so that the calling Java code may handle the Exception), or
-   handle and clear the Exception itself.
-3. Only a few APIs are safe to call when there is a pending Exception, such as
-   those related to Exception and resource release. Refer to the spec for the
+   retrieve, or clear exceptions.
+2. When a JNI call to Java throws an exception, the native method must either
+   return early (so that the calling Java code may handle the exception), or
+   handle and clear the exception itself.
+3. Only a few APIs are safe to call when there is a pending exception, such as
+   those related to exception and resource release. Refer to the spec for the
    full list.
    
 ## Java Exceptions and `JNIEnv`
 `JNIEnv` is the main interface that native methods use to interact with Java.
 Since they can all fail, they all return `Result` types. Refer to the [docs on
 `JNIEnv`](https://docs.rs/jni/0.18.0/jni/struct.JNIEnv.html) to understand how
-it handles errors. Note that the methods on `JNIEnv` never clear Exceptions.
+it handles errors. Note that the methods on `JNIEnv` never clear exceptions.
 
 ## Throwing Exceptions from Rust
 
@@ -51,7 +51,7 @@ pub extern "system" fn Java_jni_1rs_1book_NativeAPI_divide(
         // Divisor is zero -- throw an exception!
         env.throw_new("java/lang/ArithmeticException", "Attempting to divide by zero.");
         // A dummy value must be returned, since the native method retains control
-        // even after throwing an Exception.
+        // even after throwing an exception.
         0
     }
 }
@@ -63,64 +63,29 @@ pub extern "system" fn Java_jni_1rs_1book_NativeAPI_divide(
 
 It can be helpful to wrap common error handling into one function, so that there
 is less repeated JNI code. For ease of implementation, we'll use
-`anyhow::Error`, and make the caller pass the `dummy_value`, which is returned
-only on error paths. The `JNIEnv` APIs all throw `Result<T,E>`, and the
-`JavaException` variant marks that an exception has already been thrown - so for
-that variant alone, we will skip throwing an Exception. You may come up with
-your own Error hierarchies, which could have a different logic.
+`anyhow::Error`, and make the caller pass the `default_value` that will be
+returned on error paths. To catch unwinding panics, we'll use `catch_unwind` [as
+described in the
+Rustonomicon.](https://doc.rust-lang.org/nomicon/ffi.html#ffi-and-panics)
 
 ```rust
-fn try_java<F, T>(env: JNIEnv, dummy_value: T, f: F) -> T
-where
-    F: FnOnce() -> Result<T, anyhow::Error>,
-{
-    match f() {
-        Ok(s) => s,
-        Err(e) => {
-            if let Some(e) = e.downcast_ref::<jni::errors::Error>() {
-                match e {
-                    // Since JavaException implies an Exception has already been thrown, 
-                    // don't throw another one.
-                    jni::errors::Error::JavaException => {},
-                    _ => {
-                        let _ = env.throw_new("java/lang/RuntimeException", e.to_string());
-                    }
-                }
-            } else {
-            // This branch handles all other error types, such as those returned by
-            // all non-JNI code
-                let _ = env.throw_new("java/lang/RuntimeException", e.to_string());
-            }
-            default_value
-        }
-    }
-}
+{{#include ../projects/completed/jnibookrs/src/error.rs:try_java}}
 ```
 
-Finally, we can apply this to the checked division example:
+We could improve our error handler to attach panic cause information to the
+exception, or translate different Error types into different exceptions types.
+For now, we will apply it to the checked division example, and verify that our
+previous tests now pass.
 
-```rust
-use anyhow::Context;
+```rust,noplaypen
+{{#include ../projects/completed/jnibookrs/src/division.rs:try_java_imports}}
 
-#[no_mangle]
-pub extern "system" fn Java_jni_1rs_1book_NativeAPI_divide(
-    env: JNIEnv,
-    _class: JClass,
-    numerator: jint,
-    divisor: jint,
-) -> jint {
-    try_java(env, 0, || {
-    // context() moves self (an Option<T>) into a Result<T,E>, with context.
-        numerator.checked_div(divisor).context("Attempted to divide by zero.")
-    })
-}
+{{#include ../projects/completed/jnibookrs/src/division.rs:try_java}}
 ```
 
-## Panic Handling
-
-Note however, that `try_java` wrapper doesn't help with `panic!`, which leads to
-undefined behavior when it propagates to Java (usually a crash). Fortunately,
-it's possible to set `panic` handlers to catch them.
+```java
+{{#include ../projects/completed/jnibookgradle/src/test/java/jni_rs_book/DivisionTest.java:complete}}
+```
 
 ## Handling Java Exceptions in Native Methods
 
@@ -133,9 +98,11 @@ backtrace to stderr (or other system error reporting channel). Finally,
 [`exception_clear`](https://docs.rs/jni/0.18.0/jni/struct.JNIEnv.html#method.exception_clear)
 clears the pending exception.
 
-There are no specialized APIs related to exception causes or descriptions. To
-access them, use
-[`call_method`](https://docs.rs/jni/0.18.0/jni/struct.JNIEnv.html#method.call_method).
+You might wonder whether there's a way to access an exception cause or
+description from native code. Doing so requires
+[`call_method`](https://docs.rs/jni/0.18.0/jni/struct.JNIEnv.html#method.call_method)
+(or the unchecked variant), since there are no specialized methods for
+retrieving or setting them.
 
 ```rust 
 #[no_mangle]
@@ -169,5 +136,9 @@ pub extern "system" fn Java_jni_1rs_1book_NativeAPI_exception_1clearing(
 We've explored a few examples of exception handling via returning early and
 clearing them from the native side, so that you can make your way through the
 rest of the book. In most cases in the book, you'll want to rely on `try_java`
-(or your own implementation of it), because it will allow you to write Rust code
-that works with `Result` or `Option` without repeating Exception mappings.
+(or your own implementation of it), since it will let you write shorter code.
+More advanced handlers may translate `Error` enums into different types of Java
+exceptions, attach the original causes of panics, or attempt to save on the
+number of calls to `exception_check()`.
+
+There's quite a lot to think about with respect to Error handling, and perhaps you can make some improvements on top of what is suggested here.

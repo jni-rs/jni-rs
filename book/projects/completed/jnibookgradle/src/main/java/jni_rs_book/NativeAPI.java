@@ -1,9 +1,10 @@
+// ANCHOR: starter
 package jni_rs_book;
 
 // Note there can be many classes containing native methods, that there is no
 // requirement that you name anything NativeAPI, and that libraries don't need
 // to be loaded in static blocks.
-class NativeAPI {
+public class NativeAPI {
 
     private static final Throwable INIT_ERROR;
 
@@ -41,4 +42,23 @@ class NativeAPI {
             }
         }
     }
+    // ANCHOR_END: starter
+
+    // ANCHOR: divide
+    static native int divide(int a, int b);
+    // ANCHOR_END: divide
+
+    // ANCHOR: chart
+    static native String draw_points_plaintext(long chartWidth,
+                                               long chartHeight,
+                                               int arrayLength,
+                                               String xTitle,
+                                               double xStart,
+                                               double xEnd,
+                                               double[] xs,
+                                               String yTitle,
+                                               double yStart,
+                                               double yEnd,
+                                               double[] ys);
+    // ANCHOR_END: chart
 }

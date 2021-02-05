@@ -4,78 +4,47 @@ On the Java-side, declare a native `divide` function in `NativeAPI`. Then use
 project.
 
 ```rust,noplaypen
-use jni::objects::JClass;
-use jni::sys::jint;
-use jni::JNIEnv;
+{{#include ../projects/starter/jnibookrs/src/division.rs:imports}}
 
-pub fn Java_jni_1rs_1book_NativeAPI_divide(jint a, jint b) -> jint {
-    a/b
-}
+{{#include ../projects/starter/jnibookrs/src/division.rs:division_0}}
 ```
 
 Add the required `JNIEnv` and `JClass` arguments.
 
 ```rust,noplaypen
-pub fn Java_jni_1rs_1book_NativeAPI_divide(
-    _env: JNIEnv,
-    _class: JClass,
-    jint a, 
-    jint b) -> jint {
-    a/b
-}
+{{#include ../projects/completed/jnibookrs/src/division.rs:division_1}}
 ```
 
 Annotate the function with `#[no_mangle]`.
 
 ```rust,noplaypen
-#[no_mangle]
-pub fn Java_jni_1rs_1book_NativeAPI_divide(
-    _env: JNIEnv,
-    _class: JClass,
-    jint a, 
-    jint b) -> jint {
-    a/b
-}
+{{#include ../projects/completed/jnibookrs/src/division.rs:division_2}}
 ```
 
 Specify the ABI using `pub extern "system"`.
 
 ```rust,noplaypen
-#[no_mangle] 
-pub extern "system" fn Java_jni_1rs_1book_NativeAPI_divide(
-    _env: JNIEnv,
-    _class: JClass,
-    a: jint,
-    b: jint
-) -> jint {
-    a/b
-}
+{{#include ../projects/completed/jnibookrs/src/division.rs:division_3}}
 ```
 
 Finally, write a unit test to verify that division works as expected.
 
 ```java
-import org.junit.Test;
-
-import static org.junit.Assert.assertEquals;
-
-public class DivisionTest {
-
-    @Test
-    public void testDivision() {
-        assertEquals(NativeAPI.divide(10, 5), 2);
-    }
+{{#include ../projects/completed/jnibookgradle/src/test/java/jni_rs_book/DivisionTest.java:happy_path}}
 }
 ```
 
-If you also write a test in `jnibookjava` that divides by zero, and run it. It's
-likely that the JVM will crash and you'll see a message similar to this:
+If you also attempt to divide by 0, it's likely that the JVM will crash. This is
+due to a panic across the FFI boundary, which leads to undefined behavior.
+
+```java
+{{#include ../projects/completed/jnibookgradle/src/test/java/jni_rs_book/DivisionTest.java:divide_by_zero}}
+```
+
+Instead of the test passing, you'll see a message similar to this:
 
 ```
 thread '<unnamed>' panicked at 'attempt to divide by zero', src/division.rs:14:5
 note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 fatal runtime error: failed to initiate panic, error 5
 ```
-
-Dividing by zero triggers a panic, which leads to undefined behavior across FFI
-boundaries.

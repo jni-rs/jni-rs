@@ -1,9 +1,8 @@
 # Future Topics
 
-The Counter exercise needs a follow-up that discusses in more detail how to
+The Counter exercise needs a solution, which discusses in more detail how to
 eliminate data races, use-after-free, double-frees, and guarantee that native
-resources are eventually freed. This has been deferred at the moment, in favor
-of focusing more on the Rust side.
+resources are eventually freed.
 
 jni-rs has additional abstractions that haven't been discussed, like executors.
 JNI also has a few features that need their own sections (critical APIs, and
@@ -11,8 +10,9 @@ local and global references).
 
 There are also performance optimizations that haven't been covered. For example,
 it is more efficient to issue calls from Java to native code than from native
-code to Java, and caching class/methodIds/fieldIds can reduce the number of
-upcalls that are necessary.
+code to Java, and [caching class/methodIds/fieldIds can reduce the number of
+upcalls that are
+necessary.](https://docs.rs/jni/0.18.0/jni/struct.JNIEnv.html#checked-and-unchecked-methods).
 
 There is open work that could simplify portions of the book. For example, [a
 native peer registry](https://github.com/jni-rs/jni-rs/issues/84) can help

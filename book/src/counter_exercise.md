@@ -1,9 +1,6 @@
 # Counter Exercise
 
-This chapter introduces the techniques for exposing a Rust-backed Counter
-through JNI. Applying JNI in this manner is guaranteed to be slower and more
-complicated than a pure Java solution, but it can be a helpful learning
-exercise. An ordinary Java Counter might be implemented like this:
+An ordinary Java Counter might be implemented like this:
 
 ```java
 class Counter {
@@ -23,6 +20,12 @@ class Counter {
 }
 ```
 
-Implement a Counter in Rust, and wrap it using Java. The implementation doesn't
-need to be safe to use across different threads, or safe from double frees in
-`close()`, or use-after-free, since the purpose is to get started. We will correct these problems in future exercises.
+Implement a similar Counter in Rust thats owned by Java. Applying JNI in this
+manner is guaranteed to be slower and more complicated than a pure Java
+solution. These are the problems that you should think about:
+
+1. allocation: How do you allocate the counter, and transfer ownership to Java?
+2. closing: How do you deallocate the counter? Does it protect from
+   use-after-free, or double free? What happens if the caller forgets to call
+   `close()`?
+3. thread-safety: Can the counter safely be used from multiple threads?

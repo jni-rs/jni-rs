@@ -17,3 +17,13 @@ crate_type = ["cdylib"]
 [profile.release]
 debug = true
 lto = true
+
+[features]
+division_0 = []
+division_1 = []
+division_2 = []
+division_3 = []
+division_complete = []
+link_0 = []
+link_complete = []
+counter_discussion = []
