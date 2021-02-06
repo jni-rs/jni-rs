@@ -1040,6 +1040,7 @@ impl<'a> JNIEnv<'a> {
     /// This function returns a local reference, that must not be allocated
     /// excessively.
     /// See [Java documentation][1] for details.
+    ///
     /// [1]: https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/design.html#global_and_local_references
     pub fn new_object_array<'c, T, U>(
         &self,

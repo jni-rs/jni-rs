@@ -60,9 +60,10 @@ type_array!(jdouble, GetDoubleArrayElements, ReleaseDoubleArrayElements);
 /// Auto-release wrapper for pointer-based generic arrays.
 ///
 /// This wrapper is used to wrap pointers returned by Get<Type>ArrayElements.
+/// While wrapped, the object can be accessed via the `From` impl.
 ///
-/// These arrays need to be released through a call to Release<Type>ArrayElements.
-/// This wrapper provides automatic array release when it goes out of scope.
+/// AutoArray provides automatic array release through a call to appropriate
+/// Release<Type>ArrayElements when it goes out of scope.
 pub struct AutoArray<'a: 'b, 'b, T: TypeArray> {
     obj: JObject<'a>,
     ptr: NonNull<T>,
@@ -72,11 +73,6 @@ pub struct AutoArray<'a: 'b, 'b, T: TypeArray> {
 }
 
 impl<'a, 'b, T: TypeArray> AutoArray<'a, 'b, T> {
-    /// Creates a new auto-release wrapper for a pointer-based generic array
-    ///
-    /// Once this wrapper goes out of scope, `Release<Type>ArrayElements` will be
-    /// called on the object. While wrapped, the object can be accessed via
-    /// the `From` impl.
     pub(crate) fn new(env: &'b JNIEnv<'a>, obj: JObject<'a>, mode: ReleaseMode) -> Result<Self> {
         let mut is_copy: jboolean = 0xff;
         Ok(AutoArray {
