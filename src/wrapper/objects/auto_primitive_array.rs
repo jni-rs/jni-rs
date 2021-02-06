@@ -1,17 +1,18 @@
 use log::debug;
 
+use crate::sys::jsize;
 use crate::wrapper::objects::ReleaseMode;
-use crate::{errors::*, objects::JObject, sys, JNIEnv};
+use crate::{errors::*, objects::JObject, JNIEnv};
 use std::os::raw::c_void;
 use std::ptr::NonNull;
 
 /// Auto-release wrapper for pointer-based primitive arrays.
 ///
-/// This wrapper is used to wrap pointers returned by get_primitive_array_critical.
+/// This wrapper is used to wrap pointers returned by GetPrimitiveArrayCritical.
+/// While wrapped, the object can be accessed via the `From` impl.
 ///
-/// These pointers normally need to be released manually, through a call to
-/// release_primitive_array_critical.
-/// This wrapper provides automatic pointer-based array release when it goes out of scope.
+/// AutoPrimitiveArray provides automatic array release through a call to
+/// ReleasePrimitiveArrayCritical when it goes out of scope.
 pub struct AutoPrimitiveArray<'a: 'b, 'b> {
     obj: JObject<'a>,
     ptr: NonNull<c_void>,
@@ -21,10 +22,6 @@ pub struct AutoPrimitiveArray<'a: 'b, 'b> {
 }
 
 impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
-    /// Creates a new auto-release wrapper for a pointer-based primitive array.
-    ///
-    /// Once this wrapper goes out of scope, `release_primitive_array_critical` will be
-    /// called on the object. While wrapped, the object can be accessed via the `From` impl.
     pub(crate) fn new(
         env: &'b JNIEnv<'a>,
         obj: JObject<'a>,
@@ -46,13 +43,8 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
         self.ptr.as_ptr()
     }
 
-    /// Commits the changes to the array, if it is a copy
-    pub fn commit(&mut self) -> Result<()> {
-        self.release_primitive_array_critical(sys::JNI_COMMIT)
-    }
-
     fn release_primitive_array_critical(&mut self, mode: i32) -> Result<()> {
-        jni_void_call!(
+        jni_unchecked!(
             self.env.get_native_interface(),
             ReleasePrimitiveArrayCritical,
             *self.obj,
@@ -62,7 +54,7 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
         Ok(())
     }
 
-    /// Don't commit the changes to the array on release (if it is a copy).
+    /// Don't copy the changes to the array on release (if it is a copy).
     /// This has no effect if the array is not a copy.
     /// This method is useful to change the release mode of an array originally created
     /// with `ReleaseMode::CopyBack`.
@@ -73,6 +65,11 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
     /// Indicates if the array is a copy or not
     pub fn is_copy(&self) -> bool {
         self.is_copy
+    }
+
+    /// Returns the array size
+    pub fn size(&self) -> Result<jsize> {
+        self.env.get_array_length(*self.obj)
     }
 }
 
