@@ -44,7 +44,7 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
     }
 
     fn release_primitive_array_critical(&mut self, mode: i32) -> Result<()> {
-        jni_void_call!(
+        jni_unchecked!(
             self.env.get_native_interface(),
             ReleasePrimitiveArrayCritical,
             *self.obj,
