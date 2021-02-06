@@ -24,6 +24,12 @@ macro_rules! type_array {
             /// Get Java $jni_type array
             fn get(env: &JNIEnv, obj: JObject, is_copy: &mut jboolean) -> Result<*mut Self> {
                 let internal = env.get_native_interface();
+                // Even though this method may throw OoME, use `jni_unchecked`
+                // instead of `jni_non_null_call` to remove (a slight) overhead
+                // of exception checking. An error will still be detected as a `null`
+                // result inside AutoArray ctor. Also, modern Hotspot in case of lack
+                // of memory will return null and won't throw an exception:
+                // https://sourcegraph.com/github.com/openjdk/jdk/-/blob/src/hotspot/share/memory/allocation.hpp#L488-489
                 let res = jni_unchecked!(internal, $jni_get, *obj, is_copy);
                 Ok(res)
             }
@@ -31,7 +37,7 @@ macro_rules! type_array {
             /// Release Java $jni_type array
             fn release(env: &JNIEnv, obj: JObject, ptr: NonNull<Self>, mode: i32) -> Result<()> {
                 let internal = env.get_native_interface();
-                jni_void_call!(internal, $jni_release, *obj, ptr.as_ptr(), mode as i32);
+                jni_unchecked!(internal, $jni_release, *obj, ptr.as_ptr(), mode as i32);
                 Ok(())
             }
         }
@@ -54,9 +60,10 @@ type_array!(jdouble, GetDoubleArrayElements, ReleaseDoubleArrayElements);
 /// Auto-release wrapper for pointer-based generic arrays.
 ///
 /// This wrapper is used to wrap pointers returned by Get<Type>ArrayElements.
+/// While wrapped, the object can be accessed via the `From` impl.
 ///
-/// These arrays need to be released through a call to Release<Type>ArrayElements.
-/// This wrapper provides automatic array release when it goes out of scope.
+/// AutoArray provides automatic array release through a call to appropriate
+/// Release<Type>ArrayElements when it goes out of scope.
 pub struct AutoArray<'a: 'b, 'b, T: TypeArray> {
     obj: JObject<'a>,
     ptr: NonNull<T>,
@@ -66,11 +73,6 @@ pub struct AutoArray<'a: 'b, 'b, T: TypeArray> {
 }
 
 impl<'a, 'b, T: TypeArray> AutoArray<'a, 'b, T> {
-    /// Creates a new auto-release wrapper for a pointer-based generic array
-    ///
-    /// Once this wrapper goes out of scope, `Release<Type>ArrayElements` will be
-    /// called on the object. While wrapped, the object can be accessed via
-    /// the `From` impl.
     pub(crate) fn new(env: &'b JNIEnv<'a>, obj: JObject<'a>, mode: ReleaseMode) -> Result<Self> {
         let mut is_copy: jboolean = 0xff;
         Ok(AutoArray {
