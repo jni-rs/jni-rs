@@ -25,14 +25,14 @@ highlights include:
 ## Java Exceptions and `JNIEnv`
 `JNIEnv` is the main interface that native methods use to interact with Java.
 Since they can all fail, they all return `Result` types. Refer to the [docs on
-`JNIEnv`](https://docs.rs/jni/0.18.0/jni/struct.JNIEnv.html) to understand how
+`JNIEnv`](https://docs.rs/jni/0.19.0/jni/struct.JNIEnv.html) to understand how
 it handles errors. Note that the methods on `JNIEnv` never clear exceptions.
 
 ## Throwing Exceptions from Rust
 
 Java can't handle Rust `Result` or `Option` types, but it can handle exceptions.
 The Rust side can use
-[`throw_new`](https://docs.rs/jni/0.18.0/jni/struct.JNIEnv.html#method.throw_new)
+[`throw_new`](https://docs.rs/jni/0.19.0/jni/struct.JNIEnv.html#method.throw_new)
 to throw exceptions, so that Java can decide on how to recover. For example:
 
 ```rust
@@ -92,15 +92,15 @@ previous tests now pass.
 As mentioned earlier, there are APIs for checking and clearing Exceptions.
 `exception_check` indicates whether there is a pending exception,
 `exception_occurred` returns the `JThrowable` object.
-[`exception_describe`](https://docs.rs/jni/0.18.0/jni/struct.JNIEnv.html#method.exception_describe)
+[`exception_describe`](https://docs.rs/jni/0.19.0/jni/struct.JNIEnv.html#method.exception_describe)
 can also be helpful during debugging, since it will print the exception and
 backtrace to stderr (or other system error reporting channel). Finally,
-[`exception_clear`](https://docs.rs/jni/0.18.0/jni/struct.JNIEnv.html#method.exception_clear)
+[`exception_clear`](https://docs.rs/jni/0.19.0/jni/struct.JNIEnv.html#method.exception_clear)
 clears the pending exception.
 
 You might wonder whether there's a way to access an exception cause or
 description from native code. Doing so requires
-[`call_method`](https://docs.rs/jni/0.18.0/jni/struct.JNIEnv.html#method.call_method)
+[`call_method`](https://docs.rs/jni/0.19.0/jni/struct.JNIEnv.html#method.call_method)
 (or the unchecked variant), since there are no specialized methods for
 retrieving or setting them.
 
