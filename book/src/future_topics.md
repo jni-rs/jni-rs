@@ -12,7 +12,7 @@ There are also performance optimizations that haven't been covered. For example,
 it is more efficient to issue calls from Java to native code than from native
 code to Java, and [caching class/methodIds/fieldIds can reduce the number of
 upcalls that are
-necessary.](https://docs.rs/jni/0.19.0/jni/struct.JNIEnv.html#checked-and-unchecked-methods).
+necessary.](https://docs.rs/jni/0.19.0/jni/struct.JNIEnv.html#checked-and-unchecked-methods)
 
 There is open work that could simplify portions of the book. For example, [a
 native peer registry](https://github.com/jni-rs/jni-rs/issues/84) can help
