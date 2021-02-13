@@ -35,7 +35,7 @@ The Rust side can use
 [`throw_new`](https://docs.rs/jni/0.19.0/jni/struct.JNIEnv.html#method.throw_new)
 to throw exceptions, so that Java can decide on how to recover. For example:
 
-```rust
+```rust,noplaypen
 #[no_mangle]
 pub extern "system" fn Java_jni_1rs_1book_NativeAPI_divide(
     env: JNIEnv,
@@ -68,7 +68,7 @@ returned on error paths. To catch unwinding panics, we'll use `catch_unwind` [as
 described in the
 Rustonomicon.](https://doc.rust-lang.org/nomicon/ffi.html#ffi-and-panics)
 
-```rust
+```rust,noplaypen
 {{#include ../projects/completed/jnibookrs/src/error.rs:try_java}}
 ```
 
@@ -104,7 +104,7 @@ description from native code. Doing so requires
 (or the unchecked variant), since there are no specialized methods for
 retrieving or setting them.
 
-```rust 
+```rust,noplaypen
 #[no_mangle]
 pub extern "system" fn Java_jni_1rs_1book_NativeAPI_exception_1clearing(
     env: JNIEnv,

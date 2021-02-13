@@ -4,7 +4,7 @@
 Can they pass it to Java, like this? Why or why not? If not, does the error
 surface at compile time, or runtime?
 
-```rust
+```rust,noplaypen
 {{#include ../projects/completed/jnibookrs/src/counter.rs:ferris_counter}}
 ```
 
@@ -18,7 +18,7 @@ resolve this, it must be double-boxed: `Box<Box<dyn CounterTrait>>`. See the [Ru
 2. This implementation of `get` is bad. Why?
    
 
-```rust
+```rust,noplaypen
 {{#include ../projects/completed/jnibookrs/src/counter.rs:discussion_2_2}}
 ```
 
