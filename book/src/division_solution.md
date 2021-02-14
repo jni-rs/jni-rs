@@ -4,9 +4,9 @@ On the Java-side, declare a native `divide` function in `NativeAPI`. Then use
 project.
 
 ```rust,noplaypen
-{{#include ../projects/starter/jnibookrs/src/division.rs:imports}}
+{{#include ../projects/completed/jnibookrs/src/division.rs:imports}}
 
-{{#include ../projects/starter/jnibookrs/src/division.rs:division_0}}
+{{#include ../projects/completed/jnibookrs/src/division.rs:division_0}}
 ```
 
 Add the required `JNIEnv` and `JClass` arguments.
