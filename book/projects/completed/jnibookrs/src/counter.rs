@@ -5,28 +5,22 @@ use jni::JNIEnv;
 // TODO
 // ANCHOR_END: complete
 
-
 // ------ DISCUSSION SECTION ------
 
 // Stub for discussion
-#[cfg(feature="counter_discussion")]
-struct Counter {
-}
+#[cfg(feature = "counter_discussion")]
+struct Counter {}
 
-#[cfg(feature="counter_discussion")]
+#[cfg(feature = "counter_discussion")]
 impl Counter {
     fn get(&self) -> i32 {
         0
     }
 }
 
-trait CounterTrait {
+trait CounterTrait {}
 
-}
-
-struct FerrisCounter {
-
-}
+struct FerrisCounter {}
 
 impl CounterTrait for FerrisCounter {}
 
@@ -39,9 +33,10 @@ fn ferris_new_1counter(_env: JNIEnv, _class: JClass) -> jlong {
 // ANCHOR_END: ferris_counter
 
 // Bad examples
-#[cfg(feature="counter_discussion")]
+#[cfg(feature = "counter_discussion")]
 // ANCHOR: discussion_2_2
-/* Don't do this! */ #[no_mangle]
+/* Don't do this! */
+#[no_mangle]
 pub extern "system" fn Java_jni_1rs_1book_NativeAPI_counter_1get(
     _env: JNIEnv,
     _class: JClass,

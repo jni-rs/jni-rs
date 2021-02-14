@@ -35,9 +35,9 @@ fn render_chart(
 // ANCHOR_END: render_chart
 
 // ANCHOR: complete
-use jni::sys::{jint, jdouble, jdoubleArray, jstring};
-use jni::objects::{JClass, JString};
 use crate::error::try_java;
+use jni::objects::{JClass, JString};
+use jni::sys::{jdouble, jdoubleArray, jint, jstring};
 use jni::JNIEnv;
 
 #[no_mangle]
@@ -88,5 +88,3 @@ pub extern "system" fn Java_jni_1rs_1book_NativeAPI_draw_1points_1plaintext(
     })
 }
 // ANCHOR_END: complete
-
-
