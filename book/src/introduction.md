@@ -9,15 +9,21 @@ programming exercises. Suggestions, corrections and improvements are welcome and
 wanted.
 
 JNI has a lot of sharp edges. Native code needs to be written for each supported
-platform so that Java can interact with native functions, and misuse can
-lead to resource leaks or JVM crashes. Due to the drawbacks of JNI, it is often
-worth considering alternatives (like reimplementation in one language or
-IPC/RPC). Eventually, [Project
-Panama](https://openjdk.java.net/projects/panama/) will make it [unnecessary to
-write JNI-like
-bindings](https://github.com/openjdk/panama-foreign/blob/foreign-jextract/doc/panama_jextract.md)
-for some applications. If you need to write JNI code, hopefully you can have fun
-doing it in Rust.
+platform so that Java can interact with native functions, and misuse can lead to
+resource leaks or JVM crashes. Due to the drawbacks of JNI, it is often worth
+considering alternatives (like reimplementation in one language or IPC/RPC). 
+
+As of Java 16, [Project Panama](https://openjdk.java.net/projects/panama/) will
+have incubator APIs as an alternative to JNI. Instead of implementing native
+methods, users will be able to assemble MethodHandles in Java. It will also
+provide a tool called jextract, which will be able to generate these using C
+headers. And finally, there will be a way to model off-heap memory in an
+efficient fashion. To learn more, see:
+
+- [Foreign linker JEP](https://openjdk.java.net/jeps/389)
+- [Panama FFI](https://github.com/openjdk/panama-foreign/blob/foreign-jextract/doc/panama_ffi.md#appendix-full-source-code)
+- [jextract](https://github.com/openjdk/panama-foreign/blob/foreign-jextract/doc/panama_jextract.md)
+- [Foreign Memory Access API](https://github.com/openjdk/panama-foreign/blob/foreign-jextract/doc/panama_memaccess.md)
 
 ## Prerequisites
 Knowledge of the following will be helpful for completing the entire book, but
