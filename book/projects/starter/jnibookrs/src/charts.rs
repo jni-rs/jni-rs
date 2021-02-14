@@ -4,6 +4,7 @@ use plotlib::repr::Plot;
 use plotlib::style::{PointMarker, PointStyle};
 use plotlib::view::ContinuousView;
 
+#[allow(dead_code)]
 fn render_chart(
     width: u32,
     height: u32,
