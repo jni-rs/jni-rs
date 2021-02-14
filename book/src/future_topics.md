@@ -23,5 +23,5 @@ files"](https://github.com/jni-rs/jni-rs/issues/81) could simplify the current
 steps for creating JNI functions, which involves translating C header files into
 Rust code.
 
-There are also opportunities to talk about more about handling shared
-resources between native resources and Java proxies.
+There are also opportunities to talk about handling shared resources between
+native resources and Java proxies.
