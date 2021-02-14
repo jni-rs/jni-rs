@@ -42,7 +42,7 @@ and continue to Native Debugging.
 
 ## Native Debugging
 There are several tools that you can use debug the native side, such as `gdb` or
-`lldb`. When you attach or launch a program using a native debugger, you must it
+`lldb`. When you attach or launch a program using a native debugger, you must configure it
 to ignore SIGSEGV to prevent it from [randomly
 closing](https://neugens.wordpress.com/2015/02/26/debugging-the-jdk-with-gdb/),
 due to [Java implementation
