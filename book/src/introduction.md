@@ -9,7 +9,7 @@ programming exercises. Suggestions, corrections and improvements are welcome and
 wanted.
 
 JNI has a lot of sharp edges. Native code needs to be written for each supported
-platform so that Java can can interact with native functions, and misuse can
+platform so that Java can interact with native functions, and misuse can
 lead to resource leaks or JVM crashes. Due to the drawbacks of JNI, it is often
 worth considering alternatives (like reimplementation in one language or
 IPC/RPC). Eventually, [Project
