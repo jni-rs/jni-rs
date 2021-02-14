@@ -19,6 +19,10 @@ pub extern "system" fn Java_jni_1rs_1book_NativeAPI_verify_1link() {}
 // always be in the native method's signature.
 // ANCHOR: complete_no_info
 #[no_mangle]
-pub extern "system" fn Java_jni_1rs_1book_NativeAPI_verify_1link(_env: JNIEnv, _class: JClass) {}
+pub extern "system" fn Java_jni_1rs_1book_NativeAPI_verify_1link(
+    _env: JNIEnv,
+    _class: JClass,
+) {
+}
 // ANCHOR_END: complete_no_info
 // ANCHOR_END: complete

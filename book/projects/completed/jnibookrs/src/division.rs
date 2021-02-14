@@ -18,7 +18,12 @@ pub fn Java_jni_1rs_1book_NativeAPI_divide(a: jint, b: jint) -> jint {
 
 #[cfg(feature = "division_1")]
 // ANCHOR: division_1
-pub fn Java_jni_1rs_1book_NativeAPI_divide(_env: JNIEnv, _class: JClass, a: jint, b: jint) -> jint {
+pub fn Java_jni_1rs_1book_NativeAPI_divide(
+    _env: JNIEnv,
+    _class: JClass,
+    a: jint,
+    b: jint,
+) -> jint {
     a / b
 }
 // ANCHOR_END: division_1
@@ -26,7 +31,12 @@ pub fn Java_jni_1rs_1book_NativeAPI_divide(_env: JNIEnv, _class: JClass, a: jint
 #[cfg(feature = "division_2")]
 // ANCHOR: division_2
 #[no_mangle]
-pub fn Java_jni_1rs_1book_NativeAPI_divide(_env: JNIEnv, _class: JClass, a: jint, b: jint) -> jint {
+pub fn Java_jni_1rs_1book_NativeAPI_divide(
+    _env: JNIEnv,
+    _class: JClass,
+    a: jint,
+    b: jint,
+) -> jint {
     a / b
 }
 // ANCHOR_END: division_2

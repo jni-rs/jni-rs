@@ -18,7 +18,8 @@ fn render_chart(
     y_end: f64,
     data: Vec<(f64, f64)>,
 ) -> Result<String, anyhow::Error> {
-    let plot = Plot::new(data).point_style(PointStyle::new().marker(PointMarker::Circle));
+    let plot = Plot::new(data)
+        .point_style(PointStyle::new().marker(PointMarker::Circle));
 
     let v = ContinuousView::new()
         .add(plot)
@@ -70,7 +71,8 @@ pub extern "system" fn Java_jni_1rs_1book_NativeAPI_draw_1points_1plaintext(
         let y_title: String = env.get_string(java_y_title)?.into();
 
         // Copy the doubles into the right type for the underlying render API
-        let points: Vec<(f64, f64)> = xs.into_iter().zip(ys.into_iter()).collect();
+        let points: Vec<(f64, f64)> =
+            xs.into_iter().zip(ys.into_iter()).collect();
         let output: String = render_chart(
             chart_width as u32,
             chart_height as u32,
