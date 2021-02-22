@@ -375,11 +375,15 @@ impl<'a> JNIEnv<'a> {
 
     /// Create a new local ref to an object.
     ///
-    /// Note that the object passed to this is *already* a local ref. This
-    /// creates yet another reference to it, which is most likely not what you
-    /// want.
-    pub fn new_local_ref<T>(&self, obj: JObject<'a>) -> Result<JObject<'a>> {
-        let local: JObject = jni_unchecked!(self.internal, NewLocalRef, obj.into_inner()).into();
+    /// This is useful for creating a local reference from a [global reference][GlobalRef] or
+    /// creating a local reference in a different [local reference frame][JNIEnv::with_local_frame]
+    /// than the original.
+    pub fn new_local_ref<'b, O>(&self, obj: O) -> Result<JObject<'a>>
+    where
+        O: Into<JObject<'b>>,
+    {
+        let local: JObject =
+            jni_unchecked!(self.internal, NewLocalRef, obj.into().into_inner()).into();
         Ok(local)
     }
 
