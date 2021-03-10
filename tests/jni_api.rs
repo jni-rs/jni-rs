@@ -1,20 +1,20 @@
 #![cfg(feature = "invocation")]
 
-use jni_sys::jbyte;
 use std::str::FromStr;
 
 use jni::{
     descriptors::Desc,
-    errors::{Error, ErrorKind},
-    objects::{AutoLocal, JByteBuffer, JList, JObject, JString, JThrowable, JValue},
+    errors::Error,
+    objects::{
+        AutoArray, AutoLocal, JByteBuffer, JList, JObject, JString, JThrowable, JValue, ReleaseMode,
+    },
     signature::JavaType,
     strings::JNIString,
-    sys::{jint, jobject, jsize},
+    sys::{jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jobject, jshort, jsize},
     JNIEnv,
 };
 
 mod util;
-use jni::objects::ReleaseMode;
 use util::{attach_current_thread, unwrap};
 
 static ARRAYLIST_CLASS: &str = "java/util/ArrayList";
@@ -272,10 +272,7 @@ pub fn call_static_method_throws() {
             MATH_TO_INT_SIGNATURE,
             &[x],
         )
-        .map_err(|error| match error.0 {
-            ErrorKind::JavaException => true,
-            _ => false,
-        })
+        .map_err(|error| matches!(error, Error::JavaException))
         .expect_err("JNIEnv#call_static_method_unsafe should return error");
 
     assert!(
@@ -318,23 +315,165 @@ pub fn java_byte_array_from_slice() {
     assert_eq!(res[2], 3);
 }
 
+macro_rules! test_get_array_elements {
+    ( $jni_get:tt, $jni_type:ty, $new_array:tt, $get_array:tt, $set_array:tt ) => {
+        #[test]
+        pub fn $jni_get() {
+            let env = attach_current_thread();
+
+            // Create original Java array
+            let buf: &[$jni_type] = &[0 as $jni_type, 1 as $jni_type];
+            let java_array = env
+                .$new_array(2)
+                .expect(stringify!(JNIEnv#$new_array must create a Java $jni_type array with given size));
+
+            // Insert array elements
+            let _ = env.$set_array(java_array, 0, buf);
+
+            // Use a scope to test Drop
+            {
+                // Get byte array elements auto wrapper
+                let auto_ptr: AutoArray<$jni_type> =
+                    env.$jni_get(java_array, ReleaseMode::CopyBack).unwrap();
+
+                // Check array size
+                assert_eq!(auto_ptr.size().unwrap(), 2);
+
+                // Check pointer access
+                let ptr = auto_ptr.as_ptr();
+                assert_eq!(unsafe { *ptr.offset(0) } as i32, 0);
+                assert_eq!(unsafe { *ptr.offset(1) } as i32, 1);
+
+                // Check pointer From access
+                let ptr: *mut $jni_type = std::convert::From::from(&auto_ptr);
+                assert_eq!(unsafe { *ptr.offset(0) } as i32, 0);
+                assert_eq!(unsafe { *ptr.offset(1) } as i32, 1);
+
+                // Check pointer into() access
+                let ptr: *mut $jni_type = (&auto_ptr).into();
+                assert_eq!(unsafe { *ptr.offset(0) } as i32, 0);
+                assert_eq!(unsafe { *ptr.offset(1) } as i32, 1);
+
+                // Modify
+                unsafe {
+                    *ptr.offset(0) += 1 as $jni_type;
+                    *ptr.offset(1) -= 1 as $jni_type;
+                }
+
+                // Commit would be necessary here, if there were no closure
+                //auto_ptr.commit().unwrap();
+            }
+
+            // Confirm modification of original Java array
+            let mut res: [$jni_type; 2] = [0 as $jni_type; 2];
+            env.$get_array(java_array, 0, &mut res).unwrap();
+            assert_eq!(res[0] as i32, 1);
+            assert_eq!(res[1] as i32, 0);
+        }
+    };
+}
+
+// Test generic get_array_elements
+test_get_array_elements!(
+    get_array_elements,
+    jint,
+    new_int_array,
+    get_int_array_region,
+    set_int_array_region
+);
+
+// Test type-specific array accessors
+test_get_array_elements!(
+    get_int_array_elements,
+    jint,
+    new_int_array,
+    get_int_array_region,
+    set_int_array_region
+);
+
+test_get_array_elements!(
+    get_long_array_elements,
+    jlong,
+    new_long_array,
+    get_long_array_region,
+    set_long_array_region
+);
+
+test_get_array_elements!(
+    get_byte_array_elements,
+    jbyte,
+    new_byte_array,
+    get_byte_array_region,
+    set_byte_array_region
+);
+
+test_get_array_elements!(
+    get_boolean_array_elements,
+    jboolean,
+    new_boolean_array,
+    get_boolean_array_region,
+    set_boolean_array_region
+);
+
+test_get_array_elements!(
+    get_char_array_elements,
+    jchar,
+    new_char_array,
+    get_char_array_region,
+    set_char_array_region
+);
+
+test_get_array_elements!(
+    get_short_array_elements,
+    jshort,
+    new_short_array,
+    get_short_array_region,
+    set_short_array_region
+);
+
+test_get_array_elements!(
+    get_float_array_elements,
+    jfloat,
+    new_float_array,
+    get_float_array_region,
+    set_float_array_region
+);
+
+test_get_array_elements!(
+    get_double_array_elements,
+    jdouble,
+    new_double_array,
+    get_double_array_region,
+    set_double_array_region
+);
+
 #[test]
-pub fn java_get_byte_array_elements() {
+#[ignore] // Disabled until issue #283 is resolved
+pub fn get_long_array_elements_commit() {
     let env = attach_current_thread();
 
     // Create original Java array
-    let buf: &[u8] = &[1, 2, 3];
+    let buf: &[i64] = &[1, 2, 3];
     let java_array = env
-        .byte_array_from_slice(buf)
-        .expect("JNIEnv#byte_array_from_slice must create a java array from slice");
+        .new_long_array(3)
+        .expect("JNIEnv#new_long_array must create a java array with given size");
 
-    // Get array elements
-    let (ptr, _is_copy) = env.get_byte_array_elements(java_array).unwrap();
+    // Insert array elements
+    let _ = env.set_long_array_region(java_array, 0, buf);
 
-    // Check
-    assert_eq!(unsafe { *ptr.offset(0) }, 1);
-    assert_eq!(unsafe { *ptr.offset(1) }, 2);
-    assert_eq!(unsafe { *ptr.offset(2) }, 3);
+    // Get long array elements auto wrapper
+    let auto_ptr = env
+        .get_long_array_elements(java_array, ReleaseMode::CopyBack)
+        .unwrap();
+
+    // Copying the array depends on the VM vendor/version/GC combinations.
+    // If the wrapped array is not being copied, we can skip the test.
+    if !auto_ptr.is_copy() {
+        return;
+    }
+
+    // Check pointer access
+    let ptr = auto_ptr.as_ptr();
 
     // Modify
     unsafe {
@@ -343,125 +482,24 @@ pub fn java_get_byte_array_elements() {
         *ptr.offset(2) += 1;
     }
 
-    // Release
-    env.release_byte_array_elements(
-        java_array,
-        unsafe { ptr.as_mut().unwrap() },
-        ReleaseMode::CopyBack,
-    )
-    .expect("JNIEnv#release_byte_array_elements must release Java array");
+    // Check that original Java array is unmodified
+    let mut res: [i64; 3] = [0; 3];
+    env.get_long_array_region(java_array, 0, &mut res).unwrap();
+    assert_eq!(res[0], 1);
+    assert_eq!(res[1], 2);
+    assert_eq!(res[2], 3);
+
+    auto_ptr.commit().unwrap();
 
     // Confirm modification of original Java array
-    let mut res: [i8; 3] = [0; 3];
-    env.get_byte_array_region(java_array, 0, &mut res).unwrap();
+    env.get_long_array_region(java_array, 0, &mut res).unwrap();
     assert_eq!(res[0], 2);
     assert_eq!(res[1], 3);
     assert_eq!(res[2], 4);
 }
 
 #[test]
-pub fn get_byte_array_elements_auto() {
-    let env = attach_current_thread();
-
-    // Create original Java array
-    let buf: &[u8] = &[1, 2, 3];
-    let java_array = env
-        .byte_array_from_slice(buf)
-        .expect("JNIEnv#byte_array_from_slice must create a java array from slice");
-
-    // Use a scope to test Drop
-    {
-        // Get byte array elements auto wrapper
-        let auto_ptr = env
-            .get_auto_byte_array_elements(java_array, ReleaseMode::CopyBack)
-            .unwrap();
-
-        // Check pointer access
-        let ptr = auto_ptr.as_ptr();
-        assert_eq!(unsafe { *ptr.offset(0) }, 1);
-        assert_eq!(unsafe { *ptr.offset(1) }, 2);
-        assert_eq!(unsafe { *ptr.offset(2) }, 3);
-
-        // Check pointer From access
-        let ptr: *mut jbyte = std::convert::From::from(&auto_ptr);
-        assert_eq!(unsafe { *ptr.offset(0) }, 1);
-        assert_eq!(unsafe { *ptr.offset(1) }, 2);
-        assert_eq!(unsafe { *ptr.offset(2) }, 3);
-
-        // Check pointer into() access
-        let ptr: *mut jbyte = (&auto_ptr).into();
-        assert_eq!(unsafe { *ptr.offset(0) }, 1);
-        assert_eq!(unsafe { *ptr.offset(1) }, 2);
-        assert_eq!(unsafe { *ptr.offset(2) }, 3);
-
-        // Modify
-        unsafe {
-            *ptr.offset(0) += 1;
-            *ptr.offset(1) += 1;
-            *ptr.offset(2) += 1;
-        }
-
-        // Commit would be necessary here, if there were no closure
-        //auto_ptr.commit();
-    }
-
-    // Confirm modification of original Java array
-    let mut res: [i8; 3] = [0; 3];
-    env.get_byte_array_region(java_array, 0, &mut res).unwrap();
-    assert_eq!(res[0], 2);
-    assert_eq!(res[1], 3);
-    assert_eq!(res[2], 4);
-}
-
-#[test]
-pub fn java_get_primitive_array_critical() {
-    let env = attach_current_thread();
-
-    // Create original Java array
-    let buf: &[u8] = &[1, 2, 3];
-    let java_array = env
-        .byte_array_from_slice(buf)
-        .expect("JNIEnv#byte_array_from_slice must create a java array from slice");
-
-    // Get array elements
-    let (ptr, _is_copy) = env.get_primitive_array_critical(java_array).unwrap();
-
-    // Convert void pointer to an unsigned byte array, without copy
-    let mut vec;
-    unsafe { vec = Vec::from_raw_parts(ptr as *mut u8, 3, 3) }
-
-    // Check
-    assert_eq!(vec[0], 1);
-    assert_eq!(vec[1], 2);
-    assert_eq!(vec[2], 3);
-
-    // Modify
-    vec[0] += 1;
-    vec[1] += 1;
-    vec[2] += 1;
-
-    // Release
-    // First, make sure vec's destructor doesn't free the data it thinks it owns when it goes out
-    // of scope (so release_primitive_array_critical() can properly free it)
-    std::mem::forget(vec);
-
-    env.release_primitive_array_critical(
-        java_array,
-        unsafe { ptr.as_mut().unwrap() },
-        ReleaseMode::CopyBack,
-    )
-    .expect("JNIEnv#release_primitive_array_critical must release Java array");
-
-    // Confirm modification of original Java array
-    let mut res: [i8; 3] = [0; 3];
-    env.get_byte_array_region(java_array, 0, &mut res).unwrap();
-    assert_eq!(res[0], 2);
-    assert_eq!(res[1], 3);
-    assert_eq!(res[2], 4);
-}
-
-#[test]
-pub fn get_primitive_array_critical_auto() {
+pub fn get_primitive_array_critical() {
     let env = attach_current_thread();
 
     // Create original Java array
@@ -474,8 +512,11 @@ pub fn get_primitive_array_critical_auto() {
     {
         // Get primitive array elements auto wrapper
         let auto_ptr = env
-            .get_auto_primitive_array_critical(java_array, ReleaseMode::CopyBack)
+            .get_primitive_array_critical(java_array, ReleaseMode::CopyBack)
             .unwrap();
+
+        // Check array size
+        assert_eq!(auto_ptr.size().unwrap(), 3);
 
         // Get pointer
         let ptr = auto_ptr.as_ptr();
@@ -523,10 +564,7 @@ pub fn get_object_class_null_arg() {
     let null_obj = JObject::null();
     let result = env
         .get_object_class(null_obj)
-        .map_err(|error| match *error.kind() {
-            ErrorKind::NullPtr(_) => true,
-            _ => false,
-        })
+        .map_err(|error| matches!(error, Error::NullPtr(_)))
         .expect_err("JNIEnv#get_object_class should return error for null argument");
     assert!(result, "ErrorKind::NullPtr expected as error");
 }
@@ -634,43 +672,35 @@ pub fn new_primitive_array_wrong() {
     const WRONG_SIZE: jsize = -1;
 
     let result = env.new_boolean_array(WRONG_SIZE);
-    assert!(result.is_err());
-    assert_exception(result, "JNIEnv#new_boolean_array should throw exception");
+    assert_exception(&result, "JNIEnv#new_boolean_array should throw exception");
     assert_pending_java_exception(&env);
 
     let result = env.new_byte_array(WRONG_SIZE);
-    assert!(result.is_err());
-    assert_exception(result, "JNIEnv#new_byte_array should throw exception");
+    assert_exception(&result, "JNIEnv#new_byte_array should throw exception");
     assert_pending_java_exception(&env);
 
     let result = env.new_char_array(WRONG_SIZE);
-    assert!(result.is_err());
-    assert_exception(result, "JNIEnv#new_char_array should throw exception");
+    assert_exception(&result, "JNIEnv#new_char_array should throw exception");
     assert_pending_java_exception(&env);
 
     let result = env.new_short_array(WRONG_SIZE);
-    assert!(result.is_err());
-    assert_exception(result, "JNIEnv#new_short_array should throw exception");
+    assert_exception(&result, "JNIEnv#new_short_array should throw exception");
     assert_pending_java_exception(&env);
 
     let result = env.new_int_array(WRONG_SIZE);
-    assert!(result.is_err());
-    assert_exception(result, "JNIEnv#new_int_array should throw exception");
+    assert_exception(&result, "JNIEnv#new_int_array should throw exception");
     assert_pending_java_exception(&env);
 
     let result = env.new_long_array(WRONG_SIZE);
-    assert!(result.is_err());
-    assert_exception(result, "JNIEnv#new_long_array should throw exception");
+    assert_exception(&result, "JNIEnv#new_long_array should throw exception");
     assert_pending_java_exception(&env);
 
     let result = env.new_float_array(WRONG_SIZE);
-    assert!(result.is_err());
-    assert_exception(result, "JNIEnv#new_float_array should throw exception");
+    assert_exception(&result, "JNIEnv#new_float_array should throw exception");
     assert_pending_java_exception(&env);
 
     let result = env.new_double_array(WRONG_SIZE);
-    assert!(result.is_err());
-    assert_exception(result, "JNIEnv#new_double_array should throw exception");
+    assert_exception(&result, "JNIEnv#new_double_array should throw exception");
     assert_pending_java_exception(&env);
 }
 
@@ -847,13 +877,11 @@ where
 }
 
 // Helper method that asserts that result is Error and the cause is JavaException.
-fn assert_exception(res: Result<jobject, Error>, expect_message: &str) {
+fn assert_exception(res: &Result<jobject, Error>, expect_message: &str) {
     assert!(res.is_err());
     assert!(res
-        .map_err(|error| match *error.kind() {
-            ErrorKind::JavaException => true,
-            _ => false,
-        })
+        .as_ref()
+        .map_err(|error| matches!(error, Error::JavaException))
         .expect_err(expect_message));
 }
 

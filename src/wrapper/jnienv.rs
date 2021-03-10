@@ -12,9 +12,9 @@ use crate::{
     descriptors::Desc,
     errors::*,
     objects::{
-        AutoByteArray, AutoLocal, AutoPrimitiveArray, GlobalRef, JByteBuffer, JClass, JFieldID,
-        JList, JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID, JString, JThrowable,
-        JValue, ReleaseMode,
+        AutoArray, AutoLocal, AutoPrimitiveArray, GlobalRef, JByteBuffer, JClass, JFieldID, JList,
+        JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID, JString, JThrowable, JValue,
+        ReleaseMode, TypeArray,
     },
     signature::{JavaType, Primitive, TypeSignature},
     strings::{JNIString, JavaStr},
@@ -74,7 +74,7 @@ use crate::{
 ///
 /// Calling unchecked methods with invalid arguments and/or invalid class and
 /// method descriptors may lead to segmentation fault.
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 #[repr(transparent)]
 pub struct JNIEnv<'a> {
     internal: *mut sys::JNIEnv,
@@ -100,17 +100,35 @@ impl<'a> JNIEnv<'a> {
         Ok(jni_unchecked!(self.internal, GetVersion).into())
     }
 
-    /// Define a new java class. See the JNI docs for more details - I've never
-    /// had occasion to use this and haven't researched it fully.
+    /// Load a class from a buffer of raw class data. The name of the class must match the name
+    /// encoded within the class file data.
     pub fn define_class<S>(&self, name: S, loader: JObject<'a>, buf: &[u8]) -> Result<JClass<'a>>
     where
         S: Into<JNIString>,
     {
         let name = name.into();
+        self.define_class_impl(name.as_ptr(), loader, buf)
+    }
+
+    /// Load a class from a buffer of raw class data. The name of the class is inferred from the
+    /// buffer.
+    pub fn define_unnamed_class<S>(&self, loader: JObject<'a>, buf: &[u8]) -> Result<JClass<'a>>
+    where
+        S: Into<JNIString>,
+    {
+        self.define_class_impl(ptr::null(), loader, buf)
+    }
+
+    fn define_class_impl(
+        &self,
+        name: *const c_char,
+        loader: JObject<'a>,
+        buf: &[u8],
+    ) -> Result<JClass<'a>> {
         let class = jni_non_null_call!(
             self.internal,
             DefineClass,
-            name.as_ptr(),
+            name,
             loader.into_inner(),
             buf.as_ptr() as *const jbyte,
             buf.len() as jsize
@@ -217,7 +235,7 @@ impl<'a> JNIEnv<'a> {
         if res == 0 {
             Ok(())
         } else {
-            Err(format!("throw failed with code {}", res).into())
+            Err(Error::ThrowFailed(res))
         }
     }
 
@@ -239,7 +257,7 @@ impl<'a> JNIEnv<'a> {
         if res == 0 {
             Ok(())
         } else {
-            Err(format!("throw_new failed with code {}", res).into())
+            Err(Error::ThrowFailed(res))
         }
     }
 
@@ -311,7 +329,7 @@ impl<'a> JNIEnv<'a> {
     pub fn get_direct_buffer_capacity(&self, buf: JByteBuffer) -> Result<jlong> {
         let capacity = jni_unchecked!(self.internal, GetDirectBufferCapacity, buf.into_inner());
         match capacity {
-            -1 => Err(Error::from(ErrorKind::Other(sys::JNI_ERR))),
+            -1 => Err(Error::JniCall(JniError::Unknown)),
             _ => Ok(capacity),
         }
     }
@@ -461,11 +479,11 @@ impl<'a> JNIEnv<'a> {
 
         match res {
             Ok(m) => Ok(m),
-            Err(e) => match *e.kind() {
-                ErrorKind::NullPtr(_) => {
+            Err(e) => match e {
+                Error::NullPtr(_) => {
                     let name: String = ffi_name.into();
                     let sig: String = sig.into();
-                    Err(ErrorKind::MethodNotFound(name, sig).into())
+                    Err(Error::MethodNotFound { name, sig })
                 }
                 _ => Err(e),
             },
@@ -555,11 +573,11 @@ impl<'a> JNIEnv<'a> {
 
         match res {
             Ok(m) => Ok(m),
-            Err(e) => match *e.kind() {
-                ErrorKind::NullPtr(_) => {
+            Err(e) => match e {
+                Error::NullPtr(_) => {
                     let name: String = ffi_name.into();
                     let sig: String = ffi_sig.into();
-                    Err(ErrorKind::FieldNotFound(name, sig).into())
+                    Err(Error::FieldNotFound { name, sig })
                 }
                 _ => Err(e),
             },
@@ -599,11 +617,11 @@ impl<'a> JNIEnv<'a> {
 
         match res {
             Ok(m) => Ok(m),
-            Err(e) => match *e.kind() {
-                ErrorKind::NullPtr(_) => {
+            Err(e) => match e {
+                Error::NullPtr(_) => {
                     let name: String = ffi_name.into();
                     let sig: String = ffi_sig.into();
-                    Err(ErrorKind::FieldNotFound(name, sig).into())
+                    Err(Error::FieldNotFound { name, sig })
                 }
                 _ => Err(e),
             },
@@ -844,7 +862,7 @@ impl<'a> JNIEnv<'a> {
         // parse the signature
         let parsed = TypeSignature::from_str(sig.as_ref())?;
         if parsed.args.len() != args.len() {
-            return Err(ErrorKind::InvalidArgList.into());
+            return Err(Error::InvalidArgList(parsed));
         }
 
         let class = self.auto_local(self.get_object_class(obj)?);
@@ -877,7 +895,7 @@ impl<'a> JNIEnv<'a> {
     {
         let parsed = TypeSignature::from_str(&sig)?;
         if parsed.args.len() != args.len() {
-            return Err(ErrorKind::InvalidArgList.into());
+            return Err(Error::InvalidArgList(parsed));
         }
 
         // go ahead and look up the class since it's already Copy,
@@ -903,11 +921,11 @@ impl<'a> JNIEnv<'a> {
         let parsed = TypeSignature::from_str(&ctor_sig)?;
 
         if parsed.args.len() != ctor_args.len() {
-            return Err(ErrorKind::InvalidArgList.into());
+            return Err(Error::InvalidArgList(parsed));
         }
 
         if parsed.ret != JavaType::Primitive(Primitive::Void) {
-            return Err(ErrorKind::InvalidCtorReturn.into());
+            return Err(Error::InvalidCtorReturn);
         }
 
         // build strings
@@ -1022,6 +1040,7 @@ impl<'a> JNIEnv<'a> {
     /// This function returns a local reference, that must not be allocated
     /// excessively.
     /// See [Java documentation][1] for details.
+    ///
     /// [1]: https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/design.html#global_and_local_references
     pub fn new_object_array<'c, T, U>(
         &self,
@@ -1564,7 +1583,7 @@ impl<'a> JNIEnv<'a> {
                 }
                 Primitive::Byte => jni_unchecked!(self.internal, GetByteField, obj, field).into(),
                 Primitive::Void => {
-                    return Err(ErrorKind::WrongJValueType("void", "see java field").into());
+                    return Err(Error::WrongJValueType("void", "see java field"));
                 }
             },
         })
@@ -1613,7 +1632,7 @@ impl<'a> JNIEnv<'a> {
                 jni_unchecked!(self.internal, SetByteField, obj, field, b);
             }
             JValue::Void => {
-                return Err(ErrorKind::WrongJValueType("void", "see java field").into());
+                return Err(Error::WrongJValueType("void", "see java field"));
             }
         };
 
@@ -1653,9 +1672,7 @@ impl<'a> JNIEnv<'a> {
         match parsed {
             JavaType::Object(_) | JavaType::Array(_) => {
                 if in_type.is_some() {
-                    return Err(
-                        ErrorKind::WrongJValueType(val.type_name(), "see java field").into(),
-                    );
+                    return Err(Error::WrongJValueType(val.type_name(), "see java field"));
                 }
             }
             JavaType::Primitive(p) => {
@@ -1663,14 +1680,10 @@ impl<'a> JNIEnv<'a> {
                     if in_p == p {
                         // good
                     } else {
-                        return Err(
-                            ErrorKind::WrongJValueType(val.type_name(), "see java field").into(),
-                        );
+                        return Err(Error::WrongJValueType(val.type_name(), "see java field"));
                     }
                 } else {
-                    return Err(
-                        ErrorKind::WrongJValueType(val.type_name(), "see java field").into(),
-                    );
+                    return Err(Error::WrongJValueType(val.type_name(), "see java field"));
                 }
             }
             JavaType::Method(_) => unimplemented!(),
@@ -1693,51 +1706,43 @@ impl<'a> JNIEnv<'a> {
         T: Desc<'a, JClass<'c>>,
         U: Desc<'a, JStaticFieldID<'f>>,
     {
+        use JavaType::Primitive as JP;
+
         let class = class.lookup(self)?.into_inner();
+        let field = field.lookup(self)?.into_inner();
 
-        let field_id = field.lookup(self)?.into_inner();
-
-        // TODO clean this up
-        Ok(match ty {
+        let result = match ty {
             JavaType::Object(_) | JavaType::Array(_) => {
-                let obj: JObject =
-                    jni_non_void_call!(self.internal, GetStaticObjectField, class, field_id).into();
-                obj.into()
+                jni_non_void_call!(self.internal, GetStaticObjectField, class, field).into()
             }
-            // JavaType::Object
-            JavaType::Method(_) => {
-                return Err(ErrorKind::WrongJValueType("Method", "see java field").into())
+            JavaType::Method(_) => return Err(Error::WrongJValueType("Method", "see java field")),
+            JP(Primitive::Boolean) => {
+                jni_unchecked!(self.internal, GetStaticBooleanField, class, field).into()
             }
-            JavaType::Primitive(p) => match p {
-                Primitive::Boolean => {
-                    jni_unchecked!(self.internal, GetStaticBooleanField, class, field_id).into()
-                }
-                Primitive::Char => {
-                    jni_unchecked!(self.internal, GetStaticCharField, class, field_id).into()
-                }
-                Primitive::Short => {
-                    jni_unchecked!(self.internal, GetStaticShortField, class, field_id).into()
-                }
-                Primitive::Int => {
-                    jni_unchecked!(self.internal, GetStaticIntField, class, field_id).into()
-                }
-                Primitive::Long => {
-                    jni_unchecked!(self.internal, GetStaticLongField, class, field_id).into()
-                }
-                Primitive::Float => {
-                    jni_unchecked!(self.internal, GetStaticFloatField, class, field_id).into()
-                }
-                Primitive::Double => {
-                    jni_unchecked!(self.internal, GetStaticDoubleField, class, field_id).into()
-                }
-                Primitive::Byte => {
-                    jni_unchecked!(self.internal, GetStaticByteField, class, field_id).into()
-                }
-                Primitive::Void => {
-                    return Err(ErrorKind::WrongJValueType("void", "see java field").into());
-                }
-            },
-        })
+            JP(Primitive::Char) => {
+                jni_unchecked!(self.internal, GetStaticCharField, class, field).into()
+            }
+            JP(Primitive::Short) => {
+                jni_unchecked!(self.internal, GetStaticShortField, class, field).into()
+            }
+            JP(Primitive::Int) => {
+                jni_unchecked!(self.internal, GetStaticIntField, class, field).into()
+            }
+            JP(Primitive::Long) => {
+                jni_unchecked!(self.internal, GetStaticLongField, class, field).into()
+            }
+            JP(Primitive::Float) => {
+                jni_unchecked!(self.internal, GetStaticFloatField, class, field).into()
+            }
+            JP(Primitive::Double) => {
+                jni_unchecked!(self.internal, GetStaticDoubleField, class, field).into()
+            }
+            JP(Primitive::Byte) => {
+                jni_unchecked!(self.internal, GetStaticByteField, class, field).into()
+            }
+            JP(Primitive::Void) => return Err(Error::WrongJValueType("void", "see java field")),
+        };
+        Ok(result)
     }
 
     /// Get a static field. Requires a class lookup and a field id lookup
@@ -1755,6 +1760,41 @@ impl<'a> JNIEnv<'a> {
         let class = class.lookup(self)?;
 
         self.get_static_field_unchecked(class, (class, field, sig), ty)
+    }
+
+    /// Set a static field. Requires a class lookup and a field id lookup internally.
+    pub fn set_static_field<'c, 'f, T, U>(&self, class: T, field: U, value: JValue) -> Result<()>
+    where
+        T: Desc<'a, JClass<'c>>,
+        U: Desc<'a, JStaticFieldID<'f>>,
+    {
+        let class = class.lookup(self)?.into_inner();
+        let field = field.lookup(self)?.into_inner();
+
+        match value {
+            JValue::Object(v) => jni_unchecked!(
+                self.internal,
+                SetStaticObjectField,
+                class,
+                field,
+                v.into_inner()
+            ),
+            JValue::Byte(v) => jni_unchecked!(self.internal, SetStaticByteField, class, field, v),
+            JValue::Char(v) => jni_unchecked!(self.internal, SetStaticCharField, class, field, v),
+            JValue::Short(v) => jni_unchecked!(self.internal, SetStaticShortField, class, field, v),
+            JValue::Int(v) => jni_unchecked!(self.internal, SetStaticIntField, class, field, v),
+            JValue::Long(v) => jni_unchecked!(self.internal, SetStaticLongField, class, field, v),
+            JValue::Bool(v) => {
+                jni_unchecked!(self.internal, SetStaticBooleanField, class, field, v)
+            }
+            JValue::Float(v) => jni_unchecked!(self.internal, SetStaticFloatField, class, field, v),
+            JValue::Double(v) => {
+                jni_unchecked!(self.internal, SetStaticDoubleField, class, field, v)
+            }
+            JValue::Void => return Err(Error::WrongJValueType("void", "?")),
+        }
+
+        Ok(())
     }
 
     /// Surrenders ownership of a rust object to Java. Requires an object with a
@@ -1786,7 +1826,7 @@ impl<'a> JNIEnv<'a> {
             .get_field_unchecked(obj, field_id, JavaType::Primitive(Primitive::Long))?
             .j()? as *mut Mutex<T>;
         if !field_ptr.is_null() {
-            return Err(format!("field already set: {}", field.as_ref()).into());
+            return Err(Error::FieldAlreadySet(field.as_ref().to_owned()));
         }
 
         let mbox = Box::new(::std::sync::Mutex::new(rust_object));
@@ -1798,7 +1838,7 @@ impl<'a> JNIEnv<'a> {
     /// Gets a lock on a Rust value that's been given to a Java object. Java
     /// still retains ownership and `take_rust_field` will still need to be
     /// called at some point. Checks for a null pointer, but assumes that the
-    /// data it ponts to is valid for T.
+    /// data it points to is valid for T.
     #[allow(unused_variables)]
     pub fn get_rust_field<O, S, T>(&self, obj: O, field: S) -> Result<MutexGuard<T>>
     where
@@ -1934,175 +1974,106 @@ impl<'a> JNIEnv<'a> {
         jni_error_code_to_result(res)
     }
 
-    /// Return a tuple with a pointer to elements of the given Java byte array as first element.
-    /// The tuple's second element indicates if the pointed-to array is a copy or not.
+    /// Return an AutoArray of the given Java array.
     ///
-    /// The result is valid until the corresponding release_byte_array_elements() function is
-    /// called. Since the returned array may be a copy of the Java array, changes made to the
-    /// returned array will not necessarily be reflected in the original array until
-    /// release_byte_array_elements() is called.
-    ///
-    /// See also [`release_byte_array_elements`](struct.JNIEnv.html#method.release_byte_array_elements)
-    pub fn get_byte_array_elements(&self, array: jbyteArray) -> Result<(*mut jbyte, bool)> {
-        non_null!(array, "get_byte_array_elements array argument");
-        let mut is_copy: jboolean = 0xff;
-        let ptr = jni_non_void_call!(self.internal, GetByteArrayElements, array, &mut is_copy);
-        Ok((ptr, is_copy == sys::JNI_TRUE))
-    }
-
-    /// Release elements of the given byte array.
-    ///
-    /// Informs the VM that the native code no longer needs access to elems. The elems argument
-    /// is a pointer derived from array using the corresponding get_byte_array_elements() function.
-    /// If necessary, this function copies back all changes made to elems to the original array.
-    ///
-    /// The mode argument provides information on how the array buffer should be released. mode
-    /// has no effect if elems is not a copy of the elements in array. Otherwise, mode has the
-    /// following impact:
-    /// CopyBack: Copy back the content and free the elems buffer.
-    /// NoCopyBack: Free the buffer without copying back the possible changes
-    /// Use commit_byte_array_elements to copy the elements without releasing the buffer
-    /// (i.e. "commit mode").
-    ///
-    /// In most cases, programmers pass “CopyBack” to the mode argument, to ensure consistent
-    /// behavior for both pinned and copied arrays. The other option gives the programmer more
-    /// control over memory management, and should be used with extreme care.
-    ///
-    /// See also [`commit_byte_array_elements`](struct.JNIEnv.html#method.commit_byte_array_elements)
-    pub fn release_byte_array_elements(
-        &self,
-        array: jbyteArray,
-        elems: &mut jbyte,
-        mode: ReleaseMode,
-    ) -> Result<()> {
-        non_null!(array, "release_byte_array_elements array argument");
-        jni_void_call!(
-            self.internal,
-            ReleaseByteArrayElements,
-            array,
-            elems,
-            mode as i32
-        );
-        Ok(())
-    }
-
-    /// Commit elements of the given byte array.
-    ///
-    /// This function has no effect if elems is not a copy of the elements in array. Otherwise,
-    /// this function copies back the content of the array (and does not free the elems buffer).
-    pub fn commit_byte_array_elements(&self, array: jbyteArray, elems: &mut jbyte) -> Result<()> {
-        non_null!(array, "commit_byte_array_elements array argument");
-        jni_void_call!(
-            self.internal,
-            ReleaseByteArrayElements,
-            array,
-            elems,
-            sys::JNI_COMMIT
-        );
-        Ok(())
-    }
-
-    /// Return an AutoByteArray of the given Java byte array.
-    ///
-    /// The result is valid until the AutoByteArray object goes out of scope, when the
+    /// The result is valid until the AutoArray object goes out of scope, when the
     /// release happens automatically according to the mode parameter.
     ///
     /// Since the returned array may be a copy of the Java array, changes made to the
     /// returned array will not necessarily be reflected in the original array until
-    /// release_array_elements() is called.
-    /// AutoByteArray has a commit() method, to force a copy of the array if needed (and without
+    /// the corresponding Release*ArrayElements JNI method is called.
+    /// AutoArray has a commit() method, to force a copy of the array if needed (and without
     /// releasing it).
-    ///
-    /// See also [`get_byte_array_elements`](struct.JNIEnv.html#method.get_byte_array_elements)
-    pub fn get_auto_byte_array_elements(
-        &self,
-        array: jbyteArray,
-        mode: ReleaseMode,
-    ) -> Result<AutoByteArray> {
-        let (ptr, is_copy) = self.get_byte_array_elements(array)?;
-        AutoByteArray::new(self, array.into(), ptr, mode, is_copy)
-    }
 
-    /// Return a tuple with a pointer to elements of the given Java primitive array as first
-    /// element.
-    /// The tuple's second element indicates if the pointed-to array is a copy or not.
-    ///
-    /// The semantics of this function are very similar to the get_byte_array_elements function. If
-    /// possible, the VM returns a pointer to the primitive array; otherwise, a copy is made.
-    /// However, there are significant restrictions on how these functions can be used.
-    ///
-    /// After calling get_primitive_array_critical, the native code should not run for an extended
-    /// period of time before it calls release_primitive_array_critical. We must treat the code
-    /// inside this pair of functions as running in a "critical region." Inside a critical region,
-    /// native code must not call other JNI functions, or any system call that may cause the
-    /// current thread to block and wait for another Java thread. (For example, the current
-    /// thread must not call read on a stream being written by another Java thread.)
-    ///
-    /// These restrictions make it more likely that the native code will obtain an uncopied version
-    /// of the array, even if the VM does not support pinning. For example, a VM may temporarily
-    /// disable garbage collection when the native code is holding a pointer to an array obtained
-    /// via get_primitive_array_critical.
-    ///
-    /// Note that get_primitive_array_critical might still make a copy of the array if the VM
-    /// internally represents arrays in a different format. Therefore, we need to check its
-    /// return value against NULL for possible out of memory situations.
-    ///
-    /// See also [`get_byte_array_elements`](struct.JNIEnv.html#method.get_byte_array_elements)
-    /// See also [`release_primitive_array_critical`](struct.JNIEnv.html#method.release_primitive_array_critical)
-    pub fn get_primitive_array_critical(&self, array: jarray) -> Result<(*mut c_void, bool)> {
-        non_null!(array, "get_primitive_array_critical array argument");
-        let mut is_copy: jboolean = 0xff;
-        let ptr = jni_non_void_call!(
-            self.internal,
-            GetPrimitiveArrayCritical,
-            array,
-            &mut is_copy
-        );
-        non_null!(ptr, "get_primitive_array_critical return value");
-        Ok((ptr, is_copy == sys::JNI_TRUE))
-    }
-
-    /// Release elements of the given array.
-    ///
-    /// See get_primitive_array_critical for a discussion on how these functions can be used.
-    ///
-    /// See also [`get_primitive_array_critical`](struct.JNIEnv.html#method.get_primitive_array_critical)
-    /// See also [`commit_primitive_array_critical`](struct.JNIEnv.html#method.commit_primitive_array_critical)
-    pub fn release_primitive_array_critical(
+    /// Prefer to use the convenience wrappers:
+    /// [`get_int_array_elements`](struct.JNIEnv.html#method.get_int_array_elements)
+    /// [`get_long_array_elements`](struct.JNIEnv.html#method.get_long_array_elements)
+    /// [`get_byte_array_elements`](struct.JNIEnv.html#method.get_byte_array_elements)
+    /// [`get_boolean_array_elements`](struct.JNIEnv.html#method.get_boolean_array_elements)
+    /// [`get_char_array_elements`](struct.JNIEnv.html#method.get_char_array_elements)
+    /// [`get_short_array_elements`](struct.JNIEnv.html#method.get_short_array_elements)
+    /// [`get_float_array_elements`](struct.JNIEnv.html#method.get_float_array_elements)
+    /// [`get_double_array_elements`](struct.JNIEnv.html#method.get_double_array_elements)
+    /// And the associated [`AutoArray`](struct.objects.AutoArray) struct.
+    pub fn get_array_elements<T: TypeArray>(
         &self,
         array: jarray,
-        elems: &mut c_void,
         mode: ReleaseMode,
-    ) -> Result<()> {
-        non_null!(array, "release_primitive_array_critical array argument");
-        jni_void_call!(
-            self.internal,
-            ReleasePrimitiveArrayCritical,
-            array,
-            elems,
-            mode as i32
-        );
-        Ok(())
+    ) -> Result<AutoArray<T>> {
+        non_null!(array, "get_array_elements array argument");
+        AutoArray::new(self, array.into(), mode)
     }
 
-    /// Commit elements of the given primitive array.
-    ///
-    /// This function has no effect if elems is not a copy of the elements in array. Otherwise,
-    /// this function copies back the content of the array (and does not free the elems buffer).
-    pub fn commit_primitive_array_critical(
+    /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
+    pub fn get_int_array_elements(
+        &self,
+        array: jintArray,
+        mode: ReleaseMode,
+    ) -> Result<AutoArray<jint>> {
+        self.get_array_elements(array, mode)
+    }
+
+    /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
+    pub fn get_long_array_elements(
+        &self,
+        array: jlongArray,
+        mode: ReleaseMode,
+    ) -> Result<AutoArray<jlong>> {
+        self.get_array_elements(array, mode)
+    }
+
+    /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
+    pub fn get_byte_array_elements(
         &self,
         array: jbyteArray,
-        elems: &mut c_void,
-    ) -> Result<()> {
-        non_null!(array, "commit_primitive_array_critical array argument");
-        jni_void_call!(
-            self.internal,
-            ReleasePrimitiveArrayCritical,
-            array,
-            elems,
-            sys::JNI_COMMIT
-        );
-        Ok(())
+        mode: ReleaseMode,
+    ) -> Result<AutoArray<jbyte>> {
+        self.get_array_elements(array, mode)
+    }
+
+    /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
+    pub fn get_boolean_array_elements(
+        &self,
+        array: jbooleanArray,
+        mode: ReleaseMode,
+    ) -> Result<AutoArray<jboolean>> {
+        self.get_array_elements(array, mode)
+    }
+
+    /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
+    pub fn get_char_array_elements(
+        &self,
+        array: jcharArray,
+        mode: ReleaseMode,
+    ) -> Result<AutoArray<jchar>> {
+        self.get_array_elements(array, mode)
+    }
+
+    /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
+    pub fn get_short_array_elements(
+        &self,
+        array: jshortArray,
+        mode: ReleaseMode,
+    ) -> Result<AutoArray<jshort>> {
+        self.get_array_elements(array, mode)
+    }
+
+    /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
+    pub fn get_float_array_elements(
+        &self,
+        array: jfloatArray,
+        mode: ReleaseMode,
+    ) -> Result<AutoArray<jfloat>> {
+        self.get_array_elements(array, mode)
+    }
+
+    /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
+    pub fn get_double_array_elements(
+        &self,
+        array: jdoubleArray,
+        mode: ReleaseMode,
+    ) -> Result<AutoArray<jdouble>> {
+        self.get_array_elements(array, mode)
     }
 
     /// Return an AutoPrimitiveArray of the given Java primitive array.
@@ -2111,28 +2082,39 @@ impl<'a> JNIEnv<'a> {
     /// when the release happens automatically according to the mode parameter.
     ///
     /// Given that Critical sections must be as short as possible, and that they come with a
-    /// number of important restrictions (see get_primitive_array_critical), use this
+    /// number of important restrictions (see GetPrimitiveArrayCritical JNI doc), use this
     /// wrapper wisely, to avoid holding the array longer that strictly necessary.
     /// In any case, you can:
-    ///  - Use the manual variants instead (i.e. get/release_primitive_array_critical).
     ///  - Use std::mem::drop explicitly, to force / anticipate resource release.
     ///  - Use a nested scope, to release the array at the nested scope's exit.
     ///
     /// Since the returned array may be a copy of the Java array, changes made to the
     /// returned array will not necessarily be reflected in the original array until
-    /// release_primitive_array_critical() is called; which happens at AutoPrimitiveArray
+    /// ReleasePrimitiveArrayCritical is called; which happens at AutoPrimitiveArray
     /// destruction.
-    /// AutoPrimitiveArray also has a commit() method, to force a copy of the array if needed
-    /// (without releasing it).
     ///
-    /// See also [`get_primitive_array_critical`](struct.JNIEnv.html#method.get_primitive_array_critical)
-    pub fn get_auto_primitive_array_critical(
+    /// If the given array is `null`, an `Error::NullPtr` is returned.
+    ///
+    /// See also [`get_byte_array_elements`](struct.JNIEnv.html#method.get_array_elements)
+    pub fn get_primitive_array_critical(
         &self,
         array: jarray,
         mode: ReleaseMode,
     ) -> Result<AutoPrimitiveArray> {
-        let (ptr, is_copy) = self.get_primitive_array_critical(array)?;
-        AutoPrimitiveArray::new(self, array.into(), ptr, mode, is_copy)
+        non_null!(array, "get_primitive_array_critical array argument");
+        let mut is_copy: jboolean = 0xff;
+        // Even though this method may throw OoME, use `jni_unchecked`
+        // instead of `jni_non_null_call` to remove (a slight) overhead
+        // of exception checking. An error will still be detected as a `null`
+        // result inside AutoPrimitiveArray ctor; and, as this method is unlikely
+        // to create a copy, an OoME is highly unlikely.
+        let ptr = jni_unchecked!(
+            self.internal,
+            GetPrimitiveArrayCritical,
+            array,
+            &mut is_copy
+        );
+        AutoPrimitiveArray::new(self, array.into(), ptr, mode, is_copy == sys::JNI_TRUE)
     }
 }
 
