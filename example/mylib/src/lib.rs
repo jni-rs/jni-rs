@@ -168,9 +168,3 @@ pub extern "system" fn Java_HelloWorld_asyncComputation(
     // Wait until the thread has started.
     rx.recv().unwrap();
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {}
-}
