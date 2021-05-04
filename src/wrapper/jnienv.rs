@@ -292,7 +292,7 @@ impl<'a> JNIEnv<'a> {
             unreachable!()
         });
 
-        panic!(res.unwrap_err());
+        panic!("{:?}", res.unwrap_err());
     }
 
     /// Check to see if an exception is being thrown. This only differs from
