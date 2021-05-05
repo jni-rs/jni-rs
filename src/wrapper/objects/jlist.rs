@@ -1,6 +1,6 @@
 use crate::{
     errors::*,
-    objects::{JMethodID, JObject},
+    objects::{JMethodID, JObject, JValue},
     signature::{Primitive, ReturnType},
     sys::jint,
     JNIEnv,
@@ -66,7 +66,7 @@ impl<'a: 'b, 'b> JList<'a, 'b> {
             self.internal,
             self.get,
             ReturnType::Object,
-            &[idx.into()],
+            &[JValue::from(idx).to_jni()],
         );
 
         match result {
@@ -84,7 +84,7 @@ impl<'a: 'b, 'b> JList<'a, 'b> {
             self.internal,
             self.add,
             ReturnType::Primitive(Primitive::Boolean),
-            &[value.into()],
+            &[JValue::from(value).to_jni()],
         );
 
         let _ = result?;
@@ -97,7 +97,7 @@ impl<'a: 'b, 'b> JList<'a, 'b> {
             self.internal,
             self.add_idx,
             ReturnType::Primitive(Primitive::Void),
-            &[idx.into(), value.into()],
+            &[JValue::from(idx).to_jni(), JValue::from(value).to_jni()],
         );
 
         let _ = result?;
@@ -110,7 +110,7 @@ impl<'a: 'b, 'b> JList<'a, 'b> {
             self.internal,
             self.remove,
             ReturnType::Object,
-            &[idx.into()],
+            &[JValue::from(idx).to_jni()],
         );
 
         match result {
@@ -147,7 +147,7 @@ impl<'a: 'b, 'b> JList<'a, 'b> {
             self.internal,
             self.remove,
             ReturnType::Object,
-            &[(size - 1).into()],
+            &[JValue::from(size - 1).to_jni()],
         );
 
         match result {

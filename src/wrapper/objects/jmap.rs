@@ -1,6 +1,6 @@
 use crate::{
     errors::*,
-    objects::{AutoLocal, JMethodID, JObject},
+    objects::{AutoLocal, JMethodID, JObject, JValue},
     signature::{Primitive, ReturnType},
     JNIEnv,
 };
@@ -68,7 +68,7 @@ impl<'a: 'b, 'b> JMap<'a, 'b> {
             self.internal,
             self.get,
             ReturnType::Object,
-            &[key.into()],
+            &[JValue::from(key).to_jni()],
         );
 
         match result {
@@ -87,7 +87,7 @@ impl<'a: 'b, 'b> JMap<'a, 'b> {
             self.internal,
             self.put,
             ReturnType::Object,
-            &[key.into(), value.into()],
+            &[JValue::from(key).to_jni(), JValue::from(value).to_jni()],
         );
 
         match result {
@@ -106,7 +106,7 @@ impl<'a: 'b, 'b> JMap<'a, 'b> {
             self.internal,
             self.remove,
             ReturnType::Object,
-            &[key.into()],
+            &[JValue::from(key).to_jni()],
         );
 
         match result {
