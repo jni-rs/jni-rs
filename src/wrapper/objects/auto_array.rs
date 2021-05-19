@@ -64,16 +64,16 @@ type_array!(jdouble, GetDoubleArrayElements, ReleaseDoubleArrayElements);
 ///
 /// AutoArray provides automatic array release through a call to appropriate
 /// Release<Type>ArrayElements when it goes out of scope.
-pub struct AutoArray<'a: 'b, 'b, T: TypeArray> {
+pub struct AutoArray<'a, T: TypeArray> {
     obj: JObject<'a>,
     ptr: NonNull<T>,
     mode: ReleaseMode,
     is_copy: bool,
-    env: &'b JNIEnv<'a>,
+    env: JNIEnv<'a>,
 }
 
-impl<'a, 'b, T: TypeArray> AutoArray<'a, 'b, T> {
-    pub(crate) fn new(env: &'b JNIEnv<'a>, obj: JObject<'a>, mode: ReleaseMode) -> Result<Self> {
+impl<'a, T: TypeArray> AutoArray<'a, T> {
+    pub(crate) fn new(env: &JNIEnv<'a>, obj: JObject<'a>, mode: ReleaseMode) -> Result<Self> {
         let mut is_copy: jboolean = 0xff;
         Ok(AutoArray {
             obj,
@@ -83,7 +83,7 @@ impl<'a, 'b, T: TypeArray> AutoArray<'a, 'b, T> {
             },
             mode,
             is_copy: is_copy == sys::JNI_TRUE,
-            env,
+            env: *env,
         })
     }
 
@@ -98,7 +98,7 @@ impl<'a, 'b, T: TypeArray> AutoArray<'a, 'b, T> {
     }
 
     fn release_array_elements(&self, mode: i32) -> Result<()> {
-        T::release(self.env, self.obj, self.ptr, mode)
+        T::release(&self.env, self.obj, self.ptr, mode)
     }
 
     /// Don't commit the changes to the array on release (if it is a copy).
@@ -120,7 +120,7 @@ impl<'a, 'b, T: TypeArray> AutoArray<'a, 'b, T> {
     }
 }
 
-impl<'a, 'b, T: TypeArray> Drop for AutoArray<'a, 'b, T> {
+impl<'a, T: TypeArray> Drop for AutoArray<'a, T> {
     fn drop(&mut self) {
         let res = self.release_array_elements(self.mode as i32);
         match res {
@@ -130,7 +130,7 @@ impl<'a, 'b, T: TypeArray> Drop for AutoArray<'a, 'b, T> {
     }
 }
 
-impl<'a, T: TypeArray> From<&'a AutoArray<'a, '_, T>> for *mut T {
+impl<'a, T: TypeArray> From<&'a AutoArray<'a, T>> for *mut T {
     fn from(other: &'a AutoArray<T>) -> *mut T {
         other.as_ptr()
     }

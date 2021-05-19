@@ -333,8 +333,12 @@ macro_rules! test_get_array_elements {
             // Use a scope to test Drop
             {
                 // Get byte array elements auto wrapper
-                let auto_ptr: AutoArray<$jni_type> =
-                    env.$jni_get(java_array, ReleaseMode::CopyBack).unwrap();
+                let auto_ptr: AutoArray<$jni_type> = {
+                    // Make sure the lifetime is tied to the environment,
+                    // not the particular JNIEnv reference
+                    let temporary_env: JNIEnv = *env;
+                    temporary_env.$jni_get(java_array, ReleaseMode::CopyBack).unwrap()
+                };
 
                 // Check array size
                 assert_eq!(auto_ptr.size().unwrap(), 2);
