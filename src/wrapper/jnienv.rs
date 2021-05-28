@@ -373,11 +373,98 @@ impl<'a> JNIEnv<'a> {
         Ok(global)
     }
 
-    /// Create a new local ref to an object.
+    /// Create a new local reference to an object.
     ///
-    /// This is useful for creating a local reference from a [global reference][GlobalRef] or
-    /// creating a local reference in a different [local reference frame][JNIEnv::with_local_frame]
-    /// than the original.
+    /// Specifically, this calls the JNI function [`NewLocalRef`], which creates a reference in the
+    /// current local reference frame, regardless of whether the original reference belongs to the
+    /// same local reference frame, a different one, or is a [global reference][GlobalRef]. In Rust
+    /// terms, this method accepts a JNI reference with any valid lifetime and produces a clone of
+    /// that reference with the lifetime of this `JNIEnv`. The returned reference can outlive the
+    /// original.
+    ///
+    /// This method is useful when you have a strong global reference and you can't prevent it from
+    /// being dropped before you're finished with it. In that case, you can use this method to
+    /// create a new local reference that's guaranteed to remain valid for the duration of the
+    /// current local reference frame, regardless of what later happens to the original global
+    /// reference.
+    ///
+    /// # Lifetimes
+    ///
+    /// `'a` is the lifetime of this `JNIEnv`. This method creates a new local reference with
+    /// lifetime `'a`.
+    ///
+    /// `'b` is the lifetime of the original reference. It can be any valid lifetime, even one that
+    /// `'a` outlives or vice versa.
+    ///
+    /// Think of `'a` as meaning `'new` and `'b` as meaning `'original`. (It is unfortunately not
+    /// possible to actually give these names to the two lifetimes because `'a` is a parameter to
+    /// the `JNIEnv` type, not a parameter to this method.)
+    ///
+    /// # Example
+    ///
+    /// In the following example, the `ExampleError::extract_throwable` method uses
+    /// `JNIEnv::new_local_ref` to create a new local reference that outlives the original global
+    /// reference:
+    ///
+    /// ```no_run
+    /// # use jni::{JNIEnv, objects::*};
+    /// # use std::fmt::Display;
+    /// #
+    /// # type SomeOtherErrorType = Box<dyn Display>;
+    /// #
+    /// /// An error that may be caused by either a Java exception or something going wrong in Rust
+    /// /// code.
+    /// enum ExampleError {
+    ///     /// This variant represents a Java exception.
+    ///     ///
+    ///     /// The enclosed `GlobalRef` points to a Java object of class `java.lang.Throwable`
+    ///     /// (or one of its many subclasses).
+    ///     Exception(GlobalRef),
+    ///
+    ///     /// This variant represents an error in Rust code, not a Java exception.
+    ///     Other(SomeOtherErrorType),
+    /// }
+    ///
+    /// impl ExampleError {
+    ///     /// Consumes this `ExampleError` and produces a `JThrowable`, suitable for throwing
+    ///     /// back to Java code.
+    ///     ///
+    ///     /// If this is an `ExampleError::Exception`, then this extracts the enclosed Java
+    ///     /// exception object. Otherwise, a new exception object is created to represent this
+    ///     /// error.
+    ///     fn extract_throwable(self, env: JNIEnv) -> jni::errors::Result<JThrowable> {
+    ///         let throwable: JObject = match self {
+    ///             ExampleError::Exception(exception) => {
+    ///                 // The error was caused by a Java exception.
+    ///
+    ///                 // Here, `exception` is a `GlobalRef` pointing to a Java `Throwable`. It
+    ///                 // will be dropped at the end of this `match` arm. We'll use
+    ///                 // `new_local_ref` to create a local reference that will outlive the
+    ///                 // `GlobalRef`.
+    ///
+    ///                 env.new_local_ref(exception.as_obj())?
+    ///             }
+    ///
+    ///             ExampleError::Other(error) => {
+    ///                 // The error was caused by something that happened in Rust code. Create a
+    ///                 // new `java.lang.Error` to represent it.
+    ///
+    ///                 env.new_object(
+    ///                     "java/lang/Error",
+    ///                     "(Ljava/lang/String;)V",
+    ///                     &[
+    ///                         env.new_string(error.to_string())?.into(),
+    ///                     ],
+    ///                 )?
+    ///             }
+    ///         };
+    ///
+    ///         Ok(JThrowable::from(throwable))
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// [`NewLocalRef`]: https://docs.oracle.com/en/java/javase/11/docs/specs/jni/functions.html#newlocalref
     pub fn new_local_ref<'b, O>(&self, obj: O) -> Result<JObject<'a>>
     where
         O: Into<JObject<'b>>,
