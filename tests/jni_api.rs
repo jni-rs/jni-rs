@@ -574,7 +574,7 @@ pub fn new_direct_byte_buffer() {
     let env = attach_current_thread();
     let mut vec: Vec<u8> = vec![0, 1, 2, 3];
     let buf = vec.as_mut_slice();
-    let result = env.new_direct_byte_buffer(buf);
+    let result = unsafe { env.new_direct_byte_buffer(buf) };
     assert!(result.is_ok());
     assert!(!result.unwrap().is_null());
 }
@@ -584,7 +584,7 @@ pub fn get_direct_buffer_capacity_ok() {
     let env = attach_current_thread();
     let mut vec: Vec<u8> = vec![0, 1, 2, 3];
     let buf = vec.as_mut_slice();
-    let result = env.new_direct_byte_buffer(buf).unwrap();
+    let result = unsafe { env.new_direct_byte_buffer(buf) }.unwrap();
     assert!(!result.is_null());
 
     let capacity = env.get_direct_buffer_capacity(result).unwrap();
@@ -604,7 +604,7 @@ pub fn get_direct_buffer_address_ok() {
     let env = attach_current_thread();
     let mut vec: Vec<u8> = vec![0, 1, 2, 3];
     let buf = vec.as_mut_slice();
-    let result = env.new_direct_byte_buffer(buf).unwrap();
+    let result = unsafe { env.new_direct_byte_buffer(buf) }.unwrap();
     assert!(!result.is_null());
 
     let dest_buffer = env.get_direct_buffer_address(result).unwrap();
