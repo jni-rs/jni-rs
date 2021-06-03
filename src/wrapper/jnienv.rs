@@ -317,6 +317,7 @@ impl<'a> JNIEnv<'a> {
     /// `ByteBuffer`. The JVM may maintain references to the `ByteBuffer` beyond the lifetime
     /// of this `JNIEnv`.
     pub unsafe fn new_direct_byte_buffer(&self, data: &mut [u8]) -> Result<JByteBuffer<'a>> {
+        #[allow(unused_unsafe)]
         let obj: JObject = jni_non_null_call!(
             self.internal,
             NewDirectByteBuffer,
