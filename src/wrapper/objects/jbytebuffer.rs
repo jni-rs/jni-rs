@@ -31,3 +31,9 @@ impl<'a> From<JObject<'a>> for JByteBuffer<'a> {
         (other.into_inner() as jobject).into()
     }
 }
+
+impl<'a> std::default::Default for JByteBuffer<'a> {
+    fn default() -> Self {
+        JByteBuffer(JObject::null())
+    }
+}

@@ -34,3 +34,9 @@ impl<'a> From<JObject<'a>> for JString<'a> {
         (other.into_inner() as jstring).into()
     }
 }
+
+impl<'a> std::default::Default for JString<'a> {
+    fn default() -> Self {
+        JString(JObject::null())
+    }
+}

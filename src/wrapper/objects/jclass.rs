@@ -35,3 +35,9 @@ impl<'a> From<JObject<'a>> for JClass<'a> {
         (other.into_inner() as jclass).into()
     }
 }
+
+impl<'a> std::default::Default for JClass<'a> {
+    fn default() -> Self {
+        JClass(JObject::null())
+    }
+}
