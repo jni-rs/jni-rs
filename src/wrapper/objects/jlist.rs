@@ -1,7 +1,7 @@
 use crate::{
     errors::*,
     objects::{JMethodID, JObject},
-    signature::{JavaType, Primitive},
+    signature::{Primitive, ReturnType},
     sys::jint,
     JNIEnv,
 };
@@ -65,7 +65,7 @@ impl<'a: 'b, 'b> JList<'a, 'b> {
         let result = self.env.call_method_unchecked(
             self.internal,
             self.get,
-            JavaType::Object("java/lang/Object".into()),
+            ReturnType::Object,
             &[idx.into()],
         );
 
@@ -83,7 +83,7 @@ impl<'a: 'b, 'b> JList<'a, 'b> {
         let result = self.env.call_method_unchecked(
             self.internal,
             self.add,
-            JavaType::Primitive(Primitive::Boolean),
+            ReturnType::Primitive(Primitive::Boolean),
             &[value.into()],
         );
 
@@ -96,7 +96,7 @@ impl<'a: 'b, 'b> JList<'a, 'b> {
         let result = self.env.call_method_unchecked(
             self.internal,
             self.add_idx,
-            JavaType::Primitive(Primitive::Void),
+            ReturnType::Primitive(Primitive::Void),
             &[idx.into(), value.into()],
         );
 
@@ -109,7 +109,7 @@ impl<'a: 'b, 'b> JList<'a, 'b> {
         let result = self.env.call_method_unchecked(
             self.internal,
             self.remove,
-            JavaType::Object("java/lang/Object".into()),
+            ReturnType::Object,
             &[idx.into()],
         );
 
@@ -127,7 +127,7 @@ impl<'a: 'b, 'b> JList<'a, 'b> {
         let result = self.env.call_method_unchecked(
             self.internal,
             self.size,
-            JavaType::Primitive(Primitive::Int),
+            ReturnType::Primitive(Primitive::Int),
             &[],
         );
 
@@ -146,7 +146,7 @@ impl<'a: 'b, 'b> JList<'a, 'b> {
         let result = self.env.call_method_unchecked(
             self.internal,
             self.remove,
-            JavaType::Object("java/lang/Object".into()),
+            ReturnType::Object,
             &[(size - 1).into()],
         );
 
