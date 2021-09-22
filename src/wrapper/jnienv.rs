@@ -983,6 +983,9 @@ impl<'a> JNIEnv<'a> {
     ///
     /// This entails a call to `GetStringUTFChars` and only decodes java's
     /// modified UTF-8 format on conversion to a rust-compatible string.
+    ///
+    /// # Panics
+    /// This call panics when given an Object that is not a java.lang.String
     pub fn get_string(&self, obj: JString<'a>) -> Result<JavaStr<'a, '_>> {
         non_null!(obj, "get_string obj argument");
         JavaStr::from_env(self, obj)
