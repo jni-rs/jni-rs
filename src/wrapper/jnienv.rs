@@ -1015,10 +1015,10 @@ impl<'a> JNIEnv<'a> {
     /// # Examples
     ///
     /// ```no_run
-    /// # let env = JNIEnv::from_raw(std::ptr::null()).unwrap();
+    /// # let env = unsafe { jni::JNIEnv::from_raw(std::ptr::null_mut()).unwrap() };
     /// let s = env.new_string("test").unwrap();
     /// let array = env.get_string_utf_chars(s).unwrap();
-    /// env.release_string_utf_chars(s, array).unwrap();
+    /// unsafe { env.release_string_utf_chars(s, array).unwrap() };
     /// ```
     #[allow(unused_unsafe)]
     pub unsafe fn release_string_utf_chars(&self, obj: JString, arr: *const c_char) -> Result<()> {
