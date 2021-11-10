@@ -1006,9 +1006,22 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Unpin the array returned by `get_string_utf_chars`.
+    ///
+    /// # Safety
+    ///
+    /// The behaviour is undefined if the array isn't returned by the `get_string_utf_chars`
+    /// function.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # let env = JNIEnv::from_raw(std::ptr::null()).unwrap();
+    /// let s = env.new_string("test").unwrap();
+    /// let array = env.get_string_utf_chars(s).unwrap();
+    /// env.release_string_utf_chars(s, array).unwrap();
+    /// ```
     // It is safe to dereference a pointer that comes from `get_string_utf_chars`.
-    #[allow(clippy::not_unsafe_ptr_arg_deref)]
-    pub fn release_string_utf_chars(&self, obj: JString, arr: *const c_char) -> Result<()> {
+    pub unsafe fn release_string_utf_chars(&self, obj: JString, arr: *const c_char) -> Result<()> {
         non_null!(obj, "release_string_utf_chars obj argument");
         // This method is safe to call in case of pending exceptions (see the chapter 2 of the spec)
         jni_unchecked!(self.internal, ReleaseStringUTFChars, obj.into_inner(), arr);
