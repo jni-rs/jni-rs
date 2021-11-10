@@ -172,7 +172,7 @@ impl<'a: 'b, 'b> JMap<'a, 'b> {
         let iter = self.env.auto_local(iter);
 
         Ok(JMapIter {
-            map: &self,
+            map: self,
             has_next,
             next,
             get_key,
