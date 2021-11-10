@@ -1020,7 +1020,7 @@ impl<'a> JNIEnv<'a> {
     /// let array = env.get_string_utf_chars(s).unwrap();
     /// env.release_string_utf_chars(s, array).unwrap();
     /// ```
-    // It is safe to dereference a pointer that comes from `get_string_utf_chars`.
+    #[allow(unused_unsafe)]
     pub unsafe fn release_string_utf_chars(&self, obj: JString, arr: *const c_char) -> Result<()> {
         non_null!(obj, "release_string_utf_chars obj argument");
         // This method is safe to call in case of pending exceptions (see the chapter 2 of the spec)
