@@ -63,7 +63,7 @@ impl<'a: 'b, 'b> From<JavaStr<'a, 'b>> for String {
 
 impl<'a: 'b, 'b> Drop for JavaStr<'a, 'b> {
     fn drop(&mut self) {
-        match self.env.release_string_utf_chars(self.obj, self.internal) {
+        match unsafe { self.env.release_string_utf_chars(self.obj, self.internal) } {
             Ok(()) => {}
             Err(e) => warn!("error dropping java str: {}", e),
         }

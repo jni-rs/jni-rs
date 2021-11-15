@@ -79,7 +79,7 @@ pub fn print_exception(env: &JNIEnv) {
 #[allow(dead_code)]
 pub fn unwrap<T>(env: &JNIEnv, res: Result<T>) -> T {
     res.unwrap_or_else(|e| {
-        print_exception(&env);
+        print_exception(env);
         panic!("{:#?}", e);
     })
 }

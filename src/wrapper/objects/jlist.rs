@@ -163,7 +163,7 @@ impl<'a: 'b, 'b> JList<'a, 'b> {
     /// `EntrySet` from java and iterating over it.
     pub fn iter(&self) -> Result<JListIter<'a, 'b, '_>> {
         Ok(JListIter {
-            list: &self,
+            list: self,
             current: 0,
             size: self.size()?,
         })
