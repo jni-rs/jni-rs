@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 - `Default` trait implemented for `JObject`, `JString`, `JClass`, and `JByteBuffer` (#199)
+- Kotlin specific methods for working with Rust objects and JNI: `take_rust_field_kt`, `get_rust_field_kt`, `set_rust_field_kt`
 
 ### Changed
 - The `release_string_utf_chars` function has been marked as unsafe. (#334)
