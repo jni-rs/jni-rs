@@ -21,7 +21,7 @@ use crate::{
     sys::{
         self, jarray, jboolean, jbooleanArray, jbyte, jbyteArray, jchar, jcharArray, jdouble,
         jdoubleArray, jfloat, jfloatArray, jint, jintArray, jlong, jlongArray, jobjectArray,
-        jshort, jshortArray, jsize, jvalue, JNINativeMethod,
+        jshort, jshortArray, jsize, jvalue, JNINativeMethod, jobject
     },
     JNIVersion, JavaVM,
 };
@@ -1760,6 +1760,120 @@ impl<'a> JNIEnv<'a> {
             JP(Primitive::Void) => return Err(Error::WrongJValueType("void", "see java field")),
         };
         Ok(result)
+    }
+
+    /// Gets a lock on a Rust value that's been given to a Kotlin object. Kotlin
+    /// still retains ownership and `take_rust_field_kt` will still need to be
+    /// called at some point. Checks for a null pointer, but assumes that the
+    /// data it points to is valid for T.
+    pub fn get_rust_field_kt<O, S, T>(&self, obj: O, field: S) -> Result<MutexGuard<T>>
+        where
+            O: Into<JObject<'a>>,
+            S: Into<JNIString>,
+            T: Send + 'static,
+    {
+        let obj = obj.into();
+        let _ = self.lock_obj(*obj)?;
+
+        // get the Long kotlin class
+        let j_obj = self.get_field(obj, field, "Ljava/lang/Long;")?.l()?;
+        non_null!(j_obj, "Long handle obj from Kotlin");
+
+        // get the ptr from the Long object
+        let ptr = self.call_method(j_obj, "longValue", "()J", &[])?.j()? as *mut Mutex<T>;
+        non_null!(ptr, "rust value from Kotlin");
+        unsafe {
+            // dereferencing is safe, because we checked it for null
+            Ok((*ptr).lock().unwrap())
+        }
+    }
+
+    /// Surrenders ownership of a rust object to Kotlin. Requires an object declared with
+    /// `private var handle: Long? = null` to store the pointer. The Rust value will be
+    /// wrapped in a Mutex since Kotlin will be controlling where it'll be used thread-wise.
+    /// Unsafe because it leaks memory if `take_rust_field` is never called (so
+    /// be sure to make a finalizer).
+    ///
+    /// **DO NOT** make a copy of the object containing one of these fields. If
+    /// you've set up a finalizer to pass it back to Rust upon being GC'd, it
+    /// will point to invalid memory and will likely attempt to be deallocated
+    /// again.
+    pub fn set_rust_field_kt<O, S, T>(&self, obj: O, field: S, rust_object: T) -> Result<()>
+        where
+            O: Into<JObject<'a>>,
+            S: AsRef<str>,
+            T: Send + 'static,
+    {
+        let obj = obj.into();
+        let class = self.auto_local(self.get_object_class(obj)?);
+        let field_id: JFieldID = (&class, &field, "Ljava/lang/Long;").lookup(self)?;
+
+        let _ = self.lock_obj(*obj)?;
+
+        // Check to see if we've already set this value. If it's not null, that
+        // means that we're going to leak memory if it gets overwritten.
+        let field_obj = self
+            .get_field_unchecked(obj, field_id, JavaType::Object("java/lang/Long".into()))?
+            .l()?;
+        if !field_obj.is_null() {
+            return Err(Error::FieldAlreadySet(field.as_ref().to_owned()));
+        }
+
+        let mbox = Box::new(::std::sync::Mutex::new(rust_object));
+        let ptr: *mut Mutex<T> = Box::into_raw(mbox);
+
+        // create new instance of Long class to hold pointer
+        let class = self.find_class("java/lang/Long")?;
+        let mid = self.get_method_id(class, "<init>", "(J)V")?;
+        let jlong = self.new_object_unchecked(class, mid, &[(ptr as crate::sys::jlong).into()])?;
+
+        self.set_field_unchecked(obj, field_id, JValue::Object(jlong))
+    }
+
+    /// Take a Rust field back from Kotlin. Makes sure that the pointer is
+    /// non-null, but still assumes that the data it points to is valid for T.
+    /// Sets the field to a null pointer to signal that it's empty.
+    ///
+    /// This will return an error in the event that there's an outstanding lock
+    /// on the object.
+    pub fn take_rust_field_kt<O, S, T>(&self, obj: O, field: S) -> Result<T>
+        where
+            O: Into<JObject<'a>>,
+            S: AsRef<str>,
+            T: Send + 'static,
+    {
+        let obj = obj.into();
+        let class = self.auto_local(self.get_object_class(obj)?);
+        let field_id: JFieldID = (&class, &field, "Ljava/lang/Long;").lookup(self)?;
+
+        let mbox = {
+            let _ = self.lock_obj(*obj)?;
+
+            let j_obj = self.get_field_unchecked(obj, field_id, JavaType::Object("Ljava/lang/Long;".into()))?
+                .l()?;
+            non_null!(j_obj, "Long handle obj from Kotlin");
+
+            // get the ptr from the Long object
+            let ptr = self.call_method(j_obj, "longValue", "()J", &[])?.j()? as *mut Mutex<T>;
+            non_null!(ptr, "rust value from Kotlin");
+
+            let mbox = unsafe { Box::from_raw(ptr) };
+
+            // attempt to acquire the lock. This prevents us from consuming the
+            // mutex if there's an outstanding lock. No one else will be able to
+            // get a new one as long as we're in the guarded scope.
+            drop(mbox.try_lock()?);
+
+            self.set_field_unchecked(
+                obj,
+                field_id,
+                JValue::from(std::ptr::null_mut() as jobject)
+            )?;
+
+            mbox
+        };
+
+        Ok(mbox.into_inner().unwrap())
     }
 
     /// Get a static field. Requires a class lookup and a field id lookup
