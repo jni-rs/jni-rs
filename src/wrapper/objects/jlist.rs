@@ -13,11 +13,11 @@ use crate::{
 /// call.
 pub struct JList<'a: 'b, 'b> {
     internal: JObject<'a>,
-    get: JMethodID<'a>,
-    add: JMethodID<'a>,
-    add_idx: JMethodID<'a>,
-    remove: JMethodID<'a>,
-    size: JMethodID<'a>,
+    get: JMethodID,
+    add: JMethodID,
+    add_idx: JMethodID,
+    remove: JMethodID,
+    size: JMethodID,
     env: &'b JNIEnv<'a>,
 }
 

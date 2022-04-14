@@ -13,9 +13,9 @@ use crate::{
 pub struct JMap<'a: 'b, 'b> {
     internal: JObject<'a>,
     class: AutoLocal<'a, 'b>,
-    get: JMethodID<'a>,
-    put: JMethodID<'a>,
-    remove: JMethodID<'a>,
+    get: JMethodID,
+    put: JMethodID,
+    remove: JMethodID,
     env: &'b JNIEnv<'a>,
 }
 
@@ -188,10 +188,10 @@ impl<'a: 'b, 'b> JMap<'a, 'b> {
 /// and generic enough to use elsewhere.
 pub struct JMapIter<'a, 'b, 'c> {
     map: &'c JMap<'a, 'b>,
-    has_next: JMethodID<'a>,
-    next: JMethodID<'a>,
-    get_key: JMethodID<'a>,
-    get_value: JMethodID<'a>,
+    has_next: JMethodID,
+    next: JMethodID,
+    get_key: JMethodID,
+    get_value: JMethodID,
     iter: AutoLocal<'a, 'b>,
 }
 
