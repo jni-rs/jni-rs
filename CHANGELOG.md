@@ -29,8 +29,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - The lifetime of `AutoArray` is no longer tied to the lifetime of a particular `JNIEnv` reference. (#302)
 - Relaxed lifetime restrictions on `JNIEnv::new_local_ref`. Now it can be used to create a local
   reference from a global reference. (#301 / #319)
-- `JMethodID` implements `Send` + `Sync` and no longer has a lifetime parameter, making method
+- `JMethodID` and `JStaticMethodID` implement `Send` + `Sync` and no longer has a lifetime parameter, making method
   IDs cacheable (with a documented 'Safety' note about ensuring they remain valid). ([#346](https://github.com/jni-rs/jni-rs/pull/346))
+- `JFieldID` and `JStaticFieldID` implement `Send` + `Sync` and no longer has a lifetime parameter, making field
+  IDs cacheable (with a documented 'Safety' note about ensuring they remain valid). ([#346](https://github.com/jni-rs/jni-rs/pull/365))
 - The `call_*_method_unchecked` functions now take `jni:sys::jvalue` arguments to avoid allocating
   a `Vec` on each call to map + collect `JValue`s as `sys:jvalue`s (#329)
 - The `From` trait implementations converting `jni_sys` types like `jobject` to `JObject` have been replaced

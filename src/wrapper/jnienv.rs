@@ -682,7 +682,7 @@ impl<'a> JNIEnv<'a> {
     /// ```rust,ignore
     /// let field_id = env.get_field_id("com/my/Class", "intField", "I");
     /// ```
-    pub fn get_field_id<'c, T, U, V>(&self, class: T, name: U, sig: V) -> Result<JFieldID<'a>>
+    pub fn get_field_id<'c, T, U, V>(&self, class: T, name: U, sig: V) -> Result<JFieldID>
     where
         T: Desc<'a, JClass<'c>>,
         U: Into<JNIString>,
@@ -727,7 +727,7 @@ impl<'a> JNIEnv<'a> {
         class: T,
         name: U,
         sig: V,
-    ) -> Result<JStaticFieldID<'a>>
+    ) -> Result<JStaticFieldID>
     where
         T: Desc<'a, JClass<'c>>,
         U: Into<JNIString>,
@@ -1701,15 +1701,10 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Get a field without checking the provided type against the actual field.
-    pub fn get_field_unchecked<'f, O, T>(
-        &self,
-        obj: O,
-        field: T,
-        ty: ReturnType,
-    ) -> Result<JValue<'a>>
+    pub fn get_field_unchecked<O, T>(&self, obj: O, field: T, ty: ReturnType) -> Result<JValue<'a>>
     where
         O: Into<JObject<'a>>,
-        T: Desc<'a, JFieldID<'f>>,
+        T: Desc<'a, JFieldID>,
     {
         let obj = obj.into();
         non_null!(obj, "get_field_typed obj argument");
@@ -1745,10 +1740,10 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Set a field without any type checking.
-    pub fn set_field_unchecked<'f, O, T>(&self, obj: O, field: T, val: JValue) -> Result<()>
+    pub fn set_field_unchecked<O, T>(&self, obj: O, field: T, val: JValue) -> Result<()>
     where
         O: Into<JObject<'a>>,
-        T: Desc<'a, JFieldID<'f>>,
+        T: Desc<'a, JFieldID>,
     {
         let obj = obj.into();
         non_null!(obj, "set_field_typed obj argument");
@@ -1851,7 +1846,7 @@ impl<'a> JNIEnv<'a> {
 
     /// Get a static field without checking the provided type against the actual
     /// field.
-    pub fn get_static_field_unchecked<'c, 'f, T, U>(
+    pub fn get_static_field_unchecked<'c, T, U>(
         &self,
         class: T,
         field: U,
@@ -1859,7 +1854,7 @@ impl<'a> JNIEnv<'a> {
     ) -> Result<JValue<'a>>
     where
         T: Desc<'a, JClass<'c>>,
-        U: Desc<'a, JStaticFieldID<'f>>,
+        U: Desc<'a, JStaticFieldID>,
     {
         use JavaType::Primitive as JP;
 
@@ -1920,10 +1915,10 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Set a static field. Requires a class lookup and a field id lookup internally.
-    pub fn set_static_field<'c, 'f, T, U>(&self, class: T, field: U, value: JValue) -> Result<()>
+    pub fn set_static_field<'c, T, U>(&self, class: T, field: U, value: JValue) -> Result<()>
     where
         T: Desc<'a, JClass<'c>>,
-        U: Desc<'a, JStaticFieldID<'f>>,
+        U: Desc<'a, JStaticFieldID>,
     {
         let class = class.lookup(self)?.into_raw();
         let field = field.lookup(self)?.into_raw();
