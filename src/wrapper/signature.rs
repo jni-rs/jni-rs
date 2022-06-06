@@ -70,6 +70,11 @@ impl fmt::Display for JavaType {
     }
 }
 
+/// Enum representing any java type that may be used as a return value
+///
+/// This type intentionally avoids capturing any heap allocated types (to avoid
+/// allocations while making JNI method calls) and so it doesn't fully qualify
+/// the object or array types with a String like `JavaType::Object` does.
 #[allow(missing_docs)]
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum ReturnType {
