@@ -18,3 +18,7 @@ fi
 LIBJVM_PATH="$(find "${JAVA_HOME}" -type f -name "${LIB_NAME}.*" -print0 -quit | xargs -0 -n1 dirname)"
 
 export LD_LIBRARY_PATH="${LIBJVM_PATH}"
+
+# on macOS, cargo use DYLD_FALLBACK_LIBRARY_PATH to locate dynamic libraries. 
+# See https://doc.rust-lang.org/cargo/reference/environment-variables.html#dynamic-library-paths
+export DYLD_FALLBACK_LIBRARY_PATH="${LIBJVM_PATH}":$DYLD_FALLBACK_LIBRARY_PATH
