@@ -16,6 +16,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [Unreleased]
 
 ### Added
+- `Default` trait implemented for `JObject`, `JString`, `JClass`, and `JByteBuffer` (#199)
+
+### Changed
+- The `release_string_utf_chars` function has been marked as unsafe. (#334)
+
+## [0.19.0] — 2021-01-24
+
+### Added
 - `AutoArray` and generic `get_array_elements()`, along with `get_<type>_array_elements` helpers. (#287)
 - `size()` method to `AutoArray` and `AutoPrimitiveArray`. (#278 / #287)
 - `discard()` method to `AutoArray` and `AutoPrimitiveArray`. (#275 / #287)
@@ -216,8 +224,9 @@ to call if there is a pending exception (#124):
 ## [0.10.1]
 - No changes has been made to the Changelog until this release.
 
-[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.18.0...HEAD
-[0.17.0]: https://github.com/jni-rs/jni-rs/compare/v0.17.0...v0.18.0
+[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/jni-rs/jni-rs/compare/v0.18.0...v0.19.0
+[0.18.0]: https://github.com/jni-rs/jni-rs/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/jni-rs/jni-rs/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/jni-rs/jni-rs/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/jni-rs/jni-rs/compare/v0.14.0...v0.15.0

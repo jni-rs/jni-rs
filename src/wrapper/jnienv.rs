@@ -292,7 +292,7 @@ impl<'a> JNIEnv<'a> {
             unreachable!()
         });
 
-        panic!(res.unwrap_err());
+        panic!("{:?}", res.unwrap_err());
     }
 
     /// Check to see if an exception is being thrown. This only differs from
@@ -983,6 +983,10 @@ impl<'a> JNIEnv<'a> {
     ///
     /// This entails a call to `GetStringUTFChars` and only decodes java's
     /// modified UTF-8 format on conversion to a rust-compatible string.
+    ///
+    /// # Panics
+    ///
+    /// This call panics when given an Object that is not a java.lang.String
     pub fn get_string(&self, obj: JString<'a>) -> Result<JavaStr<'a, '_>> {
         non_null!(obj, "get_string obj argument");
         JavaStr::from_env(self, obj)
@@ -1006,9 +1010,22 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Unpin the array returned by `get_string_utf_chars`.
-    // It is safe to dereference a pointer that comes from `get_string_utf_chars`.
-    #[allow(clippy::not_unsafe_ptr_arg_deref)]
-    pub fn release_string_utf_chars(&self, obj: JString, arr: *const c_char) -> Result<()> {
+    ///
+    /// # Safety
+    ///
+    /// The behaviour is undefined if the array isn't returned by the `get_string_utf_chars`
+    /// function.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # let env = unsafe { jni::JNIEnv::from_raw(std::ptr::null_mut()).unwrap() };
+    /// let s = env.new_string("test").unwrap();
+    /// let array = env.get_string_utf_chars(s).unwrap();
+    /// unsafe { env.release_string_utf_chars(s, array).unwrap() };
+    /// ```
+    #[allow(unused_unsafe)]
+    pub unsafe fn release_string_utf_chars(&self, obj: JString, arr: *const c_char) -> Result<()> {
         non_null!(obj, "release_string_utf_chars obj argument");
         // This method is safe to call in case of pending exceptions (see the chapter 2 of the spec)
         jni_unchecked!(self.internal, ReleaseStringUTFChars, obj.into_inner(), arr);
@@ -1040,6 +1057,7 @@ impl<'a> JNIEnv<'a> {
     /// This function returns a local reference, that must not be allocated
     /// excessively.
     /// See [Java documentation][1] for details.
+    ///
     /// [1]: https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/design.html#global_and_local_references
     pub fn new_object_array<'c, T, U>(
         &self,
@@ -2094,7 +2112,7 @@ impl<'a> JNIEnv<'a> {
     ///
     /// If the given array is `null`, an `Error::NullPtr` is returned.
     ///
-    /// See also [`get_byte_array_elements`](struct.JNIEnv.html#method.get_byte_array_elements)
+    /// See also [`get_byte_array_elements`](struct.JNIEnv.html#method.get_array_elements)
     pub fn get_primitive_array_critical(
         &self,
         array: jarray,
@@ -2102,6 +2120,11 @@ impl<'a> JNIEnv<'a> {
     ) -> Result<AutoPrimitiveArray> {
         non_null!(array, "get_primitive_array_critical array argument");
         let mut is_copy: jboolean = 0xff;
+        // Even though this method may throw OoME, use `jni_unchecked`
+        // instead of `jni_non_null_call` to remove (a slight) overhead
+        // of exception checking. An error will still be detected as a `null`
+        // result inside AutoPrimitiveArray ctor; and, as this method is unlikely
+        // to create a copy, an OoME is highly unlikely.
         let ptr = jni_unchecked!(
             self.internal,
             GetPrimitiveArrayCritical,

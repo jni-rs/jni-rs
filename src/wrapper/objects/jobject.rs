@@ -45,3 +45,9 @@ impl<'a> JObject<'a> {
         (::std::ptr::null_mut() as jobject).into()
     }
 }
+
+impl<'a> std::default::Default for JObject<'a> {
+    fn default() -> Self {
+        Self::null()
+    }
+}
