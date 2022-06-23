@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 - `Default` trait implemented for `JObject`, `JString`, `JClass`, and `JByteBuffer` (#199)
+- `JNIEnv#new_direct_byte_buffer_raw` function that allows creating a `JByteBuffer` from a pointer and size (#351)
 
 ### Changed
 - The `release_string_utf_chars` function has been marked as unsafe. (#334)

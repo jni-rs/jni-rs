@@ -317,12 +317,21 @@ impl<'a> JNIEnv<'a> {
     /// `ByteBuffer`. The JVM may maintain references to the `ByteBuffer` beyond the lifetime
     /// of this `JNIEnv`.
     pub unsafe fn new_direct_byte_buffer(&self, data: &mut [u8]) -> Result<JByteBuffer<'a>> {
+        self.new_direct_byte_buffer_raw(data.as_mut_ptr(), data.len())
+    }
+
+    /// Create a new instance of a direct java.nio.ByteBuffer from a pointer and size directly
+    pub unsafe fn new_direct_byte_buffer_raw(
+        &self,
+        data: *mut u8,
+        len: usize,
+    ) -> Result<JByteBuffer<'a>> {
         #[allow(unused_unsafe)]
         let obj: JObject = jni_non_null_call!(
             self.internal,
             NewDirectByteBuffer,
-            data.as_mut_ptr() as *mut c_void,
-            data.len() as jlong
+            data as *mut c_void,
+            len as jlong
         );
         Ok(JByteBuffer::from(obj))
     }
