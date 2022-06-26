@@ -321,6 +321,10 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Create a new instance of a direct java.nio.ByteBuffer from a pointer and size directly
+    ///
+    /// # Safety
+    ///
+    /// Expects a valid pointer and length
     pub unsafe fn new_direct_byte_buffer_raw(
         &self,
         data: *mut u8,
