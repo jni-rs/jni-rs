@@ -583,7 +583,6 @@ pub fn new_direct_byte_buffer() {
 pub fn new_direct_byte_buffer_raw() {
     let env = attach_current_thread();
     let mut vec: Vec<u8> = vec![0, 1, 2, 3];
-    let buf = vec.as_mut_slice();
     let result = unsafe {
         env.new_direct_byte_buffer_raw(vec.as_mut_ptr(), vec.len())
     };
