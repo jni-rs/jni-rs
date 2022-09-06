@@ -354,12 +354,15 @@ struct InternalAttachGuard {
     /// implementation of the crate::sys_common::thread_local_dtor::register_dtor_fallback.
     /// The InternalAttachGuard is a thread-local vairable, so capture the thread meta-data
     /// during creation
-    thread: Thread
+    thread: Thread,
 }
 
 impl InternalAttachGuard {
     fn new(java_vm: *mut sys::JavaVM) -> Self {
-        Self { java_vm, thread: current() }
+        Self {
+            java_vm,
+            thread: current(),
+        }
     }
 
     /// Stores guard in thread local storage.
