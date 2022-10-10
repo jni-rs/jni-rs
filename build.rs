@@ -24,6 +24,7 @@ const EXPECTED_JVM_FILENAME: &str = "jvm.dll";
     target_os = "freebsd",
     target_os = "linux",
     target_os = "netbsd",
+    target_os = "android",
     target_os = "openbsd"
 ))]
 const EXPECTED_JVM_FILENAME: &str = "libjvm.so";
