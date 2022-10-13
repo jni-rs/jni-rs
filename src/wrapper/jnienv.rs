@@ -304,7 +304,20 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Create a new instance of a direct java.nio.ByteBuffer.
-    pub fn new_direct_byte_buffer(&self, data: &mut [u8]) -> Result<JByteBuffer<'a>> {
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let buf = vec![0; 1024 * 1024];
+    /// let direct_buffer = unsafe { env.new_direct_byte_buffer(buf.leak()) };
+    /// ```
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure the lifetime of `data` extends to all uses of the returned
+    /// `ByteBuffer`. The JVM may maintain references to the `ByteBuffer` beyond the lifetime
+    /// of this `JNIEnv`.
+    pub unsafe fn new_direct_byte_buffer(&self, data: &mut [u8]) -> Result<JByteBuffer<'a>> {
+        #[allow(unused_unsafe)]
         let obj: JObject = jni_non_null_call!(
             self.internal,
             NewDirectByteBuffer,
