@@ -40,7 +40,7 @@ impl<'a> Desc<'a, JThrowable<'a>> for String {
     }
 }
 
-impl<'a, 'b> Desc<'a, JThrowable<'a>> for JNIString {
+impl<'a> Desc<'a, JThrowable<'a>> for JNIString {
     fn lookup(self, env: &JNIEnv<'a>) -> Result<JThrowable<'a>> {
         (DEFAULT_EXCEPTION_CLASS, self).lookup(env)
     }
