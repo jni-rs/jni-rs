@@ -21,6 +21,7 @@ use std::{
 #[cfg(target_os = "windows")]
 const EXPECTED_JVM_FILENAME: &str = "jvm.dll";
 #[cfg(any(
+    target_os = "android",
     target_os = "freebsd",
     target_os = "linux",
     target_os = "netbsd",
