@@ -9,7 +9,7 @@ use crate::sys::jmethodID;
 /// `jmethodid`. This represents static methods only since they require a
 /// different set of JNI signatures.
 #[repr(transparent)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct JStaticMethodID<'a> {
     internal: jmethodID,
     lifetime: PhantomData<&'a ()>,

@@ -4,7 +4,7 @@ use crate::sys::JNI_ABORT;
 ///
 /// This defines the release mode of AutoArray (and AutoPrimitiveArray) resources, and
 /// related release array functions.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[repr(i32)]
 pub enum ReleaseMode {
     /// Copy back the content and free the elems buffer. For read-only access, prefer
