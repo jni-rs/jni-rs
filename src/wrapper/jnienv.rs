@@ -2042,7 +2042,7 @@ impl<'a> JNIEnv<'a> {
         &self,
         array: jarray,
         mode: ReleaseMode,
-    ) -> Result<AutoArray<T>> {
+    ) -> Result<AutoArray<'a, T>> {
         non_null!(array, "get_array_elements array argument");
         AutoArray::new(self, array.into(), mode)
     }
@@ -2052,7 +2052,7 @@ impl<'a> JNIEnv<'a> {
         &self,
         array: jintArray,
         mode: ReleaseMode,
-    ) -> Result<AutoArray<jint>> {
+    ) -> Result<AutoArray<'a, jint>> {
         self.get_array_elements(array, mode)
     }
 
@@ -2061,7 +2061,7 @@ impl<'a> JNIEnv<'a> {
         &self,
         array: jlongArray,
         mode: ReleaseMode,
-    ) -> Result<AutoArray<jlong>> {
+    ) -> Result<AutoArray<'a, jlong>> {
         self.get_array_elements(array, mode)
     }
 
@@ -2070,7 +2070,7 @@ impl<'a> JNIEnv<'a> {
         &self,
         array: jbyteArray,
         mode: ReleaseMode,
-    ) -> Result<AutoArray<jbyte>> {
+    ) -> Result<AutoArray<'a, jbyte>> {
         self.get_array_elements(array, mode)
     }
 
@@ -2079,7 +2079,7 @@ impl<'a> JNIEnv<'a> {
         &self,
         array: jbooleanArray,
         mode: ReleaseMode,
-    ) -> Result<AutoArray<jboolean>> {
+    ) -> Result<AutoArray<'a, jboolean>> {
         self.get_array_elements(array, mode)
     }
 
@@ -2088,7 +2088,7 @@ impl<'a> JNIEnv<'a> {
         &self,
         array: jcharArray,
         mode: ReleaseMode,
-    ) -> Result<AutoArray<jchar>> {
+    ) -> Result<AutoArray<'a, jchar>> {
         self.get_array_elements(array, mode)
     }
 
@@ -2097,7 +2097,7 @@ impl<'a> JNIEnv<'a> {
         &self,
         array: jshortArray,
         mode: ReleaseMode,
-    ) -> Result<AutoArray<jshort>> {
+    ) -> Result<AutoArray<'a, jshort>> {
         self.get_array_elements(array, mode)
     }
 
@@ -2106,7 +2106,7 @@ impl<'a> JNIEnv<'a> {
         &self,
         array: jfloatArray,
         mode: ReleaseMode,
-    ) -> Result<AutoArray<jfloat>> {
+    ) -> Result<AutoArray<'a, jfloat>> {
         self.get_array_elements(array, mode)
     }
 
@@ -2115,7 +2115,7 @@ impl<'a> JNIEnv<'a> {
         &self,
         array: jdoubleArray,
         mode: ReleaseMode,
-    ) -> Result<AutoArray<jdouble>> {
+    ) -> Result<AutoArray<'a, jdouble>> {
         self.get_array_elements(array, mode)
     }
 
