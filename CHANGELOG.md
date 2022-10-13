@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - The `release_string_utf_chars` function has been marked as unsafe. (#334)
 - Breaking change: Mark `JNIEnv::new_direct_byte_buffer` as `unsafe` (#320)
 - The lifetime of `AutoArray` is no longer tied to the lifetime of a particular `JNIEnv` reference. (#302)
+- Relaxed lifetime restrictions on `JNIEnv::new_local_ref`. Now it can be used to create a local
+  reference from a global reference. (#301 / #319)
 
 ## [0.19.0] — 2021-01-24
 
