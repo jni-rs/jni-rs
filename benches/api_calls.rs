@@ -3,12 +3,13 @@
 
 extern crate test;
 
+use jni_sys::jvalue;
 use lazy_static::lazy_static;
 
 use jni::{
     descriptors::Desc,
     objects::{JClass, JMethodID, JObject, JStaticMethodID, JValue},
-    signature::{JavaType, Primitive},
+    signature::{Primitive, ReturnType},
     sys::jint,
     InitArgsBuilder, JNIEnv, JNIVersion, JavaVM,
 };
@@ -84,9 +85,9 @@ where
     C: Desc<'c, JClass<'c>>,
 {
     let x = JValue::from(x);
-    let ret = JavaType::Primitive(Primitive::Int);
+    let ret = ReturnType::Primitive(Primitive::Int);
     let v = env
-        .call_static_method_unchecked(class, method_id, ret, &[x])
+        .call_static_method_unchecked(class, method_id, ret, &[x.into()])
         .unwrap();
     v.i().unwrap()
 }
@@ -95,7 +96,7 @@ fn jni_int_call_unchecked<'m, M>(env: &JNIEnv<'m>, obj: JObject<'m>, method_id: 
 where
     M: Desc<'m, JMethodID>,
 {
-    let ret = JavaType::Primitive(Primitive::Int);
+    let ret = ReturnType::Primitive(Primitive::Int);
     let v = env.call_method_unchecked(obj, method_id, ret, &[]).unwrap();
     v.i().unwrap()
 }
@@ -104,30 +105,13 @@ fn jni_object_call_static_unchecked<'c, C>(
     env: &JNIEnv<'c>,
     class: C,
     method_id: JStaticMethodID,
-    ret: JavaType,
-    args: &[JValue],
+    args: &[jvalue],
 ) -> JObject<'c>
 where
     C: Desc<'c, JClass<'c>>,
 {
     let v = env
-        .call_static_method_unchecked(class, method_id, ret, args)
-        .unwrap();
-    v.l().unwrap()
-}
-
-fn jni_object_call_unchecked<'a, M>(
-    env: &JNIEnv<'a>,
-    obj: JObject<'a>,
-    method_id: M,
-    ret: JavaType,
-    args: &[JValue],
-) -> JObject<'a>
-where
-    M: Desc<'a, JMethodID>,
-{
-    let v = env
-        .call_method_unchecked(obj, method_id, ret, args)
+        .call_static_method_unchecked(class, method_id, ReturnType::Object, args)
         .unwrap();
     v.l().unwrap()
 }
@@ -203,20 +187,18 @@ mod tests {
             .unwrap();
 
         b.iter(|| {
-            let ret_type = JavaType::Object(CLASS_LOCAL_DATE_TIME.to_string());
             let obj = jni_object_call_static_unchecked(
                 &env,
                 class,
                 method_id,
-                ret_type,
                 &[
-                    1.into(),
-                    1.into(),
-                    1.into(),
-                    1.into(),
-                    1.into(),
-                    1.into(),
-                    1.into(),
+                    JValue::Int(1).into(),
+                    JValue::Int(1).into(),
+                    JValue::Int(1).into(),
+                    JValue::Int(1).into(),
+                    JValue::Int(1).into(),
+                    JValue::Int(1).into(),
+                    JValue::Int(1).into(),
                 ],
             );
             env.delete_local_ref(obj).unwrap();

@@ -1,7 +1,7 @@
 use crate::{
     errors::*,
-    objects::{AutoLocal, JMethodID, JObject},
-    signature::{JavaType, Primitive},
+    objects::{AutoLocal, JMethodID, JObject, JValue},
+    signature::{Primitive, ReturnType},
     JNIEnv,
 };
 
@@ -67,8 +67,8 @@ impl<'a: 'b, 'b> JMap<'a, 'b> {
         let result = self.env.call_method_unchecked(
             self.internal,
             self.get,
-            JavaType::Object("java/lang/Object".into()),
-            &[key.into()],
+            ReturnType::Object,
+            &[JValue::from(key).to_jni()],
         );
 
         match result {
@@ -86,8 +86,8 @@ impl<'a: 'b, 'b> JMap<'a, 'b> {
         let result = self.env.call_method_unchecked(
             self.internal,
             self.put,
-            JavaType::Object("java/lang/Object".into()),
-            &[key.into(), value.into()],
+            ReturnType::Object,
+            &[JValue::from(key).to_jni(), JValue::from(value).to_jni()],
         );
 
         match result {
@@ -105,8 +105,8 @@ impl<'a: 'b, 'b> JMap<'a, 'b> {
         let result = self.env.call_method_unchecked(
             self.internal,
             self.remove,
-            JavaType::Object("java/lang/Object".into()),
-            &[key.into()],
+            ReturnType::Object,
+            &[JValue::from(key).to_jni()],
         );
 
         match result {
@@ -152,7 +152,7 @@ impl<'a: 'b, 'b> JMap<'a, 'b> {
                 .call_method_unchecked(
                     self.internal,
                     (&self.class, "entrySet", "()Ljava/util/Set;"),
-                    JavaType::Object("java/util/Set".into()),
+                    ReturnType::Object,
                     &[],
                 )?
                 .l()?;
@@ -162,7 +162,7 @@ impl<'a: 'b, 'b> JMap<'a, 'b> {
                 .call_method_unchecked(
                     entry_set,
                     ("java/util/Set", "iterator", "()Ljava/util/Iterator;"),
-                    JavaType::Object("java/util/Iterator".into()),
+                    ReturnType::Object,
                     &[],
                 )?
                 .l()?;
@@ -204,7 +204,7 @@ impl<'a: 'b, 'b: 'c, 'c> JMapIter<'a, 'b, 'c> {
             .call_method_unchecked(
                 iter,
                 self.has_next,
-                JavaType::Primitive(Primitive::Boolean),
+                ReturnType::Primitive(Primitive::Boolean),
                 &[],
             )?
             .z()?;
@@ -215,34 +215,19 @@ impl<'a: 'b, 'b: 'c, 'c> JMapIter<'a, 'b, 'c> {
         let next = self
             .map
             .env
-            .call_method_unchecked(
-                iter,
-                self.next,
-                JavaType::Object("java/util/Map$Entry".into()),
-                &[],
-            )?
+            .call_method_unchecked(iter, self.next, ReturnType::Object, &[])?
             .l()?;
 
         let key = self
             .map
             .env
-            .call_method_unchecked(
-                next,
-                self.get_key,
-                JavaType::Object("java/lang/Object".into()),
-                &[],
-            )?
+            .call_method_unchecked(next, self.get_key, ReturnType::Object, &[])?
             .l()?;
 
         let value = self
             .map
             .env
-            .call_method_unchecked(
-                next,
-                self.get_value,
-                JavaType::Object("java/lang/Object".into()),
-                &[],
-            )?
+            .call_method_unchecked(next, self.get_value, ReturnType::Object, &[])?
             .l()?;
 
         Ok(Some((key, value)))

@@ -70,6 +70,40 @@ impl fmt::Display for JavaType {
     }
 }
 
+/// Enum representing any java type that may be used as a return value
+///
+/// This type intentionally avoids capturing any heap allocated types (to avoid
+/// allocations while making JNI method calls) and so it doesn't fully qualify
+/// the object or array types with a String like `JavaType::Object` does.
+#[allow(missing_docs)]
+#[derive(Eq, PartialEq, Debug, Clone)]
+pub enum ReturnType {
+    Primitive(Primitive),
+    Object,
+    Array,
+}
+
+impl FromStr for ReturnType {
+    type Err = Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        parser(parse_return)
+            .parse(s)
+            .map(|res| res.0)
+            .map_err(|e| Error::ParseFailed(e, s.to_owned()))
+    }
+}
+
+impl fmt::Display for ReturnType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ReturnType::Primitive(ref ty) => ty.fmt(f),
+            ReturnType::Object => write!(f, "L;"),
+            ReturnType::Array => write!(f, "["),
+        }
+    }
+}
+
 /// A method type signature. This is the structure representation of something
 /// like `(Ljava/lang/String;)Z`. Used by the `call_(object|static)_method`
 /// functions on jnienv to ensure safety.
@@ -77,7 +111,7 @@ impl fmt::Display for JavaType {
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct TypeSignature {
     pub args: Vec<JavaType>,
-    pub ret: JavaType,
+    pub ret: ReturnType,
 }
 
 impl TypeSignature {
@@ -105,7 +139,7 @@ impl fmt::Display for TypeSignature {
     }
 }
 
-fn parse_primitive<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<JavaType, S>
+fn parse_primitive<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<Primitive, S>
 where
     S::Error: ParseError<char, S::Range, S::Position>,
 {
@@ -128,7 +162,6 @@ where
         .or(long)
         .or(short)
         .or(void))
-    .map(JavaType::Primitive)
     .parse_stream(input)
     .into()
 }
@@ -160,9 +193,22 @@ where
     S::Error: ParseError<char, S::Range, S::Position>,
 {
     parser(parse_primitive)
+        .map(JavaType::Primitive)
         .or(parser(parse_array))
         .or(parser(parse_object))
         .or(parser(parse_sig))
+        .parse_stream(input)
+        .into()
+}
+
+fn parse_return<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<ReturnType, S>
+where
+    S::Error: ParseError<char, S::Range, S::Position>,
+{
+    parser(parse_primitive)
+        .map(ReturnType::Primitive)
+        .or(parser(parse_array).map(|_| ReturnType::Array))
+        .or(parser(parse_object).map(|_| ReturnType::Object))
         .parse_stream(input)
         .into()
 }
@@ -180,7 +226,7 @@ fn parse_sig<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<JavaType,
 where
     S::Error: ParseError<char, S::Range, S::Position>,
 {
-    (parser(parse_args), parser(parse_type))
+    (parser(parse_args), parser(parse_return))
         .map(|(a, r)| TypeSignature { args: a, ret: r })
         .map(|sig| JavaType::Method(Box::new(sig)))
         .parse_stream(input)
@@ -196,7 +242,8 @@ mod test {
         let inputs = [
             "(Ljava/lang/String;I)V",
             "[Lherp;",
-            "(IBVZ)Ljava/lang/String;",
+            // fails because the return type does not contain the class name: "(IBVZ)L;"
+            // "(IBVZ)Ljava/lang/String;",
         ];
 
         for each in inputs.iter() {
