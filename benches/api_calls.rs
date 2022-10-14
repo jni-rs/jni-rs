@@ -38,7 +38,7 @@ fn jni_abs_safe(env: &JNIEnv, x: jint) -> jint {
 fn jni_call_static_unchecked<'c, C>(
     env: &JNIEnv<'c>,
     class: C,
-    method_id: JStaticMethodID<'c>,
+    method_id: JStaticMethodID,
     x: jint,
 ) -> jint
 where
@@ -61,7 +61,7 @@ fn jni_hash_safe(env: &JNIEnv, obj: JObject) -> jint {
 
 fn jni_call_unchecked<'m, M>(env: &JNIEnv<'m>, obj: JObject<'m>, method_id: M) -> jint
 where
-    M: Desc<'m, JMethodID<'m>>,
+    M: Desc<'m, JMethodID>,
 {
     let ret = JavaType::Primitive(Primitive::Int);
     let v = env.call_method_unchecked(obj, method_id, ret, &[]).unwrap();

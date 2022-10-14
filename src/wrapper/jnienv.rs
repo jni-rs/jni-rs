@@ -615,7 +615,7 @@ impl<'a> JNIEnv<'a> {
     /// let method_id: JMethodID =
     ///     env.get_method_id("java/lang/String", "substring", "(II)Ljava/lang/String;");
     /// ```
-    pub fn get_method_id<'c, T, U, V>(&self, class: T, name: U, sig: V) -> Result<JMethodID<'a>>
+    pub fn get_method_id<'c, T, U, V>(&self, class: T, name: U, sig: V) -> Result<JMethodID>
     where
         T: Desc<'a, JClass<'c>>,
         U: Into<JNIString>,
@@ -645,7 +645,7 @@ impl<'a> JNIEnv<'a> {
         class: T,
         name: U,
         sig: V,
-    ) -> Result<JStaticMethodID<'a>>
+    ) -> Result<JStaticMethodID>
     where
         T: Desc<'a, JClass<'c>>,
         U: Into<JNIString>,
@@ -761,7 +761,7 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Under the hood, this simply calls the `CallStatic<Type>MethodA` method
     /// with the provided arguments.
-    pub fn call_static_method_unchecked<'c, 'm, T, U>(
+    pub fn call_static_method_unchecked<'c, T, U>(
         &self,
         class: T,
         method_id: U,
@@ -770,7 +770,7 @@ impl<'a> JNIEnv<'a> {
     ) -> Result<JValue<'a>>
     where
         T: Desc<'a, JClass<'c>>,
-        U: Desc<'a, JStaticMethodID<'m>>,
+        U: Desc<'a, JStaticMethodID>,
     {
         let class = class.lookup(self)?;
 
@@ -880,7 +880,7 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Under the hood, this simply calls the `Call<Type>MethodA` method with
     /// the provided arguments.
-    pub fn call_method_unchecked<'m, O, T>(
+    pub fn call_method_unchecked<O, T>(
         &self,
         obj: O,
         method_id: T,
@@ -889,7 +889,7 @@ impl<'a> JNIEnv<'a> {
     ) -> Result<JValue<'a>>
     where
         O: Into<JObject<'a>>,
-        T: Desc<'a, JMethodID<'m>>,
+        T: Desc<'a, JMethodID>,
     {
         let method_id = method_id.lookup(self)?.into_inner();
 
