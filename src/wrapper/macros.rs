@@ -4,7 +4,7 @@
 macro_rules! jni_non_null_call {
     ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
         let res = jni_non_void_call!($jnienv, $name $(, $args)*);
-        non_null!(res, concat!(stringify!($name), " result")).into()
+        non_null!(res, concat!(stringify!($name), " result"))
     })
 }
 
@@ -14,6 +14,7 @@ macro_rules! jni_non_void_call {
     ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
         log::trace!("calling checked jni method: {}", stringify!($name));
 
+        #[allow(unused_unsafe)]
         let res = unsafe {
             jni_method!($jnienv, $name)($jnienv, $($args),*)
         };
@@ -39,6 +40,7 @@ macro_rules! jni_void_call {
     ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
         log::trace!("calling checked jni method: {}", stringify!($name));
 
+        #[allow(unused_unsafe)]
         unsafe {
             jni_method!($jnienv, $name)($jnienv, $($args),*)
         };
@@ -53,6 +55,7 @@ macro_rules! jni_unchecked {
     ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
         log::trace!("calling unchecked jni method: {}", stringify!($name));
 
+        #[allow(unused_unsafe)]
         unsafe {
             jni_method!($jnienv, $name)($jnienv, $($args),*)
         }

@@ -67,7 +67,7 @@ impl GlobalRefGuard {
     /// has already been called.
     unsafe fn from_raw(vm: JavaVM, obj: sys::jobject) -> Self {
         GlobalRefGuard {
-            obj: JObject::from(obj),
+            obj: JObject::from_raw(obj),
             vm,
         }
     }
@@ -86,7 +86,7 @@ impl Drop for GlobalRefGuard {
         fn drop_impl(env: &JNIEnv, global_ref: JObject) -> Result<()> {
             let internal = env.get_native_interface();
             // This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
-            jni_unchecked!(internal, DeleteGlobalRef, global_ref.into_inner());
+            jni_unchecked!(internal, DeleteGlobalRef, global_ref.into_raw());
             Ok(())
         }
 

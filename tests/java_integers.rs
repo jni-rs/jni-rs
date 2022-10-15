@@ -16,11 +16,9 @@ fn test_java_integers() {
             let integer_value =
                 env.new_object("java/lang/Integer", "(I)V", &[JValue::Int(value)])?;
 
-            let values_array = JObject::from(env.new_object_array(
-                array_length,
-                "java/lang/Integer",
-                integer_value,
-            )?);
+            let values_array =
+                env.new_object_array(array_length, "java/lang/Integer", integer_value)?;
+            let values_array = unsafe { JObject::from_raw(values_array) };
 
             let result = env
                 .call_static_method(

@@ -17,15 +17,6 @@ pub struct JObject<'a> {
     lifetime: PhantomData<&'a ()>,
 }
 
-impl<'a> From<jobject> for JObject<'a> {
-    fn from(other: jobject) -> Self {
-        JObject {
-            internal: other,
-            lifetime: PhantomData,
-        }
-    }
-}
-
 impl<'a> ::std::ops::Deref for JObject<'a> {
     type Target = jobject;
 
@@ -35,14 +26,26 @@ impl<'a> ::std::ops::Deref for JObject<'a> {
 }
 
 impl<'a> JObject<'a> {
+    /// Creates a [`JObject`] that wraps the given `raw` [`jobject`]
+    ///
+    /// # Safety
+    ///
+    /// Expects a valid pointer or `null`
+    pub unsafe fn from_raw(raw: jobject) -> Self {
+        Self {
+            internal: raw,
+            lifetime: PhantomData,
+        }
+    }
+
     /// Unwrap to the internal jni type.
-    pub fn into_inner(self) -> jobject {
+    pub fn into_raw(self) -> jobject {
         self.internal
     }
 
     /// Creates a new null object
     pub fn null() -> JObject<'a> {
-        (::std::ptr::null_mut() as jobject).into()
+        unsafe { Self::from_raw(std::ptr::null_mut() as jobject) }
     }
 }
 

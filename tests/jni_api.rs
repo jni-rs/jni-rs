@@ -305,7 +305,7 @@ pub fn java_byte_array_from_slice() {
     let java_array = env
         .byte_array_from_slice(buf)
         .expect("JNIEnv#byte_array_from_slice must create a java array from slice");
-    let obj = AutoLocal::new(&env, JObject::from(java_array));
+    let obj = AutoLocal::new(&env, unsafe { JObject::from_raw(java_array) });
 
     assert!(!obj.as_obj().is_null());
     let mut res: [i8; 3] = [0; 3];
@@ -613,7 +613,7 @@ pub fn get_direct_buffer_capacity_ok() {
 #[test]
 pub fn get_direct_buffer_capacity_wrong_arg() {
     let env = attach_current_thread();
-    let wrong_obj = JByteBuffer::from(env.new_string("wrong").unwrap().into_inner());
+    let wrong_obj = unsafe { JByteBuffer::from_raw(env.new_string("wrong").unwrap().into_raw()) };
     let capacity = env.get_direct_buffer_capacity(wrong_obj);
     assert!(capacity.is_err());
 }

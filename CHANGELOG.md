@@ -33,6 +33,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   IDs cacheable (with a documented 'Safety' note about ensuring they remain valid). ([#346](https://github.com/jni-rs/jni-rs/pull/346))
 - The `call_*_method_unchecked` functions now take `jni:sys::jvalue` arguments to avoid allocating
   a `Vec` on each call to map + collect `JValue`s as `sys:jvalue`s (#329)
+- The `From` trait implementations converting `jni_sys` types like `jobject` to `JObject` have been replaced
+  with `unsafe` `::from_raw` functions and corresponding `::into_raw` methods. Existing `::into_inner` APIs were
+  renamed `::into_raw` for symmetry. ([#197](https://github.com/jni-rs/jni-rs/issues/197))
+
 
 ## [0.19.0] — 2021-01-24
 

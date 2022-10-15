@@ -26,15 +26,19 @@ pub struct JMethodID {
 unsafe impl Send for JMethodID {}
 unsafe impl Sync for JMethodID {}
 
-impl From<jmethodID> for JMethodID {
-    fn from(other: jmethodID) -> Self {
-        JMethodID { internal: other }
-    }
-}
-
 impl JMethodID {
+    /// Creates a [`JMethodID`] that wraps the given `raw` [`jmethodID`]
+    ///
+    /// # Safety
+    ///
+    /// Expects a valid, non-`null` ID
+    pub unsafe fn from_raw(raw: jmethodID) -> Self {
+        debug_assert!(!raw.is_null(), "from_raw methodID argument");
+        Self { internal: raw }
+    }
+
     /// Unwrap to the internal jni type.
-    pub fn into_inner(self) -> jmethodID {
+    pub fn into_raw(self) -> jmethodID {
         self.internal
     }
 }
