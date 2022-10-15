@@ -576,28 +576,34 @@ pub fn get_object_class_null_arg() {
 #[test]
 pub fn new_direct_byte_buffer() {
     let env = attach_current_thread();
-    let mut vec: Vec<u8> = vec![0, 1, 2, 3];
-    let buf = vec.as_mut_slice();
-    let result = unsafe { env.new_direct_byte_buffer(buf) };
+    let vec: Vec<u8> = vec![0, 1, 2, 3];
+    let (addr, len) = {
+        // (would use buf.into_raw_parts() on nightly)
+        let buf = vec.leak();
+        (buf.as_mut_ptr(), buf.len())
+    };
+    let result = unsafe { env.new_direct_byte_buffer(addr, len) };
     assert!(result.is_ok());
     assert!(!result.unwrap().is_null());
 }
 
 #[test]
-pub fn new_direct_byte_buffer_raw() {
+pub fn new_direct_byte_buffer_invalid_addr() {
     let env = attach_current_thread();
-    let mut vec: Vec<u8> = vec![0, 1, 2, 3];
-    let result = unsafe { env.new_direct_byte_buffer_raw(vec.as_mut_ptr(), vec.len()) };
-    assert!(result.is_ok());
-    assert!(!result.unwrap().is_null());
+    let result = unsafe { env.new_direct_byte_buffer(std::ptr::null_mut(), 5) };
+    assert!(result.is_err());
 }
 
 #[test]
 pub fn get_direct_buffer_capacity_ok() {
     let env = attach_current_thread();
-    let mut vec: Vec<u8> = vec![0, 1, 2, 3];
-    let buf = vec.as_mut_slice();
-    let result = unsafe { env.new_direct_byte_buffer(buf) }.unwrap();
+    let vec: Vec<u8> = vec![0, 1, 2, 3];
+    let (addr, len) = {
+        // (would use buf.into_raw_parts() on nightly)
+        let buf = vec.leak();
+        (buf.as_mut_ptr(), buf.len())
+    };
+    let result = unsafe { env.new_direct_byte_buffer(addr, len) }.unwrap();
     assert!(!result.is_null());
 
     let capacity = env.get_direct_buffer_capacity(result).unwrap();
@@ -613,15 +619,26 @@ pub fn get_direct_buffer_capacity_wrong_arg() {
 }
 
 #[test]
+pub fn get_direct_buffer_capacity_null_arg() {
+    let env = attach_current_thread();
+    let result = env.get_direct_buffer_capacity(JObject::null().into());
+    assert!(result.is_err());
+}
+
+#[test]
 pub fn get_direct_buffer_address_ok() {
     let env = attach_current_thread();
-    let mut vec: Vec<u8> = vec![0, 1, 2, 3];
-    let buf = vec.as_mut_slice();
-    let result = unsafe { env.new_direct_byte_buffer(buf) }.unwrap();
+    let vec: Vec<u8> = vec![0, 1, 2, 3];
+    let (addr, len) = {
+        // (would use buf.into_raw_parts() on nightly)
+        let buf = vec.leak();
+        (buf.as_mut_ptr(), buf.len())
+    };
+    let result = unsafe { env.new_direct_byte_buffer(addr, len) }.unwrap();
     assert!(!result.is_null());
 
     let dest_buffer = env.get_direct_buffer_address(result).unwrap();
-    assert_eq!(buf, dest_buffer);
+    assert_eq!(addr, dest_buffer);
 }
 
 #[test]
