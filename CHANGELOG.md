@@ -17,13 +17,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 - `Default` trait implemented for `JObject`, `JString`, `JClass`, and `JByteBuffer` (#199)
-- `JNIEnv#new_direct_byte_buffer_raw` function that allows creating a `JByteBuffer` from a pointer and size (#351)
+- `JNIEnv#new_direct_byte_buffer_raw` function that allows creating a `JByteBuffer` from a pointer and size ([#351](https://github.com/jni-rs/jni-rs/pull/351))
 - `Debug` trait implemented for `JavaVM`, `GlobalRef`, `GlobalRefGuard`, `JStaticMethodID` and `ReleaseMode`
 - `ReturnType` for specifying object return types without a String allocation. (#329)
 
 ### Changed
 - The `release_string_utf_chars` function has been marked as unsafe. (#334)
-- Breaking change: Mark `JNIEnv::new_direct_byte_buffer` as `unsafe` (#320)
+- Mark `JNIEnv::new_direct_byte_buffer` as `unsafe` ([#320](https://github.com/jni-rs/jni-rs/pull/320))
+- `JNIEnv::new_direct_byte_buffer` now takes a raw pointer and size instead of a slice ([#364](https://github.com/jni-rs/jni-rs/pull/364))
+- `JNIEnv::direct_buffer_address` returns a raw pointer instead of a slice ([#364](https://github.com/jni-rs/jni-rs/pull/364))
 - The lifetime of `AutoArray` is no longer tied to the lifetime of a particular `JNIEnv` reference. (#302)
 - Relaxed lifetime restrictions on `JNIEnv::new_local_ref`. Now it can be used to create a local
   reference from a global reference. (#301 / #319)

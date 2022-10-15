@@ -1,7 +1,7 @@
 use std::{
     marker::PhantomData,
     os::raw::{c_char, c_void},
-    ptr, slice, str,
+    ptr, str,
     str::FromStr,
     sync::{Mutex, MutexGuard},
 };
@@ -304,33 +304,31 @@ impl<'a> JNIEnv<'a> {
         Ok(check)
     }
 
-    /// Create a new instance of a direct java.nio.ByteBuffer.
+    /// Create a new instance of a direct java.nio.ByteBuffer
     ///
     /// # Example
     /// ```rust,ignore
     /// let buf = vec![0; 1024 * 1024];
-    /// let direct_buffer = unsafe { env.new_direct_byte_buffer(buf.leak()) };
+    /// let (addr, len) = { // (use buf.into_raw_parts() on nightly)
+    ///     let buf = buf.leak();
+    ///     (buf.as_mut_ptr(), buf.len())
+    /// };
+    /// let direct_buffer = unsafe { env.new_direct_byte_buffer(addr, len) };
     /// ```
     ///
     /// # Safety
     ///
+    /// Expects a valid (non-null) pointer and length
+    ///
     /// Caller must ensure the lifetime of `data` extends to all uses of the returned
     /// `ByteBuffer`. The JVM may maintain references to the `ByteBuffer` beyond the lifetime
     /// of this `JNIEnv`.
-    pub unsafe fn new_direct_byte_buffer(&self, data: &mut [u8]) -> Result<JByteBuffer<'a>> {
-        self.new_direct_byte_buffer_raw(data.as_mut_ptr(), data.len())
-    }
-
-    /// Create a new instance of a direct java.nio.ByteBuffer from a pointer and size directly
-    ///
-    /// # Safety
-    ///
-    /// Expects a valid pointer and length
-    pub unsafe fn new_direct_byte_buffer_raw(
+    pub unsafe fn new_direct_byte_buffer(
         &self,
         data: *mut u8,
         len: usize,
     ) -> Result<JByteBuffer<'a>> {
+        non_null!(data, "new_direct_byte_buffer data argument");
         #[allow(unused_unsafe)]
         let obj: JObject = jni_non_null_call!(
             self.internal,
@@ -343,21 +341,28 @@ impl<'a> JNIEnv<'a> {
 
     /// Returns the starting address of the memory of the direct
     /// java.nio.ByteBuffer.
-    pub fn get_direct_buffer_address(&self, buf: JByteBuffer) -> Result<&mut [u8]> {
+    pub fn get_direct_buffer_address(&self, buf: JByteBuffer) -> Result<*mut u8> {
         non_null!(buf, "get_direct_buffer_address argument");
-        let ptr: *mut c_void =
-            jni_unchecked!(self.internal, GetDirectBufferAddress, buf.into_inner());
+        let ptr = jni_unchecked!(self.internal, GetDirectBufferAddress, buf.into_inner());
         non_null!(ptr, "get_direct_buffer_address return value");
-        let capacity = self.get_direct_buffer_capacity(buf)?;
-        unsafe { Ok(slice::from_raw_parts_mut(ptr as *mut u8, capacity as usize)) }
+        Ok(ptr as _)
     }
 
-    /// Returns the capacity of the direct java.nio.ByteBuffer.
-    pub fn get_direct_buffer_capacity(&self, buf: JByteBuffer) -> Result<jlong> {
+    /// Returns the capacity (length) of the direct java.nio.ByteBuffer.
+    ///
+    /// # Terminology
+    ///
+    /// "capacity" here means the length that was passed to [`Self::new_direct_byte_buffer()`]
+    /// which does not reflect the (potentially) larger size of the underlying allocation (unlike the `Vec`
+    /// API).
+    ///
+    /// The terminology is simply kept from the original JNI API (`GetDirectBufferCapacity`).
+    pub fn get_direct_buffer_capacity(&self, buf: JByteBuffer) -> Result<usize> {
+        non_null!(buf, "get_direct_buffer_capacity argument");
         let capacity = jni_unchecked!(self.internal, GetDirectBufferCapacity, buf.into_inner());
         match capacity {
             -1 => Err(Error::JniCall(JniError::Unknown)),
-            _ => Ok(capacity),
+            _ => Ok(capacity as usize),
         }
     }
 
