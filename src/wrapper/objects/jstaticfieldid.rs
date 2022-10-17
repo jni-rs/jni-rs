@@ -14,18 +14,22 @@ pub struct JStaticFieldID<'a> {
     lifetime: PhantomData<&'a ()>,
 }
 
-impl<'a> From<jfieldID> for JStaticFieldID<'a> {
-    fn from(other: jfieldID) -> Self {
-        JStaticFieldID {
-            internal: other,
+impl<'a> JStaticFieldID<'a> {
+    /// Creates a [`JStaticFieldID`] that wraps the given `raw` [`jfieldID`]
+    ///
+    /// # Safety
+    ///
+    /// Expects a valid, non-`null` ID
+    pub unsafe fn from_raw(raw: jfieldID) -> Self {
+        debug_assert!(!raw.is_null(), "from_raw methodID argument");
+        Self {
+            internal: raw,
             lifetime: PhantomData,
         }
     }
-}
 
-impl<'a> JStaticFieldID<'a> {
     /// Unwrap to the internal jni type.
-    pub fn into_inner(self) -> jfieldID {
+    pub fn into_raw(self) -> jfieldID {
         self.internal
     }
 }
