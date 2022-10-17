@@ -1949,18 +1949,29 @@ impl<'a> JNIEnv<'a> {
         Ok(())
     }
 
-    /// Surrenders ownership of a rust object to Java. Requires an object with a
-    /// `long` field to store the pointer. The Rust value will be wrapped in a
-    /// Mutex since Java will be controlling where it'll be used thread-wise.
-    /// Unsafe because it leaks memory if `take_rust_field` is never called (so
-    /// be sure to make a finalizer).
+    /// Surrenders ownership of a Rust value to Java.
     ///
-    /// **DO NOT** make a copy of the object containing one of these fields. If
-    /// you've set up a finalizer to pass it back to Rust upon being GC'd, it
-    /// will point to invalid memory and will likely attempt to be deallocated
-    /// again.
+    /// This requires an object with a `long` field to store the pointer.
+    ///
+    /// The Rust value will be implicitly wrapped in a `Box<Mutex<T>>`.
+    ///
+    /// The Java object will be locked before changing the field value.
+    ///
+    /// # Safety
+    ///
+    /// It's important to note that using this API will leak memory if
+    /// [`Self::take_rust_field`] is never called so that the Rust type may be
+    /// dropped.
+    ///
+    /// One suggestion that may help ensure that a set Rust field will be
+    /// cleaned up later is for the Java object to implement `Closeable` and let
+    /// people use a `use` block (Kotlin) or `try-with-resources` (Java).
+    ///
+    /// **DO NOT** make a copy of the object containing one of these fields
+    /// since that will lead to a use-after-free error if the Rust type is
+    /// taken and dropped multiple times from Rust.
     #[allow(unused_variables)]
-    pub fn set_rust_field<O, S, T>(&self, obj: O, field: S, rust_object: T) -> Result<()>
+    pub unsafe fn set_rust_field<O, S, T>(&self, obj: O, field: S, rust_object: T) -> Result<()>
     where
         O: Into<JObject<'a>>,
         S: AsRef<str>,
@@ -1987,12 +1998,21 @@ impl<'a> JNIEnv<'a> {
         self.set_field_unchecked(obj, field_id, (ptr as crate::sys::jlong).into())
     }
 
-    /// Gets a lock on a Rust value that's been given to a Java object. Java
-    /// still retains ownership and `take_rust_field` will still need to be
-    /// called at some point. Checks for a null pointer, but assumes that the
-    /// data it points to is valid for T.
+    /// Gets a lock on a Rust value that's been given to a Java object.
+    ///
+    /// Java still retains ownership and [`Self::take_rust_field`] will still
+    /// need to be called at some point.
+    ///
+    /// The Java object will be locked before reading the field value but the
+    /// Java object lock will be released after the Rust `Mutex` lock for the
+    /// field value has been taken (i.e the Java object won't be locked once
+    /// this function returns).
+    ///
+    /// # Safety
+    ///
+    /// Checks for a null pointer, but assumes that the data it points to is valid for T.
     #[allow(unused_variables)]
-    pub fn get_rust_field<O, S, T>(&self, obj: O, field: S) -> Result<MutexGuard<T>>
+    pub unsafe fn get_rust_field<O, S, T>(&self, obj: O, field: S) -> Result<MutexGuard<T>>
     where
         O: Into<JObject<'a>>,
         S: Into<JNIString>,
@@ -2003,20 +2023,22 @@ impl<'a> JNIEnv<'a> {
 
         let ptr = self.get_field(obj, field, "J")?.j()? as *mut Mutex<T>;
         non_null!(ptr, "rust value from Java");
-        unsafe {
-            // dereferencing is safe, because we checked it for null
-            Ok((*ptr).lock().unwrap())
-        }
+        // dereferencing is safe, because we checked it for null
+        Ok((*ptr).lock().unwrap())
     }
 
-    /// Take a Rust field back from Java. Makes sure that the pointer is
-    /// non-null, but still assumes that the data it points to is valid for T.
-    /// Sets the field to a null pointer to signal that it's empty.
+    /// Take a Rust field back from Java.
     ///
-    /// This will return an error in the event that there's an outstanding lock
-    /// on the object.
+    /// It sets the field to a null pointer to signal that it's empty.
+    ///
+    /// The Java object will be locked before taking the field value.
+    ///
+    /// # Safety
+    ///
+    /// This will make sure that the pointer is non-null, but still assumes that
+    /// the data it points to is valid for T.
     #[allow(unused_variables)]
-    pub fn take_rust_field<O, S, T>(&self, obj: O, field: S) -> Result<T>
+    pub unsafe fn take_rust_field<O, S, T>(&self, obj: O, field: S) -> Result<T>
     where
         O: Into<JObject<'a>>,
         S: AsRef<str>,
@@ -2035,7 +2057,7 @@ impl<'a> JNIEnv<'a> {
 
             non_null!(ptr, "rust value from Java");
 
-            let mbox = unsafe { Box::from_raw(ptr) };
+            let mbox = Box::from_raw(ptr);
 
             // attempt to acquire the lock. This prevents us from consuming the
             // mutex if there's an outstanding lock. No one else will be able to
