@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - The `From` trait implementations converting `jni_sys` types like `jobject` to `JObject` have been replaced
   with `unsafe` `::from_raw` functions and corresponding `::into_raw` methods. Existing `::into_inner` APIs were
   renamed `::into_raw` for symmetry. ([#197](https://github.com/jni-rs/jni-rs/issues/197))
+- The APIs `JNIEnv::set_rust_field`, `JNIEnv::get_rust_field` and `JNIEnv::take_rust_field` have been marked as `unsafe` ([#219](https://github.com/jni-rs/jni-rs/issues/219))
 
 
 ## [0.19.0] — 2021-01-24
