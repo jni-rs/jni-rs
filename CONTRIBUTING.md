@@ -111,7 +111,7 @@ They might help you to see the performance differences between
 two [API flavours][checked-unchecked]: checked and unchecked, and
 pick the right one for your application.
 
-[checked-unchecked]: https://docs.rs/jni/0.19.0/jni/struct.JNIEnv.html#checked-and-unchecked-methods
+[checked-unchecked]: https://docs.rs/jni/0.20.0/jni/struct.JNIEnv.html#checked-and-unchecked-methods
 
 ## The Code Style
 

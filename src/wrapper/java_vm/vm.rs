@@ -59,7 +59,7 @@ use std::thread::Thread;
 /// in the Cargo.toml:
 ///
 /// ```toml
-/// jni = { version = "0.19.0", features = ["invocation"] }
+/// jni = { version = "0.20.0", features = ["invocation"] }
 /// ```
 ///
 /// The application will require linking to the dynamic `jvm` library, which is distributed

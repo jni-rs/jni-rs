@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+
+## [0.20.0] — 2022-10-17
+
 ### Added
 - `Default` trait implemented for `JObject`, `JString`, `JClass`, and `JByteBuffer` ([#199](https://github.com/jni-rs/jni-rs/issues/199))
 - `Debug` trait implemented for `JavaVM`, `GlobalRef`, `GlobalRefGuard`, `JStaticMethodID` and `ReleaseMode` ([#345](https://github.com/jni-rs/jni-rs/pull/345))
@@ -38,7 +41,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   with `unsafe` `::from_raw` functions and corresponding `::into_raw` methods. Existing `::into_inner` APIs were
   renamed `::into_raw` for symmetry. ([#197](https://github.com/jni-rs/jni-rs/issues/197))
 - The APIs `JNIEnv::set_rust_field`, `JNIEnv::get_rust_field` and `JNIEnv::take_rust_field` have been marked as `unsafe` ([#219](https://github.com/jni-rs/jni-rs/issues/219))
-
 
 ## [0.19.0] — 2021-01-24
 
@@ -243,7 +245,8 @@ to call if there is a pending exception (#124):
 ## [0.10.1]
 - No changes has been made to the Changelog until this release.
 
-[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/jni-rs/jni-rs/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/jni-rs/jni-rs/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/jni-rs/jni-rs/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/jni-rs/jni-rs/compare/v0.16.0...v0.17.0
