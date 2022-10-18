@@ -16,25 +16,24 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [Unreleased]
 
 ### Added
-- `Default` trait implemented for `JObject`, `JString`, `JClass`, and `JByteBuffer` (#199)
-- `JNIEnv#new_direct_byte_buffer_raw` function that allows creating a `JByteBuffer` from a pointer and size ([#351](https://github.com/jni-rs/jni-rs/pull/351))
-- `Debug` trait implemented for `JavaVM`, `GlobalRef`, `GlobalRefGuard`, `JStaticMethodID` and `ReleaseMode`
-- `ReturnType` for specifying object return types without a String allocation. (#329)
+- `Default` trait implemented for `JObject`, `JString`, `JClass`, and `JByteBuffer` ([#199](https://github.com/jni-rs/jni-rs/issues/199))
+- `Debug` trait implemented for `JavaVM`, `GlobalRef`, `GlobalRefGuard`, `JStaticMethodID` and `ReleaseMode` ([#345](https://github.com/jni-rs/jni-rs/pull/345))
+- `ReturnType` for specifying object return types without a String allocation. ([#329](https://github.com/jni-rs/jni-rs/issues/329))
 
 ### Changed
-- The `release_string_utf_chars` function has been marked as unsafe. (#334)
+- The `release_string_utf_chars` function has been marked as unsafe. ([#334](https://github.com/jni-rs/jni-rs/pull/334))
 - Mark `JNIEnv::new_direct_byte_buffer` as `unsafe` ([#320](https://github.com/jni-rs/jni-rs/pull/320))
-- `JNIEnv::new_direct_byte_buffer` now takes a raw pointer and size instead of a slice ([#364](https://github.com/jni-rs/jni-rs/pull/364))
+- `JNIEnv::new_direct_byte_buffer` now takes a raw pointer and size instead of a slice ([#351](https://github.com/jni-rs/jni-rs/pull/351) and [#364](https://github.com/jni-rs/jni-rs/pull/364))
 - `JNIEnv::direct_buffer_address` returns a raw pointer instead of a slice ([#364](https://github.com/jni-rs/jni-rs/pull/364))
-- The lifetime of `AutoArray` is no longer tied to the lifetime of a particular `JNIEnv` reference. (#302)
+- The lifetime of `AutoArray` is no longer tied to the lifetime of a particular `JNIEnv` reference. ([#302](https://github.com/jni-rs/jni-rs/issues/302))
 - Relaxed lifetime restrictions on `JNIEnv::new_local_ref`. Now it can be used to create a local
-  reference from a global reference. (#301 / #319)
+  reference from a global reference. ([#301](https://github.com/jni-rs/jni-rs/issues/301) / [#319](https://github.com/jni-rs/jni-rs/pull/319))
 - `JMethodID` and `JStaticMethodID` implement `Send` + `Sync` and no longer has a lifetime parameter, making method
   IDs cacheable (with a documented 'Safety' note about ensuring they remain valid). ([#346](https://github.com/jni-rs/jni-rs/pull/346))
 - `JFieldID` and `JStaticFieldID` implement `Send` + `Sync` and no longer has a lifetime parameter, making field
   IDs cacheable (with a documented 'Safety' note about ensuring they remain valid). ([#346](https://github.com/jni-rs/jni-rs/pull/365))
 - The `call_*_method_unchecked` functions now take `jni:sys::jvalue` arguments to avoid allocating
-  a `Vec` on each call to map + collect `JValue`s as `sys:jvalue`s (#329)
+  a `Vec` on each call to map + collect `JValue`s as `sys:jvalue`s ([#329](https://github.com/jni-rs/jni-rs/issues/329))
 - The `From` trait implementations converting `jni_sys` types like `jobject` to `JObject` have been replaced
   with `unsafe` `::from_raw` functions and corresponding `::into_raw` methods. Existing `::into_inner` APIs were
   renamed `::into_raw` for symmetry. ([#197](https://github.com/jni-rs/jni-rs/issues/197))
