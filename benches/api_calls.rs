@@ -309,6 +309,28 @@ mod tests {
         });
     }
 
+    #[bench]
+    fn jni_get_string(b: &mut Bencher) {
+        let env = VM.attach_current_thread().unwrap();
+        let string = env.new_string("test").unwrap();
+
+        b.iter(|| {
+            let s: String = env.get_string(string).unwrap().into();
+            assert_eq!(s, "test");
+        });
+    }
+
+    #[bench]
+    fn jni_get_string_unchecked(b: &mut Bencher) {
+        let env = VM.attach_current_thread().unwrap();
+        let string = env.new_string("test").unwrap();
+
+        b.iter(|| {
+            let s: String = unsafe { env.get_string_unchecked(string) }.unwrap().into();
+            assert_eq!(s, "test");
+        });
+    }
+
     /// A benchmark measuring Push/PopLocalFrame overhead.
     ///
     /// Such operations are *required* if one attaches a long-running
