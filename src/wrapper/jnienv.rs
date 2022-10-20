@@ -1953,9 +1953,23 @@ impl<'a> JNIEnv<'a> {
     ///
     /// This requires an object with a `long` field to store the pointer.
     ///
+    /// In Java the property may look like:
+    /// ```java
+    /// private long myRustValueHandle = 0;
+    /// ```
+    ///
+    /// Or, in Kotlin the property may look like:
+    /// ```java
+    /// private var myRustValueHandle: Long = 0
+    /// ```
+    ///
+    /// _Note that `private` properties are accessible to JNI which may be
+    /// preferable to avoid exposing the handles to more code than necessary
+    /// (since the handles are usually only meaningful to Rust code)_.
+    ///
     /// The Rust value will be implicitly wrapped in a `Box<Mutex<T>>`.
     ///
-    /// The Java object will be locked before changing the field value.
+    /// The Java object will be locked while changing the field value.
     ///
     /// # Safety
     ///
@@ -1967,9 +1981,11 @@ impl<'a> JNIEnv<'a> {
     /// cleaned up later is for the Java object to implement `Closeable` and let
     /// people use a `use` block (Kotlin) or `try-with-resources` (Java).
     ///
-    /// **DO NOT** make a copy of the object containing one of these fields
-    /// since that will lead to a use-after-free error if the Rust type is
-    /// taken and dropped multiple times from Rust.
+    /// **DO NOT** make a copy of the handle stored in one of these fields
+    /// since that could lead to a use-after-free error if the Rust type is
+    /// taken and dropped multiple times from Rust. If you need to copy an
+    /// object with one of these fields then the field should be zero
+    /// initialized in the copy.
     #[allow(unused_variables)]
     pub unsafe fn set_rust_field<O, S, T>(&self, obj: O, field: S, rust_object: T) -> Result<()>
     where
