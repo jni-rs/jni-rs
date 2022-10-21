@@ -26,6 +26,9 @@ static SIG_MATH_ABS: &str = "(I)I";
 static SIG_OBJECT_HASH_CODE: &str = "()I";
 static SIG_LOCAL_DATE_TIME_OF: &str = "(IIIIIII)Ljava/time/LocalDateTime;";
 
+// 32 characters
+static TEST_STRING_UNICODE: &str = "_񍷕㳧~δ򗊁᪘׷ġ˥쩽|ņ/򖕡ٶԦ萴퀉֒ٞHy󢕒%ӓ娎񢞊ăꊦȮ񳗌";
+
 #[inline(never)]
 fn native_abs(x: i32) -> i32 {
     x.abs()
@@ -312,22 +315,22 @@ mod tests {
     #[bench]
     fn jni_get_string(b: &mut Bencher) {
         let env = VM.attach_current_thread().unwrap();
-        let string = env.new_string("test").unwrap();
+        let string = env.new_string(TEST_STRING_UNICODE).unwrap();
 
         b.iter(|| {
             let s: String = env.get_string(string).unwrap().into();
-            assert_eq!(s, "test");
+            assert_eq!(s, TEST_STRING_UNICODE);
         });
     }
 
     #[bench]
     fn jni_get_string_unchecked(b: &mut Bencher) {
         let env = VM.attach_current_thread().unwrap();
-        let string = env.new_string("test").unwrap();
+        let string = env.new_string(TEST_STRING_UNICODE).unwrap();
 
         b.iter(|| {
             let s: String = unsafe { env.get_string_unchecked(string) }.unwrap().into();
-            assert_eq!(s, "test");
+            assert_eq!(s, TEST_STRING_UNICODE);
         });
     }
 
