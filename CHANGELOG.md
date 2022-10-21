@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `JNIEnv::get_string` checks that the given object is a `java.lang.String` instance to avoid undefined behaviour from the JNI implementation potentially aborting the program. ([#328](https://github.com/jni-rs/jni-rs/issues/328))
 - `JNIEnv::call_*method_unchecked` was marked `unsafe`, as passing improper argument types, or a bad number of arguments, can cause a JVM crash. ([#385](https://github.com/jni-rs/jni-rs/issues/385))
 - The `JNIEnv::new_object_unchecked` function now takes arguments as `&[jni::sys::jvalue]` to avoid allocating, putting it inline with changes to `JniEnv::call_*_unchecked` from 0.20.0 ([#382](https://github.com/jni-rs/jni-rs/pull/382))
+- The `get_superclass` function now returns an Option instead of a null pointer if the class has no superclass ([#151](https://github.com/jni-rs/jni-rs/issues/151))
 
 ## [0.20.0] — 2022-10-17
 

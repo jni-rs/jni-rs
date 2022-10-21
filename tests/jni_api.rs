@@ -889,7 +889,7 @@ fn get_super_class_ok() {
     let env = attach_current_thread();
     let result = env.get_superclass(ARRAYLIST_CLASS);
     assert!(result.is_ok());
-    assert!(!result.unwrap().is_null());
+    assert!(result.unwrap().is_some());
 }
 
 #[test]
@@ -897,7 +897,7 @@ fn get_super_class_null() {
     let env = attach_current_thread();
     let result = env.get_superclass("java/lang/Object");
     assert!(result.is_ok());
-    assert!(result.unwrap().is_null());
+    assert!(result.unwrap().is_none());
 }
 
 #[test]
