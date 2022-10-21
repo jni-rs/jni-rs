@@ -894,6 +894,21 @@ pub fn test_conversion() {
     assert!(unwrap(&env, env.is_same_object(orig_obj, actual)));
 }
 
+#[test]
+pub fn test_null_get_string() {
+    let env = attach_current_thread();
+    let ret = env.get_string(unsafe { JString::from_raw(std::ptr::null_mut() as _) });
+    assert!(ret.is_err());
+}
+
+#[test]
+pub fn test_invalid_list_get_string() {
+    let env = attach_current_thread();
+    let class = env.auto_local(env.find_class("java/util/List").unwrap());
+    let ret = env.get_string(class.as_obj().into());
+    assert!(ret.is_err());
+}
+
 fn test_throwable_descriptor_with_default_type<'a, D>(env: &JNIEnv<'a>, descriptor: D)
 where
     D: Desc<'a, JThrowable<'a>>,

@@ -8,6 +8,7 @@ use std::{
 
 use log::warn;
 
+use crate::errors::Error::JniCall;
 use crate::signature::ReturnType;
 use crate::{
     descriptors::Desc,
@@ -1114,18 +1115,61 @@ impl<'a> JNIEnv<'a> {
         JMap::from_env(self, obj)
     }
 
-    /// Get a JavaStr from a JString. This allows conversions from java string
+    /// Get a [`JavaStr`] from a [`JString`]. This allows conversions from java string
     /// objects to rust strings.
     ///
-    /// This entails a call to `GetStringUTFChars` and only decodes java's
-    /// modified UTF-8 format on conversion to a rust-compatible string.
+    /// This only entails calling `GetStringUTFChars`, which will return a [`JavaStr`] in Java's
+    /// [Modified UTF-8](https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8)
+    /// format.
     ///
-    /// # Panics
+    /// This doesn't automatically decode Java's modified UTF-8 format but you
+    /// can use `.into()` to convert the returned [`JavaStr`] into a Rust [`String`].
     ///
-    /// This call panics when given an Object that is not a java.lang.String
-    pub fn get_string(&self, obj: JString<'a>) -> Result<JavaStr<'a, '_>> {
+    /// # Safety
+    ///
+    /// The caller must guarantee that the Object passed in is an instance of `java.lang.String`,
+    /// passing in anything else will lead to undefined behaviour (The JNI implementation
+    /// is likely to crash or abort the process).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `obj` is `null`
+    pub unsafe fn get_string_unchecked(&self, obj: JString<'a>) -> Result<JavaStr<'a, '_>> {
         non_null!(obj, "get_string obj argument");
         JavaStr::from_env(self, obj)
+    }
+
+    /// Get a [`JavaStr`] from a [`JString`]. This allows conversions from java string
+    /// objects to rust strings.
+    ///
+    /// This entails checking that the given object is a `java.lang.String` and
+    /// calling `GetStringUTFChars`, which will return a [`JavaStr`] in Java's
+    /// [Modified UTF-8](https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8)
+    /// format.
+    ///
+    /// This doesn't automatically decode Java's modified UTF-8 format but you
+    /// can use `.into()` to convert the returned [`JavaStr`] into a Rust [`String`].
+    ///
+    /// # Performance
+    ///
+    /// This function has a large relative performance impact compared to
+    /// [Self::get_string_unchecked]. For example it may be about five times
+    /// slower than `get_string_unchecked` for very short string. This
+    /// performance penalty comes from the extra validation performed by this
+    /// function. If and only if you can guarantee that your `obj` is of
+    /// `java.lang.String`, use [Self::get_string_unchecked].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `obj` is `null` or is not an instance of `java.lang.String`
+    pub fn get_string(&self, obj: JString<'a>) -> Result<JavaStr<'a, '_>> {
+        let string_class = self.find_class("java/lang/String")?;
+        if !self.is_assignable_from(string_class, self.get_object_class(obj)?)? {
+            return Err(JniCall(JniError::InvalidArguments));
+        }
+
+        // SAFETY: We check that the passed in Object is actually a java.lang.String
+        unsafe { self.get_string_unchecked(obj) }
     }
 
     /// Get a pointer to the character array beneath a JString.
