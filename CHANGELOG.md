@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - The `JNIEnv::new_object_unchecked` function now takes arguments as `&[jni::sys::jvalue]` to avoid allocating, putting it inline with changes to `JniEnv::call_*_unchecked` from 0.20.0 ([#382](https://github.com/jni-rs/jni-rs/pull/382))
 - The `get_superclass` function now returns an Option instead of a null pointer if the class has no superclass ([#151](https://github.com/jni-rs/jni-rs/issues/151))
 
+### Removed
+- `get_string_utf_chars` and `release_string_utf_chars` from `JNIEnv` (See `JavaStr::into_raw()` and `JavaStr::from_raw()` instead) ([#372](https://github.com/jni-rs/jni-rs/pull/372))
+
 ## [0.20.0] — 2022-10-17
 
 ### Added
