@@ -88,13 +88,18 @@ impl<'a> JNIEnv<'a> {
     ///
     /// # Safety
     ///
-    /// Expects a valid pointer retrieved from the `GetEnv` JNI function. Only does a null check.
+    /// Expects a valid pointer retrieved from the `GetEnv` JNI function or [Self::get_raw] function. Only does a null check.
     pub unsafe fn from_raw(ptr: *mut sys::JNIEnv) -> Result<Self> {
         non_null!(ptr, "from_raw ptr argument");
         Ok(JNIEnv {
             internal: ptr,
             lifetime: PhantomData,
         })
+    }
+
+    /// Get the raw JNIEnv pointer
+    pub fn get_raw(&self) -> *mut sys::JNIEnv {
+        self.internal
     }
 
     /// Get the java version that we're being executed from.
