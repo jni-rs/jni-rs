@@ -8,7 +8,7 @@ use jni::{
     objects::{
         AutoArray, AutoLocal, JByteBuffer, JList, JObject, JString, JThrowable, JValue, ReleaseMode,
     },
-    signature::JavaType,
+    signature::{JavaType, Primitive, ReturnType},
     strings::JNIString,
     sys::{jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jobject, jshort, jsize},
     JNIEnv,
@@ -253,7 +253,30 @@ pub fn call_static_method_ok() {
     let x = JValue::from(-10);
     let val: jint = env
         .call_static_method(MATH_CLASS, MATH_ABS_METHOD_NAME, MATH_ABS_SIGNATURE, &[x])
-        .expect("JNIEnv#call_static_method_unsafe should return JValue")
+        .expect("JNIEnv#call_static_method should return JValue")
+        .i()
+        .unwrap();
+
+    assert_eq!(val, 10);
+}
+
+#[test]
+pub fn call_static_method_unchecked_ok() {
+    let env = attach_current_thread();
+
+    let x = JValue::from(-10);
+    let math_class = env.find_class(MATH_CLASS).unwrap();
+    let abs_method_id = env
+        .get_static_method_id(math_class, MATH_ABS_METHOD_NAME, MATH_ABS_SIGNATURE)
+        .unwrap();
+    let val: jint = env
+        .call_static_method_unchecked(
+            math_class,
+            abs_method_id,
+            ReturnType::Primitive(Primitive::Int),
+            &[x.into()],
+        )
+        .expect("JNIEnv#call_static_method_unchecked should return JValue")
         .i()
         .unwrap();
 
