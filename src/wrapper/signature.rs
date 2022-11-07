@@ -247,11 +247,11 @@ mod test {
         ];
 
         for each in inputs.iter() {
-            let res = JavaType::from_str(*each).unwrap();
+            let res = JavaType::from_str(each).unwrap();
             println!("{:#?}", res);
             let s = format!("{}", res);
             assert_eq!(s, *each);
-            let res2 = JavaType::from_str(*each).unwrap();
+            let res2 = JavaType::from_str(each).unwrap();
             println!("{:#?}", res2);
             assert_eq!(res2, res);
         }
