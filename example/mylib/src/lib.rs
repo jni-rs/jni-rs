@@ -38,7 +38,7 @@ pub extern "system" fn Java_HelloWorld_hello(
         .new_string(format!("Hello, {}!", input))
         .expect("Couldn't create java string!");
     // Finally, extract the raw pointer to return.
-    output.into_inner()
+    output.into_raw()
 }
 
 #[no_mangle]
