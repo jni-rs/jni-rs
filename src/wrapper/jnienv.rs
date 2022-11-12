@@ -1126,7 +1126,8 @@ impl<'a> JNIEnv<'a> {
 
         let method_id: JMethodID = (class, ctor_sig).lookup(self)?;
 
-        self.new_object_unchecked(class, method_id, ctor_args)
+        let ctor_args: Vec<jvalue> = ctor_args.iter().map(|v| v.to_jni()).collect();
+        self.new_object_unchecked(class, method_id, &ctor_args)
     }
 
     /// Create a new object using a constructor. Arguments aren't checked
@@ -1136,15 +1137,14 @@ impl<'a> JNIEnv<'a> {
         &self,
         class: T,
         ctor_id: JMethodID,
-        ctor_args: &[JValue],
+        ctor_args: &[jvalue],
     ) -> Result<JObject<'a>>
     where
         T: Desc<'a, JClass<'c>>,
     {
         let class = class.lookup(self)?;
 
-        let jni_args: Vec<jvalue> = ctor_args.iter().map(|v| v.to_jni()).collect();
-        let jni_args = jni_args.as_ptr();
+        let jni_args = ctor_args.as_ptr();
 
         let obj = jni_non_null_call!(
             self.internal,

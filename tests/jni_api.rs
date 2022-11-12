@@ -1,6 +1,6 @@
 #![cfg(feature = "invocation")]
 
-use std::str::FromStr;
+use std::{convert::TryFrom, str::FromStr};
 
 use jni::{
     descriptors::Desc,
@@ -329,6 +329,30 @@ pub fn call_static_method_unchecked_ok() {
     .unwrap();
 
     assert_eq!(val, 10);
+}
+
+#[test]
+pub fn call_new_object_unchecked_ok() {
+    let env = attach_current_thread();
+
+    let test_str = env.new_string(TESTING_OBJECT_STR).unwrap();
+    let string_class = env.find_class(STRING_CLASS).unwrap();
+
+    let ctor_method_id = env
+        .get_method_id(string_class, "<init>", "(Ljava/lang/String;)V")
+        .unwrap();
+    let val: JObject = env
+        .new_object_unchecked(
+            string_class,
+            ctor_method_id,
+            &[JValue::from(test_str).into()],
+        )
+        .expect("JNIEnv#new_object_unchecked should return JValue");
+
+    let jstr = JString::try_from(val).expect("asd");
+    let javastr = env.get_string(jstr).unwrap();
+    let rstr = javastr.to_str().unwrap();
+    assert_eq!(rstr, TESTING_OBJECT_STR);
 }
 
 #[test]
