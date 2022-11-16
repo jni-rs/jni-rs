@@ -268,7 +268,7 @@ pub fn call_method_with_bad_args_errs() {
     let s = env.new_string(TESTING_OBJECT_STR).unwrap();
 
     let is_bad_typ = env
-        .call_method(s, "indexOf", "(I)I", &[JValue::Float(3.1415)])
+        .call_method(s, "indexOf", "(I)I", &[JValue::Float(std::f32::consts::PI)])
         .map_err(|error| matches!(error, Error::InvalidArgList(_)))
         .expect_err("JNIEnv#callmethod with bad arg type should err");
 
