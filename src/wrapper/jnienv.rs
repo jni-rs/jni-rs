@@ -789,7 +789,12 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Under the hood, this simply calls the `CallStatic<Type>MethodA` method
     /// with the provided arguments.
-    pub fn call_static_method_unchecked<'c, T, U>(
+    ///  
+    /// # Safety
+    ///
+    /// The provided JMethodID must be valid, and match the types and number of arguments, and return type.
+    /// If these are incorrect, the JVM may crash. The JMethodID must also match the passed type.
+    pub unsafe fn call_static_method_unchecked<'c, T, U>(
         &self,
         class: T,
         method_id: U,
@@ -905,7 +910,12 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Under the hood, this simply calls the `Call<Type>MethodA` method with
     /// the provided arguments.
-    pub fn call_method_unchecked<O, T>(
+    ///
+    /// # Safety
+    ///
+    /// The provided JMethodID must be valid, and match the types and number of arguments, and return type.
+    /// If these are incorrect, the JVM may crash. The JMethodID must also match the passed type.
+    pub unsafe fn call_method_unchecked<O, T>(
         &self,
         obj: O,
         method_id: T,
@@ -978,10 +988,11 @@ impl<'a> JNIEnv<'a> {
     ///   type
     /// * Looks up the JClass for the given object.
     /// * Looks up the JMethodID for the class/name/signature combination
-    /// * Ensures that the number of args matches the signature
+    /// * Ensures that the number/types of args matches the signature
+    ///   * Cannot check an object's type - but primitive types are matched against each other (including Object)
     /// * Calls `call_method_unchecked` with the verified safe arguments.
     ///
-    /// Note: this may cause a java exception if the arguments are the wrong
+    /// Note: this may cause a Java exception if the arguments are the wrong
     /// type, in addition to if the method itself throws.
     pub fn call_method<O, S, T>(
         &self,
@@ -1004,10 +1015,30 @@ impl<'a> JNIEnv<'a> {
             return Err(Error::InvalidArgList(parsed));
         }
 
+        // check arguments types
+        let base_types_match = parsed
+            .args
+            .iter()
+            .zip(args.iter())
+            .all(|(exp, act)| match exp {
+                JavaType::Primitive(p) => act.primitive_type() == Some(*p),
+                JavaType::Object(_) | JavaType::Array(_) => act.primitive_type().is_none(),
+                JavaType::Method(_) => {
+                    unreachable!("JavaType::Method(_) should not come from parsing a method sig")
+                }
+            });
+        if !base_types_match {
+            return Err(Error::InvalidArgList(parsed));
+        }
+
         let class = self.auto_local(self.get_object_class(obj)?);
 
         let args: Vec<jvalue> = args.iter().map(|v| v.to_jni()).collect();
-        self.call_method_unchecked(obj, (&class, name, sig), parsed.ret, &args)
+
+        // SAFETY: We've obtained the method_id above, so it is valid for this class.
+        // We've also validated the argument counts and types using the same type signature
+        // we fetched the original method ID from.
+        unsafe { self.call_method_unchecked(obj, (&class, name, sig), parsed.ret, &args) }
     }
 
     /// Calls a static method safely. This comes with a number of
@@ -1016,10 +1047,11 @@ impl<'a> JNIEnv<'a> {
     /// * Parses the type signature to find the number of arguments and return
     ///   type
     /// * Looks up the JMethodID for the class/name/signature combination
-    /// * Ensures that the number of args matches the signature
+    /// * Ensures that the number/types of args matches the signature
+    ///   * Cannot check an object's type - but primitive types are matched against each other (including Object)
     /// * Calls `call_method_unchecked` with the verified safe arguments.
     ///
-    /// Note: this may cause a java exception if the arguments are the wrong
+    /// Note: this may cause a Java exception if the arguments are the wrong
     /// type, in addition to if the method itself throws.
     pub fn call_static_method<'c, T, U, V>(
         &self,
@@ -1038,12 +1070,32 @@ impl<'a> JNIEnv<'a> {
             return Err(Error::InvalidArgList(parsed));
         }
 
+        // check arguments types
+        let base_types_match = parsed
+            .args
+            .iter()
+            .zip(args.iter())
+            .all(|(exp, act)| match exp {
+                JavaType::Primitive(p) => act.primitive_type() == Some(*p),
+                JavaType::Object(_) | JavaType::Array(_) => act.primitive_type().is_none(),
+                JavaType::Method(_) => {
+                    unreachable!("JavaType::Method(_) should not come from parsing a method sig")
+                }
+            });
+        if !base_types_match {
+            return Err(Error::InvalidArgList(parsed));
+        }
+
         // go ahead and look up the class since it's already Copy,
         // and we'll need that for the next call.
         let class = class.lookup(self)?;
 
         let args: Vec<jvalue> = args.iter().map(|v| v.to_jni()).collect();
-        self.call_static_method_unchecked(class, (class, name, sig), parsed.ret, &args)
+
+        // SAFETY: We've obtained the method_id above, so it is valid for this class.
+        // We've also validated the argument counts and types using the same type signature
+        // we fetched the original method ID from.
+        unsafe { self.call_static_method_unchecked(class, (class, name, sig), parsed.ret, &args) }
     }
 
     /// Create a new object using a constructor. This is done safely using

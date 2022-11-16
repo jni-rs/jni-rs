@@ -13,7 +13,7 @@ pub enum Error {
     WrongJValueType(&'static str, &'static str),
     #[error("Invalid constructor return type (must be void)")]
     InvalidCtorReturn,
-    #[error("Invalid number of arguments passed to java method: {0}")]
+    #[error("Invalid number or type of arguments passed to java method: {0}")]
     InvalidArgList(TypeSignature),
     #[error("Method not found: {name} {sig}")]
     MethodNotFound { name: String, sig: String },
