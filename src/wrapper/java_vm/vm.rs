@@ -13,13 +13,9 @@ use crate::{errors::*, sys, JNIEnv};
 #[cfg(feature = "invocation")]
 use {
     crate::InitArgs,
-    once_cell::sync::OnceCell,
     std::os::raw::c_void,
     std::{ffi::OsStr, path::PathBuf},
 };
-
-#[cfg(feature = "invocation")]
-static LIBJVM: OnceCell<(String, libloading::Library)> = OnceCell::new();
 
 /// The Java VM, providing [Invocation API][invocation-api] support.
 ///
@@ -190,27 +186,21 @@ impl JavaVM {
         args: InitArgs,
         libjvm_path: impl FnOnce() -> StartJvmResult<P>,
     ) -> StartJvmResult<Self> {
-        // Try to load the JVM shared library, if it hasn't been already.
-        let (libjvm_path, libjvm) = LIBJVM.get_or_try_init::<_, StartJvmError>(|| {
-            // Determine the path to the shared library.
-            let libjvm_path = libjvm_path()?;
-            let libjvm_path_string = libjvm_path.as_ref().to_string_lossy().into_owned();
+        // Determine the path to the shared library.
+        let libjvm_path = libjvm_path()?;
+        let libjvm_path_string = libjvm_path.as_ref().to_string_lossy().into_owned();
 
-            // Try to load it.
-            let libjvm = match libloading::Library::new(libjvm_path.as_ref()) {
-                Ok(ok) => ok,
-                Err(error) => return Err(StartJvmError::LoadError(libjvm_path_string, error)),
-            };
-
-            // Done!
-            Ok((libjvm_path_string, libjvm))
-        })?;
+        // Try to load it.
+        let libjvm = match libloading::Library::new(libjvm_path.as_ref()) {
+            Ok(ok) => ok,
+            Err(error) => return Err(StartJvmError::LoadError(libjvm_path_string, error)),
+        };
 
         unsafe {
             // Try to find the `JNI_CreateJavaVM` function in the loaded library.
             let create_fn = libjvm
                 .get(b"JNI_CreateJavaVM\0")
-                .map_err(|error| StartJvmError::LoadError(libjvm_path.to_owned(), error))?;
+                .map_err(|error| StartJvmError::LoadError(libjvm_path_string.to_owned(), error))?;
 
             // Create the JVM.
             Self::with_create_fn_ptr(args, *create_fn).map_err(StartJvmError::Create)
