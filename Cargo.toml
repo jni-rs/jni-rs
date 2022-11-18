@@ -13,7 +13,7 @@ license = "MIT/Apache-2.0"
 name = "jni"
 repository = "https://github.com/jni-rs/jni-rs"
 # ¡When bumping version please also update it in examples and documentation!
-version = "0.20.0"
+version = "0.21.0-alpha.0"
 edition = "2018"
 
 [dependencies]
