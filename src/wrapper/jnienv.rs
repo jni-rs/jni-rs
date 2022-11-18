@@ -158,20 +158,26 @@ impl<'a> JNIEnv<'a> {
         Ok(unsafe { JClass::from_raw(class) })
     }
 
-    /// Returns the superclass for a particular class OR `JObject::null()` for `java.lang.Object` or
-    /// an interface. As with `find_class`, takes a descriptor.
-    pub fn get_superclass<'c, T>(&self, class: T) -> Result<JClass<'a>>
+    /// Returns the superclass for a particular class. Returns None for `java.lang.Object` or
+    /// an interface. As with [Self::find_class], takes a descriptor
+    ///
+    /// # Errors
+    ///
+    /// If a JNI call fails
+    pub fn get_superclass<'c, T>(&self, class: T) -> Result<Option<JClass<'a>>>
     where
         T: Desc<'a, JClass<'c>>,
     {
         let class = class.lookup(self)?;
-        Ok(unsafe {
-            JClass::from_raw(jni_non_void_call!(
+        let superclass = unsafe {
+            JClass::from_raw(jni_unchecked!(
                 self.internal,
                 GetSuperclass,
                 class.into_raw()
             ))
-        })
+        };
+
+        Ok((!superclass.is_null()).then_some(superclass))
     }
 
     /// Tests whether class1 is assignable from class2.
