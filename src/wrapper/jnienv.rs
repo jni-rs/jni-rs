@@ -1262,46 +1262,6 @@ impl<'a> JNIEnv<'a> {
         unsafe { self.get_string_unchecked(obj) }
     }
 
-    /// Get a pointer to the character array beneath a JString.
-    ///
-    /// Array contains Java's modified UTF-8.
-    ///
-    /// # Attention
-    /// This will leak memory if `release_string_utf_chars` is never called.
-    pub fn get_string_utf_chars(&self, obj: JString) -> Result<*const c_char> {
-        non_null!(obj, "get_string_utf_chars obj argument");
-        let ptr: *const c_char = jni_non_null_call!(
-            self.internal,
-            GetStringUTFChars,
-            obj.into_raw(),
-            ::std::ptr::null::<jboolean>() as *mut jboolean
-        );
-        Ok(ptr)
-    }
-
-    /// Unpin the array returned by `get_string_utf_chars`.
-    ///
-    /// # Safety
-    ///
-    /// The behaviour is undefined if the array isn't returned by the `get_string_utf_chars`
-    /// function.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # let env = unsafe { jni::JNIEnv::from_raw(std::ptr::null_mut()).unwrap() };
-    /// let s = env.new_string("test").unwrap();
-    /// let array = env.get_string_utf_chars(s).unwrap();
-    /// unsafe { env.release_string_utf_chars(s, array).unwrap() };
-    /// ```
-    #[allow(unused_unsafe)]
-    pub unsafe fn release_string_utf_chars(&self, obj: JString, arr: *const c_char) -> Result<()> {
-        non_null!(obj, "release_string_utf_chars obj argument");
-        // This method is safe to call in case of pending exceptions (see the chapter 2 of the spec)
-        jni_unchecked!(self.internal, ReleaseStringUTFChars, obj.into_raw(), arr);
-        Ok(())
-    }
-
     /// Create a new java string object from a rust string. This requires a
     /// re-encoding of rusts *real* UTF-8 strings to java's modified UTF-8
     /// format.
