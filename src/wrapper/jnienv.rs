@@ -1113,10 +1113,29 @@ impl<'a> JNIEnv<'a> {
         // parse the signature
         let parsed = TypeSignature::from_str(&ctor_sig)?;
 
+        // check arguments length
         if parsed.args.len() != ctor_args.len() {
             return Err(Error::InvalidArgList(parsed));
         }
 
+        // check arguments types
+        let base_types_match =
+            parsed
+                .args
+                .iter()
+                .zip(ctor_args.iter())
+                .all(|(exp, act)| match exp {
+                    JavaType::Primitive(p) => act.primitive_type() == Some(*p),
+                    JavaType::Object(_) | JavaType::Array(_) => act.primitive_type().is_none(),
+                    JavaType::Method(_) => {
+                        unreachable!("JavaType::Method(_) should not come from parsing a ctor sig")
+                    }
+                });
+        if !base_types_match {
+            return Err(Error::InvalidArgList(parsed));
+        }
+
+        // check return value
         if parsed.ret != ReturnType::Primitive(Primitive::Void) {
             return Err(Error::InvalidCtorReturn);
         }
@@ -1126,25 +1145,33 @@ impl<'a> JNIEnv<'a> {
 
         let method_id: JMethodID = (class, ctor_sig).lookup(self)?;
 
-        self.new_object_unchecked(class, method_id, ctor_args)
+        let ctor_args: Vec<jvalue> = ctor_args.iter().map(|v| v.to_jni()).collect();
+        // SAFETY: We've obtained the method_id above, so it is valid for this class.
+        // We've also validated the argument counts and types using the same type signature
+        // we fetched the original method ID from.
+        unsafe { self.new_object_unchecked(class, method_id, &ctor_args) }
     }
 
     /// Create a new object using a constructor. Arguments aren't checked
-    /// because
-    /// of the `JMethodID` usage.
-    pub fn new_object_unchecked<'c, T>(
+    /// because of the `JMethodID` usage.
+    ///
+    /// # Safety
+    ///
+    /// The provided JMethodID must be valid, and match the types and number of arguments, as well as return type
+    /// (always an Object for a constructor). If these are incorrect, the JVM may crash.  The JMethodID must also match
+    /// the passed type.
+    pub unsafe fn new_object_unchecked<'c, T>(
         &self,
         class: T,
         ctor_id: JMethodID,
-        ctor_args: &[JValue],
+        ctor_args: &[jvalue],
     ) -> Result<JObject<'a>>
     where
         T: Desc<'a, JClass<'c>>,
     {
         let class = class.lookup(self)?;
 
-        let jni_args: Vec<jvalue> = ctor_args.iter().map(|v| v.to_jni()).collect();
-        let jni_args = jni_args.as_ptr();
+        let jni_args = ctor_args.as_ptr();
 
         let obj = jni_non_null_call!(
             self.internal,
