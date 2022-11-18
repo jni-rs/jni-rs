@@ -90,7 +90,7 @@ pub trait ToException {
 
 /// An error that occurred while starting the JVM using the JNI Invocation API.
 ///
-/// This only exists if the "invocation" or "invocation-dyn" feature is enabled.
+/// This only exists if the "invocation" feature is enabled.
 #[cfg(feature = "invocation")]
 #[derive(Debug, Error)]
 #[non_exhaustive]
@@ -100,11 +100,8 @@ pub enum StartJvmError {
     /// If this happens, give an explicit location to [`JavaVM::with_libjvm`] or set the
     /// `JAVA_HOME` environment variable.
     ///
-    /// This can only happen if the "invocation-dyn" feature is enabled.
-    ///
     /// [java-locator]: https://docs.rs/java-locator/
     /// [`JavaVM::with_libjvm`]: crate::JavaVM::with_libjvm
-    #[cfg(feature = "invocation-dyn")]
     #[error("Couldn't automatically discover the Java VM's location (try setting the JAVA_HOME environment variable): {0}")]
     NotFound(
         #[from]
@@ -112,22 +109,12 @@ pub enum StartJvmError {
         java_locator::errors::JavaLocatorError,
     ),
 
-    #[cfg(not(feature = "invocation-dyn"))]
-    #[doc(hidden)]
-    #[error("{0}")]
-    NotFound(std::convert::Infallible),
-
     /// An error occurred in trying to load the JVM shared library.
     ///
-    /// This can only happen if the "invocation-dyn" feature is enabled.
-    #[cfg(feature = "invocation-dyn")]
+    /// On Windows, if this happens it may be necessary to add your `$JAVA_HOME/bin` directory
+    /// to the DLL search path by adding it to the `PATH` environment variable.
     #[error("Couldn't load the Java VM shared library ({0}): {1}")]
     LoadError(String, #[source] libloading::Error),
-
-    #[cfg(not(feature = "invocation-dyn"))]
-    #[doc(hidden)]
-    #[error("{1}")]
-    LoadError(String, std::convert::Infallible),
 
     /// The JNI function `JNI_CreateJavaVM` returned an error.
     #[error("{0}")]

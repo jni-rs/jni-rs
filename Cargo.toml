@@ -18,7 +18,6 @@ edition = "2018"
 
 [dependencies]
 cesu8 = "1.1.0"
-cfg-if = { version = "1", optional = true }
 combine = "4.1.0"
 java-locator = { version = "0.1", optional = true }
 jni-sys = "0.3.0"
@@ -35,8 +34,7 @@ lazy_static = "1"
 
 
 [features]
-invocation = ["cfg-if"]
-invocation-dyn = ["invocation", "java-locator", "libloading", "once_cell"]
+invocation = ["java-locator", "libloading", "once_cell"]
 default = []
 
 [package.metadata.docs.rs]
