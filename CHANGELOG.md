@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 - `JNIEnv::get_string` checks that the given object is a `java.lang.String` instance to avoid undefined behaviour from the JNI implementation potentially aborting the program. ([#328](https://github.com/jni-rs/jni-rs/issues/328))
+- `JNIEnv::call_*method_unchecked` was marked `unsafe`, as passing improper argument types, or a bad number of arguments, can cause a JVM crash. ([#385](https://github.com/jni-rs/jni-rs/issues/385))
 
 ## [0.20.0] — 2022-10-17
 

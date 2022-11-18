@@ -64,12 +64,16 @@ impl<'a: 'b, 'b> JMap<'a, 'b> {
     /// Look up the value for a key. Returns `Some` if it's found and `None` if
     /// a null pointer would be returned.
     pub fn get(&self, key: JObject<'a>) -> Result<Option<JObject<'a>>> {
-        let result = self.env.call_method_unchecked(
-            self.internal,
-            self.get,
-            ReturnType::Object,
-            &[JValue::from(key).to_jni()],
-        );
+        // SAFETY: We keep the class loaded, and fetched the method ID for this function.
+        // Provided argument is statically known as a JObject/null, rather than another primitive type.
+        let result = unsafe {
+            self.env.call_method_unchecked(
+                self.internal,
+                self.get,
+                ReturnType::Object,
+                &[JValue::from(key).to_jni()],
+            )
+        };
 
         match result {
             Ok(val) => Ok(Some(val.l()?)),
@@ -83,12 +87,16 @@ impl<'a: 'b, 'b> JMap<'a, 'b> {
     /// Look up the value for a key. Returns `Some` with the old value if the
     /// key already existed and `None` if it's a new key.
     pub fn put(&self, key: JObject<'a>, value: JObject<'a>) -> Result<Option<JObject<'a>>> {
-        let result = self.env.call_method_unchecked(
-            self.internal,
-            self.put,
-            ReturnType::Object,
-            &[JValue::from(key).to_jni(), JValue::from(value).to_jni()],
-        );
+        // SAFETY: We keep the class loaded, and fetched the method ID for this function.
+        // Provided argument is statically known as a JObject/null, rather than another primitive type.
+        let result = unsafe {
+            self.env.call_method_unchecked(
+                self.internal,
+                self.put,
+                ReturnType::Object,
+                &[JValue::from(key).to_jni(), JValue::from(value).to_jni()],
+            )
+        };
 
         match result {
             Ok(val) => Ok(Some(val.l()?)),
@@ -102,12 +110,16 @@ impl<'a: 'b, 'b> JMap<'a, 'b> {
     /// Remove a value from the map. Returns `Some` with the removed value and
     /// `None` if there was no value for the key.
     pub fn remove(&self, key: JObject<'a>) -> Result<Option<JObject<'a>>> {
-        let result = self.env.call_method_unchecked(
-            self.internal,
-            self.remove,
-            ReturnType::Object,
-            &[JValue::from(key).to_jni()],
-        );
+        // SAFETY: We keep the class loaded, and fetched the method ID for this function.
+        // Provided argument is statically known as a JObject/null, rather than another primitive type.
+        let result = unsafe {
+            self.env.call_method_unchecked(
+                self.internal,
+                self.remove,
+                ReturnType::Object,
+                &[JValue::from(key).to_jni()],
+            )
+        };
 
         match result {
             Ok(val) => Ok(Some(val.l()?)),
@@ -147,25 +159,27 @@ impl<'a: 'b, 'b> JMap<'a, 'b> {
         // Use the local frame till #109 is resolved, so that implicitly looked-up
         // classes are freed promptly.
         let iter = self.env.with_local_frame(16, || {
-            let entry_set = self
-                .env
-                .call_method_unchecked(
+            // SAFETY: We keep the class loaded, and fetched the method ID for this function. Arg list is known empty.
+            let entry_set = unsafe {
+                self.env.call_method_unchecked(
                     self.internal,
                     (&self.class, "entrySet", "()Ljava/util/Set;"),
                     ReturnType::Object,
                     &[],
-                )?
-                .l()?;
+                )
+            }?
+            .l()?;
 
-            let iter = self
-                .env
-                .call_method_unchecked(
+            // SAFETY: We keep the class loaded, and fetched the method ID for this function. Arg list is known empty.
+            let iter = unsafe {
+                self.env.call_method_unchecked(
                     entry_set,
                     ("java/util/Set", "iterator", "()Ljava/util/Iterator;"),
                     ReturnType::Object,
                     &[],
-                )?
-                .l()?;
+                )
+            }?
+            .l()?;
 
             Ok(iter)
         })?;
@@ -197,38 +211,42 @@ pub struct JMapIter<'a, 'b, 'c> {
 
 impl<'a: 'b, 'b: 'c, 'c> JMapIter<'a, 'b, 'c> {
     fn get_next(&self) -> Result<Option<(JObject<'a>, JObject<'a>)>> {
+        // SAFETY: We keep the class loaded, and fetched the method ID for these functions. We know none expect args.
+
         let iter = self.iter.as_obj();
-        let has_next = self
-            .map
-            .env
-            .call_method_unchecked(
+        let has_next = unsafe {
+            self.map.env.call_method_unchecked(
                 iter,
                 self.has_next,
                 ReturnType::Primitive(Primitive::Boolean),
                 &[],
-            )?
-            .z()?;
+            )
+        }?
+        .z()?;
 
         if !has_next {
             return Ok(None);
         }
-        let next = self
-            .map
-            .env
-            .call_method_unchecked(iter, self.next, ReturnType::Object, &[])?
-            .l()?;
+        let next = unsafe {
+            self.map
+                .env
+                .call_method_unchecked(iter, self.next, ReturnType::Object, &[])
+        }?
+        .l()?;
 
-        let key = self
-            .map
-            .env
-            .call_method_unchecked(next, self.get_key, ReturnType::Object, &[])?
-            .l()?;
+        let key = unsafe {
+            self.map
+                .env
+                .call_method_unchecked(next, self.get_key, ReturnType::Object, &[])
+        }?
+        .l()?;
 
-        let value = self
-            .map
-            .env
-            .call_method_unchecked(next, self.get_value, ReturnType::Object, &[])?
-            .l()?;
+        let value = unsafe {
+            self.map
+                .env
+                .call_method_unchecked(next, self.get_value, ReturnType::Object, &[])
+        }?
+        .l()?;
 
         Ok(Some((key, value)))
     }

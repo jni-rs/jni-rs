@@ -89,9 +89,8 @@ where
 {
     let x = JValue::from(x);
     let ret = ReturnType::Primitive(Primitive::Int);
-    let v = env
-        .call_static_method_unchecked(class, method_id, ret, &[x.into()])
-        .unwrap();
+    let v =
+        unsafe { env.call_static_method_unchecked(class, method_id, ret, &[x.into()]) }.unwrap();
     v.i().unwrap()
 }
 
@@ -100,7 +99,8 @@ where
     M: Desc<'m, JMethodID>,
 {
     let ret = ReturnType::Primitive(Primitive::Int);
-    let v = env.call_method_unchecked(obj, method_id, ret, &[]).unwrap();
+    // SAFETY: Caller retrieved method ID + class specifically for this use: Object.hashCode()I
+    let v = unsafe { env.call_method_unchecked(obj, method_id, ret, &[]) }.unwrap();
     v.i().unwrap()
 }
 
@@ -113,8 +113,8 @@ fn jni_object_call_static_unchecked<'c, C>(
 where
     C: Desc<'c, JClass<'c>>,
 {
-    let v = env
-        .call_static_method_unchecked(class, method_id, ReturnType::Object, args)
+    // SAFETY: Caller retrieved method ID and constructed arguments
+    let v = unsafe { env.call_static_method_unchecked(class, method_id, ReturnType::Object, args) }
         .unwrap();
     v.l().unwrap()
 }

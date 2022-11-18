@@ -62,12 +62,16 @@ impl<'a: 'b, 'b> JList<'a, 'b> {
     /// Look up the value for a key. Returns `Some` if it's found and `None` if
     /// a null pointer would be returned.
     pub fn get(&self, idx: jint) -> Result<Option<JObject<'a>>> {
-        let result = self.env.call_method_unchecked(
-            self.internal,
-            self.get,
-            ReturnType::Object,
-            &[JValue::from(idx).to_jni()],
-        );
+        // SAFETY: We keep the class loaded, and fetched the method ID for this function.
+        // Provided argument is statically known as a JObject/null, rather than another primitive type.
+        let result = unsafe {
+            self.env.call_method_unchecked(
+                self.internal,
+                self.get,
+                ReturnType::Object,
+                &[JValue::from(idx).to_jni()],
+            )
+        };
 
         match result {
             Ok(val) => Ok(Some(val.l()?)),
@@ -80,12 +84,16 @@ impl<'a: 'b, 'b> JList<'a, 'b> {
 
     /// Append an element to the list
     pub fn add(&self, value: JObject<'a>) -> Result<()> {
-        let result = self.env.call_method_unchecked(
-            self.internal,
-            self.add,
-            ReturnType::Primitive(Primitive::Boolean),
-            &[JValue::from(value).to_jni()],
-        );
+        // SAFETY: We keep the class loaded, and fetched the method ID for this function.
+        // Provided argument is statically known as a JObject/null, rather than another primitive type.
+        let result = unsafe {
+            self.env.call_method_unchecked(
+                self.internal,
+                self.add,
+                ReturnType::Primitive(Primitive::Boolean),
+                &[JValue::from(value).to_jni()],
+            )
+        };
 
         let _ = result?;
         Ok(())
@@ -93,12 +101,16 @@ impl<'a: 'b, 'b> JList<'a, 'b> {
 
     /// Insert an element at a specific index
     pub fn insert(&self, idx: jint, value: JObject<'a>) -> Result<()> {
-        let result = self.env.call_method_unchecked(
-            self.internal,
-            self.add_idx,
-            ReturnType::Primitive(Primitive::Void),
-            &[JValue::from(idx).to_jni(), JValue::from(value).to_jni()],
-        );
+        // SAFETY: We keep the class loaded, and fetched the method ID for this function.
+        // Provided argument is statically known as a JObject/null, rather than another primitive type.
+        let result = unsafe {
+            self.env.call_method_unchecked(
+                self.internal,
+                self.add_idx,
+                ReturnType::Primitive(Primitive::Void),
+                &[JValue::from(idx).to_jni(), JValue::from(value).to_jni()],
+            )
+        };
 
         let _ = result?;
         Ok(())
@@ -106,12 +118,16 @@ impl<'a: 'b, 'b> JList<'a, 'b> {
 
     /// Remove an element from the list by index
     pub fn remove(&self, idx: jint) -> Result<Option<JObject<'a>>> {
-        let result = self.env.call_method_unchecked(
-            self.internal,
-            self.remove,
-            ReturnType::Object,
-            &[JValue::from(idx).to_jni()],
-        );
+        // SAFETY: We keep the class loaded, and fetched the method ID for this function.
+        // Provided argument is statically known as a int, rather than any other java type.
+        let result = unsafe {
+            self.env.call_method_unchecked(
+                self.internal,
+                self.remove,
+                ReturnType::Object,
+                &[JValue::from(idx).to_jni()],
+            )
+        };
 
         match result {
             Ok(val) => Ok(Some(val.l()?)),
@@ -124,12 +140,15 @@ impl<'a: 'b, 'b> JList<'a, 'b> {
 
     /// Get the size of the list
     pub fn size(&self) -> Result<jint> {
-        let result = self.env.call_method_unchecked(
-            self.internal,
-            self.size,
-            ReturnType::Primitive(Primitive::Int),
-            &[],
-        );
+        // SAFETY: We keep the class loaded, and fetched the method ID for this function.
+        let result = unsafe {
+            self.env.call_method_unchecked(
+                self.internal,
+                self.size,
+                ReturnType::Primitive(Primitive::Int),
+                &[],
+            )
+        };
 
         result.and_then(|v| v.i())
     }
@@ -143,12 +162,16 @@ impl<'a: 'b, 'b> JList<'a, 'b> {
             return Ok(None);
         }
 
-        let result = self.env.call_method_unchecked(
-            self.internal,
-            self.remove,
-            ReturnType::Object,
-            &[JValue::from(size - 1).to_jni()],
-        );
+        // SAFETY: We keep the class loaded, and fetched the method ID for this function.
+        // Provided argument is statically known as a int.
+        let result = unsafe {
+            self.env.call_method_unchecked(
+                self.internal,
+                self.remove,
+                ReturnType::Object,
+                &[JValue::from(size - 1).to_jni()],
+            )
+        };
 
         match result {
             Ok(val) => Ok(Some(val.l()?)),

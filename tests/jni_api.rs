@@ -247,6 +247,53 @@ pub fn with_local_frame_pending_exception() {
 }
 
 #[test]
+pub fn call_method_ok() {
+    let env = attach_current_thread();
+
+    let s = env.new_string(TESTING_OBJECT_STR).unwrap();
+
+    let v: jint = env
+        .call_method(s, "indexOf", "(I)I", &[JValue::Int('S' as i32)])
+        .expect("JNIEnv#call_method should return JValue")
+        .i()
+        .unwrap();
+
+    assert_eq!(v, 2);
+}
+
+#[test]
+pub fn call_method_with_bad_args_errs() {
+    let env = attach_current_thread();
+
+    let s = env.new_string(TESTING_OBJECT_STR).unwrap();
+
+    let is_bad_typ = env
+        .call_method(s, "indexOf", "(I)I", &[JValue::Float(std::f32::consts::PI)])
+        .map_err(|error| matches!(error, Error::InvalidArgList(_)))
+        .expect_err("JNIEnv#callmethod with bad arg type should err");
+
+    assert!(
+        is_bad_typ,
+        "ErrorKind::InvalidArgList expected when passing bad value type"
+    );
+
+    let is_bad_len = env
+        .call_method(
+            s,
+            "indexOf",
+            "(I)I",
+            &[JValue::Int('S' as i32), JValue::Long(3)],
+        )
+        .map_err(|error| matches!(error, Error::InvalidArgList(_)))
+        .expect_err("JNIEnv#call_method with bad arg lengths should err");
+
+    assert!(
+        is_bad_len,
+        "ErrorKind::InvalidArgList expected when passing bad argument lengths"
+    );
+}
+
+#[test]
 pub fn call_static_method_ok() {
     let env = attach_current_thread();
 
@@ -269,16 +316,17 @@ pub fn call_static_method_unchecked_ok() {
     let abs_method_id = env
         .get_static_method_id(math_class, MATH_ABS_METHOD_NAME, MATH_ABS_SIGNATURE)
         .unwrap();
-    let val: jint = env
-        .call_static_method_unchecked(
+    let val: jint = unsafe {
+        env.call_static_method_unchecked(
             math_class,
             abs_method_id,
             ReturnType::Primitive(Primitive::Int),
             &[x.into()],
         )
-        .expect("JNIEnv#call_static_method_unchecked should return JValue")
-        .i()
-        .unwrap();
+    }
+    .expect("JNIEnv#call_static_method_unchecked should return JValue")
+    .i()
+    .unwrap();
 
     assert_eq!(val, 10);
 }
@@ -298,6 +346,7 @@ pub fn call_static_method_throws() {
         .map_err(|error| matches!(error, Error::JavaException))
         .expect_err("JNIEnv#call_static_method_unsafe should return error");
 
+    // Throws a java.lang.ArithmeticException: integer overflow
     assert!(
         is_java_exception,
         "ErrorKind::JavaException expected as error"
@@ -306,19 +355,39 @@ pub fn call_static_method_throws() {
 }
 
 #[test]
-pub fn call_static_method_wrong_arg() {
+pub fn call_static_method_with_bad_args_errs() {
     let env = attach_current_thread();
 
     let x = JValue::Double(4.567_891_23);
-    env.call_static_method(
-        MATH_CLASS,
-        MATH_TO_INT_METHOD_NAME,
-        MATH_TO_INT_SIGNATURE,
-        &[x],
-    )
-    .expect_err("JNIEnv#call_static_method_unsafe should return error");
+    let is_bad_typ = env
+        .call_static_method(
+            MATH_CLASS,
+            MATH_TO_INT_METHOD_NAME,
+            MATH_TO_INT_SIGNATURE,
+            &[x],
+        )
+        .map_err(|error| matches!(error, Error::InvalidArgList(_)))
+        .expect_err("JNIEnv#call_static_method with bad arg type should err");
 
-    assert_pending_java_exception(&env);
+    assert!(
+        is_bad_typ,
+        "ErrorKind::InvalidArgList expected when passing bad value type"
+    );
+
+    let is_bad_len = env
+        .call_static_method(
+            MATH_CLASS,
+            MATH_TO_INT_METHOD_NAME,
+            MATH_TO_INT_SIGNATURE,
+            &[JValue::Int(2), JValue::Int(3)],
+        )
+        .map_err(|error| matches!(error, Error::InvalidArgList(_)))
+        .expect_err("JNIEnv#call_static_method with bad arg lengths should err");
+
+    assert!(
+        is_bad_len,
+        "ErrorKind::InvalidArgList expected when passing bad argument lengths"
+    );
 }
 
 #[test]
