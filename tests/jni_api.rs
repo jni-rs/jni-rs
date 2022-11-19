@@ -935,6 +935,14 @@ fn new_global_ref_null() {
 }
 
 #[test]
+fn new_weak_ref_null() {
+    let env = attach_current_thread();
+    let null_obj = JObject::null();
+    let result = unwrap(&env, env.new_weak_ref(null_obj));
+    assert!(result.is_none());
+}
+
+#[test]
 fn auto_local_null() {
     let env = attach_current_thread();
     let null_obj = JObject::null();
@@ -1037,6 +1045,11 @@ pub fn test_conversion() {
 
     let global_ref = env.new_global_ref(orig_obj).unwrap();
     let actual = JObject::from(&global_ref);
+    assert!(unwrap(&env, env.is_same_object(orig_obj, actual)));
+
+    let weak_ref = unwrap(&env, env.new_weak_ref(orig_obj)).expect("weak ref should not be null");
+    let actual =
+        unwrap(&env, weak_ref.upgrade_local(&env)).expect("weak ref should not have been GC'd");
     assert!(unwrap(&env, env.is_same_object(orig_obj, actual)));
 
     let auto_local = env.auto_local(orig_obj);
