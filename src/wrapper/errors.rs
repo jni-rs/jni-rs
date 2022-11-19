@@ -87,3 +87,43 @@ pub struct Exception {
 pub trait ToException {
     fn to_exception(&self) -> Exception;
 }
+
+/// An error that occurred while starting the JVM using the JNI Invocation API.
+///
+/// This only exists if the "invocation" feature is enabled.
+#[cfg(feature = "invocation")]
+#[derive(Debug, Error)]
+#[non_exhaustive]
+pub enum StartJvmError {
+    /// An attempt was made to find a JVM using [java-locator], but it failed.
+    ///
+    /// If this happens, give an explicit location to [`JavaVM::with_libjvm`] or set the
+    /// `JAVA_HOME` environment variable.
+    ///
+    /// [java-locator]: https://docs.rs/java-locator/
+    /// [`JavaVM::with_libjvm`]: crate::JavaVM::with_libjvm
+    #[error("Couldn't automatically discover the Java VM's location (try setting the JAVA_HOME environment variable): {0}")]
+    NotFound(
+        #[from]
+        #[source]
+        java_locator::errors::JavaLocatorError,
+    ),
+
+    /// An error occurred in trying to load the JVM shared library.
+    ///
+    /// On Windows, if this happens it may be necessary to add your `$JAVA_HOME/bin` directory
+    /// to the DLL search path by adding it to the `PATH` environment variable.
+    #[error("Couldn't load the Java VM shared library ({0}): {1}")]
+    LoadError(String, #[source] libloading::Error),
+
+    /// The JNI function `JNI_CreateJavaVM` returned an error.
+    #[error("{0}")]
+    Create(
+        #[from]
+        #[source]
+        Error,
+    ),
+}
+
+#[cfg(feature = "invocation")]
+pub type StartJvmResult<T> = std::result::Result<T, StartJvmError>;
