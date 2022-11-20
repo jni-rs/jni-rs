@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `JavaStr::from_raw()` which takes ownership of a raw string pointer to create a `JavaStr` ([#374](https://github.com/jni-rs/jni-rs/pull/374))
 - `JNIEnv::get_string_unchecked` is a cheaper, `unsafe` alternative to `get_string` that doesn't check the given object is a `java.lang.String` instance. ([#328](https://github.com/jni-rs/jni-rs/issues/328))
 - `WeakRef` and `JNIEnv#new_weak_ref`. ([#304](https://github.com/jni-rs/jni-rs/pull/304))
+- `define_class_bytearray` method that takes an `AutoArray<jbyte>` rather than a `&[u8]`
 
 ### Changed
 - `JNIEnv::get_string` checks that the given object is a `java.lang.String` instance to avoid undefined behaviour from the JNI implementation potentially aborting the program. ([#328](https://github.com/jni-rs/jni-rs/issues/328))
