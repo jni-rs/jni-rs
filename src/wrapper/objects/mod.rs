@@ -39,6 +39,9 @@ pub use self::jbytebuffer::*;
 mod global_ref;
 pub use self::global_ref::*;
 
+mod weak_ref;
+pub use self::weak_ref::*;
+
 // For automatic local ref deletion
 mod auto_local;
 pub use self::auto_local::*;

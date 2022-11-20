@@ -16,7 +16,7 @@ use crate::{
     objects::{
         AutoArray, AutoLocal, AutoPrimitiveArray, GlobalRef, JByteBuffer, JClass, JFieldID, JList,
         JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID, JString, JThrowable, JValue,
-        ReleaseMode, TypeArray,
+        ReleaseMode, TypeArray, WeakRef,
     },
     signature::{JavaType, Primitive, TypeSignature},
     strings::{JNIString, JavaStr},
@@ -393,6 +393,44 @@ impl<'a> JNIEnv<'a> {
         let new_ref = jni_unchecked!(self.internal, NewGlobalRef, obj.into().into_raw());
         let global = unsafe { GlobalRef::from_raw(self.get_java_vm()?, new_ref) };
         Ok(global)
+    }
+
+    /// Creates a new [weak global reference][WeakRef].
+    ///
+    /// If the provided object is null, this method returns `None`. Otherwise, it returns `Some`
+    /// containing the new weak global reference.
+    pub fn new_weak_ref<O>(&self, obj: O) -> Result<Option<WeakRef>>
+    where
+        O: Into<JObject<'a>>,
+    {
+        // We need the `JavaVM` in order to construct a `WeakRef` below. But because `get_java_vm`
+        // is fallible, we need to call it before doing anything else, so that we don't leak
+        // memory if it fails.
+        let vm = self.get_java_vm()?;
+
+        let obj = obj.into().into_raw();
+
+        // Check if the pointer is null *before* calling `NewWeakGlobalRef`.
+        //
+        // This avoids a bug in some JVM implementations which, contrary to the JNI specification,
+        // will throw `java.lang.OutOfMemoryError: C heap space` from `NewWeakGlobalRef` if it is
+        // passed a null pointer. (The specification says it will return a null pointer in that
+        // situation, not throw an exception.)
+        if obj.is_null() {
+            return Ok(None);
+        }
+
+        let weak: sys::jweak = jni_non_void_call!(self.internal, NewWeakGlobalRef, obj);
+
+        // Check if the pointer returned by `NewWeakGlobalRef` is null. This can happen if `obj` is
+        // itself a weak reference that was already garbage collected.
+        if weak.is_null() {
+            return Ok(None);
+        }
+
+        let weak = unsafe { WeakRef::from_raw(vm, weak) };
+
+        Ok(Some(weak))
     }
 
     /// Create a new local reference to an object.
@@ -795,7 +833,7 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Under the hood, this simply calls the `CallStatic<Type>MethodA` method
     /// with the provided arguments.
-    ///  
+    ///
     /// # Safety
     ///
     /// The provided JMethodID must be valid, and match the types and number of arguments, and return type.
