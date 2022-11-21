@@ -249,7 +249,7 @@ mod tests {
             .unwrap();
 
         b.iter(|| {
-            let obj = env.new_object_unchecked(class, ctor_id, &[]).unwrap();
+            let obj = unsafe { env.new_object_unchecked(class, ctor_id, &[]) }.unwrap();
             env.delete_local_ref(obj).unwrap();
         });
     }
@@ -274,7 +274,7 @@ mod tests {
             .unwrap();
 
         b.iter(|| {
-            let obj = env.new_object_unchecked(class, ctor_id, &[]).unwrap();
+            let obj = unsafe { env.new_object_unchecked(class, ctor_id, &[]) }.unwrap();
             env.delete_local_ref(obj).unwrap();
         });
     }
