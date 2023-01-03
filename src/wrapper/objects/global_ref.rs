@@ -1,8 +1,12 @@
-use std::{convert::From, sync::Arc};
+use std::{mem, ops::Deref, sync::Arc};
 
 use log::{debug, warn};
 
 use crate::{errors::Result, objects::JObject, sys, JNIEnv, JavaVM};
+
+// Note: `GlobalRef` must not implement `Into<JObject>`! If it did, then it would be possible to
+// wrap it in `AutoLocal`, which would cause undefined behavior upon drop as a result of calling
+// the wrong JNI function to delete the reference.
 
 /// A global JVM reference. These are "pinned" by the garbage collector and are
 /// guaranteed to not get collected until released. Thus, this is allowed to
@@ -32,12 +36,23 @@ struct GlobalRefGuard {
     vm: JavaVM,
 }
 
-unsafe impl Send for GlobalRef {}
-unsafe impl Sync for GlobalRef {}
+impl AsRef<GlobalRef> for GlobalRef {
+    fn as_ref(&self) -> &GlobalRef {
+        self
+    }
+}
 
-impl<'a> From<&'a GlobalRef> for JObject<'a> {
-    fn from(other: &'a GlobalRef) -> JObject<'a> {
-        other.as_obj()
+impl AsRef<JObject<'static>> for GlobalRef {
+    fn as_ref(&self) -> &JObject<'static> {
+        self
+    }
+}
+
+impl Deref for GlobalRef {
+    type Target = JObject<'static>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner.obj
     }
 }
 
@@ -57,8 +72,9 @@ impl GlobalRef {
     ///
     /// This borrows the ref and prevents it from being dropped as long as the
     /// JObject sticks around.
-    pub fn as_obj(&self) -> JObject {
-        self.inner.as_obj()
+    #[deprecated(since = "0.21.0", note = "use `.as_ref()` instead")]
+    pub fn as_obj(&self) -> &JObject<'static> {
+        self.as_ref()
     }
 }
 
@@ -71,32 +87,26 @@ impl GlobalRefGuard {
             vm,
         }
     }
-
-    /// Get the object from the global ref
-    ///
-    /// This borrows the ref and prevents it from being dropped as long as the
-    /// JObject sticks around.
-    pub fn as_obj(&self) -> JObject {
-        self.obj
-    }
 }
 
 impl Drop for GlobalRefGuard {
     fn drop(&mut self) {
-        fn drop_impl(env: &JNIEnv, global_ref: JObject) -> Result<()> {
+        let raw: sys::jobject = mem::take(&mut self.obj).into_raw();
+
+        let drop_impl = |env: &JNIEnv| -> Result<()> {
             let internal = env.get_native_interface();
             // This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
-            jni_unchecked!(internal, DeleteGlobalRef, global_ref.into_raw());
+            jni_unchecked!(internal, DeleteGlobalRef, raw);
             Ok(())
-        }
+        };
 
         let res = match self.vm.get_env() {
-            Ok(env) => drop_impl(&env, self.as_obj()),
+            Ok(env) => drop_impl(&env),
             Err(_) => {
                 warn!("Dropping a GlobalRef in a detached thread. Fix your code if this message appears frequently (see the GlobalRef docs).");
                 self.vm
                     .attach_current_thread()
-                    .and_then(|env| drop_impl(&env, self.as_obj()))
+                    .and_then(|env| drop_impl(&env))
             }
         };
 

@@ -34,7 +34,7 @@ fn native_abs(x: i32) -> i32 {
     x.abs()
 }
 
-fn jni_abs_safe(env: &JNIEnv, x: jint) -> jint {
+fn jni_abs_safe(env: &mut JNIEnv, x: jint) -> jint {
     let x = JValue::from(x);
     let v = env
         .call_static_method(CLASS_MATH, METHOD_MATH_ABS, SIG_MATH_ABS, &[x])
@@ -42,15 +42,15 @@ fn jni_abs_safe(env: &JNIEnv, x: jint) -> jint {
     v.i().unwrap()
 }
 
-fn jni_hash_safe(env: &JNIEnv, obj: JObject) -> jint {
+fn jni_hash_safe(env: &mut JNIEnv, obj: &JObject) -> jint {
     let v = env
         .call_method(obj, METHOD_OBJECT_HASH_CODE, SIG_OBJECT_HASH_CODE, &[])
         .unwrap();
     v.i().unwrap()
 }
 
-fn jni_local_date_time_of_safe<'e>(
-    env: &JNIEnv<'e>,
+fn jni_local_date_time_of_safe<'local>(
+    env: &mut JNIEnv<'local>,
     year: jint,
     month: jint,
     day_of_month: jint,
@@ -58,7 +58,7 @@ fn jni_local_date_time_of_safe<'e>(
     minute: jint,
     second: jint,
     nanosecond: jint,
-) -> JObject<'e> {
+) -> JObject<'local> {
     let v = env
         .call_static_method(
             CLASS_LOCAL_DATE_TIME,
@@ -78,25 +78,29 @@ fn jni_local_date_time_of_safe<'e>(
     v.l().unwrap()
 }
 
-fn jni_int_call_static_unchecked<'c, C>(
-    env: &JNIEnv<'c>,
+fn jni_int_call_static_unchecked<'local, C>(
+    env: &mut JNIEnv<'local>,
     class: C,
     method_id: JStaticMethodID,
     x: jint,
 ) -> jint
 where
-    C: Desc<'c, JClass<'c>>,
+    C: Desc<'local, JClass<'local>>,
 {
     let x = JValue::from(x);
     let ret = ReturnType::Primitive(Primitive::Int);
     let v =
-        unsafe { env.call_static_method_unchecked(class, method_id, ret, &[x.into()]) }.unwrap();
+        unsafe { env.call_static_method_unchecked(class, method_id, ret, &[x.as_jni()]) }.unwrap();
     v.i().unwrap()
 }
 
-fn jni_int_call_unchecked<'m, M>(env: &JNIEnv<'m>, obj: JObject<'m>, method_id: M) -> jint
+fn jni_int_call_unchecked<'local, M>(
+    env: &mut JNIEnv<'local>,
+    obj: &JObject<'local>,
+    method_id: M,
+) -> jint
 where
-    M: Desc<'m, JMethodID>,
+    M: Desc<'local, JMethodID>,
 {
     let ret = ReturnType::Primitive(Primitive::Int);
     // SAFETY: Caller retrieved method ID + class specifically for this use: Object.hashCode()I
@@ -104,14 +108,14 @@ where
     v.i().unwrap()
 }
 
-fn jni_object_call_static_unchecked<'c, C>(
-    env: &JNIEnv<'c>,
+fn jni_object_call_static_unchecked<'local, C>(
+    env: &mut JNIEnv<'local>,
     class: C,
     method_id: JStaticMethodID,
     args: &[jvalue],
-) -> JObject<'c>
+) -> JObject<'local>
 where
-    C: Desc<'c, JClass<'c>>,
+    C: Desc<'local, JClass<'local>>,
 {
     // SAFETY: Caller retrieved method ID and constructed arguments
     let v = unsafe { env.call_static_method_unchecked(class, method_id, ReturnType::Object, args) }
@@ -145,63 +149,63 @@ mod tests {
 
     #[bench]
     fn jni_call_static_abs_method_safe(b: &mut Bencher) {
-        let env = VM.attach_current_thread().unwrap();
+        let mut env = VM.attach_current_thread().unwrap();
 
-        b.iter(|| jni_abs_safe(&env, -3));
+        b.iter(|| jni_abs_safe(&mut env, -3));
     }
 
     #[bench]
     fn jni_call_static_abs_method_unchecked_str(b: &mut Bencher) {
-        let env = VM.attach_current_thread().unwrap();
+        let mut env = VM.attach_current_thread().unwrap();
         let class = CLASS_MATH;
         let method_id = env
             .get_static_method_id(class, METHOD_MATH_ABS, SIG_MATH_ABS)
             .unwrap();
 
-        b.iter(|| jni_int_call_static_unchecked(&env, class, method_id, -3));
+        b.iter(|| jni_int_call_static_unchecked(&mut env, class, method_id, -3));
     }
 
     #[bench]
     fn jni_call_static_abs_method_unchecked_jclass(b: &mut Bencher) {
-        let env = VM.attach_current_thread().unwrap();
-        let class: JClass = CLASS_MATH.lookup(&env).unwrap();
+        let mut env = VM.attach_current_thread().unwrap();
+        let class = Desc::<JClass>::lookup(CLASS_MATH, &mut env).unwrap();
         let method_id = env
-            .get_static_method_id(class, METHOD_MATH_ABS, SIG_MATH_ABS)
+            .get_static_method_id(&class, METHOD_MATH_ABS, SIG_MATH_ABS)
             .unwrap();
 
-        b.iter(|| jni_int_call_static_unchecked(&env, class, method_id, -3));
+        b.iter(|| jni_int_call_static_unchecked(&mut env, &class, method_id, -3));
     }
 
     #[bench]
     fn jni_call_static_date_time_method_safe(b: &mut Bencher) {
-        let env = VM.attach_current_thread().unwrap();
+        let mut env = VM.attach_current_thread().unwrap();
         b.iter(|| {
-            let obj = jni_local_date_time_of_safe(&env, 1, 1, 1, 1, 1, 1, 1);
+            let obj = jni_local_date_time_of_safe(&mut env, 1, 1, 1, 1, 1, 1, 1);
             env.delete_local_ref(obj).unwrap();
         });
     }
 
     #[bench]
     fn jni_call_static_date_time_method_unchecked_jclass(b: &mut Bencher) {
-        let env = VM.attach_current_thread().unwrap();
-        let class: JClass = CLASS_LOCAL_DATE_TIME.lookup(&env).unwrap();
+        let mut env = VM.attach_current_thread().unwrap();
+        let class = Desc::<JClass>::lookup(CLASS_LOCAL_DATE_TIME, &mut env).unwrap();
         let method_id = env
-            .get_static_method_id(class, METHOD_LOCAL_DATE_TIME_OF, SIG_LOCAL_DATE_TIME_OF)
+            .get_static_method_id(&class, METHOD_LOCAL_DATE_TIME_OF, SIG_LOCAL_DATE_TIME_OF)
             .unwrap();
 
         b.iter(|| {
             let obj = jni_object_call_static_unchecked(
-                &env,
-                class,
+                &mut env,
+                &class,
                 method_id,
                 &[
-                    JValue::Int(1).into(),
-                    JValue::Int(1).into(),
-                    JValue::Int(1).into(),
-                    JValue::Int(1).into(),
-                    JValue::Int(1).into(),
-                    JValue::Int(1).into(),
-                    JValue::Int(1).into(),
+                    JValue::Int(1).as_jni(),
+                    JValue::Int(1).as_jni(),
+                    JValue::Int(1).as_jni(),
+                    JValue::Int(1).as_jni(),
+                    JValue::Int(1).as_jni(),
+                    JValue::Int(1).as_jni(),
+                    JValue::Int(1).as_jni(),
                 ],
             );
             env.delete_local_ref(obj).unwrap();
@@ -210,28 +214,28 @@ mod tests {
 
     #[bench]
     fn jni_call_object_hash_method_safe(b: &mut Bencher) {
-        let env = VM.attach_current_thread().unwrap();
+        let mut env = VM.attach_current_thread().unwrap();
         let s = env.new_string("").unwrap();
         let obj = black_box(JObject::from(s));
 
-        b.iter(|| jni_hash_safe(&env, obj));
+        b.iter(|| jni_hash_safe(&mut env, &obj));
     }
 
     #[bench]
     fn jni_call_object_hash_method_unchecked(b: &mut Bencher) {
-        let env = VM.attach_current_thread().unwrap();
+        let mut env = VM.attach_current_thread().unwrap();
         let s = env.new_string("").unwrap();
         let obj = black_box(JObject::from(s));
         let method_id = env
-            .get_method_id(obj, METHOD_OBJECT_HASH_CODE, SIG_OBJECT_HASH_CODE)
+            .get_method_id(&obj, METHOD_OBJECT_HASH_CODE, SIG_OBJECT_HASH_CODE)
             .unwrap();
 
-        b.iter(|| jni_int_call_unchecked(&env, obj, method_id));
+        b.iter(|| jni_int_call_unchecked(&mut env, &obj, method_id));
     }
 
     #[bench]
     fn jni_new_object_str(b: &mut Bencher) {
-        let env = VM.attach_current_thread().unwrap();
+        let mut env = VM.attach_current_thread().unwrap();
         let class = CLASS_OBJECT;
 
         b.iter(|| {
@@ -242,7 +246,7 @@ mod tests {
 
     #[bench]
     fn jni_new_object_by_id_str(b: &mut Bencher) {
-        let env = VM.attach_current_thread().unwrap();
+        let mut env = VM.attach_current_thread().unwrap();
         let class = CLASS_OBJECT;
         let ctor_id = env
             .get_method_id(class, METHOD_CTOR, SIG_OBJECT_CTOR)
@@ -256,35 +260,35 @@ mod tests {
 
     #[bench]
     fn jni_new_object_jclass(b: &mut Bencher) {
-        let env = VM.attach_current_thread().unwrap();
-        let class: JClass = CLASS_OBJECT.lookup(&env).unwrap();
+        let mut env = VM.attach_current_thread().unwrap();
+        let class = Desc::<JClass>::lookup(CLASS_OBJECT, &mut env).unwrap();
 
         b.iter(|| {
-            let obj = env.new_object(class, SIG_OBJECT_CTOR, &[]).unwrap();
+            let obj = env.new_object(&class, SIG_OBJECT_CTOR, &[]).unwrap();
             env.delete_local_ref(obj).unwrap();
         });
     }
 
     #[bench]
     fn jni_new_object_by_id_jclass(b: &mut Bencher) {
-        let env = VM.attach_current_thread().unwrap();
-        let class: JClass = CLASS_OBJECT.lookup(&env).unwrap();
+        let mut env = VM.attach_current_thread().unwrap();
+        let class = Desc::<JClass>::lookup(CLASS_OBJECT, &mut env).unwrap();
         let ctor_id = env
-            .get_method_id(class, METHOD_CTOR, SIG_OBJECT_CTOR)
+            .get_method_id(&class, METHOD_CTOR, SIG_OBJECT_CTOR)
             .unwrap();
 
         b.iter(|| {
-            let obj = unsafe { env.new_object_unchecked(class, ctor_id, &[]) }.unwrap();
+            let obj = unsafe { env.new_object_unchecked(&class, ctor_id, &[]) }.unwrap();
             env.delete_local_ref(obj).unwrap();
         });
     }
 
     #[bench]
     fn jni_new_global_ref(b: &mut Bencher) {
-        let env = VM.attach_current_thread().unwrap();
+        let mut env = VM.attach_current_thread().unwrap();
         let class = CLASS_OBJECT;
         let obj = env.new_object(class, SIG_OBJECT_CTOR, &[]).unwrap();
-        let global_ref = env.new_global_ref(obj).unwrap();
+        let global_ref = env.new_global_ref(&obj).unwrap();
         env.delete_local_ref(obj).unwrap();
 
         b.iter(|| env.new_global_ref(&global_ref).unwrap());
@@ -314,11 +318,11 @@ mod tests {
 
     #[bench]
     fn jni_get_string(b: &mut Bencher) {
-        let env = VM.attach_current_thread().unwrap();
+        let mut env = VM.attach_current_thread().unwrap();
         let string = env.new_string(TEST_STRING_UNICODE).unwrap();
 
         b.iter(|| {
-            let s: String = env.get_string(string).unwrap().into();
+            let s: String = env.get_string(&string).unwrap().into();
             assert_eq!(s, TEST_STRING_UNICODE);
         });
     }
@@ -329,7 +333,7 @@ mod tests {
         let string = env.new_string(TEST_STRING_UNICODE).unwrap();
 
         b.iter(|| {
-            let s: String = unsafe { env.get_string_unchecked(string) }.unwrap().into();
+            let s: String = unsafe { env.get_string_unchecked(&string) }.unwrap().into();
             assert_eq!(s, TEST_STRING_UNICODE);
         });
     }
@@ -344,9 +348,9 @@ mod tests {
     fn jni_noop_with_local_frame(b: &mut Bencher) {
         // Local frame size actually doesn't matter since JVM does not preallocate anything.
         const LOCAL_FRAME_SIZE: i32 = 32;
-        let env = VM.attach_current_thread().unwrap();
+        let mut env = VM.attach_current_thread().unwrap();
         b.iter(|| {
-            env.with_local_frame(LOCAL_FRAME_SIZE, || Ok(JObject::null()))
+            env.with_local_frame(LOCAL_FRAME_SIZE, |_| Ok(JObject::null()))
                 .unwrap()
         });
     }
@@ -366,10 +370,10 @@ mod tests {
 
     #[bench]
     fn native_arc(b: &mut Bencher) {
-        let env = VM.attach_current_thread().unwrap();
+        let mut env = VM.attach_current_thread().unwrap();
         let class = CLASS_OBJECT;
         let obj = env.new_object(class, SIG_OBJECT_CTOR, &[]).unwrap();
-        let global_ref = env.new_global_ref(obj).unwrap();
+        let global_ref = env.new_global_ref(&obj).unwrap();
         env.delete_local_ref(obj).unwrap();
         let arc = Arc::new(global_ref);
 

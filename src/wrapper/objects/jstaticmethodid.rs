@@ -46,3 +46,15 @@ impl JStaticMethodID {
         self.internal
     }
 }
+
+impl AsRef<JStaticMethodID> for JStaticMethodID {
+    fn as_ref(&self) -> &JStaticMethodID {
+        self
+    }
+}
+
+impl AsMut<JStaticMethodID> for JStaticMethodID {
+    fn as_mut(&mut self) -> &mut JStaticMethodID {
+        self
+    }
+}

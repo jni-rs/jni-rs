@@ -1,6 +1,6 @@
 use std::{
     cell::RefCell,
-    ops::Deref,
+    ops::{Deref, DerefMut},
     ptr,
     sync::atomic::{AtomicUsize, Ordering},
     thread::{current, Thread},
@@ -95,7 +95,7 @@ use {
 /// //
 /// // This method returns the guard that will detach the current thread when dropped,
 /// // also freeing any local references created in it
-/// let env = jvm.attach_current_thread()?;
+/// let mut env = jvm.attach_current_thread()?;
 ///
 /// // Call Java Math#abs(-10)
 /// let x = JValue::from(-10);
@@ -364,14 +364,14 @@ static ATTACHED_THREADS: AtomicUsize = AtomicUsize::new(0);
 /// A RAII implementation of scoped guard which detaches the current thread
 /// when dropped. The attached `JNIEnv` can be accessed through this guard
 /// via its `Deref` implementation.
-pub struct AttachGuard<'a> {
-    env: JNIEnv<'a>,
+pub struct AttachGuard<'local> {
+    env: JNIEnv<'local>,
     should_detach: bool,
 }
 
-impl<'a> AttachGuard<'a> {
+impl<'local> AttachGuard<'local> {
     /// AttachGuard created with this method will detach current thread on drop
-    fn new(env: JNIEnv<'a>) -> Self {
+    fn new(env: JNIEnv<'local>) -> Self {
         Self {
             env,
             should_detach: true,
@@ -380,7 +380,7 @@ impl<'a> AttachGuard<'a> {
 
     /// AttachGuard created with this method will not detach current thread on drop, which is
     /// the case for nested attaches.
-    fn new_nested(env: JNIEnv<'a>) -> Self {
+    fn new_nested(env: JNIEnv<'local>) -> Self {
         Self {
             env,
             should_detach: false,
@@ -388,15 +388,21 @@ impl<'a> AttachGuard<'a> {
     }
 }
 
-impl<'a> Deref for AttachGuard<'a> {
-    type Target = JNIEnv<'a>;
+impl<'local> Deref for AttachGuard<'local> {
+    type Target = JNIEnv<'local>;
 
     fn deref(&self) -> &Self::Target {
         &self.env
     }
 }
 
-impl<'a> Drop for AttachGuard<'a> {
+impl<'local> DerefMut for AttachGuard<'local> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.env
+    }
+}
+
+impl<'local> Drop for AttachGuard<'local> {
     fn drop(&mut self) {
         if self.should_detach {
             InternalAttachGuard::clear_tls();

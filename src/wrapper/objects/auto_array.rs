@@ -8,21 +8,38 @@ use crate::sys::{jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jshort};
 use crate::{errors::*, objects::JObject, sys, JNIEnv};
 
 /// Trait to define type array access/release
-pub trait TypeArray {
+///
+/// # Safety
+///
+/// The methods of this trait must uphold the invariants described in [`JNIEnv::unsafe_clone`] when
+/// using the provided [`JNIEnv`].
+///
+/// The `get` method must return a valid pointer to the beginning of the JNI array.
+///
+/// The `release` method must not invalidate the `ptr` if the `mode` is [`sys::JNI_COMMIT`].
+pub unsafe trait TypeArray {
     /// getter
-    fn get(env: &JNIEnv, obj: JObject, is_copy: &mut jboolean) -> Result<*mut Self>;
+    fn get(env: &mut JNIEnv, obj: &JObject, is_copy: &mut jboolean) -> Result<*mut Self>;
 
     /// releaser
-    fn release(env: &JNIEnv, obj: JObject, ptr: NonNull<Self>, mode: i32) -> Result<()>;
+    ///
+    /// # Safety
+    ///
+    /// `ptr` must have been previously returned by the `get` function.
+    ///
+    /// If `mode` is not [`sys::JNI_COMMIT`], `ptr` must not be used again after calling this
+    /// function.
+    unsafe fn release(env: &mut JNIEnv, obj: &JObject, ptr: NonNull<Self>, mode: i32)
+        -> Result<()>;
 }
 
 // TypeArray builder
 macro_rules! type_array {
     ( $jni_type:ty, $jni_get:tt, $jni_release:tt ) => {
         /// $jni_type array access/release impl
-        impl TypeArray for $jni_type {
+        unsafe impl TypeArray for $jni_type {
             /// Get Java $jni_type array
-            fn get(env: &JNIEnv, obj: JObject, is_copy: &mut jboolean) -> Result<*mut Self> {
+            fn get(env: &mut JNIEnv, obj: &JObject, is_copy: &mut jboolean) -> Result<*mut Self> {
                 let internal = env.get_native_interface();
                 // Even though this method may throw OoME, use `jni_unchecked`
                 // instead of `jni_non_null_call` to remove (a slight) overhead
@@ -30,14 +47,25 @@ macro_rules! type_array {
                 // result inside AutoArray ctor. Also, modern Hotspot in case of lack
                 // of memory will return null and won't throw an exception:
                 // https://sourcegraph.com/github.com/openjdk/jdk/-/blob/src/hotspot/share/memory/allocation.hpp#L488-489
-                let res = jni_unchecked!(internal, $jni_get, *obj, is_copy);
+                let res = jni_unchecked!(internal, $jni_get, obj.as_raw(), is_copy);
                 Ok(res)
             }
 
             /// Release Java $jni_type array
-            fn release(env: &JNIEnv, obj: JObject, ptr: NonNull<Self>, mode: i32) -> Result<()> {
+            unsafe fn release(
+                env: &mut JNIEnv,
+                obj: &JObject,
+                ptr: NonNull<Self>,
+                mode: i32,
+            ) -> Result<()> {
                 let internal = env.get_native_interface();
-                jni_unchecked!(internal, $jni_release, *obj, ptr.as_ptr(), mode as i32);
+                jni_unchecked!(
+                    internal,
+                    $jni_release,
+                    obj.as_raw(),
+                    ptr.as_ptr(),
+                    mode as i32
+                );
                 Ok(())
             }
         }
@@ -64,26 +92,35 @@ type_array!(jdouble, GetDoubleArrayElements, ReleaseDoubleArrayElements);
 ///
 /// AutoArray provides automatic array release through a call to appropriate
 /// Release<Type>ArrayElements when it goes out of scope.
-pub struct AutoArray<'a, T: TypeArray> {
-    obj: JObject<'a>,
+pub struct AutoArray<'local, T: TypeArray> {
+    obj: JObject<'local>,
     ptr: NonNull<T>,
     mode: ReleaseMode,
     is_copy: bool,
-    env: JNIEnv<'a>,
+    env: JNIEnv<'local>,
 }
 
-impl<'a, T: TypeArray> AutoArray<'a, T> {
-    pub(crate) fn new(env: &JNIEnv<'a>, obj: JObject<'a>, mode: ReleaseMode) -> Result<Self> {
+impl<'local, T: TypeArray> AutoArray<'local, T> {
+    pub(crate) fn new(
+        env: &mut JNIEnv<'local>,
+        obj: JObject<'local>,
+        mode: ReleaseMode,
+    ) -> Result<Self> {
+        // Safety: The cloned `JNIEnv` will not be used to create any local references. It will be
+        // passed to the methods of the `TypeArray` implementation, but that trait is `unsafe` and
+        // implementations are required to uphold the invariants of `unsafe_clone`.
+        let mut env = unsafe { env.unsafe_clone() };
+
         let mut is_copy: jboolean = 0xff;
         Ok(AutoArray {
-            obj,
             ptr: {
-                let ptr = T::get(env, obj, &mut is_copy)?;
+                let ptr = T::get(&mut env, &obj, &mut is_copy)?;
                 NonNull::new(ptr).ok_or(Error::NullPtr("Non-null ptr expected"))?
             },
+            obj,
             mode,
             is_copy: is_copy == sys::JNI_TRUE,
-            env: *env,
+            env,
         })
     }
 
@@ -93,12 +130,20 @@ impl<'a, T: TypeArray> AutoArray<'a, T> {
     }
 
     /// Commits the changes to the array, if it is a copy
-    pub fn commit(&self) -> Result<()> {
-        self.release_array_elements(sys::JNI_COMMIT)
+    pub fn commit(&mut self) -> Result<()> {
+        unsafe { self.release_array_elements(sys::JNI_COMMIT) }
     }
 
-    fn release_array_elements(&self, mode: i32) -> Result<()> {
-        T::release(&self.env, self.obj, self.ptr, mode)
+    /// Calls the release function.
+    ///
+    /// # Safety
+    ///
+    /// `mode` must be a valid parameter to the JNI `Release<PrimitiveType>ArrayElements`' `mode`
+    /// parameter.
+    ///
+    /// If `mode` is not [`sys::JNI_COMMIT`], then the array must not have already been released.
+    unsafe fn release_array_elements(&mut self, mode: i32) -> Result<()> {
+        T::release(&mut self.env, &self.obj, self.ptr, mode)
     }
 
     /// Don't commit the changes to the array on release (if it is a copy).
@@ -120,9 +165,23 @@ impl<'a, T: TypeArray> AutoArray<'a, T> {
     }
 }
 
-impl<'a, T: TypeArray> Drop for AutoArray<'a, T> {
+impl<'local, T: TypeArray> AsRef<AutoArray<'local, T>> for AutoArray<'local, T> {
+    fn as_ref(&self) -> &AutoArray<'local, T> {
+        self
+    }
+}
+
+impl<'local, T: TypeArray> AsRef<JObject<'local>> for AutoArray<'local, T> {
+    fn as_ref(&self) -> &JObject<'local> {
+        &self.obj
+    }
+}
+
+impl<'local, T: TypeArray> Drop for AutoArray<'local, T> {
     fn drop(&mut self) {
-        let res = self.release_array_elements(self.mode as i32);
+        // Safety: `self.mode` is valid and the array has not yet been released.
+        let res = unsafe { self.release_array_elements(self.mode as i32) };
+
         match res {
             Ok(()) => {}
             Err(e) => error!("error releasing array: {:#?}", e),
@@ -130,8 +189,8 @@ impl<'a, T: TypeArray> Drop for AutoArray<'a, T> {
     }
 }
 
-impl<'a, T: TypeArray> From<&'a AutoArray<'a, T>> for *mut T {
-    fn from(other: &'a AutoArray<T>) -> *mut T {
+impl<'local, T: TypeArray> From<&'local AutoArray<'local, T>> for *mut T {
+    fn from(other: &'local AutoArray<T>) -> *mut T {
         other.as_ptr()
     }
 }

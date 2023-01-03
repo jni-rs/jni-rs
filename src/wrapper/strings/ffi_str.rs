@@ -50,8 +50,8 @@ where
     }
 }
 
-impl<'a> From<&'a JNIStr> for Cow<'a, str> {
-    fn from(other: &'a JNIStr) -> Cow<'a, str> {
+impl<'str_ref> From<&'str_ref JNIStr> for Cow<'str_ref, str> {
+    fn from(other: &'str_ref JNIStr) -> Cow<'str_ref, str> {
         let bytes = other.to_bytes();
         match from_java_cesu8(bytes) {
             Ok(s) => s,
@@ -84,7 +84,7 @@ impl JNIStr {
     ///
     /// Expects a valid pointer to a null-terminated C string and does not perform any lifetime
     /// checks for the resulting value.
-    pub unsafe fn from_ptr<'a>(ptr: *const c_char) -> &'a JNIStr {
+    pub unsafe fn from_ptr<'jni_str>(ptr: *const c_char) -> &'jni_str JNIStr {
         &*(ffi::CStr::from_ptr(ptr) as *const ffi::CStr as *const ffi_str::JNIStr)
     }
 }

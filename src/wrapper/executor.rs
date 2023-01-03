@@ -70,14 +70,14 @@ impl Executor {
     /// Allocates a local frame with the specified capacity.
     pub fn with_attached_capacity<F, R>(&self, capacity: i32, f: F) -> Result<R>
     where
-        F: FnOnce(&JNIEnv) -> Result<R>,
+        F: FnOnce(&mut JNIEnv) -> Result<R>,
     {
         assert!(capacity > 0, "capacity should be a positive integer");
 
-        let jni_env = self.vm.attach_current_thread_as_daemon()?;
+        let mut jni_env = self.vm.attach_current_thread_as_daemon()?;
         let mut result = None;
-        jni_env.with_local_frame(capacity, || {
-            result = Some(f(&jni_env));
+        jni_env.with_local_frame(capacity, |jni_env| {
+            result = Some(f(jni_env));
             Ok(JObject::null())
         })?;
 
@@ -92,7 +92,7 @@ impl Executor {
     /// [the default capacity](constant.DEFAULT_LOCAL_FRAME_CAPACITY.html).
     pub fn with_attached<F, R>(&self, f: F) -> Result<R>
     where
-        F: FnOnce(&JNIEnv) -> Result<R>,
+        F: FnOnce(&mut JNIEnv) -> Result<R>,
     {
         self.with_attached_capacity(DEFAULT_LOCAL_FRAME_CAPACITY, f)
     }

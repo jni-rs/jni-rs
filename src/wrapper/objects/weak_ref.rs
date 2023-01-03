@@ -8,6 +8,10 @@ use crate::{
     sys, JNIEnv, JavaVM,
 };
 
+// Note: `WeakRef` must not implement `Into<JObject>`! If it did, then it would be possible to
+// wrap it in `AutoLocal`, which would cause undefined behavior upon drop as a result of calling
+// the wrong JNI function to delete the reference.
+
 /// A *weak* global JVM reference. These are global in scope like
 /// [`GlobalRef`], and may outlive the `JNIEnv` they came from, but are
 /// *not* guaranteed to not get collected until released.
@@ -63,11 +67,11 @@ impl WeakRef {
     ///
     /// If this method returns `Ok(Some(r))`, it is guaranteed that the object will not be garbage
     /// collected at least until `r` is deleted or becomes invalid.
-    pub fn upgrade_local<'e>(&self, env: &JNIEnv<'e>) -> Result<Option<JObject<'e>>> {
+    pub fn upgrade_local<'local>(&self, env: &JNIEnv<'local>) -> Result<Option<JObject<'local>>> {
         let r = env.new_local_ref(unsafe { JObject::from_raw(self.as_raw()) })?;
 
         // Per JNI spec, `NewLocalRef` will return a null pointer if the object was GC'd.
-        if r.into_raw().is_null() {
+        if r.is_null() {
             Ok(None)
         } else {
             Ok(Some(r))
@@ -87,7 +91,7 @@ impl WeakRef {
 
         // Unlike `NewLocalRef`, the JNI spec does *not* guarantee that `NewGlobalRef` will return a
         // null pointer if the object was GC'd, so we'll have to check.
-        if env.is_same_object(r.as_obj(), JObject::null())? {
+        if env.is_same_object(&r, JObject::null())? {
             Ok(None)
         } else {
             Ok(Some(r))
@@ -117,9 +121,9 @@ impl WeakRef {
     /// [`WeakRef::is_garbage_collected`]: it returns true if the object referred to by this
     /// `WeakRef` has been garbage collected, or false if the object has not yet been garbage
     /// collected.
-    pub fn is_same_object<'a, O>(&self, env: &JNIEnv<'a>, object: O) -> Result<bool>
+    pub fn is_same_object<'local, O>(&self, env: &JNIEnv<'local>, object: O) -> Result<bool>
     where
-        O: Into<JObject<'a>>,
+        O: AsRef<JObject<'local>>,
     {
         env.is_same_object(unsafe { JObject::from_raw(self.as_raw()) }, object)
     }

@@ -7,17 +7,17 @@ use util::{attach_current_thread, print_exception};
 
 #[test]
 fn test_java_integers() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
 
     let array_length = 50;
 
     for value in -10..10 {
-        env.with_local_frame(16, || {
+        env.with_local_frame(16, |env| {
             let integer_value =
                 env.new_object("java/lang/Integer", "(I)V", &[JValue::Int(value)])?;
 
             let values_array =
-                env.new_object_array(array_length, "java/lang/Integer", integer_value)?;
+                env.new_object_array(array_length, "java/lang/Integer", &integer_value)?;
             let values_array = unsafe { JObject::from_raw(values_array) };
 
             let result = env
@@ -25,7 +25,10 @@ fn test_java_integers() {
                     "java/util/Arrays",
                     "binarySearch",
                     "([Ljava/lang/Object;Ljava/lang/Object;)I",
-                    &[JValue::Object(values_array), JValue::Object(integer_value)],
+                    &[
+                        JValue::Object(&values_array),
+                        JValue::Object(&integer_value),
+                    ],
                 )?
                 .i()?;
 

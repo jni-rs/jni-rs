@@ -16,7 +16,7 @@ use crate::{
     objects::{
         AutoArray, AutoLocal, AutoPrimitiveArray, GlobalRef, JByteBuffer, JClass, JFieldID, JList,
         JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID, JString, JThrowable, JValue,
-        ReleaseMode, TypeArray, WeakRef,
+        JValueOwned, ReleaseMode, TypeArray, WeakRef,
     },
     signature::{JavaType, Primitive, TypeSignature},
     strings::{JNIString, JavaStr},
@@ -41,6 +41,49 @@ use crate::{
 /// will _not_ clear the exception - it's up to the caller to decide whether to
 /// do so or to let it continue being thrown.
 ///
+/// # References and Lifetimes
+///
+/// As in C JNI, interactions with Java objects happen through <dfn>references</dfn>, either local
+/// or global, represented by [`JObject`] and [`GlobalRef`] respectively. So long as there is at
+/// least one such reference to a Java object, the JVM garbage collector will not reclaim it.
+///
+/// <dfn>Global references</dfn> exist until deleted. Deletion occurs when the `GlobalRef` is
+/// dropped.
+///
+/// <dfn>Local references</dfn> belong to a local reference frame, and exist until
+/// [deleted][JNIEnv::delete_local_ref] or until the local reference frame is exited. A <dfn>local
+/// reference frame</dfn> is entered when a native method is called from Java, or when Rust code
+/// does so explicitly using [`JNIEnv::with_local_frame`]. That local reference frame is exited
+/// when the native method or `with_local_frame` returns. When a local reference frame is exited,
+/// all local references created inside it are deleted.
+///
+/// Unlike C JNI, this crate creates a separate `JNIEnv` for each local reference frame. The
+/// associated Rust lifetime `'local` represents that local reference frame. Rust's borrow checker
+/// will ensure that local references are not used after their local reference frame exits (which
+/// would cause undefined behavior).
+///
+/// Unlike global references, local references are not deleted when dropped by default. This is for
+/// performance: it is faster for the JVM to delete all of the local references in a frame all at
+/// once, than to delete each local reference one at a time. However, this can cause a memory leak
+/// if the local reference frame remains entered for a long time, such as a long-lasting loop, in
+/// which case local references should be deleted explicitly. Local references can be deleted when
+/// dropped if desired; use [`JNIEnv::auto_local`] to arrange that.
+///
+/// ## Lifetime Names
+///
+/// This crate uses the following convention for lifetime names:
+///
+/// * `'local` is the lifetime of a local reference frame, as described above.
+///
+/// * `'other_local`, `'other_local_1`, and `'other_local_2` are the lifetimes of some other local
+///   reference frame, which may be but doesn't have to be the same as `'local`. For example,
+///   [`JNIEnv::new_local_ref`] accepts a local reference in any local reference frame
+///   `'other_local` and creates a new local reference to the same object in `'local`.
+///
+/// * `'obj_ref` is the lifetime of a borrow of a JNI reference, like <code>&amp;[JObject]</code>
+///   or <code>&amp;[GlobalRef]</code>. For example, [`JNIEnv::get_list`] constructs a new
+///   [`JList`] that borrows a `&'obj_ref JObject`.
+///
 /// ## `null` Java references
 /// `null` Java references are handled by the following rules:
 ///   - If a `null` Java reference is passed to a method that expects a non-`null`
@@ -52,6 +95,19 @@ use crate::{
 ///   - If a JNI function may return `null` Java reference as one of possible reference
 ///     values (e.g., `get_object_array_element` or `get_field_unchecked`),
 ///     it is converted to `JObject::null()`.
+///
+/// # `&self` and `&mut self`
+///
+/// Most of the methods on this type take a `&mut self` reference, specifically all methods that
+/// can enter a new local reference frame. This includes anything that might invoke user-defined
+/// Java code, which can indirectly enter a new local reference frame by calling a native method.
+///
+/// The reason for this restriction is to ensure that a `JNIEnv` instance can only be used in the
+/// local reference frame that it belongs to. This, in turn, ensures that it is not possible to
+/// create [`JObject`]s with the lifetime of a different local reference frame, which would lead to
+/// undefined behavior. (See [issue #392] for background discussion.)
+///
+/// [issue #392]: https://github.com/jni-rs/jni-rs/issues/392
 ///
 /// # Checked and unchecked methods
 ///
@@ -76,14 +132,14 @@ use crate::{
 ///
 /// Calling unchecked methods with invalid arguments and/or invalid class and
 /// method descriptors may lead to segmentation fault.
-#[derive(Clone, Copy)]
 #[repr(transparent)]
-pub struct JNIEnv<'a> {
+#[derive(Debug)]
+pub struct JNIEnv<'local> {
     internal: *mut sys::JNIEnv,
-    lifetime: PhantomData<&'a ()>,
+    lifetime: PhantomData<&'local ()>,
 }
 
-impl<'a> JNIEnv<'a> {
+impl<'local> JNIEnv<'local> {
     /// Create a JNIEnv from a raw pointer.
     ///
     /// # Safety
@@ -102,6 +158,26 @@ impl<'a> JNIEnv<'a> {
         self.internal
     }
 
+    /// Duplicates this `JNIEnv`.
+    ///
+    /// # Safety
+    ///
+    /// The duplicate `JNIEnv` must not be used to create any local references, unless they are
+    /// discarded before the current [local reference frame] is exited. Otherwise, they may have a
+    /// lifetime longer than they are actually valid for, resulting in a use-after-free bug and
+    /// undefined behavior.
+    ///
+    /// See [issue #392] for background.
+    ///
+    /// [local reference frame]: JNIEnv::with_local_frame
+    /// [issue #392]: https://github.com/jni-rs/jni-rs/issues/392
+    pub unsafe fn unsafe_clone(&self) -> Self {
+        Self {
+            internal: self.internal,
+            lifetime: self.lifetime,
+        }
+    }
+
     /// Get the java version that we're being executed from.
     pub fn get_version(&self) -> Result<JNIVersion> {
         Ok(jni_unchecked!(self.internal, GetVersion).into())
@@ -109,7 +185,12 @@ impl<'a> JNIEnv<'a> {
 
     /// Load a class from a buffer of raw class data. The name of the class must match the name
     /// encoded within the class file data.
-    pub fn define_class<S>(&self, name: S, loader: JObject<'a>, buf: &[u8]) -> Result<JClass<'a>>
+    pub fn define_class<S>(
+        &mut self,
+        name: S,
+        loader: &JObject,
+        buf: &[u8],
+    ) -> Result<JClass<'local>>
     where
         S: Into<JNIString>,
     {
@@ -119,24 +200,29 @@ impl<'a> JNIEnv<'a> {
 
     /// Load a class from a buffer of raw class data. The name of the class is inferred from the
     /// buffer.
-    pub fn define_unnamed_class<S>(&self, loader: JObject<'a>, buf: &[u8]) -> Result<JClass<'a>>
+    pub fn define_unnamed_class<S>(
+        &mut self,
+        loader: &JObject,
+        buf: &[u8],
+    ) -> Result<JClass<'local>>
     where
         S: Into<JNIString>,
     {
         self.define_class_impl(ptr::null(), loader, buf)
     }
 
+    // Note: This requires `&mut` because it might invoke a method on a user-defined `ClassLoader`.
     fn define_class_impl(
-        &self,
+        &mut self,
         name: *const c_char,
-        loader: JObject<'a>,
+        loader: &JObject,
         buf: &[u8],
-    ) -> Result<JClass<'a>> {
+    ) -> Result<JClass<'local>> {
         let class = jni_non_null_call!(
             self.internal,
             DefineClass,
             name,
-            loader.into_raw(),
+            loader.as_raw(),
             buf.as_ptr() as *const jbyte,
             buf.len() as jsize
         );
@@ -146,11 +232,11 @@ impl<'a> JNIEnv<'a> {
     /// Load a class from a buffer of raw class data. The name of the class must match the name
     /// encoded within the class file data.
     pub fn define_class_bytearray<S>(
-        &self,
+        &mut self,
         name: S,
-        loader: JObject<'a>,
+        loader: &JObject,
         buf: AutoArray<'_, jbyte>,
-    ) -> Result<JClass<'a>>
+    ) -> Result<JClass<'local>>
     where
         S: Into<JNIString>,
     {
@@ -159,7 +245,7 @@ impl<'a> JNIEnv<'a> {
             self.internal,
             DefineClass,
             name.as_ptr(),
-            loader.into_raw(),
+            loader.as_raw(),
             buf.as_ptr(),
             buf.size()?
         );
@@ -169,10 +255,15 @@ impl<'a> JNIEnv<'a> {
     /// Look up a class by name.
     ///
     /// # Example
-    /// ```rust,ignore
-    /// let class: JClass<'a> = env.find_class("java/lang/String");
+    /// ```rust,no_run
+    /// # use jni::{errors::Result, JNIEnv, objects::JClass};
+    /// #
+    /// # fn example<'local>(env: &mut JNIEnv<'local>) -> Result<()> {
+    /// let class: JClass<'local> = env.find_class("java/lang/String")?;
+    /// # Ok(())
+    /// # }
     /// ```
-    pub fn find_class<S>(&self, name: S) -> Result<JClass<'a>>
+    pub fn find_class<S>(&mut self, name: S) -> Result<JClass<'local>>
     where
         S: Into<JNIString>,
     {
@@ -187,16 +278,16 @@ impl<'a> JNIEnv<'a> {
     /// # Errors
     ///
     /// If a JNI call fails
-    pub fn get_superclass<'c, T>(&self, class: T) -> Result<Option<JClass<'a>>>
+    pub fn get_superclass<'other_local, T>(&mut self, class: T) -> Result<Option<JClass<'local>>>
     where
-        T: Desc<'a, JClass<'c>>,
+        T: Desc<'local, JClass<'other_local>>,
     {
         let class = class.lookup(self)?;
         let superclass = unsafe {
             JClass::from_raw(jni_unchecked!(
                 self.internal,
                 GetSuperclass,
-                class.into_raw()
+                class.as_ref().as_raw()
             ))
         };
 
@@ -204,18 +295,22 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Tests whether class1 is assignable from class2.
-    pub fn is_assignable_from<'t, 'u, T, U>(&self, class1: T, class2: U) -> Result<bool>
+    pub fn is_assignable_from<'other_local_1, 'other_local_2, T, U>(
+        &mut self,
+        class1: T,
+        class2: U,
+    ) -> Result<bool>
     where
-        T: Desc<'a, JClass<'t>>,
-        U: Desc<'a, JClass<'u>>,
+        T: Desc<'local, JClass<'other_local_1>>,
+        U: Desc<'local, JClass<'other_local_2>>,
     {
         let class1 = class1.lookup(self)?;
         let class2 = class2.lookup(self)?;
         Ok(jni_unchecked!(
             self.internal,
             IsAssignableFrom,
-            class1.into_raw(),
-            class2.into_raw()
+            class1.as_ref().as_raw(),
+            class2.as_ref().as_raw()
         ) == sys::JNI_TRUE)
     }
 
@@ -226,32 +321,40 @@ impl<'a> JNIEnv<'a> {
     ///
     /// See [JNI documentation](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#IsInstanceOf)
     /// for details.
-    pub fn is_instance_of<'c, O, T>(&self, object: O, class: T) -> Result<bool>
+    pub fn is_instance_of<'other_local_1, 'other_local_2, O, T>(
+        &mut self,
+        object: O,
+        class: T,
+    ) -> Result<bool>
     where
-        O: Into<JObject<'a>>,
-        T: Desc<'a, JClass<'c>>,
+        O: AsRef<JObject<'other_local_1>>,
+        T: Desc<'local, JClass<'other_local_2>>,
     {
         let class = class.lookup(self)?;
         Ok(jni_unchecked!(
             self.internal,
             IsInstanceOf,
-            object.into().into_raw(),
-            class.into_raw()
+            object.as_ref().as_raw(),
+            class.as_ref().as_raw()
         ) == sys::JNI_TRUE)
     }
 
     /// Returns true if ref1 and ref2 refer to the same Java object, or are both `NULL`. Otherwise,
     /// returns false.
-    pub fn is_same_object<'b, 'c, O, T>(&self, ref1: O, ref2: T) -> Result<bool>
+    pub fn is_same_object<'other_local_1, 'other_local_2, O, T>(
+        &self,
+        ref1: O,
+        ref2: T,
+    ) -> Result<bool>
     where
-        O: Into<JObject<'b>>,
-        T: Into<JObject<'c>>,
+        O: AsRef<JObject<'other_local_1>>,
+        T: AsRef<JObject<'other_local_2>>,
     {
         Ok(jni_unchecked!(
             self.internal,
             IsSameObject,
-            ref1.into().into_raw(),
-            ref2.into().into_raw()
+            ref1.as_ref().as_raw(),
+            ref2.as_ref().as_raw()
         ) == sys::JNI_TRUE)
     }
 
@@ -259,21 +362,35 @@ impl<'a> JNIEnv<'a> {
     /// thrown in java unless `exception_clear` is called.
     ///
     /// # Examples
-    /// ```rust,ignore
-    /// let _ = env.throw(("java/lang/Exception", "something bad happened"));
+    /// ```rust,no_run
+    /// # use jni::{errors::Result, JNIEnv};
+    /// #
+    /// # fn example(env: &mut JNIEnv) -> Result<()> {
+    /// env.throw(("java/lang/Exception", "something bad happened"))?;
+    /// # Ok(())
+    /// # }
     /// ```
     ///
     /// Defaulting to "java/lang/Exception":
     ///
-    /// ```rust,ignore
-    /// let _ = env.throw("something bad happened");
+    /// ```rust,no_run
+    /// # use jni::{errors::Result, JNIEnv};
+    /// #
+    /// # fn example(env: &mut JNIEnv) -> Result<()> {
+    /// env.throw("something bad happened")?;
+    /// # Ok(())
+    /// # }
     /// ```
-    pub fn throw<'e, E>(&self, obj: E) -> Result<()>
+    pub fn throw<'other_local, E>(&mut self, obj: E) -> Result<()>
     where
-        E: Desc<'a, JThrowable<'e>>,
+        E: Desc<'local, JThrowable<'other_local>>,
     {
         let throwable = obj.lookup(self)?;
-        let res: i32 = jni_unchecked!(self.internal, Throw, throwable.into_raw());
+        let res: i32 = jni_unchecked!(self.internal, Throw, throwable.as_ref().as_raw());
+
+        // Ensure that `throwable` isn't dropped before the JNI call returns.
+        drop(throwable);
+
         if res == 0 {
             Ok(())
         } else {
@@ -285,17 +402,31 @@ impl<'a> JNIEnv<'a> {
     /// message.
     ///
     /// # Example
-    /// ```rust,ignore
-    /// let _ = env.throw_new("java/lang/Exception", "something bad happened");
+    /// ```rust,no_run
+    /// # use jni::{errors::Result, JNIEnv};
+    /// #
+    /// # fn example(env: &mut JNIEnv) -> Result<()> {
+    /// env.throw_new("java/lang/Exception", "something bad happened")?;
+    /// # Ok(())
+    /// # }
     /// ```
-    pub fn throw_new<'c, S, T>(&self, class: T, msg: S) -> Result<()>
+    pub fn throw_new<'other_local, S, T>(&mut self, class: T, msg: S) -> Result<()>
     where
         S: Into<JNIString>,
-        T: Desc<'a, JClass<'c>>,
+        T: Desc<'local, JClass<'other_local>>,
     {
         let class = class.lookup(self)?;
         let msg = msg.into();
-        let res: i32 = jni_unchecked!(self.internal, ThrowNew, class.into_raw(), msg.as_ptr());
+        let res: i32 = jni_unchecked!(
+            self.internal,
+            ThrowNew,
+            class.as_ref().as_raw(),
+            msg.as_ptr()
+        );
+
+        // Ensure that `class` isn't dropped before the JNI call returns.
+        drop(class);
+
         if res == 0 {
             Ok(())
         } else {
@@ -306,7 +437,7 @@ impl<'a> JNIEnv<'a> {
     /// Check whether or not an exception is currently in the process of being
     /// thrown. An exception is in this state from the time it gets thrown and
     /// not caught in a java function until `exception_clear` is called.
-    pub fn exception_occurred(&self) -> Result<JThrowable<'a>> {
+    pub fn exception_occurred(&mut self) -> Result<JThrowable<'local>> {
         let throwable = jni_unchecked!(self.internal, ExceptionOccurred);
         Ok(unsafe { JThrowable::from_raw(throwable) })
     }
@@ -348,13 +479,18 @@ impl<'a> JNIEnv<'a> {
     /// Create a new instance of a direct java.nio.ByteBuffer
     ///
     /// # Example
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// # use jni::{errors::Result, JNIEnv};
+    /// #
+    /// # fn example(env: &mut JNIEnv) -> Result<()> {
     /// let buf = vec![0; 1024 * 1024];
     /// let (addr, len) = { // (use buf.into_raw_parts() on nightly)
     ///     let buf = buf.leak();
     ///     (buf.as_mut_ptr(), buf.len())
     /// };
-    /// let direct_buffer = unsafe { env.new_direct_byte_buffer(addr, len) };
+    /// let direct_buffer = unsafe { env.new_direct_byte_buffer(addr, len) }?;
+    /// # Ok(())
+    /// # }
     /// ```
     ///
     /// # Safety
@@ -365,10 +501,10 @@ impl<'a> JNIEnv<'a> {
     /// `ByteBuffer`. The JVM may maintain references to the `ByteBuffer` beyond the lifetime
     /// of this `JNIEnv`.
     pub unsafe fn new_direct_byte_buffer(
-        &self,
+        &mut self,
         data: *mut u8,
         len: usize,
-    ) -> Result<JByteBuffer<'a>> {
+    ) -> Result<JByteBuffer<'local>> {
         non_null!(data, "new_direct_byte_buffer data argument");
         let obj = jni_non_null_call!(
             self.internal,
@@ -381,9 +517,9 @@ impl<'a> JNIEnv<'a> {
 
     /// Returns the starting address of the memory of the direct
     /// java.nio.ByteBuffer.
-    pub fn get_direct_buffer_address(&self, buf: JByteBuffer) -> Result<*mut u8> {
+    pub fn get_direct_buffer_address(&self, buf: &JByteBuffer) -> Result<*mut u8> {
         non_null!(buf, "get_direct_buffer_address argument");
-        let ptr = jni_unchecked!(self.internal, GetDirectBufferAddress, buf.into_raw());
+        let ptr = jni_unchecked!(self.internal, GetDirectBufferAddress, buf.as_raw());
         non_null!(ptr, "get_direct_buffer_address return value");
         Ok(ptr as _)
     }
@@ -397,9 +533,9 @@ impl<'a> JNIEnv<'a> {
     /// API).
     ///
     /// The terminology is simply kept from the original JNI API (`GetDirectBufferCapacity`).
-    pub fn get_direct_buffer_capacity(&self, buf: JByteBuffer) -> Result<usize> {
+    pub fn get_direct_buffer_capacity(&self, buf: &JByteBuffer) -> Result<usize> {
         non_null!(buf, "get_direct_buffer_capacity argument");
-        let capacity = jni_unchecked!(self.internal, GetDirectBufferCapacity, buf.into_raw());
+        let capacity = jni_unchecked!(self.internal, GetDirectBufferCapacity, buf.as_raw());
         match capacity {
             -1 => Err(Error::JniCall(JniError::Unknown)),
             _ => Ok(capacity as usize),
@@ -409,12 +545,13 @@ impl<'a> JNIEnv<'a> {
     /// Turns an object into a global ref. This has the benefit of removing the
     /// lifetime bounds since it's guaranteed to not get GC'd by java. It
     /// releases the GC pin upon being dropped.
-    pub fn new_global_ref<O>(&self, obj: O) -> Result<GlobalRef>
+    pub fn new_global_ref<'other_local, O>(&self, obj: O) -> Result<GlobalRef>
     where
-        O: Into<JObject<'a>>,
+        O: AsRef<JObject<'other_local>>,
     {
-        let new_ref = jni_unchecked!(self.internal, NewGlobalRef, obj.into().into_raw());
-        let global = unsafe { GlobalRef::from_raw(self.get_java_vm()?, new_ref) };
+        let jvm = self.get_java_vm()?;
+        let new_ref = jni_unchecked!(self.internal, NewGlobalRef, obj.as_ref().as_raw());
+        let global = unsafe { GlobalRef::from_raw(jvm, new_ref) };
         Ok(global)
     }
 
@@ -422,16 +559,16 @@ impl<'a> JNIEnv<'a> {
     ///
     /// If the provided object is null, this method returns `None`. Otherwise, it returns `Some`
     /// containing the new weak global reference.
-    pub fn new_weak_ref<O>(&self, obj: O) -> Result<Option<WeakRef>>
+    pub fn new_weak_ref<'other_local, O>(&self, obj: O) -> Result<Option<WeakRef>>
     where
-        O: Into<JObject<'a>>,
+        O: AsRef<JObject<'other_local>>,
     {
         // We need the `JavaVM` in order to construct a `WeakRef` below. But because `get_java_vm`
         // is fallible, we need to call it before doing anything else, so that we don't leak
         // memory if it fails.
         let vm = self.get_java_vm()?;
 
-        let obj = obj.into().into_raw();
+        let obj = obj.as_ref().as_raw();
 
         // Check if the pointer is null *before* calling `NewWeakGlobalRef`.
         //
@@ -473,15 +610,15 @@ impl<'a> JNIEnv<'a> {
     ///
     /// # Lifetimes
     ///
-    /// `'a` is the lifetime of this `JNIEnv`. This method creates a new local reference with
-    /// lifetime `'a`.
+    /// `'local` is the lifetime of the local reference frame that this `JNIEnv` belongs to. This
+    /// method creates a new local reference in that frame, with lifetime `'local`.
     ///
-    /// `'b` is the lifetime of the original reference. It can be any valid lifetime, even one that
-    /// `'a` outlives or vice versa.
+    /// `'other_local` is the lifetime of the original reference's frame. It can be any valid
+    /// lifetime, even one that `'local` outlives or vice versa.
     ///
-    /// Think of `'a` as meaning `'new` and `'b` as meaning `'original`. (It is unfortunately not
-    /// possible to actually give these names to the two lifetimes because `'a` is a parameter to
-    /// the `JNIEnv` type, not a parameter to this method.)
+    /// Think of `'local` as meaning `'new` and `'other_local` as meaning `'original`. (It is
+    /// unfortunately not possible to actually give these names to the two lifetimes because
+    /// `'local` is a parameter to the `JNIEnv` type, not a parameter to this method.)
     ///
     /// # Example
     ///
@@ -515,7 +652,7 @@ impl<'a> JNIEnv<'a> {
     ///     /// If this is an `ExampleError::Exception`, then this extracts the enclosed Java
     ///     /// exception object. Otherwise, a new exception object is created to represent this
     ///     /// error.
-    ///     fn extract_throwable(self, env: JNIEnv) -> jni::errors::Result<JThrowable> {
+    ///     fn extract_throwable<'local>(self, env: &mut JNIEnv<'local>) -> jni::errors::Result<JThrowable<'local>> {
     ///         let throwable: JObject = match self {
     ///             ExampleError::Exception(exception) => {
     ///                 // The error was caused by a Java exception.
@@ -525,18 +662,20 @@ impl<'a> JNIEnv<'a> {
     ///                 // `new_local_ref` to create a local reference that will outlive the
     ///                 // `GlobalRef`.
     ///
-    ///                 env.new_local_ref(exception.as_obj())?
+    ///                 env.new_local_ref(&exception)?
     ///             }
     ///
     ///             ExampleError::Other(error) => {
     ///                 // The error was caused by something that happened in Rust code. Create a
     ///                 // new `java.lang.Error` to represent it.
     ///
+    ///                 let error_string = env.new_string(error.to_string())?;
+    ///
     ///                 env.new_object(
     ///                     "java/lang/Error",
     ///                     "(Ljava/lang/String;)V",
     ///                     &[
-    ///                         env.new_string(error.to_string())?.into(),
+    ///                         (&error_string).into(),
     ///                     ],
     ///                 )?
     ///             }
@@ -548,11 +687,11 @@ impl<'a> JNIEnv<'a> {
     /// ```
     ///
     /// [`NewLocalRef`]: https://docs.oracle.com/en/java/javase/11/docs/specs/jni/functions.html#newlocalref
-    pub fn new_local_ref<'b, O>(&self, obj: O) -> Result<JObject<'a>>
+    pub fn new_local_ref<'other_local, O>(&self, obj: O) -> Result<JObject<'local>>
     where
-        O: Into<JObject<'b>>,
+        O: AsRef<JObject<'other_local>>,
     {
-        let local = jni_unchecked!(self.internal, NewLocalRef, obj.into().into_raw());
+        let local = jni_unchecked!(self.internal, NewLocalRef, obj.as_ref().as_raw());
         Ok(unsafe { JObject::from_raw(local) })
     }
 
@@ -562,11 +701,11 @@ impl<'a> JNIEnv<'a> {
     /// can be more convenient when you create a _bounded_ number of local references
     /// but cannot rely on automatic de-allocation (e.g., in case of recursion, deep call stacks,
     /// [permanently-attached](struct.JavaVM.html#attaching-native-threads) native threads, etc.).
-    pub fn auto_local<'b, O>(&'b self, obj: O) -> AutoLocal<'a, 'b>
+    pub fn auto_local<O>(&self, obj: O) -> AutoLocal<'local, O>
     where
-        O: Into<JObject<'a>>,
+        O: Into<JObject<'local>>,
     {
-        AutoLocal::new(self, obj.into())
+        AutoLocal::new(obj, self)
     }
 
     /// Deletes the local reference.
@@ -587,8 +726,17 @@ impl<'a> JNIEnv<'a> {
     ///
     /// In most cases it is better to use `AutoLocal` (see `auto_local` method)
     /// or `with_local_frame` instead of direct `delete_local_ref` calls.
-    pub fn delete_local_ref(&self, obj: JObject) -> Result<()> {
-        jni_unchecked!(self.internal, DeleteLocalRef, obj.into_raw());
+    ///
+    /// `obj` can be a mutable borrow of a local reference (such as
+    /// `&mut JObject`) instead of the local reference itself (such as
+    /// `JObject`). In this case, the local reference will still exist after
+    /// this method returns, but it will be null.
+    pub fn delete_local_ref<'other_local, O>(&self, obj: O) -> Result<()>
+    where
+        O: Into<JObject<'other_local>>,
+    {
+        let raw = obj.into().into_raw();
+        jni_unchecked!(self.internal, DeleteLocalRef, raw);
         Ok(())
     }
 
@@ -597,8 +745,9 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Returns `Err` on failure, with a pending `OutOfMemoryError`.
     ///
-    /// Prefer to use [`with_local_frame`](struct.JNIEnv.html#method.with_local_frame) instead of
-    /// direct `push_local_frame`/`pop_local_frame` calls.
+    /// Prefer to use
+    /// [`with_local_frame`](struct.JNIEnv.html#method.with_local_frame)
+    /// instead of direct `push_local_frame`/`pop_local_frame` calls.
     ///
     /// See also [`auto_local`](struct.JNIEnv.html#method.auto_local) method
     /// and `AutoLocal` type — that approach can be more convenient in loops.
@@ -613,15 +762,23 @@ impl<'a> JNIEnv<'a> {
     /// which is returned from this function and remains valid.
     ///
     /// The resulting `JObject` will be `NULL` iff `result` is `NULL`.
-    pub fn pop_local_frame(&self, result: JObject<'a>) -> Result<JObject<'a>> {
+    ///
+    /// This method allows direct control of local frames, but it can cause
+    /// undefined behavior and is therefore unsafe. Prefer
+    /// [`JNIEnv::with_local_frame`] instead.
+    ///
+    /// # Safety
+    ///
+    /// Any local references created after the most recent call to
+    /// [`JNIEnv::push_local_frame`] (or the underlying JNI function) must not
+    /// be used after calling this method.
+    pub unsafe fn pop_local_frame(&self, result: &JObject) -> Result<JObject<'local>> {
         // This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
-        Ok(unsafe {
-            JObject::from_raw(jni_unchecked!(
-                self.internal,
-                PopLocalFrame,
-                result.into_raw()
-            ))
-        })
+        Ok(JObject::from_raw(jni_unchecked!(
+            self.internal,
+            PopLocalFrame,
+            result.as_raw()
+        )))
     }
 
     /// Executes the given function in a new local reference frame, in which at least a given number
@@ -632,52 +789,63 @@ impl<'a> JNIEnv<'a> {
     ///
     /// See also [`auto_local`](struct.JNIEnv.html#method.auto_local) method
     /// and `AutoLocal` type - that approach can be more convenient in loops.
-    pub fn with_local_frame<F>(&self, capacity: i32, f: F) -> Result<JObject<'a>>
+    pub fn with_local_frame<F>(&mut self, capacity: i32, f: F) -> Result<JObject<'local>>
     where
-        F: FnOnce() -> Result<JObject<'a>>,
+        F: for<'new_local> FnOnce(&mut JNIEnv<'new_local>) -> Result<JObject<'new_local>>,
     {
-        self.push_local_frame(capacity)?;
-        let res = f();
-        match res {
-            Ok(obj) => self.pop_local_frame(obj),
-            Err(e) => {
-                self.pop_local_frame(JObject::null())?;
-                Err(e)
+        unsafe {
+            self.push_local_frame(capacity)?;
+            let res = f(self);
+            match res {
+                Ok(obj) => self.pop_local_frame(&obj),
+                Err(e) => {
+                    self.pop_local_frame(&JObject::null())?;
+                    Err(e)
+                }
             }
         }
     }
 
     /// Allocates a new object from a class descriptor without running a
     /// constructor.
-    pub fn alloc_object<'c, T>(&self, class: T) -> Result<JObject<'a>>
+    pub fn alloc_object<'other_local, T>(&mut self, class: T) -> Result<JObject<'local>>
     where
-        T: Desc<'a, JClass<'c>>,
+        T: Desc<'local, JClass<'other_local>>,
     {
         let class = class.lookup(self)?;
-        let obj = jni_non_null_call!(self.internal, AllocObject, class.into_raw());
+        let obj = jni_non_null_call!(self.internal, AllocObject, class.as_ref().as_raw());
+
+        // Ensure that `class` isn't dropped before the JNI call returns.
+        drop(class);
+
         Ok(unsafe { JObject::from_raw(obj) })
     }
 
     /// Common functionality for finding methods.
     #[allow(clippy::redundant_closure_call)]
-    fn get_method_id_base<'c, T, U, V, C, R>(
-        &self,
+    fn get_method_id_base<'other_local_1, T, U, V, C, R>(
+        &mut self,
         class: T,
         name: U,
         sig: V,
         get_method: C,
     ) -> Result<R>
     where
-        T: Desc<'a, JClass<'c>>,
+        T: Desc<'local, JClass<'other_local_1>>,
         U: Into<JNIString>,
         V: Into<JNIString>,
-        C: for<'d> Fn(&JClass<'d>, &JNIString, &JNIString) -> Result<R>,
+        C: for<'other_local_2> Fn(
+            &mut Self,
+            &JClass<'other_local_2>,
+            &JNIString,
+            &JNIString,
+        ) -> Result<R>,
     {
         let class = class.lookup(self)?;
         let ffi_name = name.into();
         let sig = sig.into();
 
-        let res: Result<R> = catch!({ get_method(&class, &ffi_name, &sig) });
+        let res: Result<R> = catch!({ get_method(self, class.as_ref(), &ffi_name, &sig) });
 
         match res {
             Ok(m) => Ok(m),
@@ -696,21 +864,31 @@ impl<'a> JNIEnv<'a> {
     /// signature.
     ///
     /// # Example
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// # use jni::{errors::Result, JNIEnv, objects::JMethodID};
+    /// #
+    /// # fn example(env: &mut JNIEnv) -> Result<()> {
     /// let method_id: JMethodID =
-    ///     env.get_method_id("java/lang/String", "substring", "(II)Ljava/lang/String;");
+    ///     env.get_method_id("java/lang/String", "substring", "(II)Ljava/lang/String;")?;
+    /// # Ok(())
+    /// # }
     /// ```
-    pub fn get_method_id<'c, T, U, V>(&self, class: T, name: U, sig: V) -> Result<JMethodID>
+    pub fn get_method_id<'other_local, T, U, V>(
+        &mut self,
+        class: T,
+        name: U,
+        sig: V,
+    ) -> Result<JMethodID>
     where
-        T: Desc<'a, JClass<'c>>,
+        T: Desc<'local, JClass<'other_local>>,
         U: Into<JNIString>,
         V: Into<JNIString>,
     {
-        self.get_method_id_base(class, name, sig, |class, name, sig| {
+        self.get_method_id_base(class, name, sig, |env, class, name, sig| {
             let method_id = jni_non_null_call!(
-                self.internal,
+                env.internal,
                 GetMethodID,
-                class.into_raw(),
+                class.as_raw(),
                 name.as_ptr(),
                 sig.as_ptr()
             );
@@ -722,26 +900,31 @@ impl<'a> JNIEnv<'a> {
     /// signature.
     ///
     /// # Example
-    /// ```rust,ignore
-    /// let method_id: JMethodID =
-    ///     env.get_static_method_id("java/lang/String", "valueOf", "(I)Ljava/lang/String;");
+    /// ```rust,no_run
+    /// # use jni::{errors::Result, JNIEnv, objects::JStaticMethodID};
+    /// #
+    /// # fn example(env: &mut JNIEnv) -> Result<()> {
+    /// let method_id: JStaticMethodID =
+    ///     env.get_static_method_id("java/lang/String", "valueOf", "(I)Ljava/lang/String;")?;
+    /// # Ok(())
+    /// # }
     /// ```
-    pub fn get_static_method_id<'c, T, U, V>(
-        &self,
+    pub fn get_static_method_id<'other_local, T, U, V>(
+        &mut self,
         class: T,
         name: U,
         sig: V,
     ) -> Result<JStaticMethodID>
     where
-        T: Desc<'a, JClass<'c>>,
+        T: Desc<'local, JClass<'other_local>>,
         U: Into<JNIString>,
         V: Into<JNIString>,
     {
-        self.get_method_id_base(class, name, sig, |class, name, sig| {
+        self.get_method_id_base(class, name, sig, |env, class, name, sig| {
             let method_id = jni_non_null_call!(
-                self.internal,
+                env.internal,
                 GetStaticMethodID,
-                class.into_raw(),
+                class.as_raw(),
                 name.as_ptr(),
                 sig.as_ptr()
             );
@@ -752,12 +935,22 @@ impl<'a> JNIEnv<'a> {
     /// Look up the field ID for a class/name/type combination.
     ///
     /// # Example
-    /// ```rust,ignore
-    /// let field_id = env.get_field_id("com/my/Class", "intField", "I");
+    /// ```rust,no_run
+    /// # use jni::{errors::Result, JNIEnv, objects::JFieldID};
+    /// #
+    /// # fn example(env: &mut JNIEnv) -> Result<()> {
+    /// let field_id: JFieldID = env.get_field_id("com/my/Class", "intField", "I")?;
+    /// # Ok(())
+    /// # }
     /// ```
-    pub fn get_field_id<'c, T, U, V>(&self, class: T, name: U, sig: V) -> Result<JFieldID>
+    pub fn get_field_id<'other_local, T, U, V>(
+        &mut self,
+        class: T,
+        name: U,
+        sig: V,
+    ) -> Result<JFieldID>
     where
-        T: Desc<'a, JClass<'c>>,
+        T: Desc<'local, JClass<'other_local>>,
         U: Into<JNIString>,
         V: Into<JNIString>,
     {
@@ -769,7 +962,7 @@ impl<'a> JNIEnv<'a> {
             let field_id = jni_non_null_call!(
                 self.internal,
                 GetFieldID,
-                class.into_raw(),
+                class.as_ref().as_raw(),
                 ffi_name.as_ptr(),
                 ffi_sig.as_ptr()
             );
@@ -792,17 +985,22 @@ impl<'a> JNIEnv<'a> {
     /// Look up the static field ID for a class/name/type combination.
     ///
     /// # Example
-    /// ```rust,ignore
-    /// let field_id = env.get_static_field_id("com/my/Class", "intField", "I");
+    /// ```rust,no_run
+    /// # use jni::{errors::Result, JNIEnv, objects::JStaticFieldID};
+    /// #
+    /// # fn example(env: &mut JNIEnv) -> Result<()> {
+    /// let field_id: JStaticFieldID = env.get_static_field_id("com/my/Class", "intField", "I")?;
+    /// # Ok(())
+    /// # }
     /// ```
-    pub fn get_static_field_id<'c, T, U, V>(
-        &self,
+    pub fn get_static_field_id<'other_local, T, U, V>(
+        &mut self,
         class: T,
         name: U,
         sig: V,
     ) -> Result<JStaticFieldID>
     where
-        T: Desc<'a, JClass<'c>>,
+        T: Desc<'local, JClass<'other_local>>,
         U: Into<JNIString>,
         V: Into<JNIString>,
     {
@@ -814,12 +1012,15 @@ impl<'a> JNIEnv<'a> {
             let field_id = jni_non_null_call!(
                 self.internal,
                 GetStaticFieldID,
-                class.into_raw(),
+                class.as_ref().as_raw(),
                 ffi_name.as_ptr(),
                 ffi_sig.as_ptr()
             );
             Ok(unsafe { JStaticFieldID::from_raw(field_id) })
         });
+
+        // Ensure that `class` isn't dropped before the JNI call returns.
+        drop(class);
 
         match res {
             Ok(m) => Ok(m),
@@ -835,19 +1036,19 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Get the class for an object.
-    pub fn get_object_class<'b, O>(&self, obj: O) -> Result<JClass<'a>>
+    pub fn get_object_class<'other_local, O>(&self, obj: O) -> Result<JClass<'local>>
     where
-        O: Into<JObject<'b>>,
+        O: AsRef<JObject<'other_local>>,
     {
-        let obj = obj.into();
+        let obj = obj.as_ref();
         non_null!(obj, "get_object_class");
-        Ok(unsafe {
-            JClass::from_raw(jni_unchecked!(
+        unsafe {
+            Ok(JClass::from_raw(jni_unchecked!(
                 self.internal,
                 GetObjectClass,
-                obj.into_raw()
-            ))
-        })
+                obj.as_raw()
+            )))
+        }
     }
 
     /// Call a static method in an unsafe manner. This does nothing to check
@@ -861,31 +1062,31 @@ impl<'a> JNIEnv<'a> {
     ///
     /// The provided JMethodID must be valid, and match the types and number of arguments, and return type.
     /// If these are incorrect, the JVM may crash. The JMethodID must also match the passed type.
-    pub unsafe fn call_static_method_unchecked<'c, T, U>(
-        &self,
+    pub unsafe fn call_static_method_unchecked<'other_local, T, U>(
+        &mut self,
         class: T,
         method_id: U,
         ret: ReturnType,
         args: &[jvalue],
-    ) -> Result<JValue<'a>>
+    ) -> Result<JValueOwned<'local>>
     where
-        T: Desc<'a, JClass<'c>>,
-        U: Desc<'a, JStaticMethodID>,
+        T: Desc<'local, JClass<'other_local>>,
+        U: Desc<'local, JStaticMethodID>,
     {
         let class = class.lookup(self)?;
 
-        let method_id = method_id.lookup(self)?.into_raw();
+        let method_id = method_id.lookup(self)?.as_ref().into_raw();
 
-        let class = class.into_raw();
+        let class_raw = class.as_ref().as_raw();
         let jni_args = args.as_ptr();
 
         // TODO clean this up
-        Ok(match ret {
+        let ret = Ok(match ret {
             ReturnType::Object | ReturnType::Array => {
                 let obj = jni_non_void_call!(
                     self.internal,
                     CallStaticObjectMethodA,
-                    class,
+                    class_raw,
                     method_id,
                     jni_args
                 );
@@ -896,7 +1097,7 @@ impl<'a> JNIEnv<'a> {
                 Primitive::Boolean => jni_non_void_call!(
                     self.internal,
                     CallStaticBooleanMethodA,
-                    class,
+                    class_raw,
                     method_id,
                     jni_args
                 )
@@ -904,7 +1105,7 @@ impl<'a> JNIEnv<'a> {
                 Primitive::Char => jni_non_void_call!(
                     self.internal,
                     CallStaticCharMethodA,
-                    class,
+                    class_raw,
                     method_id,
                     jni_args
                 )
@@ -912,7 +1113,7 @@ impl<'a> JNIEnv<'a> {
                 Primitive::Short => jni_non_void_call!(
                     self.internal,
                     CallStaticShortMethodA,
-                    class,
+                    class_raw,
                     method_id,
                     jni_args
                 )
@@ -920,7 +1121,7 @@ impl<'a> JNIEnv<'a> {
                 Primitive::Int => jni_non_void_call!(
                     self.internal,
                     CallStaticIntMethodA,
-                    class,
+                    class_raw,
                     method_id,
                     jni_args
                 )
@@ -928,7 +1129,7 @@ impl<'a> JNIEnv<'a> {
                 Primitive::Long => jni_non_void_call!(
                     self.internal,
                     CallStaticLongMethodA,
-                    class,
+                    class_raw,
                     method_id,
                     jni_args
                 )
@@ -936,7 +1137,7 @@ impl<'a> JNIEnv<'a> {
                 Primitive::Float => jni_non_void_call!(
                     self.internal,
                     CallStaticFloatMethodA,
-                    class,
+                    class_raw,
                     method_id,
                     jni_args
                 )
@@ -944,7 +1145,7 @@ impl<'a> JNIEnv<'a> {
                 Primitive::Double => jni_non_void_call!(
                     self.internal,
                     CallStaticDoubleMethodA,
-                    class,
+                    class_raw,
                     method_id,
                     jni_args
                 )
@@ -952,7 +1153,7 @@ impl<'a> JNIEnv<'a> {
                 Primitive::Byte => jni_non_void_call!(
                     self.internal,
                     CallStaticByteMethodA,
-                    class,
+                    class_raw,
                     method_id,
                     jni_args
                 )
@@ -961,14 +1162,19 @@ impl<'a> JNIEnv<'a> {
                     jni_void_call!(
                         self.internal,
                         CallStaticVoidMethodA,
-                        class,
+                        class_raw,
                         method_id,
                         jni_args
                     );
-                    return Ok(JValue::Void);
+                    return Ok(JValueOwned::Void);
                 }
             }, // JavaType::Primitive
-        }) // match parsed.ret
+        }); // match parsed.ret
+
+        // Ensure that `class` isn't dropped before the JNI call returns.
+        drop(class);
+
+        ret
     }
 
     /// Call an object method in an unsafe manner. This does nothing to check
@@ -982,20 +1188,20 @@ impl<'a> JNIEnv<'a> {
     ///
     /// The provided JMethodID must be valid, and match the types and number of arguments, and return type.
     /// If these are incorrect, the JVM may crash. The JMethodID must also match the passed type.
-    pub unsafe fn call_method_unchecked<O, T>(
-        &self,
+    pub unsafe fn call_method_unchecked<'other_local, O, T>(
+        &mut self,
         obj: O,
         method_id: T,
         ret: ReturnType,
         args: &[jvalue],
-    ) -> Result<JValue<'a>>
+    ) -> Result<JValueOwned<'local>>
     where
-        O: Into<JObject<'a>>,
-        T: Desc<'a, JMethodID>,
+        O: AsRef<JObject<'other_local>>,
+        T: Desc<'local, JMethodID>,
     {
-        let method_id = method_id.lookup(self)?.into_raw();
+        let method_id = method_id.lookup(self)?.as_ref().into_raw();
 
-        let obj = obj.into().into_raw();
+        let obj = obj.as_ref().as_raw();
 
         let jni_args = args.as_ptr();
 
@@ -1042,7 +1248,7 @@ impl<'a> JNIEnv<'a> {
                 }
                 Primitive::Void => {
                     jni_void_call!(self.internal, CallVoidMethodA, obj, method_id, jni_args);
-                    return Ok(JValue::Void);
+                    return Ok(JValueOwned::Void);
                 }
             }, // JavaType::Primitive
         }) // match parsed.ret
@@ -1061,19 +1267,19 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Note: this may cause a Java exception if the arguments are the wrong
     /// type, in addition to if the method itself throws.
-    pub fn call_method<O, S, T>(
-        &self,
+    pub fn call_method<'other_local, O, S, T>(
+        &mut self,
         obj: O,
         name: S,
         sig: T,
         args: &[JValue],
-    ) -> Result<JValue<'a>>
+    ) -> Result<JValueOwned<'local>>
     where
-        O: Into<JObject<'a>>,
+        O: AsRef<JObject<'other_local>>,
         S: Into<JNIString>,
         T: Into<JNIString> + AsRef<str>,
     {
-        let obj = obj.into();
+        let obj = obj.as_ref();
         non_null!(obj, "call_method obj argument");
 
         // parse the signature
@@ -1100,7 +1306,7 @@ impl<'a> JNIEnv<'a> {
 
         let class = self.auto_local(self.get_object_class(obj)?);
 
-        let args: Vec<jvalue> = args.iter().map(|v| v.to_jni()).collect();
+        let args: Vec<jvalue> = args.iter().map(|v| v.as_jni()).collect();
 
         // SAFETY: We've obtained the method_id above, so it is valid for this class.
         // We've also validated the argument counts and types using the same type signature
@@ -1120,15 +1326,15 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Note: this may cause a Java exception if the arguments are the wrong
     /// type, in addition to if the method itself throws.
-    pub fn call_static_method<'c, T, U, V>(
-        &self,
+    pub fn call_static_method<'other_local, T, U, V>(
+        &mut self,
         class: T,
         name: U,
         sig: V,
         args: &[JValue],
-    ) -> Result<JValue<'a>>
+    ) -> Result<JValueOwned<'local>>
     where
-        T: Desc<'a, JClass<'c>>,
+        T: Desc<'local, JClass<'other_local>>,
         U: Into<JNIString>,
         V: Into<JNIString> + AsRef<str>,
     {
@@ -1153,11 +1359,11 @@ impl<'a> JNIEnv<'a> {
             return Err(Error::InvalidArgList(parsed));
         }
 
-        // go ahead and look up the class since it's already Copy,
-        // and we'll need that for the next call.
+        // go ahead and look up the class since we'll need that for the next call.
         let class = class.lookup(self)?;
+        let class = class.as_ref();
 
-        let args: Vec<jvalue> = args.iter().map(|v| v.to_jni()).collect();
+        let args: Vec<jvalue> = args.iter().map(|v| v.as_jni()).collect();
 
         // SAFETY: We've obtained the method_id above, so it is valid for this class.
         // We've also validated the argument counts and types using the same type signature
@@ -1167,14 +1373,14 @@ impl<'a> JNIEnv<'a> {
 
     /// Create a new object using a constructor. This is done safely using
     /// checks similar to those in `call_static_method`.
-    pub fn new_object<'c, T, U>(
-        &self,
+    pub fn new_object<'other_local, T, U>(
+        &mut self,
         class: T,
         ctor_sig: U,
         ctor_args: &[JValue],
-    ) -> Result<JObject<'a>>
+    ) -> Result<JObject<'local>>
     where
-        T: Desc<'a, JClass<'c>>,
+        T: Desc<'local, JClass<'other_local>>,
         U: Into<JNIString> + AsRef<str>,
     {
         // parse the signature
@@ -1209,10 +1415,11 @@ impl<'a> JNIEnv<'a> {
 
         // build strings
         let class = class.lookup(self)?;
+        let class = class.as_ref();
 
-        let method_id: JMethodID = (class, ctor_sig).lookup(self)?;
+        let method_id: JMethodID = Desc::<JMethodID>::lookup((class, ctor_sig), self)?;
 
-        let ctor_args: Vec<jvalue> = ctor_args.iter().map(|v| v.to_jni()).collect();
+        let ctor_args: Vec<jvalue> = ctor_args.iter().map(|v| v.as_jni()).collect();
         // SAFETY: We've obtained the method_id above, so it is valid for this class.
         // We've also validated the argument counts and types using the same type signature
         // we fetched the original method ID from.
@@ -1227,14 +1434,14 @@ impl<'a> JNIEnv<'a> {
     /// The provided JMethodID must be valid, and match the types and number of arguments, as well as return type
     /// (always an Object for a constructor). If these are incorrect, the JVM may crash.  The JMethodID must also match
     /// the passed type.
-    pub unsafe fn new_object_unchecked<'c, T>(
-        &self,
+    pub unsafe fn new_object_unchecked<'other_local, T>(
+        &mut self,
         class: T,
         ctor_id: JMethodID,
         ctor_args: &[jvalue],
-    ) -> Result<JObject<'a>>
+    ) -> Result<JObject<'local>>
     where
-        T: Desc<'a, JClass<'c>>,
+        T: Desc<'local, JClass<'other_local>>,
     {
         let class = class.lookup(self)?;
 
@@ -1243,17 +1450,27 @@ impl<'a> JNIEnv<'a> {
         let obj = jni_non_null_call!(
             self.internal,
             NewObjectA,
-            class.into_raw(),
+            class.as_ref().as_raw(),
             ctor_id.into_raw(),
             jni_args
         );
+
+        // Ensure that `class` isn't dropped before the JNI call returns.
+        drop(class);
+
         Ok(unsafe { JObject::from_raw(obj) })
     }
 
     /// Cast a JObject to a `JList`. This won't throw exceptions or return errors
     /// in the event that the object isn't actually a list, but the methods on
     /// the resulting map object will.
-    pub fn get_list(&self, obj: JObject<'a>) -> Result<JList<'a, '_>> {
+    pub fn get_list<'other_local_1, 'obj_ref>(
+        &mut self,
+        obj: &'obj_ref JObject<'other_local_1>,
+    ) -> Result<JList<'local, 'other_local_1, 'obj_ref>>
+    where
+        'other_local_1: 'obj_ref,
+    {
         non_null!(obj, "get_list obj argument");
         JList::from_env(self, obj)
     }
@@ -1261,7 +1478,13 @@ impl<'a> JNIEnv<'a> {
     /// Cast a JObject to a JMap. This won't throw exceptions or return errors
     /// in the event that the object isn't actually a map, but the methods on
     /// the resulting map object will.
-    pub fn get_map(&self, obj: JObject<'a>) -> Result<JMap<'a, '_>> {
+    pub fn get_map<'other_local_1, 'obj_ref>(
+        &mut self,
+        obj: &'obj_ref JObject<'other_local_1>,
+    ) -> Result<JMap<'local, 'other_local_1, 'obj_ref>>
+    where
+        'other_local_1: 'obj_ref,
+    {
         non_null!(obj, "get_map obj argument");
         JMap::from_env(self, obj)
     }
@@ -1285,7 +1508,10 @@ impl<'a> JNIEnv<'a> {
     /// # Errors
     ///
     /// Returns an error if `obj` is `null`
-    pub unsafe fn get_string_unchecked(&self, obj: JString<'a>) -> Result<JavaStr<'a, '_>> {
+    pub unsafe fn get_string_unchecked<'other_local: 'obj_ref, 'obj_ref>(
+        &self,
+        obj: &'obj_ref JString<'other_local>,
+    ) -> Result<JavaStr<'local, 'other_local, 'obj_ref>> {
         non_null!(obj, "get_string obj argument");
         JavaStr::from_env(self, obj)
     }
@@ -1313,7 +1539,10 @@ impl<'a> JNIEnv<'a> {
     /// # Errors
     ///
     /// Returns an error if `obj` is `null` or is not an instance of `java.lang.String`
-    pub fn get_string(&self, obj: JString<'a>) -> Result<JavaStr<'a, '_>> {
+    pub fn get_string<'other_local: 'obj_ref, 'obj_ref>(
+        &mut self,
+        obj: &'obj_ref JString<'other_local>,
+    ) -> Result<JavaStr<'local, 'other_local, 'obj_ref>> {
         let string_class = self.find_class("java/lang/String")?;
         if !self.is_assignable_from(string_class, self.get_object_class(obj)?)? {
             return Err(JniCall(JniError::InvalidArguments));
@@ -1326,7 +1555,7 @@ impl<'a> JNIEnv<'a> {
     /// Create a new java string object from a rust string. This requires a
     /// re-encoding of rusts *real* UTF-8 strings to java's modified UTF-8
     /// format.
-    pub fn new_string<S: Into<JNIString>>(&self, from: S) -> Result<JString<'a>> {
+    pub fn new_string<S: Into<JNIString>>(&self, from: S) -> Result<JString<'local>> {
         let ffi_str = from.into();
         let s = jni_non_null_call!(self.internal, NewStringUTF, ffi_str.as_ptr());
         Ok(unsafe { JString::from_raw(s) })
@@ -1347,24 +1576,30 @@ impl<'a> JNIEnv<'a> {
     /// See [Java documentation][1] for details.
     ///
     /// [1]: https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/design.html#global_and_local_references
-    pub fn new_object_array<'c, T, U>(
-        &self,
+    pub fn new_object_array<'other_local_1, 'other_local_2, T, U>(
+        &mut self,
         length: jsize,
         element_class: T,
         initial_element: U,
     ) -> Result<jobjectArray>
     where
-        T: Desc<'a, JClass<'c>>,
-        U: Into<JObject<'a>>,
+        T: Desc<'local, JClass<'other_local_2>>,
+        U: AsRef<JObject<'other_local_1>>,
     {
         let class = element_class.lookup(self)?;
-        Ok(jni_non_null_call!(
+
+        let ret = Ok(jni_non_null_call!(
             self.internal,
             NewObjectArray,
             length,
-            class.into_raw(),
-            initial_element.into().into_raw()
-        ))
+            class.as_ref().as_raw(),
+            initial_element.as_ref().as_raw()
+        ));
+
+        // Ensure that `class` isn't dropped before the JNI call returns.
+        drop(class);
+
+        ret
     }
 
     /// Returns an element of the `jobjectArray` array.
@@ -1372,7 +1607,7 @@ impl<'a> JNIEnv<'a> {
         &self,
         array: jobjectArray,
         index: jsize,
-    ) -> Result<JObject<'a>> {
+    ) -> Result<JObject<'local>> {
         non_null!(array, "get_object_array_element array argument");
         Ok(unsafe {
             JObject::from_raw(jni_non_void_call!(
@@ -1385,14 +1620,14 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Sets an element of the `jobjectArray` array.
-    pub fn set_object_array_element<O>(
+    pub fn set_object_array_element<'other_local, O>(
         &self,
         array: jobjectArray,
         index: jsize,
         value: O,
     ) -> Result<()>
     where
-        O: Into<JObject<'a>>,
+        O: AsRef<JObject<'other_local>>,
     {
         non_null!(array, "set_object_array_element array argument");
         jni_void_call!(
@@ -1400,7 +1635,7 @@ impl<'a> JNIEnv<'a> {
             SetObjectArrayElement,
             array,
             index,
-            value.into().into_raw()
+            value.as_ref().as_raw()
         );
         Ok(())
     }
@@ -1856,16 +2091,21 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Get a field without checking the provided type against the actual field.
-    pub fn get_field_unchecked<O, T>(&self, obj: O, field: T, ty: ReturnType) -> Result<JValue<'a>>
+    pub fn get_field_unchecked<'other_local, O, T>(
+        &mut self,
+        obj: O,
+        field: T,
+        ty: ReturnType,
+    ) -> Result<JValueOwned<'local>>
     where
-        O: Into<JObject<'a>>,
-        T: Desc<'a, JFieldID>,
+        O: AsRef<JObject<'other_local>>,
+        T: Desc<'local, JFieldID>,
     {
-        let obj = obj.into();
+        let obj = obj.as_ref();
         non_null!(obj, "get_field_typed obj argument");
 
-        let field = field.lookup(self)?.into_raw();
-        let obj = obj.into_raw();
+        let field = field.lookup(self)?.as_ref().into_raw();
+        let obj = obj.as_raw();
 
         // TODO clean this up
         Ok(match ty {
@@ -1895,21 +2135,26 @@ impl<'a> JNIEnv<'a> {
     }
 
     /// Set a field without any type checking.
-    pub fn set_field_unchecked<O, T>(&self, obj: O, field: T, val: JValue) -> Result<()>
+    pub fn set_field_unchecked<'other_local, O, T>(
+        &mut self,
+        obj: O,
+        field: T,
+        val: JValue,
+    ) -> Result<()>
     where
-        O: Into<JObject<'a>>,
-        T: Desc<'a, JFieldID>,
+        O: AsRef<JObject<'other_local>>,
+        T: Desc<'local, JFieldID>,
     {
-        let obj = obj.into();
+        let obj = obj.as_ref();
         non_null!(obj, "set_field_typed obj argument");
 
-        let field = field.lookup(self)?.into_raw();
-        let obj = obj.into_raw();
+        let field = field.lookup(self)?.as_ref().into_raw();
+        let obj = obj.as_raw();
 
         // TODO clean this up
         match val {
             JValue::Object(o) => {
-                jni_unchecked!(self.internal, SetObjectField, obj, field, o.into_raw());
+                jni_unchecked!(self.internal, SetObjectField, obj, field, o.as_raw());
             }
             // JavaType::Object
             JValue::Bool(b) => {
@@ -1946,31 +2191,42 @@ impl<'a> JNIEnv<'a> {
 
     /// Get a field. Requires an object class lookup and a field id lookup
     /// internally.
-    pub fn get_field<O, S, T>(&self, obj: O, name: S, ty: T) -> Result<JValue<'a>>
+    pub fn get_field<'other_local, O, S, T>(
+        &mut self,
+        obj: O,
+        name: S,
+        ty: T,
+    ) -> Result<JValueOwned<'local>>
     where
-        O: Into<JObject<'a>>,
+        O: AsRef<JObject<'other_local>>,
         S: Into<JNIString>,
         T: Into<JNIString> + AsRef<str>,
     {
-        let obj = obj.into();
+        let obj = obj.as_ref();
         let class = self.auto_local(self.get_object_class(obj)?);
 
         let parsed = ReturnType::from_str(ty.as_ref())?;
 
-        let field_id: JFieldID = (&class, name, ty).lookup(self)?;
+        let field_id: JFieldID = Desc::<JFieldID>::lookup((&class, name, ty), self)?;
 
         self.get_field_unchecked(obj, field_id, parsed)
     }
 
     /// Set a field. Does the same lookups as `get_field` and ensures that the
     /// type matches the given value.
-    pub fn set_field<O, S, T>(&self, obj: O, name: S, ty: T, val: JValue) -> Result<()>
+    pub fn set_field<'other_local, O, S, T>(
+        &mut self,
+        obj: O,
+        name: S,
+        ty: T,
+        val: JValue,
+    ) -> Result<()>
     where
-        O: Into<JObject<'a>>,
+        O: AsRef<JObject<'other_local>>,
         S: Into<JNIString>,
         T: Into<JNIString> + AsRef<str>,
     {
-        let obj = obj.into();
+        let obj = obj.as_ref();
         let parsed = JavaType::from_str(ty.as_ref())?;
         let in_type = val.primitive_type();
 
@@ -2001,105 +2257,207 @@ impl<'a> JNIEnv<'a> {
 
     /// Get a static field without checking the provided type against the actual
     /// field.
-    pub fn get_static_field_unchecked<'c, T, U>(
-        &self,
+    pub fn get_static_field_unchecked<'other_local, T, U>(
+        &mut self,
         class: T,
         field: U,
         ty: JavaType,
-    ) -> Result<JValue<'a>>
+    ) -> Result<JValueOwned<'local>>
     where
-        T: Desc<'a, JClass<'c>>,
-        U: Desc<'a, JStaticFieldID>,
+        T: Desc<'local, JClass<'other_local>>,
+        U: Desc<'local, JStaticFieldID>,
     {
         use JavaType::Primitive as JP;
 
-        let class = class.lookup(self)?.into_raw();
-        let field = field.lookup(self)?.into_raw();
+        let class = class.lookup(self)?;
+        let field = field.lookup(self)?;
 
         let result = match ty {
             JavaType::Object(_) | JavaType::Array(_) => {
-                let obj = jni_non_void_call!(self.internal, GetStaticObjectField, class, field);
+                let obj = jni_non_void_call!(
+                    self.internal,
+                    GetStaticObjectField,
+                    class.as_ref().as_raw(),
+                    field.as_ref().into_raw()
+                );
                 let obj = unsafe { JObject::from_raw(obj) };
                 obj.into()
             }
             JavaType::Method(_) => return Err(Error::WrongJValueType("Method", "see java field")),
-            JP(Primitive::Boolean) => {
-                jni_unchecked!(self.internal, GetStaticBooleanField, class, field).into()
-            }
-            JP(Primitive::Char) => {
-                jni_unchecked!(self.internal, GetStaticCharField, class, field).into()
-            }
-            JP(Primitive::Short) => {
-                jni_unchecked!(self.internal, GetStaticShortField, class, field).into()
-            }
-            JP(Primitive::Int) => {
-                jni_unchecked!(self.internal, GetStaticIntField, class, field).into()
-            }
-            JP(Primitive::Long) => {
-                jni_unchecked!(self.internal, GetStaticLongField, class, field).into()
-            }
-            JP(Primitive::Float) => {
-                jni_unchecked!(self.internal, GetStaticFloatField, class, field).into()
-            }
-            JP(Primitive::Double) => {
-                jni_unchecked!(self.internal, GetStaticDoubleField, class, field).into()
-            }
-            JP(Primitive::Byte) => {
-                jni_unchecked!(self.internal, GetStaticByteField, class, field).into()
-            }
+            JP(Primitive::Boolean) => jni_unchecked!(
+                self.internal,
+                GetStaticBooleanField,
+                class.as_ref().as_raw(),
+                field.as_ref().into_raw()
+            )
+            .into(),
+            JP(Primitive::Char) => jni_unchecked!(
+                self.internal,
+                GetStaticCharField,
+                class.as_ref().as_raw(),
+                field.as_ref().into_raw()
+            )
+            .into(),
+            JP(Primitive::Short) => jni_unchecked!(
+                self.internal,
+                GetStaticShortField,
+                class.as_ref().as_raw(),
+                field.as_ref().into_raw()
+            )
+            .into(),
+            JP(Primitive::Int) => jni_unchecked!(
+                self.internal,
+                GetStaticIntField,
+                class.as_ref().as_raw(),
+                field.as_ref().into_raw()
+            )
+            .into(),
+            JP(Primitive::Long) => jni_unchecked!(
+                self.internal,
+                GetStaticLongField,
+                class.as_ref().as_raw(),
+                field.as_ref().into_raw()
+            )
+            .into(),
+            JP(Primitive::Float) => jni_unchecked!(
+                self.internal,
+                GetStaticFloatField,
+                class.as_ref().as_raw(),
+                field.as_ref().into_raw()
+            )
+            .into(),
+            JP(Primitive::Double) => jni_unchecked!(
+                self.internal,
+                GetStaticDoubleField,
+                class.as_ref().as_raw(),
+                field.as_ref().into_raw()
+            )
+            .into(),
+            JP(Primitive::Byte) => jni_unchecked!(
+                self.internal,
+                GetStaticByteField,
+                class.as_ref().as_raw(),
+                field.as_ref().into_raw()
+            )
+            .into(),
             JP(Primitive::Void) => return Err(Error::WrongJValueType("void", "see java field")),
         };
+
+        // Ensure that `class` isn't dropped before the JNI call returns.
+        drop(class);
+
         Ok(result)
     }
 
     /// Get a static field. Requires a class lookup and a field id lookup
     /// internally.
-    pub fn get_static_field<'c, T, U, V>(&self, class: T, field: U, sig: V) -> Result<JValue<'a>>
+    pub fn get_static_field<'other_local, T, U, V>(
+        &mut self,
+        class: T,
+        field: U,
+        sig: V,
+    ) -> Result<JValueOwned<'local>>
     where
-        T: Desc<'a, JClass<'c>>,
+        T: Desc<'local, JClass<'other_local>>,
         U: Into<JNIString>,
         V: Into<JNIString> + AsRef<str>,
     {
         let ty = JavaType::from_str(sig.as_ref())?;
 
-        // go ahead and look up the class since it's already Copy,
-        // and we'll need that for the next call.
+        // go ahead and look up the class sincewe'll need that for the next
+        // call.
         let class = class.lookup(self)?;
 
-        self.get_static_field_unchecked(class, (class, field, sig), ty)
+        self.get_static_field_unchecked(class.as_ref(), (class.as_ref(), field, sig), ty)
     }
 
     /// Set a static field. Requires a class lookup and a field id lookup internally.
-    pub fn set_static_field<'c, T, U>(&self, class: T, field: U, value: JValue) -> Result<()>
+    pub fn set_static_field<'other_local, T, U>(
+        &mut self,
+        class: T,
+        field: U,
+        value: JValue,
+    ) -> Result<()>
     where
-        T: Desc<'a, JClass<'c>>,
-        U: Desc<'a, JStaticFieldID>,
+        T: Desc<'local, JClass<'other_local>>,
+        U: Desc<'local, JStaticFieldID>,
     {
-        let class = class.lookup(self)?.into_raw();
-        let field = field.lookup(self)?.into_raw();
+        let class = class.lookup(self)?;
+        let field = field.lookup(self)?;
 
         match value {
             JValue::Object(v) => jni_unchecked!(
                 self.internal,
                 SetStaticObjectField,
-                class,
-                field,
-                v.into_raw()
+                class.as_ref().as_raw(),
+                field.as_ref().into_raw(),
+                v.as_raw()
             ),
-            JValue::Byte(v) => jni_unchecked!(self.internal, SetStaticByteField, class, field, v),
-            JValue::Char(v) => jni_unchecked!(self.internal, SetStaticCharField, class, field, v),
-            JValue::Short(v) => jni_unchecked!(self.internal, SetStaticShortField, class, field, v),
-            JValue::Int(v) => jni_unchecked!(self.internal, SetStaticIntField, class, field, v),
-            JValue::Long(v) => jni_unchecked!(self.internal, SetStaticLongField, class, field, v),
+            JValue::Byte(v) => jni_unchecked!(
+                self.internal,
+                SetStaticByteField,
+                class.as_ref().as_raw(),
+                field.as_ref().into_raw(),
+                v
+            ),
+            JValue::Char(v) => jni_unchecked!(
+                self.internal,
+                SetStaticCharField,
+                class.as_ref().as_raw(),
+                field.as_ref().into_raw(),
+                v
+            ),
+            JValue::Short(v) => jni_unchecked!(
+                self.internal,
+                SetStaticShortField,
+                class.as_ref().as_raw(),
+                field.as_ref().into_raw(),
+                v
+            ),
+            JValue::Int(v) => jni_unchecked!(
+                self.internal,
+                SetStaticIntField,
+                class.as_ref().as_raw(),
+                field.as_ref().into_raw(),
+                v
+            ),
+            JValue::Long(v) => jni_unchecked!(
+                self.internal,
+                SetStaticLongField,
+                class.as_ref().as_raw(),
+                field.as_ref().into_raw(),
+                v
+            ),
             JValue::Bool(v) => {
-                jni_unchecked!(self.internal, SetStaticBooleanField, class, field, v)
+                jni_unchecked!(
+                    self.internal,
+                    SetStaticBooleanField,
+                    class.as_ref().as_raw(),
+                    field.as_ref().into_raw(),
+                    v
+                )
             }
-            JValue::Float(v) => jni_unchecked!(self.internal, SetStaticFloatField, class, field, v),
+            JValue::Float(v) => jni_unchecked!(
+                self.internal,
+                SetStaticFloatField,
+                class.as_ref().as_raw(),
+                field.as_ref().into_raw(),
+                v
+            ),
             JValue::Double(v) => {
-                jni_unchecked!(self.internal, SetStaticDoubleField, class, field, v)
+                jni_unchecked!(
+                    self.internal,
+                    SetStaticDoubleField,
+                    class.as_ref().as_raw(),
+                    field.as_ref().into_raw(),
+                    v
+                )
             }
             JValue::Void => return Err(Error::WrongJValueType("void", "?")),
         }
+
+        // Ensure that `class` isn't dropped before the JNI call returns.
+        drop(class);
 
         Ok(())
     }
@@ -2142,15 +2500,20 @@ impl<'a> JNIEnv<'a> {
     /// object with one of these fields then the field should be zero
     /// initialized in the copy.
     #[allow(unused_variables)]
-    pub unsafe fn set_rust_field<O, S, T>(&self, obj: O, field: S, rust_object: T) -> Result<()>
+    pub unsafe fn set_rust_field<'other_local, O, S, T>(
+        &mut self,
+        obj: O,
+        field: S,
+        rust_object: T,
+    ) -> Result<()>
     where
-        O: Into<JObject<'a>>,
+        O: AsRef<JObject<'other_local>>,
         S: AsRef<str>,
         T: Send + 'static,
     {
-        let obj = obj.into();
+        let obj = obj.as_ref();
         let class = self.auto_local(self.get_object_class(obj)?);
-        let field_id: JFieldID = (&class, &field, "J").lookup(self)?;
+        let field_id: JFieldID = Desc::<JFieldID>::lookup((&class, &field, "J"), self)?;
 
         let guard = self.lock_obj(obj)?;
 
@@ -2183,13 +2546,17 @@ impl<'a> JNIEnv<'a> {
     ///
     /// Checks for a null pointer, but assumes that the data it points to is valid for T.
     #[allow(unused_variables)]
-    pub unsafe fn get_rust_field<O, S, T>(&self, obj: O, field: S) -> Result<MutexGuard<T>>
+    pub unsafe fn get_rust_field<'other_local, O, S, T>(
+        &mut self,
+        obj: O,
+        field: S,
+    ) -> Result<MutexGuard<T>>
     where
-        O: Into<JObject<'a>>,
+        O: AsRef<JObject<'other_local>>,
         S: Into<JNIString>,
         T: Send + 'static,
     {
-        let obj = obj.into();
+        let obj = obj.as_ref();
         let guard = self.lock_obj(obj)?;
 
         let ptr = self.get_field(obj, field, "J")?.j()? as *mut Mutex<T>;
@@ -2209,15 +2576,15 @@ impl<'a> JNIEnv<'a> {
     /// This will make sure that the pointer is non-null, but still assumes that
     /// the data it points to is valid for T.
     #[allow(unused_variables)]
-    pub unsafe fn take_rust_field<O, S, T>(&self, obj: O, field: S) -> Result<T>
+    pub unsafe fn take_rust_field<'other_local, O, S, T>(&mut self, obj: O, field: S) -> Result<T>
     where
-        O: Into<JObject<'a>>,
+        O: AsRef<JObject<'other_local>>,
         S: AsRef<str>,
         T: Send + 'static,
     {
-        let obj = obj.into();
+        let obj = obj.as_ref();
         let class = self.auto_local(self.get_object_class(obj)?);
-        let field_id: JFieldID = (&class, &field, "J").lookup(self)?;
+        let field_id: JFieldID = Desc::<JFieldID>::lookup((&class, &field, "J"), self)?;
 
         let mbox = {
             let guard = self.lock_obj(obj)?;
@@ -2249,11 +2616,11 @@ impl<'a> JNIEnv<'a> {
 
     /// Lock a Java object. The MonitorGuard that this returns is responsible
     /// for ensuring that it gets unlocked.
-    pub fn lock_obj<O>(&self, obj: O) -> Result<MonitorGuard<'a>>
+    pub fn lock_obj<'other_local, O>(&self, obj: O) -> Result<MonitorGuard<'local>>
     where
-        O: Into<JObject<'a>>,
+        O: AsRef<JObject<'other_local>>,
     {
-        let inner = obj.into().into_raw();
+        let inner = obj.as_ref().as_raw();
         let _ = jni_unchecked!(self.internal, MonitorEnter, inner);
 
         Ok(MonitorGuard {
@@ -2286,9 +2653,13 @@ impl<'a> JNIEnv<'a> {
     /// Bind function pointers to native methods of class
     /// according to method name and signature.
     /// For details see [documentation](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#RegisterNatives).
-    pub fn register_native_methods<'c, T>(&self, class: T, methods: &[NativeMethod]) -> Result<()>
+    pub fn register_native_methods<'other_local, T>(
+        &mut self,
+        class: T,
+        methods: &[NativeMethod],
+    ) -> Result<()>
     where
-        T: Desc<'a, JClass<'c>>,
+        T: Desc<'local, JClass<'other_local>>,
     {
         let class = class.lookup(self)?;
         let jni_native_methods: Vec<JNINativeMethod> = methods
@@ -2302,20 +2673,28 @@ impl<'a> JNIEnv<'a> {
         let res = jni_non_void_call!(
             self.internal,
             RegisterNatives,
-            class.into_raw(),
+            class.as_ref().as_raw(),
             jni_native_methods.as_ptr(),
             jni_native_methods.len() as jint
         );
+
+        // Ensure that `class` isn't dropped before the JNI call returns.
+        drop(class);
+
         jni_error_code_to_result(res)
     }
 
     /// Unbind all native methods of class.
-    pub fn unregister_native_methods<'c, T>(&self, class: T) -> Result<()>
+    pub fn unregister_native_methods<'other_local, T>(&mut self, class: T) -> Result<()>
     where
-        T: Desc<'a, JClass<'c>>,
+        T: Desc<'local, JClass<'other_local>>,
     {
         let class = class.lookup(self)?;
-        let res = jni_non_void_call!(self.internal, UnregisterNatives, class.into_raw());
+        let res = jni_non_void_call!(self.internal, UnregisterNatives, class.as_ref().as_raw());
+
+        // Ensure that `class` isn't dropped before the JNI call returns.
+        drop(class);
+
         jni_error_code_to_result(res)
     }
 
@@ -2341,83 +2720,83 @@ impl<'a> JNIEnv<'a> {
     /// [`get_double_array_elements`](struct.JNIEnv.html#method.get_double_array_elements)
     /// And the associated [`AutoArray`](struct.objects.AutoArray) struct.
     pub fn get_array_elements<T: TypeArray>(
-        &self,
+        &mut self,
         array: jarray,
         mode: ReleaseMode,
-    ) -> Result<AutoArray<'a, T>> {
+    ) -> Result<AutoArray<'local, T>> {
         non_null!(array, "get_array_elements array argument");
         AutoArray::new(self, unsafe { JObject::from_raw(array) }, mode)
     }
 
     /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
     pub fn get_int_array_elements(
-        &self,
+        &mut self,
         array: jintArray,
         mode: ReleaseMode,
-    ) -> Result<AutoArray<'a, jint>> {
+    ) -> Result<AutoArray<'local, jint>> {
         self.get_array_elements(array, mode)
     }
 
     /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
     pub fn get_long_array_elements(
-        &self,
+        &mut self,
         array: jlongArray,
         mode: ReleaseMode,
-    ) -> Result<AutoArray<'a, jlong>> {
+    ) -> Result<AutoArray<'local, jlong>> {
         self.get_array_elements(array, mode)
     }
 
     /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
     pub fn get_byte_array_elements(
-        &self,
+        &mut self,
         array: jbyteArray,
         mode: ReleaseMode,
-    ) -> Result<AutoArray<'a, jbyte>> {
+    ) -> Result<AutoArray<'local, jbyte>> {
         self.get_array_elements(array, mode)
     }
 
     /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
     pub fn get_boolean_array_elements(
-        &self,
+        &mut self,
         array: jbooleanArray,
         mode: ReleaseMode,
-    ) -> Result<AutoArray<'a, jboolean>> {
+    ) -> Result<AutoArray<'local, jboolean>> {
         self.get_array_elements(array, mode)
     }
 
     /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
     pub fn get_char_array_elements(
-        &self,
+        &mut self,
         array: jcharArray,
         mode: ReleaseMode,
-    ) -> Result<AutoArray<'a, jchar>> {
+    ) -> Result<AutoArray<'local, jchar>> {
         self.get_array_elements(array, mode)
     }
 
     /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
     pub fn get_short_array_elements(
-        &self,
+        &mut self,
         array: jshortArray,
         mode: ReleaseMode,
-    ) -> Result<AutoArray<'a, jshort>> {
+    ) -> Result<AutoArray<'local, jshort>> {
         self.get_array_elements(array, mode)
     }
 
     /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
     pub fn get_float_array_elements(
-        &self,
+        &mut self,
         array: jfloatArray,
         mode: ReleaseMode,
-    ) -> Result<AutoArray<'a, jfloat>> {
+    ) -> Result<AutoArray<'local, jfloat>> {
         self.get_array_elements(array, mode)
     }
 
     /// See also [`get_array_elements`](struct.JNIEnv.html#method.get_array_elements)
     pub fn get_double_array_elements(
-        &self,
+        &mut self,
         array: jdoubleArray,
         mode: ReleaseMode,
-    ) -> Result<AutoArray<'a, jdouble>> {
+    ) -> Result<AutoArray<'local, jdouble>> {
         self.get_array_elements(array, mode)
     }
 
@@ -2441,11 +2820,11 @@ impl<'a> JNIEnv<'a> {
     /// If the given array is `null`, an `Error::NullPtr` is returned.
     ///
     /// See also [`get_byte_array_elements`](struct.JNIEnv.html#method.get_array_elements)
-    pub fn get_primitive_array_critical(
-        &self,
+    pub fn get_primitive_array_critical<'env>(
+        &'env mut self,
         array: jarray,
         mode: ReleaseMode,
-    ) -> Result<AutoPrimitiveArray> {
+    ) -> Result<AutoPrimitiveArray<'local, 'env>> {
         non_null!(array, "get_primitive_array_critical array argument");
         let mut is_copy: jboolean = 0xff;
         // Even though this method may throw OoME, use `jni_unchecked`
@@ -2485,13 +2864,13 @@ pub struct NativeMethod {
 
 /// Guard for a lock on a java object. This gets returned from the `lock_obj`
 /// method.
-pub struct MonitorGuard<'a> {
+pub struct MonitorGuard<'local> {
     obj: sys::jobject,
     env: *mut sys::JNIEnv,
-    life: PhantomData<&'a ()>,
+    life: PhantomData<&'local ()>,
 }
 
-impl<'a> Drop for MonitorGuard<'a> {
+impl<'local> Drop for MonitorGuard<'local> {
     fn drop(&mut self) {
         let res: Result<()> = catch!({
             jni_unchecked!(self.env, MonitorExit, self.obj);
