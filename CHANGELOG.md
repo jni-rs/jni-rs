@@ -24,6 +24,7 @@ This release makes extensive breaking changes in order to improve safety. Most p
 - `WeakRef` and `JNIEnv#new_weak_ref`. ([#304](https://github.com/jni-rs/jni-rs/pull/304))
 - `define_class_bytearray` method that takes an `AutoArray<jbyte>` rather than a `&[u8]`
 - `JObject` now has an `as_raw` method that borrows the `JObject` instead of taking ownership like `into_raw`. Needed because `JObject` no longer has the `Copy` trait. ([#392](https://github.com/jni-rs/jni-rs/issues/392))
+- `JNIEnv::with_local_frame_returning_local` supports returning a single local ref from a new local frame, since this feature was removed from `with_local_frame` ([#399](https://github.com/jni-rs/jni-rs/issues/399))
 
 ### Changed
 - `JNIEnv::get_string` checks that the given object is a `java.lang.String` instance to avoid undefined behaviour from the JNI implementation potentially aborting the program. ([#328](https://github.com/jni-rs/jni-rs/issues/328))
@@ -35,6 +36,10 @@ This release makes extensive breaking changes in order to improve safety. Most p
 - `JByteBuffer`, `JClass`, `JNIEnv`, `JObject`, `JString`, and `JThrowable` no longer have the `Clone` or `Copy` traits. This improves safety by preventing object references from being used after the JVM deletes them. Most functions that take one of these types as a parameter (except `extern fn`s that are directly called by the JVM) should now borrow it instead, e.g. `&JObject` instead of `JObject`. ([#392](https://github.com/jni-rs/jni-rs/issues/392))
 - `AutoLocal` is now generic in the type of object reference (`JString`, etc). ([#392](https://github.com/jni-rs/jni-rs/issues/392))
 - The closure passed to `JNIEnv::with_local_frame` must now take a `&mut JNIEnv` parameter, which has a different lifetime. This improves safety by preventing local references from escaping the closure, which would cause a use-after-free bug. `Executor::with_attached` and `Executor::with_attached_capacity` have been similarly changed. ([#392](https://github.com/jni-rs/jni-rs/issues/392))
+- The closure passed to `JNIEnv::with_local_frame` can now return a generic `Result<T, E>` so long as the error implements `From<jni::errors::Error>` ([#399](https://github.com/jni-rs/jni-rs/issues/399))
+- `JNIEnv::with_local_frame` now returns the same type that the given closure returns ([#399](https://github.com/jni-rs/jni-rs/issues/399))
+- `JNIEnv::with_local_frame` no longer supports returning a local reference directly to the calling scope (see `with_local_frame_returning_local`) ([#399](https://github.com/jni-rs/jni-rs/issues/399))
+- `Executor::with_attached` and `Executor::with_attached_capacity` have been changed in the same way as `JNIEnv::with_local_frame` (they are thin wrappers) ([#399](https://github.com/jni-rs/jni-rs/issues/399))
 - `Desc`, `JNIEnv::pop_local_frame`, and `TypeArray` are now `unsafe`. ([#392](https://github.com/jni-rs/jni-rs/issues/392))
 - The `Desc` trait now has an associated type `Output`. Many implementations now return `AutoLocal`, so if you call `Desc::lookup` yourself and then call `as_raw` on the returned object, make sure the `AutoLocal` isn't dropped too soon (see the `Desc::lookup` documentation for examples). ([#392](https://github.com/jni-rs/jni-rs/issues/392))
 - Named lifetimes in the documentation have more descriptive names (like `'local` instead of `'a`). The new naming convention is explained in the `JNIEnv` documentation. ([#392](https://github.com/jni-rs/jni-rs/issues/392))

@@ -1,6 +1,6 @@
 #![cfg(feature = "invocation")]
 
-use jni::{objects::JObject, objects::JValue};
+use jni::{errors::Error, objects::JObject, objects::JValue};
 
 mod util;
 use util::{attach_current_thread, print_exception};
@@ -12,7 +12,7 @@ fn test_java_integers() {
     let array_length = 50;
 
     for value in -10..10 {
-        env.with_local_frame(16, |env| {
+        env.with_local_frame(16, |env| -> Result<_, Error> {
             let integer_value =
                 env.new_object("java/lang/Integer", "(I)V", &[JValue::Int(value)])?;
 
@@ -34,11 +34,11 @@ fn test_java_integers() {
 
             assert!(0 <= result && result < array_length);
 
-            Ok(JObject::null())
+            Ok(())
         })
         .unwrap_or_else(|e| {
             print_exception(&env);
             panic!("{:#?}", e);
-        });
+        })
     }
 }

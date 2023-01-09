@@ -126,6 +126,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use jni::objects::GlobalRef;
     use std::rc::Rc;
     use std::sync::Arc;
     use test::{black_box, Bencher};
@@ -350,8 +351,47 @@ mod tests {
         const LOCAL_FRAME_SIZE: i32 = 32;
         let mut env = VM.attach_current_thread().unwrap();
         b.iter(|| {
-            env.with_local_frame(LOCAL_FRAME_SIZE, |_| Ok(JObject::null()))
-                .unwrap()
+            env.with_local_frame(LOCAL_FRAME_SIZE, |_| -> Result<_, jni::errors::Error> {
+                Ok(())
+            })
+            .unwrap()
+        });
+    }
+
+    /// A benchmark measuring Push/PopLocalFrame overhead while retuning a local reference
+    #[bench]
+    fn jni_with_local_frame_returning_local(b: &mut Bencher) {
+        // Local frame size actually doesn't matter since JVM does not preallocate anything.
+        const LOCAL_FRAME_SIZE: i32 = 32;
+        let mut env = VM.attach_current_thread().unwrap();
+
+        let class = env.find_class(CLASS_OBJECT).unwrap();
+        b.iter(|| {
+            env.with_local_frame_returning_local(LOCAL_FRAME_SIZE, |env| {
+                env.new_object(&class, SIG_OBJECT_CTOR, &[])
+            })
+        });
+    }
+
+    /// A benchmark measuring Push/PopLocalFrame overhead while retuning a global
+    /// object reference that then gets converted into a local reference before
+    /// dropping the global
+    #[bench]
+    fn jni_with_local_frame_returning_global_to_local(b: &mut Bencher) {
+        // Local frame size actually doesn't matter since JVM does not preallocate anything.
+        const LOCAL_FRAME_SIZE: i32 = 32;
+        let mut env = VM.attach_current_thread().unwrap();
+
+        let class = env.find_class(CLASS_OBJECT).unwrap();
+        b.iter(|| {
+            let global = env
+                .with_local_frame::<_, GlobalRef, jni::errors::Error>(LOCAL_FRAME_SIZE, |env| {
+                    let local = env.new_object(&class, SIG_OBJECT_CTOR, &[])?;
+                    let global = env.new_global_ref(local)?;
+                    Ok(global)
+                })
+                .unwrap();
+            let _local = env.new_local_ref(global).unwrap();
         });
     }
 

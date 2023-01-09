@@ -196,11 +196,10 @@ impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> JMap<'local, 'other_local_1, 'o
         let get_value = env.get_method_id(&entry_class, "getValue", "()Ljava/lang/Object;")?;
 
         // Get the iterator over Map entries.
-        // Use the local frame till #109 is resolved, so that implicitly looked-up
-        // classes are freed promptly.
-        let iter = env.with_local_frame(16, |env| {
-            // SAFETY: We keep the class loaded, and fetched the method ID for this function. Arg list is known empty.
-            let entry_set = unsafe {
+
+        // SAFETY: We keep the class loaded, and fetched the method ID for this function. Arg list is known empty.
+        let entry_set = AutoLocal::new(
+            unsafe {
                 env.call_method_unchecked(
                     self.internal,
                     (&self.class, "entrySet", "()Ljava/util/Set;"),
@@ -208,10 +207,13 @@ impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> JMap<'local, 'other_local_1, 'o
                     &[],
                 )
             }?
-            .l()?;
+            .l()?,
+            env,
+        );
 
-            // SAFETY: We keep the class loaded, and fetched the method ID for this function. Arg list is known empty.
-            let iter = unsafe {
+        // SAFETY: We keep the class loaded, and fetched the method ID for this function. Arg list is known empty.
+        let iter = AutoLocal::new(
+            unsafe {
                 env.call_method_unchecked(
                     entry_set,
                     ("java/util/Set", "iterator", "()Ljava/util/Iterator;"),
@@ -219,11 +221,9 @@ impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> JMap<'local, 'other_local_1, 'o
                     &[],
                 )
             }?
-            .l()?;
-
-            Ok(iter)
-        })?;
-        let iter = env.auto_local(iter);
+            .l()?,
+            env,
+        );
 
         Ok(JMapIter {
             _phantom_map: PhantomData,

@@ -6,7 +6,7 @@ use std::{
 };
 
 use jni::{
-    objects::{AutoLocal, JObject, JValue},
+    objects::{AutoLocal, JValue},
     sys::jint,
     JNIEnv,
 };
@@ -98,7 +98,7 @@ fn weak_ref_is_actually_weak() {
         unwrap(
             env.with_local_frame(1, |env| {
                 env.call_static_method("java/lang/System", "gc", "()V", &[])?;
-                Ok(JObject::null())
+                Ok(())
             }),
             env,
         );
@@ -106,7 +106,9 @@ fn weak_ref_is_actually_weak() {
 
     for _ in 0..100 {
         let obj_local = unwrap(
-            env.with_local_frame(2, |env| env.new_object("java/lang/Object", "()V", &[])),
+            env.with_local_frame_returning_local(2, |env| {
+                env.new_object("java/lang/Object", "()V", &[])
+            }),
             &env,
         );
         let obj_local = env.auto_local(obj_local);

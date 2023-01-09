@@ -220,8 +220,8 @@ pub fn with_local_frame() {
     let mut env = attach_current_thread();
 
     let s = env
-        .with_local_frame(16, |env| {
-            let res = env.new_string("Test").unwrap();
+        .with_local_frame_returning_local::<_, jni::errors::Error>(16, |env| {
+            let res = env.new_string("Test")?;
             Ok(res.into())
         })
         .unwrap()
@@ -241,7 +241,7 @@ pub fn with_local_frame_pending_exception() {
         .unwrap();
 
     // Try to allocate a frame of locals
-    env.with_local_frame(16, |_| Ok(JObject::null()))
+    env.with_local_frame(16, |_| -> Result<_, Error> { Ok(()) })
         .expect("JNIEnv#with_local_frame must work in case of pending exception");
 
     env.exception_clear().unwrap();
@@ -968,7 +968,7 @@ fn short_lifetime_with_local_frame() {
 fn short_lifetime_with_local_frame_sub_fn<'local>(
     env: &'_ mut JNIEnv<'local>,
 ) -> Result<JObject<'local>, Error> {
-    env.with_local_frame(16, |env| {
+    env.with_local_frame_returning_local(16, |env| {
         env.new_object(INTEGER_CLASS, "(I)V", &[JValue::from(5)])
     })
 }
