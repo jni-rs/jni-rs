@@ -1,5 +1,5 @@
 use std::convert::TryFrom;
-use std::mem::transmute;
+use std::fmt::Debug;
 
 use log::trace;
 
@@ -7,10 +7,21 @@ use crate::{errors::*, objects::JObject, signature::Primitive, sys::*};
 
 /// Rusty version of the JNI C `jvalue` enum. Used in Java method call arguments
 /// and returns.
+///
+/// `JValueGen` is a generic type, meant to represent both owned and borrowed
+/// JNI values. The type parameter `O` refers to what kind of object reference
+/// the `JValueGen` can hold, which is either:
+///
+/// * an owned [`JObject`], used for values returned from a Java method call,
+///   or
+/// * a borrowed `&JObject`, used for parameters passed to a Java method call.
+///
+/// These two cases are represented by the type aliases [`JValueOwned`] and
+/// [`JValue`], respectively.
 #[allow(missing_docs)]
 #[derive(Clone, Copy, Debug)]
-pub enum JValue<'a> {
-    Object(JObject<'a>),
+pub enum JValueGen<O> {
+    Object(O),
     Byte(jbyte),
     Char(jchar),
     Short(jshort),
@@ -22,28 +33,39 @@ pub enum JValue<'a> {
     Void,
 }
 
-impl<'a> From<JValue<'a>> for jvalue {
-    fn from(other: JValue) -> jvalue {
-        other.to_jni()
-    }
-}
+/// An <dfn>owned</dfn> [`JValueGen`].
+///
+/// This type is used for values returned from Java method calls. If the Java
+/// method returns an object reference, it will take the form of an owned
+/// [`JObject`].
+pub type JValueOwned<'local> = JValueGen<JObject<'local>>;
 
-impl<'a> JValue<'a> {
+/// A <dfn>reference</dfn> [`JValueGen`].
+///
+/// This type is used for parameters passed to Java method calls. If the Java
+/// method is to be passed an object reference, it takes the form of a borrowed
+/// <code>&[JObject]</code>.
+pub type JValue<'local, 'obj_ref> = JValueGen<&'obj_ref JObject<'local>>;
+
+impl<O> JValueGen<O> {
     /// Convert the enum to its jni-compatible equivalent.
-    pub fn to_jni(self) -> jvalue {
+    pub fn as_jni<'local>(&self) -> jvalue
+    where
+        O: AsRef<JObject<'local>> + Debug,
+    {
         let val: jvalue = match self {
-            JValue::Object(obj) => jvalue {
-                l: unsafe { transmute(obj) },
+            JValueGen::Object(obj) => jvalue {
+                l: obj.as_ref().as_raw(),
             },
-            JValue::Byte(byte) => jvalue { b: byte },
-            JValue::Char(char) => jvalue { c: char },
-            JValue::Short(short) => jvalue { s: short },
-            JValue::Int(int) => jvalue { i: int },
-            JValue::Long(long) => jvalue { j: long },
-            JValue::Bool(boolean) => jvalue { b: boolean as i8 },
-            JValue::Float(float) => jvalue { f: float },
-            JValue::Double(double) => jvalue { d: double },
-            JValue::Void => jvalue {
+            JValueGen::Byte(byte) => jvalue { b: *byte },
+            JValueGen::Char(char) => jvalue { c: *char },
+            JValueGen::Short(short) => jvalue { s: *short },
+            JValueGen::Int(int) => jvalue { i: *int },
+            JValueGen::Long(long) => jvalue { j: *long },
+            JValueGen::Bool(boolean) => jvalue { b: *boolean as i8 },
+            JValueGen::Float(float) => jvalue { f: *float },
+            JValueGen::Double(double) => jvalue { d: *double },
+            JValueGen::Void => jvalue {
                 l: ::std::ptr::null_mut(),
             },
         };
@@ -53,19 +75,28 @@ impl<'a> JValue<'a> {
         val
     }
 
+    /// Convert the enum to its jni-compatible equivalent.
+    #[deprecated = "Use `as_jni` instead."]
+    pub fn to_jni<'local>(self) -> jvalue
+    where
+        O: AsRef<JObject<'local>> + Debug,
+    {
+        self.as_jni()
+    }
+
     /// Get the type name for the enum variant.
     pub fn type_name(&self) -> &'static str {
         match *self {
-            JValue::Void => "void",
-            JValue::Object(_) => "object",
-            JValue::Byte(_) => "byte",
-            JValue::Char(_) => "char",
-            JValue::Short(_) => "short",
-            JValue::Int(_) => "int",
-            JValue::Long(_) => "long",
-            JValue::Bool(_) => "bool",
-            JValue::Float(_) => "float",
-            JValue::Double(_) => "double",
+            JValueGen::Void => "void",
+            JValueGen::Object(_) => "object",
+            JValueGen::Byte(_) => "byte",
+            JValueGen::Char(_) => "char",
+            JValueGen::Short(_) => "short",
+            JValueGen::Int(_) => "int",
+            JValueGen::Long(_) => "long",
+            JValueGen::Bool(_) => "bool",
+            JValueGen::Float(_) => "float",
+            JValueGen::Double(_) => "double",
         }
     }
 
@@ -73,23 +104,23 @@ impl<'a> JValue<'a> {
     /// (i.e. an Object), returns None.
     pub fn primitive_type(&self) -> Option<Primitive> {
         Some(match *self {
-            JValue::Object(_) => return None,
-            JValue::Void => Primitive::Void,
-            JValue::Byte(_) => Primitive::Byte,
-            JValue::Char(_) => Primitive::Char,
-            JValue::Short(_) => Primitive::Short,
-            JValue::Int(_) => Primitive::Int,
-            JValue::Long(_) => Primitive::Long,
-            JValue::Bool(_) => Primitive::Boolean,
-            JValue::Float(_) => Primitive::Float,
-            JValue::Double(_) => Primitive::Double,
+            JValueGen::Object(_) => return None,
+            JValueGen::Void => Primitive::Void,
+            JValueGen::Byte(_) => Primitive::Byte,
+            JValueGen::Char(_) => Primitive::Char,
+            JValueGen::Short(_) => Primitive::Short,
+            JValueGen::Int(_) => Primitive::Int,
+            JValueGen::Long(_) => Primitive::Long,
+            JValueGen::Bool(_) => Primitive::Boolean,
+            JValueGen::Float(_) => Primitive::Float,
+            JValueGen::Double(_) => Primitive::Double,
         })
     }
 
     /// Try to unwrap to an Object.
-    pub fn l(self) -> Result<JObject<'a>> {
+    pub fn l(self) -> Result<O> {
         match self {
-            JValue::Object(obj) => Ok(obj),
+            JValueGen::Object(obj) => Ok(obj),
             _ => Err(Error::WrongJValueType("object", self.type_name())),
         }
     }
@@ -97,7 +128,7 @@ impl<'a> JValue<'a> {
     /// Try to unwrap to a boolean.
     pub fn z(self) -> Result<bool> {
         match self {
-            JValue::Bool(b) => Ok(b == JNI_TRUE),
+            JValueGen::Bool(b) => Ok(b == JNI_TRUE),
             _ => Err(Error::WrongJValueType("bool", self.type_name())),
         }
     }
@@ -105,7 +136,7 @@ impl<'a> JValue<'a> {
     /// Try to unwrap to a byte.
     pub fn b(self) -> Result<jbyte> {
         match self {
-            JValue::Byte(b) => Ok(b),
+            JValueGen::Byte(b) => Ok(b),
             _ => Err(Error::WrongJValueType("jbyte", self.type_name())),
         }
     }
@@ -113,7 +144,7 @@ impl<'a> JValue<'a> {
     /// Try to unwrap to a char.
     pub fn c(self) -> Result<jchar> {
         match self {
-            JValue::Char(b) => Ok(b),
+            JValueGen::Char(b) => Ok(b),
             _ => Err(Error::WrongJValueType("jchar", self.type_name())),
         }
     }
@@ -121,7 +152,7 @@ impl<'a> JValue<'a> {
     /// Try to unwrap to a double.
     pub fn d(self) -> Result<jdouble> {
         match self {
-            JValue::Double(b) => Ok(b),
+            JValueGen::Double(b) => Ok(b),
             _ => Err(Error::WrongJValueType("jdouble", self.type_name())),
         }
     }
@@ -129,7 +160,7 @@ impl<'a> JValue<'a> {
     /// Try to unwrap to a float.
     pub fn f(self) -> Result<jfloat> {
         match self {
-            JValue::Float(b) => Ok(b),
+            JValueGen::Float(b) => Ok(b),
             _ => Err(Error::WrongJValueType("jfloat", self.type_name())),
         }
     }
@@ -137,7 +168,7 @@ impl<'a> JValue<'a> {
     /// Try to unwrap to an int.
     pub fn i(self) -> Result<jint> {
         match self {
-            JValue::Int(b) => Ok(b),
+            JValueGen::Int(b) => Ok(b),
             _ => Err(Error::WrongJValueType("jint", self.type_name())),
         }
     }
@@ -145,7 +176,7 @@ impl<'a> JValue<'a> {
     /// Try to unwrap to a long.
     pub fn j(self) -> Result<jlong> {
         match self {
-            JValue::Long(b) => Ok(b),
+            JValueGen::Long(b) => Ok(b),
             _ => Err(Error::WrongJValueType("jlong", self.type_name())),
         }
     }
@@ -153,7 +184,7 @@ impl<'a> JValue<'a> {
     /// Try to unwrap to a short.
     pub fn s(self) -> Result<jshort> {
         match self {
-            JValue::Short(b) => Ok(b),
+            JValueGen::Short(b) => Ok(b),
             _ => Err(Error::WrongJValueType("jshort", self.type_name())),
         }
     }
@@ -161,192 +192,225 @@ impl<'a> JValue<'a> {
     /// Try to unwrap to a void.
     pub fn v(self) -> Result<()> {
         match self {
-            JValue::Void => Ok(()),
+            JValueGen::Void => Ok(()),
             _ => Err(Error::WrongJValueType("void", self.type_name())),
+        }
+    }
+
+    /// Copies or borrows the value in this `JValue`.
+    ///
+    /// If the value is a primitive type, it is copied. If the value is an
+    /// object reference, it is borrowed.
+    pub fn borrow(&self) -> JValueGen<&O> {
+        match self {
+            JValueGen::Object(o) => JValueGen::Object(o),
+            JValueGen::Byte(v) => JValueGen::Byte(*v),
+            JValueGen::Char(v) => JValueGen::Char(*v),
+            JValueGen::Short(v) => JValueGen::Short(*v),
+            JValueGen::Int(v) => JValueGen::Int(*v),
+            JValueGen::Long(v) => JValueGen::Long(*v),
+            JValueGen::Bool(v) => JValueGen::Bool(*v),
+            JValueGen::Float(v) => JValueGen::Float(*v),
+            JValueGen::Double(v) => JValueGen::Double(*v),
+            JValueGen::Void => JValueGen::Void,
         }
     }
 }
 
-impl<'a, T: Into<JObject<'a>>> From<T> for JValue<'a> {
-    fn from(other: T) -> Self {
-        JValue::Object(other.into())
+impl<'obj_ref, O> From<&'obj_ref JValueGen<O>> for JValueGen<&'obj_ref O> {
+    fn from(other: &'obj_ref JValueGen<O>) -> Self {
+        other.borrow()
     }
 }
 
-impl<'a> TryFrom<JValue<'a>> for JObject<'a> {
+impl<'local, T: Into<JObject<'local>>> From<T> for JValueOwned<'local> {
+    fn from(other: T) -> Self {
+        Self::Object(other.into())
+    }
+}
+
+impl<'local: 'obj_ref, 'obj_ref, T: AsRef<JObject<'local>>> From<&'obj_ref T>
+    for JValue<'local, 'obj_ref>
+{
+    fn from(other: &'obj_ref T) -> Self {
+        Self::Object(other.as_ref())
+    }
+}
+
+impl<'local> TryFrom<JValueOwned<'local>> for JObject<'local> {
     type Error = Error;
 
-    fn try_from(value: JValue<'a>) -> Result<Self> {
+    fn try_from(value: JValueOwned<'local>) -> Result<Self> {
         match value {
-            JValue::Object(o) => Ok(o),
+            JValueGen::Object(o) => Ok(o),
             _ => Err(Error::WrongJValueType("object", value.type_name())),
         }
     }
 }
 
-impl<'a> From<bool> for JValue<'a> {
+impl<O> From<bool> for JValueGen<O> {
     fn from(other: bool) -> Self {
-        JValue::Bool(if other { JNI_TRUE } else { JNI_FALSE })
+        JValueGen::Bool(if other { JNI_TRUE } else { JNI_FALSE })
     }
 }
 
 // jbool
-impl<'a> From<jboolean> for JValue<'a> {
+impl<O> From<jboolean> for JValueGen<O> {
     fn from(other: jboolean) -> Self {
-        JValue::Bool(other)
+        JValueGen::Bool(other)
     }
 }
 
-impl<'a> TryFrom<JValue<'a>> for jboolean {
+impl<O> TryFrom<JValueGen<O>> for jboolean {
     type Error = Error;
 
-    fn try_from(value: JValue<'a>) -> Result<Self> {
+    fn try_from(value: JValueGen<O>) -> Result<Self> {
         match value {
-            JValue::Bool(b) => Ok(b),
+            JValueGen::Bool(b) => Ok(b),
             _ => Err(Error::WrongJValueType("bool", value.type_name())),
         }
     }
 }
 
 // jchar
-impl<'a> From<jchar> for JValue<'a> {
+impl<O> From<jchar> for JValueGen<O> {
     fn from(other: jchar) -> Self {
-        JValue::Char(other)
+        JValueGen::Char(other)
     }
 }
 
-impl<'a> TryFrom<JValue<'a>> for jchar {
+impl<O> TryFrom<JValueGen<O>> for jchar {
     type Error = Error;
 
-    fn try_from(value: JValue<'a>) -> Result<Self> {
+    fn try_from(value: JValueGen<O>) -> Result<Self> {
         match value {
-            JValue::Char(c) => Ok(c),
+            JValueGen::Char(c) => Ok(c),
             _ => Err(Error::WrongJValueType("char", value.type_name())),
         }
     }
 }
 
 // jshort
-impl<'a> From<jshort> for JValue<'a> {
+impl<O> From<jshort> for JValueGen<O> {
     fn from(other: jshort) -> Self {
-        JValue::Short(other)
+        JValueGen::Short(other)
     }
 }
 
-impl<'a> TryFrom<JValue<'a>> for jshort {
+impl<O> TryFrom<JValueGen<O>> for jshort {
     type Error = Error;
 
-    fn try_from(value: JValue<'a>) -> Result<Self> {
+    fn try_from(value: JValueGen<O>) -> Result<Self> {
         match value {
-            JValue::Short(s) => Ok(s),
+            JValueGen::Short(s) => Ok(s),
             _ => Err(Error::WrongJValueType("short", value.type_name())),
         }
     }
 }
 
 // jfloat
-impl<'a> From<jfloat> for JValue<'a> {
+impl<O> From<jfloat> for JValueGen<O> {
     fn from(other: jfloat) -> Self {
-        JValue::Float(other)
+        JValueGen::Float(other)
     }
 }
 
-impl<'a> TryFrom<JValue<'a>> for jfloat {
+impl<O> TryFrom<JValueGen<O>> for jfloat {
     type Error = Error;
 
-    fn try_from(value: JValue<'a>) -> Result<Self> {
+    fn try_from(value: JValueGen<O>) -> Result<Self> {
         match value {
-            JValue::Float(f) => Ok(f),
+            JValueGen::Float(f) => Ok(f),
             _ => Err(Error::WrongJValueType("float", value.type_name())),
         }
     }
 }
 
 // jdouble
-impl<'a> From<jdouble> for JValue<'a> {
+impl<O> From<jdouble> for JValueGen<O> {
     fn from(other: jdouble) -> Self {
-        JValue::Double(other)
+        JValueGen::Double(other)
     }
 }
 
-impl<'a> TryFrom<JValue<'a>> for jdouble {
+impl<O> TryFrom<JValueGen<O>> for jdouble {
     type Error = Error;
 
-    fn try_from(value: JValue<'a>) -> Result<Self> {
+    fn try_from(value: JValueGen<O>) -> Result<Self> {
         match value {
-            JValue::Double(d) => Ok(d),
+            JValueGen::Double(d) => Ok(d),
             _ => Err(Error::WrongJValueType("double", value.type_name())),
         }
     }
 }
 
 // jint
-impl<'a> From<jint> for JValue<'a> {
+impl<O> From<jint> for JValueGen<O> {
     fn from(other: jint) -> Self {
-        JValue::Int(other)
+        JValueGen::Int(other)
     }
 }
 
-impl<'a> TryFrom<JValue<'a>> for jint {
+impl<O> TryFrom<JValueGen<O>> for jint {
     type Error = Error;
 
-    fn try_from(value: JValue<'a>) -> Result<Self> {
+    fn try_from(value: JValueGen<O>) -> Result<Self> {
         match value {
-            JValue::Int(i) => Ok(i),
+            JValueGen::Int(i) => Ok(i),
             _ => Err(Error::WrongJValueType("int", value.type_name())),
         }
     }
 }
 
 // jlong
-impl<'a> From<jlong> for JValue<'a> {
+impl<O> From<jlong> for JValueGen<O> {
     fn from(other: jlong) -> Self {
-        JValue::Long(other)
+        JValueGen::Long(other)
     }
 }
 
-impl<'a> TryFrom<JValue<'a>> for jlong {
+impl<O> TryFrom<JValueGen<O>> for jlong {
     type Error = Error;
 
-    fn try_from(value: JValue<'a>) -> Result<Self> {
+    fn try_from(value: JValueGen<O>) -> Result<Self> {
         match value {
-            JValue::Long(l) => Ok(l),
+            JValueGen::Long(l) => Ok(l),
             _ => Err(Error::WrongJValueType("long", value.type_name())),
         }
     }
 }
 
 // jbyte
-impl<'a> From<jbyte> for JValue<'a> {
+impl<O> From<jbyte> for JValueGen<O> {
     fn from(other: jbyte) -> Self {
-        JValue::Byte(other)
+        JValueGen::Byte(other)
     }
 }
 
-impl<'a> TryFrom<JValue<'a>> for jbyte {
+impl<O> TryFrom<JValueGen<O>> for jbyte {
     type Error = Error;
 
-    fn try_from(value: JValue<'a>) -> Result<Self> {
+    fn try_from(value: JValueGen<O>) -> Result<Self> {
         match value {
-            JValue::Byte(b) => Ok(b),
+            JValueGen::Byte(b) => Ok(b),
             _ => Err(Error::WrongJValueType("byte", value.type_name())),
         }
     }
 }
 
 // jvoid
-impl<'a> From<()> for JValue<'a> {
+impl<O> From<()> for JValueGen<O> {
     fn from(_: ()) -> Self {
-        JValue::Void
+        JValueGen::Void
     }
 }
 
-impl<'a> TryFrom<JValue<'a>> for () {
+impl<O> TryFrom<JValueGen<O>> for () {
     type Error = Error;
 
-    fn try_from(value: JValue<'a>) -> Result<Self> {
+    fn try_from(value: JValueGen<O>) -> Result<Self> {
         match value {
-            JValue::Void => Ok(()),
+            JValueGen::Void => Ok(()),
             _ => Err(Error::WrongJValueType("void", value.type_name())),
         }
     }

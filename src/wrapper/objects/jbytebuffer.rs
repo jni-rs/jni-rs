@@ -3,36 +3,55 @@ use crate::{objects::JObject, sys::jobject};
 /// Lifetime'd representation of a `jobject` that is an instance of the
 /// ByteBuffer Java class. Just a `JObject` wrapped in a new class.
 #[repr(transparent)]
-#[derive(Clone, Copy, Debug)]
-pub struct JByteBuffer<'a>(JObject<'a>);
+#[derive(Debug)]
+pub struct JByteBuffer<'local>(JObject<'local>);
 
-impl<'a> ::std::ops::Deref for JByteBuffer<'a> {
-    type Target = JObject<'a>;
+impl<'local> AsRef<JByteBuffer<'local>> for JByteBuffer<'local> {
+    fn as_ref(&self) -> &JByteBuffer<'local> {
+        self
+    }
+}
+
+impl<'local> AsRef<JObject<'local>> for JByteBuffer<'local> {
+    fn as_ref(&self) -> &JObject<'local> {
+        self
+    }
+}
+
+impl<'local> ::std::ops::Deref for JByteBuffer<'local> {
+    type Target = JObject<'local>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl<'a> From<JByteBuffer<'a>> for JObject<'a> {
+impl<'local> From<JByteBuffer<'local>> for JObject<'local> {
     fn from(other: JByteBuffer) -> JObject {
         other.0
     }
 }
 
-impl<'a> From<JObject<'a>> for JByteBuffer<'a> {
+impl<'local> From<JObject<'local>> for JByteBuffer<'local> {
     fn from(other: JObject) -> Self {
         unsafe { Self::from_raw(other.into_raw()) }
     }
 }
 
-impl<'a> std::default::Default for JByteBuffer<'a> {
+impl<'local, 'obj_ref> From<&'obj_ref JObject<'local>> for &'obj_ref JByteBuffer<'local> {
+    fn from(other: &'obj_ref JObject<'local>) -> Self {
+        // Safety: `JByteBuffer` is `repr(transparent)` around `JObject`.
+        unsafe { &*(other as *const JObject<'local> as *const JByteBuffer<'local>) }
+    }
+}
+
+impl<'local> std::default::Default for JByteBuffer<'local> {
     fn default() -> Self {
         Self(JObject::null())
     }
 }
 
-impl<'a> JByteBuffer<'a> {
+impl<'local> JByteBuffer<'local> {
     /// Creates a [`JByteBuffer`] that wraps the given `raw` [`jobject`]
     ///
     /// # Safety

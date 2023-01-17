@@ -30,7 +30,7 @@ pub fn jvm() -> &'static Arc<JavaVM> {
 }
 
 #[allow(dead_code)]
-pub fn call_java_abs(env: &JNIEnv, value: i32) -> i32 {
+pub fn call_java_abs(env: &mut JNIEnv, value: i32) -> i32 {
     env.call_static_method(
         "java/lang/Math",
         "abs",
@@ -77,7 +77,7 @@ pub fn print_exception(env: &JNIEnv) {
 }
 
 #[allow(dead_code)]
-pub fn unwrap<T>(env: &JNIEnv, res: Result<T>) -> T {
+pub fn unwrap<T>(res: Result<T>, env: &JNIEnv) -> T {
     res.unwrap_or_else(|e| {
         print_exception(env);
         panic!("{:#?}", e);

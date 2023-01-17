@@ -33,74 +33,74 @@ static TESTING_OBJECT_STR: &str = "TESTING OBJECT";
 
 #[test]
 pub fn call_method_returning_null() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
     // Create an Exception with no message
     let obj = AutoLocal::new(
+        unwrap(env.new_object(EXCEPTION_CLASS, "()V", &[]), &env),
         &env,
-        unwrap(&env, env.new_object(EXCEPTION_CLASS, "()V", &[])),
     );
     // Call Throwable#getMessage must return null
     let message = unwrap(
-        &env,
         env.call_method(&obj, "getMessage", "()Ljava/lang/String;", &[]),
+        &env,
     );
-    let message_ref = env.auto_local(unwrap(&env, message.l()));
+    let message_ref = env.auto_local(unwrap(message.l(), &env));
 
-    assert!(message_ref.as_obj().is_null());
+    assert!(message_ref.is_null());
 }
 
 #[test]
 pub fn is_instance_of_same_class() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
     let obj = AutoLocal::new(
+        unwrap(env.new_object(EXCEPTION_CLASS, "()V", &[]), &env),
         &env,
-        unwrap(&env, env.new_object(EXCEPTION_CLASS, "()V", &[])),
     );
-    assert!(unwrap(&env, env.is_instance_of(&obj, EXCEPTION_CLASS)));
+    assert!(unwrap(env.is_instance_of(&obj, EXCEPTION_CLASS), &env));
 }
 
 #[test]
 pub fn is_instance_of_superclass() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
     let obj = AutoLocal::new(
+        unwrap(env.new_object(ARITHMETIC_EXCEPTION_CLASS, "()V", &[]), &env),
         &env,
-        unwrap(&env, env.new_object(ARITHMETIC_EXCEPTION_CLASS, "()V", &[])),
     );
-    assert!(unwrap(&env, env.is_instance_of(&obj, EXCEPTION_CLASS)));
+    assert!(unwrap(env.is_instance_of(&obj, EXCEPTION_CLASS), &env));
 }
 
 #[test]
 pub fn is_instance_of_subclass() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
     let obj = AutoLocal::new(
+        unwrap(env.new_object(EXCEPTION_CLASS, "()V", &[]), &env),
         &env,
-        unwrap(&env, env.new_object(EXCEPTION_CLASS, "()V", &[])),
     );
     assert!(!unwrap(
+        env.is_instance_of(&obj, ARITHMETIC_EXCEPTION_CLASS),
         &env,
-        env.is_instance_of(&obj, ARITHMETIC_EXCEPTION_CLASS)
     ));
 }
 
 #[test]
 pub fn is_instance_of_not_superclass() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
     let obj = AutoLocal::new(
+        unwrap(env.new_object(ARITHMETIC_EXCEPTION_CLASS, "()V", &[]), &env),
         &env,
-        unwrap(&env, env.new_object(ARITHMETIC_EXCEPTION_CLASS, "()V", &[])),
     );
-    assert!(!unwrap(&env, env.is_instance_of(&obj, ARRAYLIST_CLASS)));
+    assert!(!unwrap(env.is_instance_of(&obj, ARRAYLIST_CLASS), &env));
 }
 
 #[test]
 pub fn is_instance_of_null() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
     let obj = JObject::null();
-    assert!(unwrap(&env, env.is_instance_of(obj, ARRAYLIST_CLASS)));
-    assert!(unwrap(&env, env.is_instance_of(obj, EXCEPTION_CLASS)));
+    assert!(unwrap(env.is_instance_of(&obj, ARRAYLIST_CLASS), &env));
+    assert!(unwrap(env.is_instance_of(&obj, EXCEPTION_CLASS), &env));
     assert!(unwrap(
+        env.is_instance_of(&obj, ARITHMETIC_EXCEPTION_CLASS),
         &env,
-        env.is_instance_of(obj, ARITHMETIC_EXCEPTION_CLASS)
     ));
 }
 
@@ -108,16 +108,16 @@ pub fn is_instance_of_null() {
 pub fn is_same_object_diff_references() {
     let env = attach_current_thread();
     let string = env.new_string(TESTING_OBJECT_STR).unwrap();
-    let ref_from_string = unwrap(&env, env.new_local_ref::<JObject>(string.into()));
-    assert!(unwrap(&env, env.is_same_object(string, ref_from_string)));
-    unwrap(&env, env.delete_local_ref(ref_from_string));
+    let ref_from_string = unwrap(env.new_local_ref(&string), &env);
+    assert!(unwrap(env.is_same_object(&string, &ref_from_string), &env));
+    unwrap(env.delete_local_ref(ref_from_string), &env);
 }
 
 #[test]
 pub fn is_same_object_same_reference() {
     let env = attach_current_thread();
     let string = env.new_string(TESTING_OBJECT_STR).unwrap();
-    assert!(unwrap(&env, env.is_same_object(string, string)));
+    assert!(unwrap(env.is_same_object(&string, &string), &env));
 }
 
 #[test]
@@ -125,21 +125,21 @@ pub fn is_not_same_object() {
     let env = attach_current_thread();
     let string = env.new_string(TESTING_OBJECT_STR).unwrap();
     let same_src_str = env.new_string(TESTING_OBJECT_STR).unwrap();
-    assert!(!unwrap(&env, env.is_same_object(string, same_src_str)));
+    assert!(!unwrap(env.is_same_object(string, same_src_str), &env));
 }
 
 #[test]
 pub fn is_not_same_object_null() {
     let env = attach_current_thread();
     assert!(unwrap(
+        env.is_same_object(JObject::null(), JObject::null()),
         &env,
-        env.is_same_object(JObject::null(), JObject::null())
     ));
 }
 
 #[test]
 pub fn get_static_public_field() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
 
     let min_int_value = env
         .get_static_field(INTEGER_CLASS, "MIN_VALUE", "I")
@@ -152,7 +152,7 @@ pub fn get_static_public_field() {
 
 #[test]
 pub fn get_static_public_field_by_id() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
 
     // One can't pass a JavaType::Primitive(Primitive::Int) to
     //   `get_static_field_id` unfortunately: #137
@@ -173,7 +173,7 @@ pub fn get_static_public_field_by_id() {
 
 #[test]
 pub fn pop_local_frame_pending_exception() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
 
     env.push_local_frame(16).unwrap();
 
@@ -181,7 +181,7 @@ pub fn pop_local_frame_pending_exception() {
         .unwrap();
 
     // Pop the local frame with a pending exception
-    env.pop_local_frame(JObject::null())
+    unsafe { env.pop_local_frame(&JObject::null()) }
         .expect("JNIEnv#pop_local_frame must work in case of pending exception");
 
     env.exception_clear().unwrap();
@@ -189,7 +189,7 @@ pub fn pop_local_frame_pending_exception() {
 
 #[test]
 pub fn push_local_frame_pending_exception() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
 
     env.throw_new(RUNTIME_EXCEPTION_CLASS, "Test Exception")
         .unwrap();
@@ -200,7 +200,7 @@ pub fn push_local_frame_pending_exception() {
 
     env.exception_clear().unwrap();
 
-    env.pop_local_frame(JObject::null()).unwrap();
+    unsafe { env.pop_local_frame(&JObject::null()) }.unwrap();
 }
 
 #[test]
@@ -212,35 +212,36 @@ pub fn push_local_frame_too_many_refs() {
     env.push_local_frame(frame_size)
         .expect_err("push_local_frame(2B) must Err");
 
-    env.pop_local_frame(JObject::null()).unwrap();
+    unsafe { env.pop_local_frame(&JObject::null()) }.unwrap();
 }
 
 #[test]
 pub fn with_local_frame() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
 
     let s = env
-        .with_local_frame(16, || {
+        .with_local_frame(16, |env| {
             let res = env.new_string("Test").unwrap();
             Ok(res.into())
         })
-        .unwrap();
+        .unwrap()
+        .into();
 
     let s = env
-        .get_string(s.into())
+        .get_string(&s)
         .expect("The object returned from the local frame must remain valid");
     assert_eq!(s.to_str().unwrap(), "Test");
 }
 
 #[test]
 pub fn with_local_frame_pending_exception() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
 
     env.throw_new(RUNTIME_EXCEPTION_CLASS, "Test Exception")
         .unwrap();
 
     // Try to allocate a frame of locals
-    env.with_local_frame(16, || Ok(JObject::null()))
+    env.with_local_frame(16, |_| Ok(JObject::null()))
         .expect("JNIEnv#with_local_frame must work in case of pending exception");
 
     env.exception_clear().unwrap();
@@ -248,7 +249,7 @@ pub fn with_local_frame_pending_exception() {
 
 #[test]
 pub fn call_method_ok() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
 
     let s = env.new_string(TESTING_OBJECT_STR).unwrap();
 
@@ -263,12 +264,17 @@ pub fn call_method_ok() {
 
 #[test]
 pub fn call_method_with_bad_args_errs() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
 
     let s = env.new_string(TESTING_OBJECT_STR).unwrap();
 
     let is_bad_typ = env
-        .call_method(s, "indexOf", "(I)I", &[JValue::Float(std::f32::consts::PI)])
+        .call_method(
+            &s,
+            "indexOf",
+            "(I)I",
+            &[JValue::Float(std::f32::consts::PI)],
+        )
         .map_err(|error| matches!(error, Error::InvalidArgList(_)))
         .expect_err("JNIEnv#callmethod with bad arg type should err");
 
@@ -279,7 +285,7 @@ pub fn call_method_with_bad_args_errs() {
 
     let is_bad_len = env
         .call_method(
-            s,
+            &s,
             "indexOf",
             "(I)I",
             &[JValue::Int('S' as i32), JValue::Long(3)],
@@ -295,7 +301,7 @@ pub fn call_method_with_bad_args_errs() {
 
 #[test]
 pub fn call_static_method_ok() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
 
     let x = JValue::from(-10);
     let val: jint = env
@@ -309,19 +315,19 @@ pub fn call_static_method_ok() {
 
 #[test]
 pub fn call_static_method_unchecked_ok() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
 
     let x = JValue::from(-10);
     let math_class = env.find_class(MATH_CLASS).unwrap();
     let abs_method_id = env
-        .get_static_method_id(math_class, MATH_ABS_METHOD_NAME, MATH_ABS_SIGNATURE)
+        .get_static_method_id(&math_class, MATH_ABS_METHOD_NAME, MATH_ABS_SIGNATURE)
         .unwrap();
     let val: jint = unsafe {
         env.call_static_method_unchecked(
-            math_class,
+            &math_class,
             abs_method_id,
             ReturnType::Primitive(Primitive::Int),
-            &[x.into()],
+            &[x.as_jni()],
         )
     }
     .expect("JNIEnv#call_static_method_unchecked should return JValue")
@@ -333,37 +339,37 @@ pub fn call_static_method_unchecked_ok() {
 
 #[test]
 pub fn call_new_object_unchecked_ok() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
 
     let test_str = env.new_string(TESTING_OBJECT_STR).unwrap();
     let string_class = env.find_class(STRING_CLASS).unwrap();
 
     let ctor_method_id = env
-        .get_method_id(string_class, "<init>", "(Ljava/lang/String;)V")
+        .get_method_id(&string_class, "<init>", "(Ljava/lang/String;)V")
         .unwrap();
     let val: JObject = unsafe {
         env.new_object_unchecked(
-            string_class,
+            &string_class,
             ctor_method_id,
-            &[JValue::from(test_str).into()],
+            &[JValue::from(&test_str).as_jni()],
         )
     }
     .expect("JNIEnv#new_object_unchecked should return JValue");
 
     let jstr = JString::try_from(val).expect("asd");
-    let javastr = env.get_string(jstr).unwrap();
+    let javastr = env.get_string(&jstr).unwrap();
     let rstr = javastr.to_str().unwrap();
     assert_eq!(rstr, TESTING_OBJECT_STR);
 }
 
 #[test]
 pub fn call_new_object_with_bad_args_errs() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
 
     let string_class = env.find_class(STRING_CLASS).unwrap();
 
     let is_bad_typ = env
-        .new_object(string_class, "(Ljava/lang/String;)V", &[JValue::Int(2)])
+        .new_object(&string_class, "(Ljava/lang/String;)V", &[JValue::Int(2)])
         .map_err(|error| matches!(error, Error::InvalidArgList(_)))
         .expect_err("JNIEnv#new_object with bad arg type should err");
 
@@ -376,9 +382,9 @@ pub fn call_new_object_with_bad_args_errs() {
 
     let is_bad_len = env
         .new_object(
-            string_class,
+            &string_class,
             "(Ljava/lang/String;)V",
-            &[JValue::from(s), JValue::Int(2)],
+            &[JValue::from(&s), JValue::Int(2)],
         )
         .map_err(|error| matches!(error, Error::InvalidArgList(_)))
         .expect_err("JNIEnv#new_object with bad arg type should err");
@@ -391,7 +397,7 @@ pub fn call_new_object_with_bad_args_errs() {
 
 #[test]
 pub fn call_static_method_throws() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
 
     let x = JValue::Long(4_000_000_000);
     let is_java_exception = env
@@ -409,12 +415,12 @@ pub fn call_static_method_throws() {
         is_java_exception,
         "ErrorKind::JavaException expected as error"
     );
-    assert_pending_java_exception(&env);
+    assert_pending_java_exception(&mut env);
 }
 
 #[test]
 pub fn call_static_method_with_bad_args_errs() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
 
     let x = JValue::Double(4.567_891_23);
     let is_bad_typ = env
@@ -455,9 +461,9 @@ pub fn java_byte_array_from_slice() {
     let java_array = env
         .byte_array_from_slice(buf)
         .expect("JNIEnv#byte_array_from_slice must create a java array from slice");
-    let obj = AutoLocal::new(&env, unsafe { JObject::from_raw(java_array) });
+    let obj = AutoLocal::new(unsafe { JObject::from_raw(java_array) }, &env);
 
-    assert!(!obj.as_obj().is_null());
+    assert!(!obj.is_null());
     let mut res: [i8; 3] = [0; 3];
     env.get_byte_array_region(java_array, 0, &mut res).unwrap();
     assert_eq!(res[0], 1);
@@ -486,7 +492,7 @@ macro_rules! test_get_array_elements {
                 let auto_ptr: AutoArray<$jni_type> = {
                     // Make sure the lifetime is tied to the environment,
                     // not the particular JNIEnv reference
-                    let temporary_env: JNIEnv = *env;
+                    let mut temporary_env: JNIEnv = unsafe { env.unsafe_clone() };
                     temporary_env.$jni_get(java_array, ReleaseMode::CopyBack).unwrap()
                 };
 
@@ -604,7 +610,7 @@ test_get_array_elements!(
 #[test]
 #[ignore] // Disabled until issue #283 is resolved
 pub fn get_long_array_elements_commit() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
 
     // Create original Java array
     let buf: &[i64] = &[1, 2, 3];
@@ -616,7 +622,7 @@ pub fn get_long_array_elements_commit() {
     let _ = env.set_long_array_region(java_array, 0, buf);
 
     // Get long array elements auto wrapper
-    let auto_ptr = env
+    let mut auto_ptr = env
         .get_long_array_elements(java_array, ReleaseMode::CopyBack)
         .unwrap();
 
@@ -654,7 +660,7 @@ pub fn get_long_array_elements_commit() {
 
 #[test]
 pub fn get_primitive_array_critical() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
 
     // Create original Java array
     let buf: &[u8] = &[1, 2, 3];
@@ -725,7 +731,7 @@ pub fn get_object_class_null_arg() {
 
 #[test]
 pub fn new_direct_byte_buffer() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
     let vec: Vec<u8> = vec![0, 1, 2, 3];
     let (addr, len) = {
         // (would use buf.into_raw_parts() on nightly)
@@ -739,14 +745,14 @@ pub fn new_direct_byte_buffer() {
 
 #[test]
 pub fn new_direct_byte_buffer_invalid_addr() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
     let result = unsafe { env.new_direct_byte_buffer(std::ptr::null_mut(), 5) };
     assert!(result.is_err());
 }
 
 #[test]
 pub fn get_direct_buffer_capacity_ok() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
     let vec: Vec<u8> = vec![0, 1, 2, 3];
     let (addr, len) = {
         // (would use buf.into_raw_parts() on nightly)
@@ -756,7 +762,7 @@ pub fn get_direct_buffer_capacity_ok() {
     let result = unsafe { env.new_direct_byte_buffer(addr, len) }.unwrap();
     assert!(!result.is_null());
 
-    let capacity = env.get_direct_buffer_capacity(result).unwrap();
+    let capacity = env.get_direct_buffer_capacity(&result).unwrap();
     assert_eq!(capacity, 4);
 }
 
@@ -764,20 +770,20 @@ pub fn get_direct_buffer_capacity_ok() {
 pub fn get_direct_buffer_capacity_wrong_arg() {
     let env = attach_current_thread();
     let wrong_obj = unsafe { JByteBuffer::from_raw(env.new_string("wrong").unwrap().into_raw()) };
-    let capacity = env.get_direct_buffer_capacity(wrong_obj);
+    let capacity = env.get_direct_buffer_capacity(&wrong_obj);
     assert!(capacity.is_err());
 }
 
 #[test]
 pub fn get_direct_buffer_capacity_null_arg() {
     let env = attach_current_thread();
-    let result = env.get_direct_buffer_capacity(JObject::null().into());
+    let result = env.get_direct_buffer_capacity(&JObject::null().into());
     assert!(result.is_err());
 }
 
 #[test]
 pub fn get_direct_buffer_address_ok() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
     let vec: Vec<u8> = vec![0, 1, 2, 3];
     let (addr, len) = {
         // (would use buf.into_raw_parts() on nightly)
@@ -787,7 +793,7 @@ pub fn get_direct_buffer_address_ok() {
     let result = unsafe { env.new_direct_byte_buffer(addr, len) }.unwrap();
     assert!(!result.is_null());
 
-    let dest_buffer = env.get_direct_buffer_address(result).unwrap();
+    let dest_buffer = env.get_direct_buffer_address(&result).unwrap();
     assert_eq!(addr, dest_buffer);
 }
 
@@ -795,14 +801,14 @@ pub fn get_direct_buffer_address_ok() {
 pub fn get_direct_buffer_address_wrong_arg() {
     let env = attach_current_thread();
     let wrong_obj: JObject = env.new_string("wrong").unwrap().into();
-    let result = env.get_direct_buffer_address(wrong_obj.into());
+    let result = env.get_direct_buffer_address(&wrong_obj.into());
     assert!(result.is_err());
 }
 
 #[test]
 pub fn get_direct_buffer_address_null_arg() {
     let env = attach_current_thread();
-    let result = env.get_direct_buffer_address(JObject::null().into());
+    let result = env.get_direct_buffer_address(&JObject::null().into());
     assert!(result.is_err());
 }
 
@@ -848,45 +854,45 @@ pub fn new_primitive_array_ok() {
 // Group test for testing the family of new_PRIMITIVE_array functions with wrong arguments
 #[test]
 pub fn new_primitive_array_wrong() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
     const WRONG_SIZE: jsize = -1;
 
     let result = env.new_boolean_array(WRONG_SIZE);
     assert_exception(&result, "JNIEnv#new_boolean_array should throw exception");
-    assert_pending_java_exception(&env);
+    assert_pending_java_exception(&mut env);
 
     let result = env.new_byte_array(WRONG_SIZE);
     assert_exception(&result, "JNIEnv#new_byte_array should throw exception");
-    assert_pending_java_exception(&env);
+    assert_pending_java_exception(&mut env);
 
     let result = env.new_char_array(WRONG_SIZE);
     assert_exception(&result, "JNIEnv#new_char_array should throw exception");
-    assert_pending_java_exception(&env);
+    assert_pending_java_exception(&mut env);
 
     let result = env.new_short_array(WRONG_SIZE);
     assert_exception(&result, "JNIEnv#new_short_array should throw exception");
-    assert_pending_java_exception(&env);
+    assert_pending_java_exception(&mut env);
 
     let result = env.new_int_array(WRONG_SIZE);
     assert_exception(&result, "JNIEnv#new_int_array should throw exception");
-    assert_pending_java_exception(&env);
+    assert_pending_java_exception(&mut env);
 
     let result = env.new_long_array(WRONG_SIZE);
     assert_exception(&result, "JNIEnv#new_long_array should throw exception");
-    assert_pending_java_exception(&env);
+    assert_pending_java_exception(&mut env);
 
     let result = env.new_float_array(WRONG_SIZE);
     assert_exception(&result, "JNIEnv#new_float_array should throw exception");
-    assert_pending_java_exception(&env);
+    assert_pending_java_exception(&mut env);
 
     let result = env.new_double_array(WRONG_SIZE);
     assert_exception(&result, "JNIEnv#new_double_array should throw exception");
-    assert_pending_java_exception(&env);
+    assert_pending_java_exception(&mut env);
 }
 
 #[test]
 fn get_super_class_ok() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
     let result = env.get_superclass(ARRAYLIST_CLASS);
     assert!(result.is_ok());
     assert!(result.unwrap().is_some());
@@ -894,7 +900,7 @@ fn get_super_class_ok() {
 
 #[test]
 fn get_super_class_null() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
     let result = env.get_superclass("java/lang/Object");
     assert!(result.is_ok());
     assert!(result.unwrap().is_none());
@@ -916,7 +922,7 @@ fn local_ref_null() {
     let env = attach_current_thread();
     let null_obj = JObject::null();
 
-    let result = env.new_local_ref::<JObject>(null_obj);
+    let result = env.new_local_ref::<&JObject>(&null_obj);
     assert!(result.is_ok());
     assert!(result.unwrap().is_null());
 
@@ -931,14 +937,14 @@ fn new_global_ref_null() {
     let null_obj = JObject::null();
     let result = env.new_global_ref(null_obj);
     assert!(result.is_ok());
-    assert!(result.unwrap().as_obj().is_null());
+    assert!(result.unwrap().is_null());
 }
 
 #[test]
 fn new_weak_ref_null() {
     let env = attach_current_thread();
     let null_obj = JObject::null();
-    let result = unwrap(&env, env.new_weak_ref(null_obj));
+    let result = unwrap(env.new_weak_ref(null_obj), &env);
     assert!(result.is_none());
 }
 
@@ -947,51 +953,55 @@ fn auto_local_null() {
     let env = attach_current_thread();
     let null_obj = JObject::null();
     {
-        let auto_ref = AutoLocal::new(&env, null_obj);
-        assert!(auto_ref.as_obj().is_null());
+        let auto_ref = AutoLocal::new(null_obj, &env);
+        assert!(auto_ref.is_null());
     }
-    assert!(null_obj.is_null());
 }
 
 #[test]
 fn short_lifetime_with_local_frame() {
-    let env = attach_current_thread();
-    let object = short_lifetime_with_local_frame_sub_fn(&env);
+    let mut env = attach_current_thread();
+    let object = short_lifetime_with_local_frame_sub_fn(&mut env);
     assert!(object.is_ok());
 }
 
-fn short_lifetime_with_local_frame_sub_fn<'a>(env: &'_ JNIEnv<'a>) -> Result<JObject<'a>, Error> {
-    env.with_local_frame(16, || {
+fn short_lifetime_with_local_frame_sub_fn<'local>(
+    env: &'_ mut JNIEnv<'local>,
+) -> Result<JObject<'local>, Error> {
+    env.with_local_frame(16, |env| {
         env.new_object(INTEGER_CLASS, "(I)V", &[JValue::from(5)])
     })
 }
 
 #[test]
 fn short_lifetime_list() {
-    let env = attach_current_thread();
-    let first_list_object = short_lifetime_list_sub_fn(&env).unwrap();
+    let mut env = attach_current_thread();
+    let first_list_object = short_lifetime_list_sub_fn(&mut env).unwrap();
     let value = env.call_method(first_list_object, "intValue", "()I", &[]);
     assert_eq!(value.unwrap().i().unwrap(), 1);
 }
 
-fn short_lifetime_list_sub_fn<'a>(env: &'_ JNIEnv<'a>) -> Result<JObject<'a>, Error> {
+fn short_lifetime_list_sub_fn<'local>(
+    env: &'_ mut JNIEnv<'local>,
+) -> Result<JObject<'local>, Error> {
     let list_object = env.new_object(ARRAYLIST_CLASS, "()V", &[])?;
-    let list = JList::from_env(env, list_object)?;
+    let list = JList::from_env(env, &list_object)?;
     let element = env.new_object(INTEGER_CLASS, "(I)V", &[JValue::from(1)])?;
-    list.add(element)?;
-    short_lifetime_list_sub_fn_get_first_element(&list)
+    list.add(env, &element)?;
+    short_lifetime_list_sub_fn_get_first_element(env, &list)
 }
 
-fn short_lifetime_list_sub_fn_get_first_element<'a>(
-    list: &'_ JList<'a, '_>,
-) -> Result<JObject<'a>, Error> {
-    let mut iterator = list.iter()?;
-    Ok(iterator.next().unwrap())
+fn short_lifetime_list_sub_fn_get_first_element<'local>(
+    env: &'_ mut JNIEnv<'local>,
+    list: &'_ JList<'local, '_, '_>,
+) -> Result<JObject<'local>, Error> {
+    let mut iterator = list.iter(env)?;
+    Ok(iterator.next(env)?.unwrap())
 }
 
 #[test]
 fn get_object_array_element() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
     let array = env
         .new_object_array(1, STRING_CLASS, JObject::null())
         .unwrap();
@@ -1004,12 +1014,12 @@ fn get_object_array_element() {
 
 #[test]
 pub fn throw_new() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
 
     let result = env.throw_new(RUNTIME_EXCEPTION_CLASS, "Test Exception");
     assert!(result.is_ok());
     assert_pending_java_exception_detailed(
-        &env,
+        &mut env,
         Some(RUNTIME_EXCEPTION_CLASS),
         Some("Test Exception"),
     );
@@ -1017,21 +1027,21 @@ pub fn throw_new() {
 
 #[test]
 pub fn throw_new_fail() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
 
     let result = env.throw_new("java/lang/NonexistentException", "Test Exception");
     assert!(result.is_err());
     // Just to clear the java.lang.NoClassDefFoundError
-    assert_pending_java_exception(&env);
+    assert_pending_java_exception(&mut env);
 }
 
 #[test]
 pub fn throw_defaults() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
 
-    test_throwable_descriptor_with_default_type(&env, TEST_EXCEPTION_MESSAGE);
-    test_throwable_descriptor_with_default_type(&env, TEST_EXCEPTION_MESSAGE.to_owned());
-    test_throwable_descriptor_with_default_type(&env, JNIString::from(TEST_EXCEPTION_MESSAGE));
+    test_throwable_descriptor_with_default_type(&mut env, TEST_EXCEPTION_MESSAGE);
+    test_throwable_descriptor_with_default_type(&mut env, TEST_EXCEPTION_MESSAGE.to_owned());
+    test_throwable_descriptor_with_default_type(&mut env, JNIString::from(TEST_EXCEPTION_MESSAGE));
 }
 
 #[test]
@@ -1039,46 +1049,52 @@ pub fn test_conversion() {
     let env = attach_current_thread();
     let orig_obj: JObject = env.new_string("Hello, world!").unwrap().into();
 
-    let string = JString::from(orig_obj);
+    let obj: JObject = unwrap(env.new_local_ref(&orig_obj), &env);
+    let string = JString::from(obj);
     let actual = JObject::from(string);
-    assert!(unwrap(&env, env.is_same_object(orig_obj, actual)));
+    assert!(unwrap(env.is_same_object(&orig_obj, actual), &env));
 
-    let global_ref = env.new_global_ref(orig_obj).unwrap();
-    let actual = JObject::from(&global_ref);
-    assert!(unwrap(&env, env.is_same_object(orig_obj, actual)));
+    let global_ref = env.new_global_ref(&orig_obj).unwrap();
+    assert!(unwrap(env.is_same_object(&orig_obj, global_ref), &env));
 
-    let weak_ref = unwrap(&env, env.new_weak_ref(orig_obj)).expect("weak ref should not be null");
+    let weak_ref = unwrap(env.new_weak_ref(&orig_obj), &env).expect("weak ref should not be null");
     let actual =
-        unwrap(&env, weak_ref.upgrade_local(&env)).expect("weak ref should not have been GC'd");
-    assert!(unwrap(&env, env.is_same_object(orig_obj, actual)));
+        unwrap(weak_ref.upgrade_local(&env), &env).expect("weak ref should not have been GC'd");
+    assert!(unwrap(env.is_same_object(&orig_obj, actual), &env));
 
-    let auto_local = env.auto_local(orig_obj);
-    let actual = JObject::from(&auto_local);
-    assert!(unwrap(&env, env.is_same_object(orig_obj, actual)));
+    let obj: JObject = unwrap(env.new_local_ref(&orig_obj), &env);
+    let auto_local = env.auto_local(obj);
+    assert!(unwrap(env.is_same_object(&orig_obj, auto_local), &env));
 }
 
 #[test]
 pub fn test_null_get_string() {
-    let env = attach_current_thread();
-    let ret = env.get_string(unsafe { JString::from_raw(std::ptr::null_mut() as _) });
+    let mut env = attach_current_thread();
+    let s = unsafe { JString::from_raw(std::ptr::null_mut() as _) };
+    let ret = env.get_string(&s);
     assert!(ret.is_err());
 }
 
 #[test]
 pub fn test_invalid_list_get_string() {
-    let env = attach_current_thread();
-    let class = env.auto_local(env.find_class("java/util/List").unwrap());
-    let ret = env.get_string(class.as_obj().into());
+    let mut env = attach_current_thread();
+
+    let class = env.find_class("java/util/List").unwrap();
+    let class = JString::from(JObject::from(class));
+    let class = env.auto_local(class);
+
+    let ret = env.get_string(&class);
     assert!(ret.is_err());
 }
 
-fn test_throwable_descriptor_with_default_type<'a, D>(env: &JNIEnv<'a>, descriptor: D)
+fn test_throwable_descriptor_with_default_type<'local, D>(env: &mut JNIEnv<'local>, descriptor: D)
 where
-    D: Desc<'a, JThrowable<'a>>,
+    D: Desc<'local, JThrowable<'local>>,
 {
     let result = descriptor.lookup(env);
     assert!(result.is_ok());
     let exception = result.unwrap();
+    let exception = exception.as_ref();
 
     assert_exception_type(env, exception, RUNTIME_EXCEPTION_CLASS);
     assert_exception_message(env, exception, TEST_EXCEPTION_MESSAGE);
@@ -1095,14 +1111,14 @@ fn assert_exception(res: &Result<jobject, Error>, expect_message: &str) {
 
 // Shortcut to `assert_pending_java_exception_detailed()` without checking for expected  type and
 // message of exception.
-fn assert_pending_java_exception(env: &JNIEnv) {
+fn assert_pending_java_exception(env: &mut JNIEnv) {
     assert_pending_java_exception_detailed(env, None, None)
 }
 
 // Helper method that asserts there is a pending Java exception of `expected_type` with
 // `expected_message` and clears it if any.
 fn assert_pending_java_exception_detailed(
-    env: &JNIEnv,
+    env: &mut JNIEnv,
     expected_type: Option<&str>,
     expected_message: Option<&str>,
 ) {
@@ -1111,26 +1127,26 @@ fn assert_pending_java_exception_detailed(
     env.exception_clear().unwrap();
 
     if let Some(expected_type) = expected_type {
-        assert_exception_type(env, exception, expected_type);
+        assert_exception_type(env, &exception, expected_type);
     }
 
     if let Some(expected_message) = expected_message {
-        assert_exception_message(env, exception, expected_message);
+        assert_exception_message(env, &exception, expected_message);
     }
 }
 
 // Asserts that exception is of `expected_type` type.
-fn assert_exception_type(env: &JNIEnv, exception: JThrowable, expected_type: &str) {
+fn assert_exception_type(env: &mut JNIEnv, exception: &JThrowable, expected_type: &str) {
     assert!(env.is_instance_of(exception, expected_type).unwrap());
 }
 
 // Asserts that exception's message is `expected_message`.
-fn assert_exception_message(env: &JNIEnv, exception: JThrowable, expected_message: &str) {
+fn assert_exception_message(env: &mut JNIEnv, exception: &JThrowable, expected_message: &str) {
     let message = env
         .call_method(exception, "getMessage", "()Ljava/lang/String;", &[])
         .unwrap()
         .l()
         .unwrap();
-    let msg_rust: String = env.get_string(message.into()).unwrap().into();
+    let msg_rust: String = env.get_string(&message.into()).unwrap().into();
     assert_eq!(msg_rust, expected_message);
 }

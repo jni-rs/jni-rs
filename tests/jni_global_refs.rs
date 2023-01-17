@@ -17,22 +17,22 @@ use util::{attach_current_thread, unwrap};
 pub fn global_ref_works_in_other_threads() {
     const ITERS_PER_THREAD: usize = 10_000;
 
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
     let mut join_handlers = Vec::new();
 
     let atomic_integer = {
         let local_ref = AutoLocal::new(
-            &env,
             unwrap(
-                &env,
                 env.new_object(
                     "java/util/concurrent/atomic/AtomicInteger",
                     "(I)V",
                     &[JValue::from(0)],
                 ),
+                &env,
             ),
+            &env,
         );
-        unwrap(&env, env.new_global_ref(&local_ref))
+        unwrap(env.new_global_ref(&local_ref), &env)
     };
 
     // Test with a different number of threads (from 2 to 8)
@@ -44,16 +44,16 @@ pub fn global_ref_works_in_other_threads() {
             let atomic_integer = atomic_integer.clone();
 
             let jh = spawn(move || {
-                let env = attach_current_thread();
+                let mut env = attach_current_thread();
                 barrier.wait();
                 for _ in 0..ITERS_PER_THREAD {
                     unwrap(
-                        &env,
                         unwrap(
-                            &env,
                             env.call_method(&atomic_integer, "incrementAndGet", "()I", &[]),
+                            &env,
                         )
                         .i(),
+                        &env,
                     );
                 }
             });
@@ -68,12 +68,12 @@ pub fn global_ref_works_in_other_threads() {
         assert_eq!(
             expected,
             unwrap(
-                &env,
                 unwrap(
+                    env.call_method(&atomic_integer, "getAndSet", "(I)I", &[JValue::from(0)]),
                     &env,
-                    env.call_method(&atomic_integer, "getAndSet", "(I)I", &[JValue::from(0)])
                 )
-                .i()
+                .i(),
+                &env,
             )
         );
     }

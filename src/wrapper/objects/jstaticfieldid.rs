@@ -46,3 +46,15 @@ impl JStaticFieldID {
         self.internal
     }
 }
+
+impl AsRef<JStaticFieldID> for JStaticFieldID {
+    fn as_ref(&self) -> &JStaticFieldID {
+        self
+    }
+}
+
+impl AsMut<JStaticFieldID> for JStaticFieldID {
+    fn as_mut(&mut self) -> &mut JStaticFieldID {
+        self
+    }
+}

@@ -17,12 +17,13 @@ pub struct AtomicIntegerProxy {
 impl AtomicIntegerProxy {
     /// Creates a new instance of `AtomicIntegerProxy`
     pub fn new(exec: Executor, init_value: jint) -> Result<Self> {
-        let obj = exec.with_attached(|env: &JNIEnv| {
-            env.new_global_ref(env.new_object(
+        let obj = exec.with_attached(|env: &mut JNIEnv| {
+            let i = env.new_object(
                 "java/util/concurrent/atomic/AtomicInteger",
                 "(I)V",
                 &[JValue::from(init_value)],
-            )?)
+            )?;
+            env.new_global_ref(i)
         })?;
         Ok(AtomicIntegerProxy { exec, obj })
     }

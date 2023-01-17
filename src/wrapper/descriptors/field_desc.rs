@@ -6,24 +6,28 @@ use crate::{
     JNIEnv,
 };
 
-impl<'a, 'c, T, U, V> Desc<'a, JFieldID> for (T, U, V)
+unsafe impl<'local, 'other_local, T, U, V> Desc<'local, JFieldID> for (T, U, V)
 where
-    T: Desc<'a, JClass<'c>>,
+    T: Desc<'local, JClass<'other_local>>,
     U: Into<JNIString>,
     V: Into<JNIString>,
 {
-    fn lookup(self, env: &JNIEnv<'a>) -> Result<JFieldID> {
+    type Output = JFieldID;
+
+    fn lookup(self, env: &mut JNIEnv<'local>) -> Result<Self::Output> {
         env.get_field_id(self.0, self.1, self.2)
     }
 }
 
-impl<'a, 'c, T, U, V> Desc<'a, JStaticFieldID> for (T, U, V)
+unsafe impl<'local, 'other_local, T, U, V> Desc<'local, JStaticFieldID> for (T, U, V)
 where
-    T: Desc<'a, JClass<'c>>,
+    T: Desc<'local, JClass<'other_local>>,
     U: Into<JNIString>,
     V: Into<JNIString>,
 {
-    fn lookup(self, env: &JNIEnv<'a>) -> Result<JStaticFieldID> {
+    type Output = JStaticFieldID;
+
+    fn lookup(self, env: &mut JNIEnv<'local>) -> Result<Self::Output> {
         env.get_static_field_id(self.0, self.1, self.2)
     }
 }

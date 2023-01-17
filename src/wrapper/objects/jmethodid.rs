@@ -46,3 +46,15 @@ impl JMethodID {
         self.internal
     }
 }
+
+impl AsRef<JMethodID> for JMethodID {
+    fn as_ref(&self) -> &JMethodID {
+        self
+    }
+}
+
+impl AsMut<JMethodID> for JMethodID {
+    fn as_mut(&mut self) -> &mut JMethodID {
+        self
+    }
+}

@@ -13,18 +13,18 @@ use std::ptr::NonNull;
 ///
 /// AutoPrimitiveArray provides automatic array release through a call to
 /// ReleasePrimitiveArrayCritical when it goes out of scope.
-pub struct AutoPrimitiveArray<'a: 'b, 'b> {
-    obj: JObject<'a>,
+pub struct AutoPrimitiveArray<'local: 'env, 'env> {
+    obj: JObject<'local>,
     ptr: NonNull<c_void>,
     mode: ReleaseMode,
     is_copy: bool,
-    env: &'b JNIEnv<'a>,
+    env: &'env mut JNIEnv<'local>,
 }
 
-impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
+impl<'local, 'env> AutoPrimitiveArray<'local, 'env> {
     pub(crate) fn new(
-        env: &'b JNIEnv<'a>,
-        obj: JObject<'a>,
+        env: &'env mut JNIEnv<'local>,
+        obj: JObject<'local>,
         ptr: *mut c_void,
         mode: ReleaseMode,
         is_copy: bool,
@@ -73,7 +73,19 @@ impl<'a, 'b> AutoPrimitiveArray<'a, 'b> {
     }
 }
 
-impl<'a, 'b> Drop for AutoPrimitiveArray<'a, 'b> {
+impl<'local, 'env> AsRef<AutoPrimitiveArray<'local, 'env>> for AutoPrimitiveArray<'local, 'env> {
+    fn as_ref(&self) -> &AutoPrimitiveArray<'local, 'env> {
+        self
+    }
+}
+
+impl<'local, 'env> AsRef<JObject<'local>> for AutoPrimitiveArray<'local, 'env> {
+    fn as_ref(&self) -> &JObject<'local> {
+        &self.obj
+    }
+}
+
+impl<'local, 'env> Drop for AutoPrimitiveArray<'local, 'env> {
     fn drop(&mut self) {
         let res = self.release_primitive_array_critical(self.mode as i32);
         match res {
@@ -83,8 +95,8 @@ impl<'a, 'b> Drop for AutoPrimitiveArray<'a, 'b> {
     }
 }
 
-impl<'a> From<&'a AutoPrimitiveArray<'a, '_>> for *mut c_void {
-    fn from(other: &'a AutoPrimitiveArray) -> *mut c_void {
+impl<'local> From<&'local AutoPrimitiveArray<'local, '_>> for *mut c_void {
+    fn from(other: &'local AutoPrimitiveArray) -> *mut c_void {
         other.as_ptr()
     }
 }
