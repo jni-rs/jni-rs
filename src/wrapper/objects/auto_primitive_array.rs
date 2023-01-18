@@ -1,61 +1,86 @@
-use log::debug;
-
-use crate::sys::jsize;
-use crate::wrapper::objects::ReleaseMode;
-use crate::{errors::*, objects::JObject, JNIEnv};
-use std::os::raw::c_void;
+use log::error;
 use std::ptr::NonNull;
 
-/// Auto-release wrapper for pointer-based primitive arrays.
+use crate::sys::{jboolean, jsize};
+use crate::wrapper::objects::ReleaseMode;
+use crate::{errors::*, sys, JNIEnv};
+
+use super::{JPrimitiveArray, TypeArray};
+
+#[cfg(doc)]
+use super::JByteArray;
+
+/// Auto-release wrapper for a mutable pointer to the elements of a [`JPrimitiveArray`]
+/// (such as [`JByteArray`])
 ///
-/// This wrapper is used to wrap pointers returned by GetPrimitiveArrayCritical.
-/// While wrapped, the object can be accessed via the `From` impl.
-///
-/// AutoPrimitiveArray provides automatic array release through a call to
-/// ReleasePrimitiveArrayCritical when it goes out of scope.
-pub struct AutoPrimitiveArray<'local: 'env, 'env> {
-    obj: JObject<'local>,
-    ptr: NonNull<c_void>,
+/// This type is used to wrap pointers returned by `GetPrimitiveArrayCritical`
+/// and ensure the pointer is released via `ReleasePrimitiveArrayCritical` when dropped.
+pub struct AutoPrimitiveArray<'local, 'other_local, 'array, 'env, T: TypeArray> {
+    array: &'array JPrimitiveArray<'other_local, T>,
+    ptr: NonNull<T>,
     mode: ReleaseMode,
     is_copy: bool,
     env: &'env mut JNIEnv<'local>,
 }
 
-impl<'local, 'env> AutoPrimitiveArray<'local, 'env> {
+impl<'local, 'other_local, 'array, 'env, T: TypeArray>
+    AutoPrimitiveArray<'local, 'other_local, 'array, 'env, T>
+{
     pub(crate) fn new(
         env: &'env mut JNIEnv<'local>,
-        obj: JObject<'local>,
-        ptr: *mut c_void,
+        array: &'array JPrimitiveArray<'other_local, T>,
         mode: ReleaseMode,
-        is_copy: bool,
     ) -> Result<Self> {
+        let mut is_copy: jboolean = 0xff;
+        // Even though this method may throw OoME, use `jni_unchecked`
+        // instead of `jni_non_null_call` to remove (a slight) overhead
+        // of exception checking. An error will still be detected as a `null`
+        // result below; and, as this method is unlikely to create a copy,
+        // an OoME is highly unlikely.
+        let ptr = jni_unchecked!(
+            env.get_native_interface(),
+            GetPrimitiveArrayCritical,
+            array.as_raw(),
+            &mut is_copy
+        ) as *mut T;
+
         Ok(AutoPrimitiveArray {
-            obj,
+            array,
             ptr: NonNull::new(ptr).ok_or(Error::NullPtr("Non-null ptr expected"))?,
             mode,
-            is_copy,
+            is_copy: is_copy == sys::JNI_TRUE,
             env,
         })
     }
 
     /// Get a reference to the wrapped pointer
-    pub fn as_ptr(&self) -> *mut c_void {
+    pub fn as_ptr(&self) -> *mut T {
         self.ptr.as_ptr()
     }
 
-    fn release_primitive_array_critical(&mut self, mode: i32) -> Result<()> {
+    /// Calls `ReleasePrimitiveArrayCritical`.
+    ///
+    /// # Safety
+    ///
+    /// `mode` must be a valid parameter to the JNI `ReleasePrimitiveArrayCritical` `mode`
+    /// parameter.
+    ///
+    /// If `mode` is not [`sys::JNI_COMMIT`], then `self.ptr` must not have already been released.
+    unsafe fn release_primitive_array_critical(&mut self, mode: i32) -> Result<()> {
         jni_unchecked!(
             self.env.get_native_interface(),
             ReleasePrimitiveArrayCritical,
-            *self.obj,
-            self.ptr.as_mut(),
+            self.array.as_raw(),
+            self.ptr.as_ptr().cast(),
             mode
         );
         Ok(())
     }
 
-    /// Don't copy the changes to the array on release (if it is a copy).
+    /// Don't copy back the changes to the array on release (if it is a copy).
+    ///
     /// This has no effect if the array is not a copy.
+    ///
     /// This method is useful to change the release mode of an array originally created
     /// with `ReleaseMode::CopyBack`.
     pub fn discard(&mut self) {
@@ -69,34 +94,37 @@ impl<'local, 'env> AutoPrimitiveArray<'local, 'env> {
 
     /// Returns the array size
     pub fn size(&self) -> Result<jsize> {
-        self.env.get_array_length(*self.obj)
+        self.env.get_array_length(self.array.as_raw())
     }
 }
 
-impl<'local, 'env> AsRef<AutoPrimitiveArray<'local, 'env>> for AutoPrimitiveArray<'local, 'env> {
-    fn as_ref(&self) -> &AutoPrimitiveArray<'local, 'env> {
+impl<'local, 'other_local, 'array, 'env, T: TypeArray>
+    AsRef<AutoPrimitiveArray<'local, 'other_local, 'array, 'env, T>>
+    for AutoPrimitiveArray<'local, 'other_local, 'array, 'env, T>
+{
+    fn as_ref(&self) -> &AutoPrimitiveArray<'local, 'other_local, 'array, 'env, T> {
         self
     }
 }
 
-impl<'local, 'env> AsRef<JObject<'local>> for AutoPrimitiveArray<'local, 'env> {
-    fn as_ref(&self) -> &JObject<'local> {
-        &self.obj
-    }
-}
-
-impl<'local, 'env> Drop for AutoPrimitiveArray<'local, 'env> {
+impl<'local, 'other_local, 'array, 'env, T: TypeArray> Drop
+    for AutoPrimitiveArray<'local, 'other_local, 'array, 'env, T>
+{
     fn drop(&mut self) {
-        let res = self.release_primitive_array_critical(self.mode as i32);
+        // Safety: `self.mode` is valid and the array has not yet been released.
+        let res = unsafe { self.release_primitive_array_critical(self.mode as i32) };
+
         match res {
             Ok(()) => {}
-            Err(e) => debug!("error releasing primitive array: {:#?}", e),
+            Err(e) => error!("error releasing primitive array: {:#?}", e),
         }
     }
 }
 
-impl<'local> From<&'local AutoPrimitiveArray<'local, '_>> for *mut c_void {
-    fn from(other: &'local AutoPrimitiveArray) -> *mut c_void {
+impl<'local, 'other_local, 'array, 'env, T: TypeArray>
+    From<&AutoPrimitiveArray<'local, 'other_local, 'array, 'env, T>> for *mut T
+{
+    fn from(other: &AutoPrimitiveArray<T>) -> *mut T {
         other.as_ptr()
     }
 }

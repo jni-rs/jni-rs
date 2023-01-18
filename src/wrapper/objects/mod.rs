@@ -49,6 +49,14 @@ pub use self::auto_local::*;
 mod release_mode;
 pub use self::release_mode::*;
 
+/// Primitive Array types
+mod jobject_array;
+pub use self::jobject_array::*;
+
+/// Primitive Array types
+mod jprimitive_array;
+pub use self::jprimitive_array::*;
+
 // For automatic pointer-based generic array release
 mod auto_array;
 pub use self::auto_array::*;

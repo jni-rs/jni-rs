@@ -1,6 +1,6 @@
 #![cfg(feature = "invocation")]
 
-use jni::{errors::Error, objects::JObject, objects::JValue};
+use jni::{errors::Error, objects::JValue};
 
 mod util;
 use util::{attach_current_thread, print_exception};
@@ -18,7 +18,6 @@ fn test_java_integers() {
 
             let values_array =
                 env.new_object_array(array_length, "java/lang/Integer", &integer_value)?;
-            let values_array = unsafe { JObject::from_raw(values_array) };
 
             let result = env
                 .call_static_method(

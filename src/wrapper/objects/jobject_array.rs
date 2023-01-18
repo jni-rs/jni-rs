@@ -1,27 +1,26 @@
 use crate::{
     objects::JObject,
-    sys::{jclass, jobject},
+    sys::{jobject, jobjectArray},
 };
 
-/// Lifetime'd representation of a `jclass`. Just a `JObject` wrapped in a new
-/// class.
+/// Lifetime'd representation of a [`jobjectArray`] which wraps a [`JObject`] reference
 #[repr(transparent)]
 #[derive(Debug)]
-pub struct JClass<'local>(JObject<'local>);
+pub struct JObjectArray<'local>(JObject<'local>);
 
-impl<'local> AsRef<JClass<'local>> for JClass<'local> {
-    fn as_ref(&self) -> &JClass<'local> {
+impl<'local> AsRef<JObjectArray<'local>> for JObjectArray<'local> {
+    fn as_ref(&self) -> &JObjectArray<'local> {
         self
     }
 }
 
-impl<'local> AsRef<JObject<'local>> for JClass<'local> {
+impl<'local> AsRef<JObject<'local>> for JObjectArray<'local> {
     fn as_ref(&self) -> &JObject<'local> {
         self
     }
 }
 
-impl<'local> ::std::ops::Deref for JClass<'local> {
+impl<'local> ::std::ops::Deref for JObjectArray<'local> {
     type Target = JObject<'local>;
 
     fn deref(&self) -> &Self::Target {
@@ -29,35 +28,35 @@ impl<'local> ::std::ops::Deref for JClass<'local> {
     }
 }
 
-impl<'local> From<JClass<'local>> for JObject<'local> {
-    fn from(other: JClass) -> JObject {
+impl<'local> From<JObjectArray<'local>> for JObject<'local> {
+    fn from(other: JObjectArray) -> JObject {
         other.0
     }
 }
 
 /// This conversion assumes that the `JObject` is a pointer to a class object.
-impl<'local> From<JObject<'local>> for JClass<'local> {
+impl<'local> From<JObject<'local>> for JObjectArray<'local> {
     fn from(other: JObject) -> Self {
         unsafe { Self::from_raw(other.into_raw()) }
     }
 }
 
 /// This conversion assumes that the `JObject` is a pointer to a class object.
-impl<'local, 'obj_ref> From<&'obj_ref JObject<'local>> for &'obj_ref JClass<'local> {
+impl<'local, 'obj_ref> From<&'obj_ref JObject<'local>> for &'obj_ref JObjectArray<'local> {
     fn from(other: &'obj_ref JObject<'local>) -> Self {
-        // Safety: `JClass` is `repr(transparent)` around `JObject`.
-        unsafe { &*(other as *const JObject<'local> as *const JClass<'local>) }
+        // Safety: `JObjectArray` is `repr(transparent)` around `JObject`.
+        unsafe { &*(other as *const JObject<'local> as *const JObjectArray<'local>) }
     }
 }
 
-impl<'local> std::default::Default for JClass<'local> {
+impl<'local> std::default::Default for JObjectArray<'local> {
     fn default() -> Self {
         Self(JObject::null())
     }
 }
 
-impl<'local> JClass<'local> {
-    /// Creates a [`JClass`] that wraps the given `raw` [`jclass`]
+impl<'local> JObjectArray<'local> {
+    /// Creates a [`JObjectArray`] that wraps the given `raw` [`jobjectArray`]
     ///
     /// # Safety
     ///
@@ -67,17 +66,12 @@ impl<'local> JClass<'local> {
     /// * There must not be any other `JObject` representing the same local reference.
     /// * The lifetime `'local` must not outlive the local reference frame that the local reference
     ///   was created in.
-    pub unsafe fn from_raw(raw: jclass) -> Self {
+    pub unsafe fn from_raw(raw: jobjectArray) -> Self {
         Self(JObject::from_raw(raw as jobject))
     }
 
-    /// Returns the raw JNI pointer.
-    pub fn as_raw(&self) -> jclass {
-        self.0.as_raw() as jclass
-    }
-
     /// Unwrap to the raw jni type.
-    pub fn into_raw(self) -> jclass {
-        self.0.into_raw() as jclass
+    pub fn into_raw(self) -> jobjectArray {
+        self.0.into_raw() as jobjectArray
     }
 }
