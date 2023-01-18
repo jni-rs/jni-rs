@@ -109,6 +109,60 @@ use crate::{
 ///
 /// [issue #392]: https://github.com/jni-rs/jni-rs/issues/392
 ///
+/// ## `cannot borrow as mutable`
+///
+/// If a function takes two or more parameters, one of them is `JNIEnv`, and another is something
+/// returned by a `JNIEnv` method (like [`JObject`]), then calls to that function may not compile:
+///
+/// ```rust,compile_fail
+/// # use jni::{errors::Result, JNIEnv, objects::*};
+/// #
+/// # fn f(env: &mut JNIEnv) -> Result<()> {
+/// fn example_function(
+///     env: &mut JNIEnv,
+///     obj: &JObject,
+/// ) {
+///     // …
+/// }
+///
+/// example_function(
+///     env,
+///     // ERROR: cannot borrow `*env` as mutable more than once at a time
+///     &env.new_object(
+///         "com/example/SomeClass",
+///         "()V",
+///         &[],
+///     )?,
+/// )
+/// # ; Ok(())
+/// # }
+/// ```
+///
+/// To fix this, the `JNIEnv` parameter needs to come *last*:
+///
+/// ```rust,no_run
+/// # use jni::{errors::Result, JNIEnv, objects::*};
+/// #
+/// # fn f(env: &mut JNIEnv) -> Result<()> {
+/// fn example_function(
+///     obj: &JObject,
+///     env: &mut JNIEnv,
+/// ) {
+///     // …
+/// }
+///
+/// example_function(
+///     &env.new_object(
+///         "com/example/SomeClass",
+///         "()V",
+///         &[],
+///     )?,
+///     env,
+/// )
+/// # ; Ok(())
+/// # }
+/// ```
+///
 /// # Checked and unchecked methods
 ///
 /// Some of the methods come in two versions: checked (e.g. `call_method`) and

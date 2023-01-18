@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+This release makes extensive breaking changes in order to improve safety. Most projects that use this library will need to be changed. Please see [the migration guide](docs/0.21-MIGRATION.md).
+
 ### Added
 - `JavaStr::into_raw()` which drops the `JavaStr` and releases ownership of the raw string pointer ([#374](https://github.com/jni-rs/jni-rs/pull/374))
 - `JavaStr::from_raw()` which takes ownership of a raw string pointer to create a `JavaStr` ([#374](https://github.com/jni-rs/jni-rs/pull/374))
@@ -30,7 +32,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - The `get_superclass` function now returns an Option instead of a null pointer if the class has no superclass ([#151](https://github.com/jni-rs/jni-rs/issues/151))
 - The `invocation` feature now locates the JVM implementation dynamically at runtime (via the `java-locator` crate by default) instead of linking with the JVM at build time ([#293](https://github.com/jni-rs/jni-rs/pull/293))
 - Most `JNIEnv` methods now require `&mut self`. This improves safety by preventing `JObject`s from getting an invalid lifetime. Most native method implementations (that is, `#[no_mangle] extern "system" fn`s) must now make the `JNIEnv` parameter `mut`. See the example on the crate documentation. ([#392](https://github.com/jni-rs/jni-rs/issues/392))
-- `JByteBuffer`, `JClass`, `JNIEnv`, `JObject`, `JString`, and `JThrowable` no longer have the `Clone` or `Copy` traits. This improves safety by preventing object references from being used after the JVM deletes them. Most functions that take one of these types as a parameter should now borrow it instead, e.g. `&JObject` instead of `JObject`. ([#392](https://github.com/jni-rs/jni-rs/issues/392))
+- `JByteBuffer`, `JClass`, `JNIEnv`, `JObject`, `JString`, and `JThrowable` no longer have the `Clone` or `Copy` traits. This improves safety by preventing object references from being used after the JVM deletes them. Most functions that take one of these types as a parameter (except `extern fn`s that are directly called by the JVM) should now borrow it instead, e.g. `&JObject` instead of `JObject`. ([#392](https://github.com/jni-rs/jni-rs/issues/392))
 - `AutoLocal` is now generic in the type of object reference (`JString`, etc). ([#392](https://github.com/jni-rs/jni-rs/issues/392))
 - The closure passed to `JNIEnv::with_local_frame` must now take a `&mut JNIEnv` parameter, which has a different lifetime. This improves safety by preventing local references from escaping the closure, which would cause a use-after-free bug. `Executor::with_attached` and `Executor::with_attached_capacity` have been similarly changed. ([#392](https://github.com/jni-rs/jni-rs/issues/392))
 - `Desc`, `JNIEnv::pop_local_frame`, and `TypeArray` are now `unsafe`. ([#392](https://github.com/jni-rs/jni-rs/issues/392))
