@@ -1,7 +1,7 @@
 use log::error;
 use std::ptr::NonNull;
 
-use crate::sys::{jarray, jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jshort, jsize};
+use crate::sys::{jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jshort, jsize};
 use crate::wrapper::objects::ReleaseMode;
 use crate::{errors::*, sys, JNIEnv};
 
@@ -10,88 +10,111 @@ use super::JPrimitiveArray;
 #[cfg(doc)]
 use super::JByteArray;
 
-/// Trait to define type array access/release
-///
-/// # Safety
-///
-/// The methods of this trait must uphold the invariants described in [`JNIEnv::unsafe_clone`] when
-/// using the provided [`JNIEnv`].
-///
-/// The `get` method must return a valid pointer to the beginning of the JNI array.
-///
-/// The `release` method must not invalidate the `ptr` if the `mode` is [`sys::JNI_COMMIT`].
-pub unsafe trait TypeArray: Copy {
-    /// getter
+mod type_array_sealed {
+    use crate::sys::{jarray, jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jshort};
+    use crate::{errors::*, JNIEnv};
+    use std::ptr::NonNull;
+
+    /// Trait to define type array access/release
     ///
     /// # Safety
     ///
-    /// `array` must be a valid pointer to an `Array` object, or `null`
+    /// The methods of this trait must uphold the invariants described in [`JNIEnv::unsafe_clone`] when
+    /// using the provided [`JNIEnv`].
     ///
-    /// The caller is responsible for passing the returned pointer to [`release`], along
-    /// with the same `env` and `array` reference (which needs to still be valid)
-    unsafe fn get(env: &mut JNIEnv, array: jarray, is_copy: &mut jboolean) -> Result<*mut Self>;
+    /// The `get` method must return a valid pointer to the beginning of the JNI array.
+    ///
+    /// The `release` method must not invalidate the `ptr` if the `mode` is [`sys::JNI_COMMIT`].
+    pub unsafe trait TypeArraySealed: Copy {
+        /// getter
+        ///
+        /// # Safety
+        ///
+        /// `array` must be a valid pointer to an `Array` object, or `null`
+        ///
+        /// The caller is responsible for passing the returned pointer to [`release`], along
+        /// with the same `env` and `array` reference (which needs to still be valid)
+        unsafe fn get(env: &mut JNIEnv, array: jarray, is_copy: &mut jboolean)
+            -> Result<*mut Self>;
 
-    /// releaser
-    ///
-    /// # Safety
-    ///
-    /// `ptr` must have been previously returned by the `get` function.
-    ///
-    /// If `mode` is not [`sys::JNI_COMMIT`], `ptr` must not be used again after calling this
-    /// function.
-    unsafe fn release(env: &mut JNIEnv, array: jarray, ptr: NonNull<Self>, mode: i32)
-        -> Result<()>;
+        /// releaser
+        ///
+        /// # Safety
+        ///
+        /// `ptr` must have been previously returned by the `get` function.
+        ///
+        /// If `mode` is not [`sys::JNI_COMMIT`], `ptr` must not be used again after calling this
+        /// function.
+        unsafe fn release(
+            env: &mut JNIEnv,
+            array: jarray,
+            ptr: NonNull<Self>,
+            mode: i32,
+        ) -> Result<()>;
+    }
+
+    // TypeArray builder
+    macro_rules! type_array {
+        ( $jni_type:ty, $jni_get:tt, $jni_release:tt ) => {
+            /// $jni_type array access/release impl
+            unsafe impl TypeArraySealed for $jni_type {
+                /// Get Java $jni_type array
+                unsafe fn get(
+                    env: &mut JNIEnv,
+                    array: jarray,
+                    is_copy: &mut jboolean,
+                ) -> Result<*mut Self> {
+                    let internal = env.get_native_interface();
+                    // Even though this method may throw OoME, use `jni_unchecked`
+                    // instead of `jni_non_null_call` to remove (a slight) overhead
+                    // of exception checking. An error will still be detected as a `null`
+                    // result inside AutoArray ctor. Also, modern Hotspot in case of lack
+                    // of memory will return null and won't throw an exception:
+                    // https://sourcegraph.com/github.com/openjdk/jdk/-/blob/src/hotspot/share/memory/allocation.hpp#L488-489
+                    let res = jni_unchecked!(internal, $jni_get, array, is_copy);
+                    Ok(res)
+                }
+
+                /// Release Java $jni_type array
+                unsafe fn release(
+                    env: &mut JNIEnv,
+                    array: jarray,
+                    ptr: NonNull<Self>,
+                    mode: i32,
+                ) -> Result<()> {
+                    let internal = env.get_native_interface();
+                    jni_unchecked!(internal, $jni_release, array, ptr.as_ptr(), mode as i32);
+                    Ok(())
+                }
+            }
+        };
+    }
+
+    type_array!(jint, GetIntArrayElements, ReleaseIntArrayElements);
+    type_array!(jlong, GetLongArrayElements, ReleaseLongArrayElements);
+    type_array!(jbyte, GetByteArrayElements, ReleaseByteArrayElements);
+    type_array!(
+        jboolean,
+        GetBooleanArrayElements,
+        ReleaseBooleanArrayElements
+    );
+    type_array!(jchar, GetCharArrayElements, ReleaseCharArrayElements);
+    type_array!(jshort, GetShortArrayElements, ReleaseShortArrayElements);
+    type_array!(jfloat, GetFloatArrayElements, ReleaseFloatArrayElements);
+    type_array!(jdouble, GetDoubleArrayElements, ReleaseDoubleArrayElements);
 }
 
-// TypeArray builder
-macro_rules! type_array {
-    ( $jni_type:ty, $jni_get:tt, $jni_release:tt ) => {
-        /// $jni_type array access/release impl
-        unsafe impl TypeArray for $jni_type {
-            /// Get Java $jni_type array
-            unsafe fn get(
-                env: &mut JNIEnv,
-                array: jarray,
-                is_copy: &mut jboolean,
-            ) -> Result<*mut Self> {
-                let internal = env.get_native_interface();
-                // Even though this method may throw OoME, use `jni_unchecked`
-                // instead of `jni_non_null_call` to remove (a slight) overhead
-                // of exception checking. An error will still be detected as a `null`
-                // result inside AutoArray ctor. Also, modern Hotspot in case of lack
-                // of memory will return null and won't throw an exception:
-                // https://sourcegraph.com/github.com/openjdk/jdk/-/blob/src/hotspot/share/memory/allocation.hpp#L488-489
-                let res = jni_unchecked!(internal, $jni_get, array, is_copy);
-                Ok(res)
-            }
+/// A sealed trait to define type array access/release for primitive JNI types
+pub trait TypeArray: type_array_sealed::TypeArraySealed {}
 
-            /// Release Java $jni_type array
-            unsafe fn release(
-                env: &mut JNIEnv,
-                array: jarray,
-                ptr: NonNull<Self>,
-                mode: i32,
-            ) -> Result<()> {
-                let internal = env.get_native_interface();
-                jni_unchecked!(internal, $jni_release, array, ptr.as_ptr(), mode as i32);
-                Ok(())
-            }
-        }
-    };
-}
-
-type_array!(jint, GetIntArrayElements, ReleaseIntArrayElements);
-type_array!(jlong, GetLongArrayElements, ReleaseLongArrayElements);
-type_array!(jbyte, GetByteArrayElements, ReleaseByteArrayElements);
-type_array!(
-    jboolean,
-    GetBooleanArrayElements,
-    ReleaseBooleanArrayElements
-);
-type_array!(jchar, GetCharArrayElements, ReleaseCharArrayElements);
-type_array!(jshort, GetShortArrayElements, ReleaseShortArrayElements);
-type_array!(jfloat, GetFloatArrayElements, ReleaseFloatArrayElements);
-type_array!(jdouble, GetDoubleArrayElements, ReleaseDoubleArrayElements);
+impl TypeArray for jint {}
+impl TypeArray for jlong {}
+impl TypeArray for jbyte {}
+impl TypeArray for jboolean {}
+impl TypeArray for jchar {}
+impl TypeArray for jshort {}
+impl TypeArray for jfloat {}
+impl TypeArray for jdouble {}
 
 /// Auto-release wrapper for a mutable pointer to the elements of a [`JPrimitiveArray`]
 /// (such as [`JByteArray`])
