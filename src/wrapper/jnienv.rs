@@ -299,7 +299,7 @@ impl<'local> JNIEnv<'local> {
             name.as_ptr(),
             loader.as_raw(),
             buf.as_ptr(),
-            buf.size()?
+            buf.len() as _
         );
         Ok(unsafe { JClass::from_raw(class) })
     }

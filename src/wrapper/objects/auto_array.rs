@@ -1,7 +1,7 @@
 use log::error;
 use std::ptr::NonNull;
 
-use crate::sys::{jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jshort, jsize};
+use crate::sys::{jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jshort};
 use crate::wrapper::objects::ReleaseMode;
 use crate::{errors::*, sys, JNIEnv};
 
@@ -123,6 +123,7 @@ impl TypeArray for jdouble {}
 /// and ensure the pointer is released via `Release<Type>ArrayElements` when dropped.
 pub struct AutoArray<'local, 'other_local, 'array, T: TypeArray> {
     array: &'array JPrimitiveArray<'other_local, T>,
+    len: usize,
     ptr: NonNull<T>,
     mode: ReleaseMode,
     is_copy: bool,
@@ -130,9 +131,13 @@ pub struct AutoArray<'local, 'other_local, 'array, T: TypeArray> {
 }
 
 impl<'local, 'other_local, 'array, T: TypeArray> AutoArray<'local, 'other_local, 'array, T> {
-    pub(crate) fn new(
+    /// # Safety
+    ///
+    /// `len` must be the correct length (number of elements) of the given `array`
+    pub(crate) unsafe fn new_with_len(
         env: &mut JNIEnv<'local>,
         array: &'array JPrimitiveArray<'other_local, T>,
+        len: usize,
         mode: ReleaseMode,
     ) -> Result<Self> {
         // Safety: The cloned `JNIEnv` will not be used to create any local references. It will be
@@ -144,11 +149,21 @@ impl<'local, 'other_local, 'array, T: TypeArray> AutoArray<'local, 'other_local,
         let ptr = unsafe { T::get(&mut env, array.as_raw(), &mut is_copy) }?;
         Ok(AutoArray {
             array,
+            len,
             ptr: NonNull::new(ptr).ok_or(Error::NullPtr("Non-null ptr expected"))?,
             mode,
             is_copy: is_copy == sys::JNI_TRUE,
             env,
         })
+    }
+
+    pub(crate) fn new(
+        env: &mut JNIEnv<'local>,
+        array: &'array JPrimitiveArray<'other_local, T>,
+        mode: ReleaseMode,
+    ) -> Result<Self> {
+        let len = env.get_array_length(array.as_raw())? as usize;
+        unsafe { Self::new_with_len(env, array, len, mode) }
     }
 
     /// Get a reference to the wrapped pointer
@@ -188,9 +203,14 @@ impl<'local, 'other_local, 'array, T: TypeArray> AutoArray<'local, 'other_local,
         self.is_copy
     }
 
-    /// Returns the array size
-    pub fn size(&self) -> Result<jsize> {
-        self.env.get_array_length(self.array.as_raw())
+    /// Returns the array length (number of elements)
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    /// Returns true if the vector contains no elements.
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
     }
 }
 
@@ -221,5 +241,23 @@ impl<'local, 'other_local, 'array, T: TypeArray> From<&AutoArray<'local, 'other_
 {
     fn from(other: &AutoArray<T>) -> *mut T {
         other.as_ptr()
+    }
+}
+
+impl<'local, 'other_local, 'array, T: TypeArray> std::ops::Deref
+    for AutoArray<'local, 'other_local, 'array, T>
+{
+    type Target = [T];
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { std::slice::from_raw_parts(self.ptr.as_ptr(), self.len) }
+    }
+}
+
+impl<'local, 'other_local, 'array, T: TypeArray> std::ops::DerefMut
+    for AutoArray<'local, 'other_local, 'array, T>
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { std::slice::from_raw_parts_mut(self.ptr.as_mut(), self.len) }
     }
 }

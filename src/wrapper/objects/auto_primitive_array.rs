@@ -1,7 +1,7 @@
 use log::error;
 use std::ptr::NonNull;
 
-use crate::sys::{jboolean, jsize};
+use crate::sys::jboolean;
 use crate::wrapper::objects::ReleaseMode;
 use crate::{errors::*, sys, JNIEnv};
 
@@ -17,6 +17,7 @@ use super::JByteArray;
 /// and ensure the pointer is released via `ReleasePrimitiveArrayCritical` when dropped.
 pub struct AutoPrimitiveArray<'local, 'other_local, 'array, 'env, T: TypeArray> {
     array: &'array JPrimitiveArray<'other_local, T>,
+    len: usize,
     ptr: NonNull<T>,
     mode: ReleaseMode,
     is_copy: bool,
@@ -26,9 +27,13 @@ pub struct AutoPrimitiveArray<'local, 'other_local, 'array, 'env, T: TypeArray> 
 impl<'local, 'other_local, 'array, 'env, T: TypeArray>
     AutoPrimitiveArray<'local, 'other_local, 'array, 'env, T>
 {
-    pub(crate) fn new(
+    /// # Safety
+    ///
+    /// `len` must be the correct length (number of elements) of the given `array`
+    pub(crate) unsafe fn new_with_len(
         env: &'env mut JNIEnv<'local>,
         array: &'array JPrimitiveArray<'other_local, T>,
+        len: usize,
         mode: ReleaseMode,
     ) -> Result<Self> {
         let mut is_copy: jboolean = 0xff;
@@ -46,11 +51,21 @@ impl<'local, 'other_local, 'array, 'env, T: TypeArray>
 
         Ok(AutoPrimitiveArray {
             array,
+            len,
             ptr: NonNull::new(ptr).ok_or(Error::NullPtr("Non-null ptr expected"))?,
             mode,
             is_copy: is_copy == sys::JNI_TRUE,
             env,
         })
+    }
+
+    pub(crate) fn new(
+        env: &'env mut JNIEnv<'local>,
+        array: &'array JPrimitiveArray<'other_local, T>,
+        mode: ReleaseMode,
+    ) -> Result<Self> {
+        let len = env.get_array_length(array.as_raw())? as usize;
+        unsafe { Self::new_with_len(env, array, len, mode) }
     }
 
     /// Get a reference to the wrapped pointer
@@ -92,9 +107,14 @@ impl<'local, 'other_local, 'array, 'env, T: TypeArray>
         self.is_copy
     }
 
-    /// Returns the array size
-    pub fn size(&self) -> Result<jsize> {
-        self.env.get_array_length(self.array.as_raw())
+    /// Returns the array length (number of elements)
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    /// Returns true if the vector contains no elements.
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
     }
 }
 
@@ -126,5 +146,23 @@ impl<'local, 'other_local, 'array, 'env, T: TypeArray>
 {
     fn from(other: &AutoPrimitiveArray<T>) -> *mut T {
         other.as_ptr()
+    }
+}
+
+impl<'local, 'other_local, 'array, 'env, T: TypeArray> std::ops::Deref
+    for AutoPrimitiveArray<'local, 'other_local, 'array, 'env, T>
+{
+    type Target = [T];
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { std::slice::from_raw_parts(self.ptr.as_ptr(), self.len) }
+    }
+}
+
+impl<'local, 'other_local, 'array, 'env, T: TypeArray> std::ops::DerefMut
+    for AutoPrimitiveArray<'local, 'other_local, 'array, 'env, T>
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { std::slice::from_raw_parts_mut(self.ptr.as_mut(), self.len) }
     }
 }
