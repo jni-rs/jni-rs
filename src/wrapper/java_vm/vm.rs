@@ -191,7 +191,7 @@ impl JavaVM {
         let libjvm_path_string = libjvm_path.as_ref().to_string_lossy().into_owned();
 
         // Try to load it.
-        let libjvm = match libloading::Library::new(libjvm_path.as_ref()) {
+        let libjvm = match unsafe { libloading::Library::new(libjvm_path.as_ref()) } {
             Ok(ok) => ok,
             Err(error) => return Err(StartJvmError::LoadError(libjvm_path_string, error)),
         };
