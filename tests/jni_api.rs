@@ -5,8 +5,7 @@ use jni::{
     descriptors::Desc,
     errors::Error,
     objects::{
-        AutoArray, AutoLocal, JByteBuffer, JList, JObject, JPrimitiveArray, JString, JThrowable,
-        JValue, ReleaseMode,
+        AutoArray, AutoLocal, JByteBuffer, JList, JObject, JString, JThrowable, JValue, ReleaseMode,
     },
     signature::{JavaType, Primitive, ReturnType},
     strings::JNIString,
@@ -490,10 +489,10 @@ macro_rules! test_auto_array_read_write {
             // Use a scope to test Drop
             {
                 // Get byte array elements auto wrapper
-                let mut auto_ptr: AutoArray<$jni_type> = {
+                let mut auto_ptr: AutoArray<$jni_type> = unsafe {
                     // Make sure the lifetime is tied to the environment,
                     // not the particular JNIEnv reference
-                    let mut temporary_env: JNIEnv = unsafe { env.unsafe_clone() };
+                    let mut temporary_env: JNIEnv = env.unsafe_clone();
                     temporary_env.get_array_elements(&java_array, ReleaseMode::CopyBack).unwrap()
                 };
 
@@ -638,9 +637,10 @@ pub fn get_long_array_elements_commit() {
     let _ = env.set_long_array_region(&java_array, 0, buf);
 
     // Get long array elements auto wrapper
-    let mut auto_ptr = env
-        .get_array_elements(&java_array, ReleaseMode::CopyBack)
-        .unwrap();
+    let mut auto_ptr = unsafe {
+        env.get_array_elements(&java_array, ReleaseMode::CopyBack)
+            .unwrap()
+    };
 
     // Copying the array depends on the VM vendor/version/GC combinations.
     // If the wrapped array is not being copied, we can skip the test.
@@ -687,9 +687,10 @@ pub fn get_primitive_array_critical() {
     // Use a scope to test Drop
     {
         // Get primitive array elements auto wrapper
-        let mut auto_ptr = env
-            .get_primitive_array_critical(&java_array, ReleaseMode::CopyBack)
-            .unwrap();
+        let mut auto_ptr = unsafe {
+            env.get_primitive_array_critical(&java_array, ReleaseMode::CopyBack)
+                .unwrap()
+        };
 
         // Check array size
         assert_eq!(auto_ptr.len(), 3);

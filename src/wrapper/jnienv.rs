@@ -2805,17 +2805,63 @@ impl<'local> JNIEnv<'local> {
         jni_error_code_to_result(res)
     }
 
-    /// Return an [`AutoArray`] of the given Java array.
+    /// Returns an [`AutoArray`] to access the elements of the given Java `array`.
     ///
-    /// The result is valid until the `AutoArray` object goes out of scope, when the
-    /// release happens automatically according to the `mode` parameter.
+    /// The elements are accessible until the returned auto-release guard is dropped.
+    ///
+    /// The returned array may be a copy of the Java array and changes made to
+    /// the returned array will not necessarily be reflected in the original
+    /// array until the [`AutoArray`] guard is dropped.
+    ///
+    /// If you know in advance that you will only be reading from the array then
+    /// pass [`ReleaseMode::NoCopyBack`] so that the JNI implementation knows
+    /// that it's not necessary to copy any data back to the original Java array
+    /// when the [`AutoArray`] guard is dropped.
     ///
     /// Since the returned array may be a copy of the Java array, changes made to the
     /// returned array will not necessarily be reflected in the original array until
     /// the corresponding `Release*ArrayElements` JNI method is called.
     /// [`AutoArray`] has a commit() method, to force a copy back of pending
     /// array changes if needed (and without releasing it).
-    pub fn get_array_elements<'other_local, 'array, T: TypeArray>(
+    ///
+    /// # Safety
+    ///
+    /// ## No data races
+    ///
+    /// This API has no built-in synchronization that ensures there won't be any data
+    /// races while accessing the array elements.
+    ///
+    /// To avoid undefined behaviour it is the caller's responsibility to ensure there
+    /// will be no data races between other Rust or Java threads trying to access the
+    /// same array.
+    ///
+    /// Acquiring a [`MonitorGuard`] lock for the `array` could be one way of ensuring
+    /// mutual exclusion between Rust and Java threads, so long as the Java threads
+    /// also acquire the same lock via `synchronized(array) {}`.
+    ///
+    /// ## No aliasing
+    ///
+    /// Callers must not create more than one [`AutoArray`] or
+    /// [`AutoPrimitiveArray`] per Java array at the same time - even if
+    /// there is no risk of a data race.
+    ///
+    /// The reason for this restriction is that [`AutoArray`] and
+    /// [`AutoPrimitiveArray`] implement `DerefMut` which can provide a
+    /// mutable `&mut [T]` slice reference for the elements and it would
+    /// constitute undefined behaviour to allow there to be more than one
+    /// mutable reference that points to the same memory.
+    ///
+    /// # jboolean elements
+    ///
+    /// Keep in mind that arrays of `jboolean` values should only ever hold
+    /// values of `0` or `1` because any other value could lead to undefined
+    /// behaviour within the JVM.
+    ///
+    /// Also see
+    /// [`get_primitive_array_critical`](Self::get_primitive_array_critical) which
+    /// imposes additional restrictions that make it less likely to incur the
+    /// cost of copying the array elements.
+    pub unsafe fn get_array_elements<'other_local, 'array, T: TypeArray>(
         &mut self,
         array: &'array JPrimitiveArray<'other_local, T>,
         mode: ReleaseMode,
@@ -2824,27 +2870,98 @@ impl<'local> JNIEnv<'local> {
         AutoArray::new(self, array, mode)
     }
 
-    /// Return an [`AutoPrimitiveArray`] of the given Java primitive array.
+    /// Returns an [`AutoPrimitiveArray`] to access the elements of the given Java `array`.
     ///
-    /// The result is valid until the corresponding AutoPrimitiveArray object goes out of scope,
-    /// when the release happens automatically according to the mode parameter.
+    /// The elements are accessible during the critical section that exists until the
+    /// returned auto-release guard is dropped.
     ///
-    /// Given that Critical sections must be as short as possible, and that they come with a
-    /// number of important restrictions (see GetPrimitiveArrayCritical JNI doc), use this
-    /// wrapper wisely, to avoid holding the array longer that strictly necessary.
-    /// In any case, you can:
-    ///  - Use std::mem::drop explicitly, to force / anticipate resource release.
-    ///  - Use a nested scope, to release the array at the nested scope's exit.
+    /// This API imposes some strict restrictions that help the JNI implementation
+    /// avoid any need to copy the underlying array elements before making them
+    /// accessible to native code:
     ///
-    /// Since the returned array may be a copy of the Java array, changes made to the
-    /// returned array will not necessarily be reflected in the original array until
-    /// ReleasePrimitiveArrayCritical is called; which happens at AutoPrimitiveArray
-    /// destruction.
+    /// 1. No other use of JNI calls are allowed (on the same thread) within the critical
+    /// section that exists while holding the [`AutoPrimitiveArray`] guard.
+    /// 2. No system calls can be made (Such as `read`) that may depend on a result
+    /// from another Java thread.
+    ///
+    /// The JNI spec does not specify what will happen if these rules aren't adhered to
+    /// but it should be assumed it will lead to undefined behaviour, likely deadlock
+    /// and possible program termination.
+    ///
+    /// Even with these restrictions the returned array may still be a copy of
+    /// the Java array and changes made to the returned array will not
+    /// necessarily be reflected in the original array until the [`AutoPrimitiveArray`]
+    /// guard is dropped.
+    ///
+    /// If you know in advance that you will only be reading from the array then
+    /// pass [`ReleaseMode::NoCopyBack`] so that the JNI implementation knows
+    /// that it's not necessary to copy any data back to the original Java array
+    /// when the [`AutoPrimitiveArray`] guard is dropped.
+    ///
+    /// A nested scope or explicit use of `std::mem::drop` can be used to
+    /// control when the returned [`AutoPrimitiveArray`] is dropped to
+    /// minimize the length of the critical section.
     ///
     /// If the given array is `null`, an `Error::NullPtr` is returned.
     ///
-    /// See also [`get_array_elements`](Self::get_array_elements)
-    pub fn get_primitive_array_critical<'other_local, 'array, 'env, T: TypeArray>(
+    /// # Safety
+    ///
+    /// ## Critical Section Restrictions
+    ///
+    /// Although this API takes a mutable reference to a [`JNIEnv`] which should
+    /// ensure that it's not possible to call JNI, this API is still marked as
+    /// `unsafe` due to the complex, far-reaching nature of the critical-section
+    /// restrictions imposed here that can't be guaranteed simply through Rust's
+    /// borrow checker rules.
+    ///
+    /// The rules above about JNI usage and system calls _must_ be adhered to.
+    ///
+    /// Using this API implies:
+    ///
+    /// 1. All garbage collection will likely be paused during the critical section
+    /// 2. Any use of JNI in other threads may block if they need to allocate memory
+    ///    (due to the garbage collector being paused)
+    /// 3. Any use of system calls that will wait for a result from another Java thread
+    ///    could deadlock if that other thread is blocked by a paused garbage collector.
+    ///
+    /// A failure to adhere to the critical section rules could lead to any
+    /// undefined behaviour, including aborting the program.
+    ///
+    /// ## No data races
+    ///
+    /// This API has no built-in synchronization that ensures there won't be any data
+    /// races while accessing the array elements.
+    ///
+    /// To avoid undefined behaviour it is the caller's responsibility to ensure there
+    /// will be no data races between other Rust or Java threads trying to access the
+    /// same array.
+    ///
+    /// Acquiring a [`MonitorGuard`] lock for the `array` could be one way of ensuring
+    /// mutual exclusion between Rust and Java threads, so long as the Java threads
+    /// also acquire the same lock via `synchronized(array) {}`.
+    ///
+    /// ## No aliasing
+    ///
+    /// Callers must not create more than one [`AutoArray`] or
+    /// [`AutoPrimitiveArray`] per Java array at the same time - even if
+    /// there is no risk of a data race.
+    ///
+    /// The reason for this restriction is that [`AutoArray`] and
+    /// [`AutoPrimitiveArray`] implement `DerefMut` which can provide a
+    /// mutable `&mut [T]` slice reference for the elements and it would
+    /// constitute undefined behaviour to allow there to be more than one
+    /// mutable reference that points to the same memory.
+    ///
+    /// ## jboolean elements
+    ///
+    /// Keep in mind that arrays of `jboolean` values should only ever hold
+    /// values of `0` or `1` because any other value could lead to undefined
+    /// behaviour within the JVM.
+    ///
+    /// Also see [`get_array_elements`](Self::get_array_elements) which has fewer
+    /// restrictions, but is is more likely to incur a cost from copying the
+    /// array elements.
+    pub unsafe fn get_primitive_array_critical<'other_local, 'array, 'env, T: TypeArray>(
         &'env mut self,
         array: &'array JPrimitiveArray<'other_local, T>,
         mode: ReleaseMode,
