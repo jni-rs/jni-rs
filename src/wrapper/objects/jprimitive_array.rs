@@ -126,3 +126,19 @@ pub type JFloatArray<'local> = JPrimitiveArray<'local, crate::sys::jfloat>;
 
 /// Lifetime'd representation of a [`crate::sys::jdoubleArray`] which wraps a [`JObject`] reference
 pub type JDoubleArray<'local> = JPrimitiveArray<'local, crate::sys::jdouble>;
+
+/// Trait to access the raw `jarray` pointer for types that wrap an array reference
+///
+/// # Safety
+///
+/// Implementing this trait will allow a type to be passed to [`JNIEnv::get_array_length()`]
+/// or other JNI APIs that only work with a valid reference to an array (or `null`)
+///
+pub unsafe trait AsJArrayRaw<'local>: AsRef<JObject<'local>> {
+    /// Returns the raw JNI pointer as a `jarray`
+    fn as_jarray_raw(&self) -> jarray {
+        self.as_ref().as_raw() as jarray
+    }
+}
+
+unsafe impl<'local, T: TypeArray> AsJArrayRaw<'local> for JPrimitiveArray<'local, T> {}

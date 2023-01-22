@@ -64,7 +64,7 @@ impl<'local, 'other_local, 'array, 'env, T: TypeArray>
         array: &'array JPrimitiveArray<'other_local, T>,
         mode: ReleaseMode,
     ) -> Result<Self> {
-        let len = env.get_array_length(array.as_raw())? as usize;
+        let len = env.get_array_length(array)? as usize;
         unsafe { Self::new_with_len(env, array, len, mode) }
     }
 

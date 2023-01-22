@@ -3,6 +3,8 @@ use crate::{
     sys::{jobject, jobjectArray},
 };
 
+use super::AsJArrayRaw;
+
 /// Lifetime'd representation of a [`jobjectArray`] which wraps a [`JObject`] reference
 #[repr(transparent)]
 #[derive(Debug)]
@@ -54,6 +56,8 @@ impl<'local> std::default::Default for JObjectArray<'local> {
         Self(JObject::null())
     }
 }
+
+unsafe impl<'local> AsJArrayRaw<'local> for JObjectArray<'local> {}
 
 impl<'local> JObjectArray<'local> {
     /// Creates a [`JObjectArray`] that wraps the given `raw` [`jobjectArray`]

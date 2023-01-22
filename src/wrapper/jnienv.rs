@@ -8,7 +8,6 @@ use std::{
 
 use log::warn;
 
-use crate::signature::ReturnType;
 use crate::{
     descriptors::Desc,
     errors::*,
@@ -32,6 +31,7 @@ use crate::{
         JObjectArray, JPrimitiveArray, JShortArray,
     },
 };
+use crate::{objects::AsJArrayRaw, signature::ReturnType};
 
 /// FFI-compatible JNIEnv struct. You can safely use this as the JNIEnv argument
 /// to exported methods that will be called by java. This is where most of the
@@ -1648,10 +1648,13 @@ impl<'local> JNIEnv<'local> {
         Ok(unsafe { JString::from_raw(s) })
     }
 
-    /// Get the length of a java array
-    pub fn get_array_length(&self, array: jarray) -> Result<jsize> {
-        non_null!(array, "get_array_length array argument");
-        let len: jsize = jni_unchecked!(self.internal, GetArrayLength, array);
+    /// Get the length of a [`JPrimitiveArray`] or [`JObjectArray`].
+    pub fn get_array_length<'other_local, 'array>(
+        &self,
+        array: &'array impl AsJArrayRaw<'other_local>,
+    ) -> Result<jsize> {
+        non_null!(array.as_jarray_raw(), "get_array_length array argument");
+        let len: jsize = jni_unchecked!(self.internal, GetArrayLength, array.as_jarray_raw());
         Ok(len)
     }
 
