@@ -5,7 +5,8 @@ use jni::{
     descriptors::Desc,
     errors::Error,
     objects::{
-        AutoArray, AutoLocal, JByteBuffer, JList, JObject, JString, JThrowable, JValue, ReleaseMode,
+        AutoElements, AutoLocal, JByteBuffer, JList, JObject, JString, JThrowable, JValue,
+        ReleaseMode,
     },
     signature::{JavaType, Primitive, ReturnType},
     strings::JNIString,
@@ -489,7 +490,7 @@ macro_rules! test_auto_array_read_write {
             // Use a scope to test Drop
             {
                 // Get byte array elements auto wrapper
-                let mut auto_ptr: AutoArray<$jni_type> = unsafe {
+                let mut auto_ptr: AutoElements<$jni_type> = unsafe {
                     // Make sure the lifetime is tied to the environment,
                     // not the particular JNIEnv reference
                     let mut temporary_env: JNIEnv = env.unsafe_clone();
@@ -675,7 +676,7 @@ pub fn get_long_array_elements_commit() {
 }
 
 #[test]
-pub fn get_primitive_array_critical() {
+pub fn get_array_elements_critical() {
     let mut env = attach_current_thread();
 
     // Create original Java array
@@ -688,7 +689,7 @@ pub fn get_primitive_array_critical() {
     {
         // Get primitive array elements auto wrapper
         let mut auto_ptr = unsafe {
-            env.get_primitive_array_critical(&java_array, ReleaseMode::CopyBack)
+            env.get_array_elements_critical(&java_array, ReleaseMode::CopyBack)
                 .unwrap()
         };
 

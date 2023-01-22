@@ -12,9 +12,9 @@ use crate::{
     descriptors::Desc,
     errors::*,
     objects::{
-        AutoArray, AutoLocal, AutoPrimitiveArray, GlobalRef, JByteBuffer, JClass, JFieldID, JList,
-        JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID, JString, JThrowable, JValue,
-        JValueOwned, ReleaseMode, TypeArray, WeakRef,
+        AutoElements, AutoElementsCritical, AutoLocal, GlobalRef, JByteBuffer, JClass, JFieldID,
+        JList, JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID, JString, JThrowable,
+        JValue, JValueOwned, ReleaseMode, TypeArray, WeakRef,
     },
     signature::{JavaType, Primitive, TypeSignature},
     strings::{JNIString, JavaStr},
@@ -287,7 +287,7 @@ impl<'local> JNIEnv<'local> {
         &mut self,
         name: S,
         loader: &JObject,
-        buf: &AutoArray<'_, '_, '_, jbyte>,
+        buf: &AutoElements<'_, '_, '_, jbyte>,
     ) -> Result<JClass<'local>>
     where
         S: Into<JNIString>,
@@ -2805,23 +2805,23 @@ impl<'local> JNIEnv<'local> {
         jni_error_code_to_result(res)
     }
 
-    /// Returns an [`AutoArray`] to access the elements of the given Java `array`.
+    /// Returns an [`AutoElements`] to access the elements of the given Java `array`.
     ///
     /// The elements are accessible until the returned auto-release guard is dropped.
     ///
     /// The returned array may be a copy of the Java array and changes made to
     /// the returned array will not necessarily be reflected in the original
-    /// array until the [`AutoArray`] guard is dropped.
+    /// array until the [`AutoElements`] guard is dropped.
     ///
     /// If you know in advance that you will only be reading from the array then
     /// pass [`ReleaseMode::NoCopyBack`] so that the JNI implementation knows
     /// that it's not necessary to copy any data back to the original Java array
-    /// when the [`AutoArray`] guard is dropped.
+    /// when the [`AutoElements`] guard is dropped.
     ///
     /// Since the returned array may be a copy of the Java array, changes made to the
     /// returned array will not necessarily be reflected in the original array until
     /// the corresponding `Release*ArrayElements` JNI method is called.
-    /// [`AutoArray`] has a commit() method, to force a copy back of pending
+    /// [`AutoElements`] has a commit() method, to force a copy back of pending
     /// array changes if needed (and without releasing it).
     ///
     /// # Safety
@@ -2841,12 +2841,12 @@ impl<'local> JNIEnv<'local> {
     ///
     /// ## No aliasing
     ///
-    /// Callers must not create more than one [`AutoArray`] or
-    /// [`AutoPrimitiveArray`] per Java array at the same time - even if
+    /// Callers must not create more than one [`AutoElements`] or
+    /// [`AutoElementsCritical`] per Java array at the same time - even if
     /// there is no risk of a data race.
     ///
-    /// The reason for this restriction is that [`AutoArray`] and
-    /// [`AutoPrimitiveArray`] implement `DerefMut` which can provide a
+    /// The reason for this restriction is that [`AutoElements`] and
+    /// [`AutoElementsCritical`] implement `DerefMut` which can provide a
     /// mutable `&mut [T]` slice reference for the elements and it would
     /// constitute undefined behaviour to allow there to be more than one
     /// mutable reference that points to the same memory.
@@ -2858,19 +2858,19 @@ impl<'local> JNIEnv<'local> {
     /// behaviour within the JVM.
     ///
     /// Also see
-    /// [`get_primitive_array_critical`](Self::get_primitive_array_critical) which
+    /// [`get_array_elements_critical`](Self::get_array_elements_critical) which
     /// imposes additional restrictions that make it less likely to incur the
     /// cost of copying the array elements.
     pub unsafe fn get_array_elements<'other_local, 'array, T: TypeArray>(
         &mut self,
         array: &'array JPrimitiveArray<'other_local, T>,
         mode: ReleaseMode,
-    ) -> Result<AutoArray<'local, 'other_local, 'array, T>> {
+    ) -> Result<AutoElements<'local, 'other_local, 'array, T>> {
         non_null!(array, "get_array_elements array argument");
-        AutoArray::new(self, array, mode)
+        AutoElements::new(self, array, mode)
     }
 
-    /// Returns an [`AutoPrimitiveArray`] to access the elements of the given Java `array`.
+    /// Returns an [`AutoElementsCritical`] to access the elements of the given Java `array`.
     ///
     /// The elements are accessible during the critical section that exists until the
     /// returned auto-release guard is dropped.
@@ -2880,7 +2880,7 @@ impl<'local> JNIEnv<'local> {
     /// accessible to native code:
     ///
     /// 1. No other use of JNI calls are allowed (on the same thread) within the critical
-    /// section that exists while holding the [`AutoPrimitiveArray`] guard.
+    /// section that exists while holding the [`AutoElementsCritical`] guard.
     /// 2. No system calls can be made (Such as `read`) that may depend on a result
     /// from another Java thread.
     ///
@@ -2890,16 +2890,16 @@ impl<'local> JNIEnv<'local> {
     ///
     /// Even with these restrictions the returned array may still be a copy of
     /// the Java array and changes made to the returned array will not
-    /// necessarily be reflected in the original array until the [`AutoPrimitiveArray`]
+    /// necessarily be reflected in the original array until the [`AutoElementsCritical`]
     /// guard is dropped.
     ///
     /// If you know in advance that you will only be reading from the array then
     /// pass [`ReleaseMode::NoCopyBack`] so that the JNI implementation knows
     /// that it's not necessary to copy any data back to the original Java array
-    /// when the [`AutoPrimitiveArray`] guard is dropped.
+    /// when the [`AutoElementsCritical`] guard is dropped.
     ///
     /// A nested scope or explicit use of `std::mem::drop` can be used to
-    /// control when the returned [`AutoPrimitiveArray`] is dropped to
+    /// control when the returned [`AutoElementsCritical`] is dropped to
     /// minimize the length of the critical section.
     ///
     /// If the given array is `null`, an `Error::NullPtr` is returned.
@@ -2942,12 +2942,12 @@ impl<'local> JNIEnv<'local> {
     ///
     /// ## No aliasing
     ///
-    /// Callers must not create more than one [`AutoArray`] or
-    /// [`AutoPrimitiveArray`] per Java array at the same time - even if
+    /// Callers must not create more than one [`AutoElements`] or
+    /// [`AutoElementsCritical`] per Java array at the same time - even if
     /// there is no risk of a data race.
     ///
-    /// The reason for this restriction is that [`AutoArray`] and
-    /// [`AutoPrimitiveArray`] implement `DerefMut` which can provide a
+    /// The reason for this restriction is that [`AutoElements`] and
+    /// [`AutoElementsCritical`] implement `DerefMut` which can provide a
     /// mutable `&mut [T]` slice reference for the elements and it would
     /// constitute undefined behaviour to allow there to be more than one
     /// mutable reference that points to the same memory.
@@ -2961,13 +2961,13 @@ impl<'local> JNIEnv<'local> {
     /// Also see [`get_array_elements`](Self::get_array_elements) which has fewer
     /// restrictions, but is is more likely to incur a cost from copying the
     /// array elements.
-    pub unsafe fn get_primitive_array_critical<'other_local, 'array, 'env, T: TypeArray>(
+    pub unsafe fn get_array_elements_critical<'other_local, 'array, 'env, T: TypeArray>(
         &'env mut self,
         array: &'array JPrimitiveArray<'other_local, T>,
         mode: ReleaseMode,
-    ) -> Result<AutoPrimitiveArray<'local, 'other_local, 'array, 'env, T>> {
+    ) -> Result<AutoElementsCritical<'local, 'other_local, 'array, 'env, T>> {
         non_null!(array, "get_primitive_array_critical array argument");
-        AutoPrimitiveArray::new(self, array, mode)
+        AutoElementsCritical::new(self, array, mode)
     }
 }
 

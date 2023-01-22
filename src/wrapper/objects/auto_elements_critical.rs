@@ -15,7 +15,7 @@ use super::JByteArray;
 ///
 /// This type is used to wrap pointers returned by `GetPrimitiveArrayCritical`
 /// and ensure the pointer is released via `ReleasePrimitiveArrayCritical` when dropped.
-pub struct AutoPrimitiveArray<'local, 'other_local, 'array, 'env, T: TypeArray> {
+pub struct AutoElementsCritical<'local, 'other_local, 'array, 'env, T: TypeArray> {
     array: &'array JPrimitiveArray<'other_local, T>,
     len: usize,
     ptr: NonNull<T>,
@@ -25,7 +25,7 @@ pub struct AutoPrimitiveArray<'local, 'other_local, 'array, 'env, T: TypeArray> 
 }
 
 impl<'local, 'other_local, 'array, 'env, T: TypeArray>
-    AutoPrimitiveArray<'local, 'other_local, 'array, 'env, T>
+    AutoElementsCritical<'local, 'other_local, 'array, 'env, T>
 {
     /// # Safety
     ///
@@ -49,7 +49,7 @@ impl<'local, 'other_local, 'array, 'env, T: TypeArray>
             &mut is_copy
         ) as *mut T;
 
-        Ok(AutoPrimitiveArray {
+        Ok(AutoElementsCritical {
             array,
             len,
             ptr: NonNull::new(ptr).ok_or(Error::NullPtr("Non-null ptr expected"))?,
@@ -119,16 +119,16 @@ impl<'local, 'other_local, 'array, 'env, T: TypeArray>
 }
 
 impl<'local, 'other_local, 'array, 'env, T: TypeArray>
-    AsRef<AutoPrimitiveArray<'local, 'other_local, 'array, 'env, T>>
-    for AutoPrimitiveArray<'local, 'other_local, 'array, 'env, T>
+    AsRef<AutoElementsCritical<'local, 'other_local, 'array, 'env, T>>
+    for AutoElementsCritical<'local, 'other_local, 'array, 'env, T>
 {
-    fn as_ref(&self) -> &AutoPrimitiveArray<'local, 'other_local, 'array, 'env, T> {
+    fn as_ref(&self) -> &AutoElementsCritical<'local, 'other_local, 'array, 'env, T> {
         self
     }
 }
 
 impl<'local, 'other_local, 'array, 'env, T: TypeArray> Drop
-    for AutoPrimitiveArray<'local, 'other_local, 'array, 'env, T>
+    for AutoElementsCritical<'local, 'other_local, 'array, 'env, T>
 {
     fn drop(&mut self) {
         // Safety: `self.mode` is valid and the array has not yet been released.
@@ -142,15 +142,15 @@ impl<'local, 'other_local, 'array, 'env, T: TypeArray> Drop
 }
 
 impl<'local, 'other_local, 'array, 'env, T: TypeArray>
-    From<&AutoPrimitiveArray<'local, 'other_local, 'array, 'env, T>> for *mut T
+    From<&AutoElementsCritical<'local, 'other_local, 'array, 'env, T>> for *mut T
 {
-    fn from(other: &AutoPrimitiveArray<T>) -> *mut T {
+    fn from(other: &AutoElementsCritical<T>) -> *mut T {
         other.as_ptr()
     }
 }
 
 impl<'local, 'other_local, 'array, 'env, T: TypeArray> std::ops::Deref
-    for AutoPrimitiveArray<'local, 'other_local, 'array, 'env, T>
+    for AutoElementsCritical<'local, 'other_local, 'array, 'env, T>
 {
     type Target = [T];
 
@@ -160,7 +160,7 @@ impl<'local, 'other_local, 'array, 'env, T: TypeArray> std::ops::Deref
 }
 
 impl<'local, 'other_local, 'array, 'env, T: TypeArray> std::ops::DerefMut
-    for AutoPrimitiveArray<'local, 'other_local, 'array, 'env, T>
+    for AutoElementsCritical<'local, 'other_local, 'array, 'env, T>
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { std::slice::from_raw_parts_mut(self.ptr.as_mut(), self.len) }

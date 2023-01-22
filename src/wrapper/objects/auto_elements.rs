@@ -68,7 +68,7 @@ mod type_array_sealed {
                     // Even though this method may throw OoME, use `jni_unchecked`
                     // instead of `jni_non_null_call` to remove (a slight) overhead
                     // of exception checking. An error will still be detected as a `null`
-                    // result inside AutoArray ctor. Also, modern Hotspot in case of lack
+                    // result inside AutoElements ctor. Also, modern Hotspot in case of lack
                     // of memory will return null and won't throw an exception:
                     // https://sourcegraph.com/github.com/openjdk/jdk/-/blob/src/hotspot/share/memory/allocation.hpp#L488-489
                     let res = jni_unchecked!(internal, $jni_get, array, is_copy);
@@ -121,7 +121,7 @@ impl TypeArray for jdouble {}
 ///
 /// This type is used to wrap pointers returned by `Get<Type>ArrayElements`
 /// and ensure the pointer is released via `Release<Type>ArrayElements` when dropped.
-pub struct AutoArray<'local, 'other_local, 'array, T: TypeArray> {
+pub struct AutoElements<'local, 'other_local, 'array, T: TypeArray> {
     array: &'array JPrimitiveArray<'other_local, T>,
     len: usize,
     ptr: NonNull<T>,
@@ -130,7 +130,7 @@ pub struct AutoArray<'local, 'other_local, 'array, T: TypeArray> {
     env: JNIEnv<'local>,
 }
 
-impl<'local, 'other_local, 'array, T: TypeArray> AutoArray<'local, 'other_local, 'array, T> {
+impl<'local, 'other_local, 'array, T: TypeArray> AutoElements<'local, 'other_local, 'array, T> {
     /// # Safety
     ///
     /// `len` must be the correct length (number of elements) of the given `array`
@@ -147,7 +147,7 @@ impl<'local, 'other_local, 'array, T: TypeArray> AutoArray<'local, 'other_local,
 
         let mut is_copy: jboolean = 0xff;
         let ptr = unsafe { T::get(&mut env, array.as_raw(), &mut is_copy) }?;
-        Ok(AutoArray {
+        Ok(AutoElements {
             array,
             len,
             ptr: NonNull::new(ptr).ok_or(Error::NullPtr("Non-null ptr expected"))?,
@@ -214,16 +214,17 @@ impl<'local, 'other_local, 'array, T: TypeArray> AutoArray<'local, 'other_local,
     }
 }
 
-impl<'local, 'other_local, 'array, T: TypeArray> AsRef<AutoArray<'local, 'other_local, 'array, T>>
-    for AutoArray<'local, 'other_local, 'array, T>
+impl<'local, 'other_local, 'array, T: TypeArray>
+    AsRef<AutoElements<'local, 'other_local, 'array, T>>
+    for AutoElements<'local, 'other_local, 'array, T>
 {
-    fn as_ref(&self) -> &AutoArray<'local, 'other_local, 'array, T> {
+    fn as_ref(&self) -> &AutoElements<'local, 'other_local, 'array, T> {
         self
     }
 }
 
 impl<'local, 'other_local, 'array, T: TypeArray> Drop
-    for AutoArray<'local, 'other_local, 'array, T>
+    for AutoElements<'local, 'other_local, 'array, T>
 {
     fn drop(&mut self) {
         // Safety: `self.mode` is valid and the array has not yet been released.
@@ -236,16 +237,16 @@ impl<'local, 'other_local, 'array, T: TypeArray> Drop
     }
 }
 
-impl<'local, 'other_local, 'array, T: TypeArray> From<&AutoArray<'local, 'other_local, 'array, T>>
-    for *mut T
+impl<'local, 'other_local, 'array, T: TypeArray>
+    From<&AutoElements<'local, 'other_local, 'array, T>> for *mut T
 {
-    fn from(other: &AutoArray<T>) -> *mut T {
+    fn from(other: &AutoElements<T>) -> *mut T {
         other.as_ptr()
     }
 }
 
 impl<'local, 'other_local, 'array, T: TypeArray> std::ops::Deref
-    for AutoArray<'local, 'other_local, 'array, T>
+    for AutoElements<'local, 'other_local, 'array, T>
 {
     type Target = [T];
 
@@ -255,7 +256,7 @@ impl<'local, 'other_local, 'array, T: TypeArray> std::ops::Deref
 }
 
 impl<'local, 'other_local, 'array, T: TypeArray> std::ops::DerefMut
-    for AutoArray<'local, 'other_local, 'array, T>
+    for AutoElements<'local, 'other_local, 'array, T>
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { std::slice::from_raw_parts_mut(self.ptr.as_mut(), self.len) }
