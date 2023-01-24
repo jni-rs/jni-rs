@@ -286,11 +286,30 @@ impl JavaVM {
         }
     }
 
-    /// Detaches current thread from the JVM. This operation is _rarely_ appropriate to use,
-    /// because the attachment methods [ensure](#attaching-native-threads) that the thread is
-    /// promptly detached.
+    /// Explicitly detaches the current thread from the JVM.
+    ///
+    /// _**Note**: This operation is _rarely_ appropriate to use, because the
+    /// attachment methods [ensure](#attaching-native-threads) that the thread
+    /// is automatically detached._
     ///
     /// Detaching a non-attached thread is a no-op.
+    ///
+    /// To support the use of `JavaVM::destroy()` it may be necessary to use this API to
+    /// explicitly detach daemon threads before `JavaVM::destroy()` is called because
+    /// `JavaVM::destroy()` does not synchronize and wait for daemon threads.
+    ///
+    /// Any daemon thread that is still "attached" after `JavaVM::destroy()` returns would
+    /// cause undefined behaviour if it then tries to make any JNI calls or tries
+    /// to detach itself.
+    ///
+    /// Normally `jni-rs` will automatically detach threads from the `JavaVM` by storing
+    /// a guard in thread-local-storage that will detach on `Drop` but this will cause
+    /// undefined behaviour if `JavaVM::destroy()` has been called.
+    ///
+    /// Calling this will clear the thread-local-storage guard and detach the thread
+    /// early to avoid any attempt to automatically detach when the thread exits.
+    ///
+    /// # Safety
     ///
     /// __Any existing `JNIEnv`s and `AttachGuard`s created in the calling thread
     /// will be invalidated after this method completes. It is the__ caller’s __responsibility
@@ -302,8 +321,7 @@ impl JavaVM {
     /// never appropriate to use it with the scoped attachment (`attach_current_thread`).
     // This method is hidden because it is almost never needed and its use requires some
     // extra care. Its status might be reconsidered if we learn of any use cases that require it.
-    #[doc(hidden)]
-    pub fn detach_current_thread(&self) {
+    pub unsafe fn detach_current_thread(&self) {
         InternalAttachGuard::clear_tls();
     }
 
@@ -352,6 +370,91 @@ impl JavaVM {
         InternalAttachGuard::fill_tls(guard);
 
         unsafe { JNIEnv::from_raw(env_ptr as *mut sys::JNIEnv) }
+    }
+
+    /// Unloads the JavaVM and frees all it's associated resources
+    ///
+    /// Firstly if this thread is not already attached to the `JavaVM` then
+    /// it will be attached.
+    ///
+    /// This thread will then wait until there are no other non-daemon threads
+    /// attached to the `JavaVM` before unloading it (including threads spawned
+    /// by Java and those that are attached via JNI)
+    ///
+    /// # Safety
+    ///
+    /// IF YOU ARE USING DAEMON THREADS THIS MAY BE DIFFICULT TO USE SAFELY!
+    ///
+    /// ## Daemon thread rules
+    ///
+    /// Since the JNI spec makes it clear that `DestroyJavaVM` will not wait for
+    /// attached deamon threads to exit, this also means that if you do have any
+    /// attached daemon threads it is your responsibility to ensure that they
+    /// don't try and use JNI after the `JavaVM` is destroyed and you won't be able
+    /// to detach them after the `JavaVM` has been destroyed.
+    ///
+    /// This creates a very unsafe hazard in `jni-rs` because it normally automatically
+    /// ensures that any thread that gets attached will be detached before it exits.
+    ///
+    /// Normally `jni-rs` will automatically detach threads from the `JavaVM` by storing
+    /// a guard in thread-local-storage that will detach on `Drop` but this will cause
+    /// undefined behaviour if `JavaVM::destroy()` has been called before the thread
+    /// exits.
+    ///
+    /// To clear this thread-local-storage guard from daemon threads you can call
+    /// [`JavaVM::detach_current_thread()`] within each daemon thread, before calling
+    /// this API.
+    ///
+    /// Calling this will clear the thread-local-storage guard and detach the thread
+    /// early to avoid any attempt to automatically detach when the thread exits.
+    ///
+    /// ## Don't call from a Java native function
+    ///
+    /// There must be no Java methods on the call stack when `JavaVM::destroy()` is called.
+    ///
+    /// ## Drop all JNI state, including auto-release types before calling `JavaVM::destroy()`
+    ///
+    /// There is currently no `'vm` lifetime associated with a `JavaVM` that
+    /// would allow the borrow checker to enforce that all `jni` resources
+    /// associated with the `JavaVM` have been released.
+    ///
+    /// Since these JNI resources could lead to undefined behaviour through any
+    /// use after the `JavaVM` has been destroyed then it is your responsibility
+    /// to release these resources.
+    ///
+    /// In particular, there are numerous auto-release types in the `jni` API
+    /// that will automatically make JNI calls within their `Drop`
+    /// implementation. All such types _must_ be dropped before `destroy()` is
+    /// called to avoid undefined bahaviour.
+    ///
+    /// Here is an non-exhaustive list of auto-release types to consider:
+    /// - `AttachGuard`
+    /// - `AutoElements`
+    /// - `AutoElementsCritical`
+    /// - `AutoLocal`
+    /// - `GlobalRef`
+    /// - `JavaStr`
+    /// - `JMap`
+    /// - `WeakRef`
+    ///
+    /// ## Invalid `JavaVM` on return
+    ///
+    /// After `destroy()` returns then the `JavaVM` will be in an undefined state
+    /// and must be dropped (e.g. via `std::mem::drop()`) to avoid undefined behaviour.
+    ///
+    /// This method doesn't take ownership of the `JavaVM` before it is
+    /// destroyed because the `JavaVM` may have been shared (E.g. via an `Arc`)
+    /// between all the threads that have not yet necessarily exited before this
+    /// is called.
+    ///
+    /// So although the `JavaVM` won't necessarily be solely owned by this
+    /// thread when `destroy()` is first called it will conceptually own the
+    /// `JavaVM` before `destroy()` returns.
+    pub unsafe fn destroy(&self) -> Result<()> {
+        unsafe {
+            let res = java_vm_unchecked!(self.0, DestroyJavaVM);
+            jni_error_code_to_result(res)
+        }
     }
 }
 

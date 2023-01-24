@@ -1,5 +1,4 @@
 #![cfg(feature = "invocation")]
-
 use std::{convert::TryFrom, str::FromStr};
 
 use jni::{
