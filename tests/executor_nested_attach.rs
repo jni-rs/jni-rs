@@ -31,9 +31,9 @@ fn nested_attach() {
 fn check_nested_attach(vm: &Arc<JavaVM>, executor: Executor) {
     check_detached(vm);
     executor
-        .with_attached(|_| {
+        .with_attached::<_, _, Error>(|_| {
             check_attached(vm);
-            executor.with_attached(|_| {
+            executor.with_attached::<_, _, Error>(|_| {
                 check_attached(vm);
                 Ok(())
             })?;
