@@ -24,7 +24,8 @@ This release makes extensive breaking changes in order to improve safety. Most p
 - `WeakRef` and `JNIEnv#new_weak_ref`. ([#304](https://github.com/jni-rs/jni-rs/pull/304))
 - `define_class_bytearray` method that takes an `AutoArray<jbyte>` rather than a `&[u8]`
 - `JObject` now has an `as_raw` method that borrows the `JObject` instead of taking ownership like `into_raw`. Needed because `JObject` no longer has the `Copy` trait. ([#392](https://github.com/jni-rs/jni-rs/issues/392))
-- `JNIEnv::with_local_frame_returning_local` supports returning a single local ref from a new local frame, since this feature was removed from `with_local_frame` ([#399](https://github.com/jni-rs/jni-rs/issues/399))
+- `JavaVM::destroy()` (unsafe) as a way to try and unload a `JavaVM` on supported platforms ([#391](https://github.com/jni-rs/jni-rs/issues/391))
+- `JavaVM::detach_current_thread()` (unsafe) as a way to explicitly detach a thread (normally this is automatic on thread exit). Needed to detach daemon threads manually if using `JavaVM::destroy()` ([#391](https://github.com/jni-rs/jni-rs/issues/391))
 
 ### Changed
 - `JNIEnv::get_string` checks that the given object is a `java.lang.String` instance to avoid undefined behaviour from the JNI implementation potentially aborting the program. ([#328](https://github.com/jni-rs/jni-rs/issues/328))

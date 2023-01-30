@@ -64,7 +64,7 @@ pub fn attach_current_thread_permanently() -> JNIEnv<'static> {
 }
 
 #[allow(dead_code)]
-pub fn detach_current_thread() {
+pub unsafe fn detach_current_thread() {
     jvm().detach_current_thread()
 }
 
