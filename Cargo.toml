@@ -37,4 +37,4 @@ invocation = ["java-locator", "libloading"]
 default = []
 
 [package.metadata.docs.rs]
-features = ["invocation-dyn"]
+features = ["invocation"]
