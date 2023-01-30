@@ -63,8 +63,8 @@ impl fmt::Display for JavaType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             JavaType::Primitive(ref ty) => ty.fmt(f),
-            JavaType::Object(ref name) => write!(f, "L{};", name),
-            JavaType::Array(ref ty) => write!(f, "[{}", ty),
+            JavaType::Object(ref name) => write!(f, "L{name};"),
+            JavaType::Array(ref ty) => write!(f, "[{ty}"),
             JavaType::Method(ref m) => m.fmt(f),
         }
     }
@@ -131,7 +131,7 @@ impl fmt::Display for TypeSignature {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "(")?;
         for a in &self.args {
-            write!(f, "{}", a)?;
+            write!(f, "{a}")?;
         }
         write!(f, ")")?;
         write!(f, "{}", self.ret)?;
@@ -248,11 +248,11 @@ mod test {
 
         for each in inputs.iter() {
             let res = JavaType::from_str(each).unwrap();
-            println!("{:#?}", res);
-            let s = format!("{}", res);
+            println!("{res:#?}");
+            let s = format!("{res}");
             assert_eq!(s, *each);
             let res2 = JavaType::from_str(each).unwrap();
-            println!("{:#?}", res2);
+            println!("{res2:#?}");
             assert_eq!(res2, res);
         }
     }
