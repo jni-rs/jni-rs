@@ -395,6 +395,26 @@ pub fn call_new_object_with_bad_args_errs() {
     );
 }
 
+/// Check that we get a runtime error if trying to instantiate with an array class.
+///
+/// Although the JNI spec for `NewObjectA` states that the class "must not refer to an array class"
+/// (and could therefor potentially trigger undefined behaviour if that rule is violated) we
+/// expect that `JNIEnv::new_object()` shouldn't ever get as far as calling `NewObjectA` since
+/// it will first fail (with a safe, runtime error) to lookup a method ID for any constructor.
+/// (consistent with how [getConstructors()](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Class.html#getConstructors())
+/// doesn't expose constructors for array classes)
+#[test]
+pub fn call_new_object_with_array_class() {
+    let mut env = attach_current_thread();
+
+    let byte_array = env.new_byte_array(16).unwrap();
+    let array_class = env.get_object_class(byte_array).unwrap();
+    // We just make up a plausible constructor signature
+    let result = env.new_object(&array_class, "(I)[B", &[JValue::Int(16)]);
+
+    assert!(result.is_err())
+}
+
 #[test]
 pub fn call_static_method_throws() {
     let mut env = attach_current_thread();
