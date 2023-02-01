@@ -17,23 +17,14 @@ where
     }
 }
 
-unsafe impl<'local, 'other_local> Desc<'local, JClass<'local>> for JObject<'other_local> {
-    type Output = AutoLocal<'local, JClass<'local>>;
-
-    fn lookup(self, env: &mut JNIEnv<'local>) -> Result<Self::Output> {
-        Desc::<JClass>::lookup(&self, env)
-    }
-}
-
-unsafe impl<'local, 'other_local, 'obj_ref> Desc<'local, JClass<'local>>
-    for &'obj_ref JObject<'other_local>
-{
-    type Output = AutoLocal<'local, JClass<'local>>;
-
-    fn lookup(self, env: &mut JNIEnv<'local>) -> Result<Self::Output> {
-        Ok(env.auto_local(env.get_object_class(self)?))
-    }
-}
+// Note: We don't implement `Desc<JClass>` for `&JObject` as a transmute like for `GlobalRef`
+//
+// Considering that the APIs that return a class return a `JClass` it shouldn't
+// usually be necessary unless the `JClass` got type erased (like with GlobalRef)
+//
+// Implementing `Desc<JClass>` for `&JObject` as a simple cast would also make
+// it a lot easier to mistakenly pass an object instance in places where a class
+// is required.
 
 /// This conversion assumes that the `GlobalRef` is a pointer to a class object.
 
