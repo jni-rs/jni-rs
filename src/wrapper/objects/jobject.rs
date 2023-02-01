@@ -5,11 +5,12 @@ use crate::sys::jobject;
 #[cfg(doc)]
 use crate::{objects::GlobalRef, JNIEnv};
 
-/// Wrapper around `sys::jobject` that adds a lifetime. This prevents it from
-/// outliving the context in which it was acquired and getting GC'd out from
-/// under us. It matches C's representation of the raw pointer, so it can be
-/// used in any of the extern function argument positions that would take a
-/// `jobject`.
+/// Wrapper around [`sys::jobject`] that adds a lifetime to ensure that
+/// the underlying JNI pointer won't be accessible to safe Rust code if the
+/// object reference is released.
+///
+/// It matches C's representation of the raw pointer, so it can be used in any
+/// of the extern function argument positions that would take a `jobject`.
 ///
 /// Most other types in the `objects` module deref to this, as they do in the C
 /// representation.

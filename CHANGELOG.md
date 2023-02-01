@@ -22,10 +22,14 @@ This release makes extensive breaking changes in order to improve safety. Most p
 - `JavaStr::from_raw()` which takes ownership of a raw string pointer to create a `JavaStr` ([#374](https://github.com/jni-rs/jni-rs/pull/374))
 - `JNIEnv::get_string_unchecked` is a cheaper, `unsafe` alternative to `get_string` that doesn't check the given object is a `java.lang.String` instance. ([#328](https://github.com/jni-rs/jni-rs/issues/328))
 - `WeakRef` and `JNIEnv#new_weak_ref`. ([#304](https://github.com/jni-rs/jni-rs/pull/304))
-- `define_class_bytearray` method that takes an `AutoArray<jbyte>` rather than a `&[u8]`
+- `define_class_bytearray` method that takes an `AutoElements<jbyte>` rather than a `&[u8]` ([#244](https://github.com/jni-rs/jni-rs/pull/244))
 - `JObject` now has an `as_raw` method that borrows the `JObject` instead of taking ownership like `into_raw`. Needed because `JObject` no longer has the `Copy` trait. ([#392](https://github.com/jni-rs/jni-rs/issues/392))
 - `JavaVM::destroy()` (unsafe) as a way to try and unload a `JavaVM` on supported platforms ([#391](https://github.com/jni-rs/jni-rs/issues/391))
 - `JavaVM::detach_current_thread()` (unsafe) as a way to explicitly detach a thread (normally this is automatic on thread exit). Needed to detach daemon threads manually if using `JavaVM::destroy()` ([#391](https://github.com/jni-rs/jni-rs/issues/391))
+- `JPrimitiveArray<T: TypeArray>` and type-specific aliases like `JByteArray`, `JIntArray` etc now provide safe, reference wrappers for the `sys` types `jarray` and `jbyteArray` etc with a lifetime like `JObject` ([#400](https://github.com/jni-rs/jni-rs/pull/400))
+- `JObjectArray` provides a reference wrapper for a `jobjectArray` with a lifetime like `JObject`. ([#400](https://github.com/jni-rs/jni-rs/pull/400))
+- `AutoElements` and `AutoElementsCritical` (previously `AutoArray`/`AutoPrimitiveArray`) implement `Deref<Target=[T]>` and `DerefMut` so array elements can be accessed via slices without needing additional `unsafe` code. ([#400](https://github.com/jni-rs/jni-rs/pull/400))
+- `AsJArrayRaw` trait which enables `JNIEnv::get_array_length()` to work with `JPrimitiveArray` or `JObjectArray` types ([#400](https://github.com/jni-rs/jni-rs/pull/400))
 
 ### Changed
 - `JNIEnv::get_string` checks that the given object is a `java.lang.String` instance to avoid undefined behaviour from the JNI implementation potentially aborting the program. ([#328](https://github.com/jni-rs/jni-rs/issues/328))
@@ -51,6 +55,13 @@ This release makes extensive breaking changes in order to improve safety. Most p
     - `JValueOwned` does not have the `Copy` trait.
     - The `to_jni` method is now named `as_jni`, and it borrows the `JValueGen` instead of taking ownership.
     - `JObject` can no longer be converted directly to `JValue`, which was commonly done when calling Java methods or constructors. Instead of `obj.into()`, use `(&obj).into()`.
+- All `JNIEnv` array APIs now work in terms of `JPrimitiveArray` and `JObjectArray` (reference wrappers with a lifetime) instead of `sys` types like `jarray` and `jbyteArray` ([#400](https://github.com/jni-rs/jni-rs/pull/400))
+- `AutoArray` and `AutoPrimitiveArray` have been renamed `AutoElements` and `AutoElementsCritical` to show their connection and differentiate from new `JPrimitiveArray` API ([#400](https://github.com/jni-rs/jni-rs/pull/400))
+- `get_primitive_array_critical` is now `unsafe` and has been renamed to `get_array_elements_critical` (consistent with the rename of `AutoPrimitiveArray`) with more detailed safety documentation ([#400](https://github.com/jni-rs/jni-rs/pull/400))
+- `get_array_elements` is now also `unsafe` (for many of the same reasons as `get_array_elements_critical`) and has detailed safety documentation ([#400](https://github.com/jni-rs/jni-rs/pull/400))
+- `AutoArray/AutoArrayCritical::size()` has been replaced with `.len()` which can't fail and returns a `usize` ([#400](https://github.com/jni-rs/jni-rs/pull/400))
+- The `TypeArray` trait is now a private / sealed trait, that is considered to be an implementation detail for the `AutoArray` API.
+
 
 ### Fixed
 - Trying to use an object reference after it has been deleted now causes a compile error instead of undefined behavior. As a result, it is now safe to use `AutoLocal`, `JNIEnv::delete_local_ref`, and `JNIEnv::with_local_frame`. (Most of the limitations added in #392, listed above, were needed to make this work.) ([#381](https://github.com/jni-rs/jni-rs/issues/381), [#392](https://github.com/jni-rs/jni-rs/issues/392))
@@ -58,6 +69,7 @@ This release makes extensive breaking changes in order to improve safety. Most p
 
 ### Removed
 - `get_string_utf_chars` and `release_string_utf_chars` from `JNIEnv` (See `JavaStr::into_raw()` and `JavaStr::from_raw()` instead) ([#372](https://github.com/jni-rs/jni-rs/pull/372))
+- All `JNIEnv::get_<type>_array_elements()` methods have been removed as redundant since they would all be equivalent to `get_array_elements()` with the introduction of `JPrimitiveArray` ([#400](https://github.com/jni-rs/jni-rs/pull/400))
 
 ## [0.20.0] — 2022-10-17
 

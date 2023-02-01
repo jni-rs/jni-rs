@@ -58,7 +58,12 @@ impl<'local> JThrowable<'local> {
     ///
     /// # Safety
     ///
-    /// Expects a valid pointer or `null`
+    /// `raw` may be a null pointer. If `raw` is not a null pointer, then:
+    ///
+    /// * `raw` must be a valid raw JNI local reference.
+    /// * There must not be any other `JObject` representing the same local reference.
+    /// * The lifetime `'local` must not outlive the local reference frame that the local reference
+    ///   was created in.
     pub unsafe fn from_raw(raw: jthrowable) -> Self {
         Self(JObject::from_raw(raw as jobject))
     }

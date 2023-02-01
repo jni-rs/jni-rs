@@ -1,8 +1,11 @@
 use crate::sys::JNI_ABORT;
 
+#[cfg(doc)]
+use super::{AutoElements, AutoElementsCritical};
+
 /// ReleaseMode
 ///
-/// This defines the release mode of AutoArray (and AutoPrimitiveArray) resources, and
+/// This defines the release mode of [`AutoElements`] (and [`AutoElementsCritical`]) resources, and
 /// related release array functions.
 #[derive(Clone, Copy, Debug)]
 #[repr(i32)]

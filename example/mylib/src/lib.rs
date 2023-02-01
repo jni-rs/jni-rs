@@ -3,32 +3,47 @@
 use jni::JNIEnv;
 
 // These objects are what you should use as arguments to your native function.
-// They carry extra lifetime information to prevent them escaping this context
-// and getting used after being GC'd.
+// They carry extra lifetime information to prevent them escaping from the
+// current local frame (which is the scope within which local (temporary)
+// references to Java objects remain valid)
 use jni::objects::{GlobalRef, JClass, JObject, JString};
 
-// This is just a pointer. We'll be returning it from our function.
-// We can't return one of the objects with lifetime information because the
-// lifetime checker won't let us.
-use jni::sys::{jbyteArray, jint, jlong, jstring};
+use jni::objects::JByteArray;
+use jni::sys::{jint, jlong};
 
 use std::{sync::mpsc, thread, time::Duration};
 
-// This keeps rust from "mangling" the name and making it unique for this crate.
+// This `#[no_mangle]` keeps rust from "mangling" the name and making it unique
+// for this crate. The name follow a strict naming convention so that the
+// JNI implementation will be able to automatically find the implementation
+// of a native method based on its name.
+//
+// The `'local` lifetime here represents the local frame within which any local
+// (temporary) references to Java objects will remain valid.
+//
+// It's usually not necessary to explicitly name the `'local` input lifetimes but
+// in this case we want to return a reference and show the compiler what
+// local frame lifetime it is associated with.
+//
+// Alternatively we could instead return the `jni::sys::jstring` type instead
+// which would represent the same thing as a raw pointer, without any lifetime,
+// and at the end use `.into_raw()` to convert a local reference with a lifetime
+// into a raw pointer.
 #[no_mangle]
-pub extern "system" fn Java_HelloWorld_hello(
-    env: JNIEnv,
-    // this is the class that owns our
-    // static method. Not going to be
-    // used, but still needs to have
-    // an argument slot
-    _class: JClass,
-    input: JString,
-) -> jstring {
+pub extern "system" fn Java_HelloWorld_hello<'local>(
+    // Notice that this `env` argument is mutable. Any `JNIEnv` API that may
+    // allocate new object references will take a mutable reference to the
+    // environment.
+    mut env: JNIEnv<'local>,
+    // this is the class that owns our static method. Not going to be used, but
+    // still needs to have an argument slot
+    _class: JClass<'local>,
+    input: JString<'local>,
+) -> JString<'local> {
     // First, we have to get the string out of java. Check out the `strings`
     // module for more info on how this works.
     let input: String = env
-        .get_string(input)
+        .get_string(&input)
         .expect("Couldn't get java string!")
         .into();
 
@@ -37,29 +52,27 @@ pub extern "system" fn Java_HelloWorld_hello(
     let output = env
         .new_string(format!("Hello, {}!", input))
         .expect("Couldn't create java string!");
-    // Finally, extract the raw pointer to return.
-    output.into_raw()
+    output
 }
 
 #[no_mangle]
-pub extern "system" fn Java_HelloWorld_helloByte(
-    env: JNIEnv,
+pub extern "system" fn Java_HelloWorld_helloByte<'local>(
+    env: JNIEnv<'local>,
     _class: JClass,
-    input: jbyteArray,
-) -> jbyteArray {
+    input: JByteArray<'local>,
+) -> JByteArray<'local> {
     // First, we have to get the byte[] out of java.
-    let _input = env.convert_byte_array(input).unwrap();
+    let _input = env.convert_byte_array(&input).unwrap();
 
     // Then we have to create a new java byte[] to return.
     let buf = [1; 2000];
     let output = env.byte_array_from_slice(&buf).unwrap();
-    // Finally, extract the raw pointer to return.
     output
 }
 
 #[no_mangle]
 pub extern "system" fn Java_HelloWorld_factAndCallMeBack(
-    env: JNIEnv,
+    mut env: JNIEnv,
     _class: JClass,
     n: jint,
     callback: JObject,
@@ -84,7 +97,7 @@ impl Counter {
         }
     }
 
-    pub fn increment(&mut self, env: JNIEnv) {
+    pub fn increment(&mut self, env: &mut JNIEnv) {
         self.count = self.count + 1;
         env.call_method(
             &self.callback,
@@ -110,13 +123,13 @@ pub unsafe extern "system" fn Java_HelloWorld_counterNew(
 
 #[no_mangle]
 pub unsafe extern "system" fn Java_HelloWorld_counterIncrement(
-    env: JNIEnv,
+    mut env: JNIEnv,
     _class: JClass,
     counter_ptr: jlong,
 ) {
     let counter = &mut *(counter_ptr as *mut Counter);
 
-    counter.increment(env);
+    counter.increment(&mut env);
 }
 
 #[no_mangle]
@@ -152,7 +165,7 @@ pub extern "system" fn Java_HelloWorld_asyncComputation(
         tx.send(()).unwrap();
 
         // Use the `JavaVM` interface to attach a `JNIEnv` to the current thread.
-        let env = jvm.attach_current_thread().unwrap();
+        let mut env = jvm.attach_current_thread().unwrap();
 
         for i in 0..11 {
             let progress = (i * 10) as jint;

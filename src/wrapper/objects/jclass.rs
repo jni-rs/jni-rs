@@ -61,9 +61,19 @@ impl<'local> JClass<'local> {
     ///
     /// # Safety
     ///
-    /// Expects a valid pointer or `null`
+    /// `raw` may be a null pointer. If `raw` is not a null pointer, then:
+    ///
+    /// * `raw` must be a valid raw JNI local reference.
+    /// * There must not be any other `JObject` representing the same local reference.
+    /// * The lifetime `'local` must not outlive the local reference frame that the local reference
+    ///   was created in.
     pub unsafe fn from_raw(raw: jclass) -> Self {
         Self(JObject::from_raw(raw as jobject))
+    }
+
+    /// Returns the raw JNI pointer.
+    pub fn as_raw(&self) -> jclass {
+        self.0.as_raw() as jclass
     }
 
     /// Unwrap to the raw jni type.

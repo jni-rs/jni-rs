@@ -5,7 +5,8 @@ use jni::{
     descriptors::Desc,
     errors::Error,
     objects::{
-        AutoArray, AutoLocal, JByteBuffer, JList, JObject, JString, JThrowable, JValue, ReleaseMode,
+        AutoElements, AutoLocal, JByteBuffer, JList, JObject, JString, JThrowable, JValue,
+        ReleaseMode,
     },
     signature::{JavaType, Primitive, ReturnType},
     strings::JNIString,
@@ -457,23 +458,24 @@ pub fn call_static_method_with_bad_args_errs() {
 pub fn java_byte_array_from_slice() {
     let env = attach_current_thread();
     let buf: &[u8] = &[1, 2, 3];
-    let java_array = env
-        .byte_array_from_slice(buf)
-        .expect("JNIEnv#byte_array_from_slice must create a java array from slice");
-    let obj = AutoLocal::new(unsafe { JObject::from_raw(java_array) }, &env);
+    let java_array = AutoLocal::new(
+        env.byte_array_from_slice(buf)
+            .expect("JNIEnv#byte_array_from_slice must create a java array from slice"),
+        &env,
+    );
 
-    assert!(!obj.is_null());
+    assert!(!java_array.is_null());
     let mut res: [i8; 3] = [0; 3];
-    env.get_byte_array_region(java_array, 0, &mut res).unwrap();
+    env.get_byte_array_region(&java_array, 0, &mut res).unwrap();
     assert_eq!(res[0], 1);
     assert_eq!(res[1], 2);
     assert_eq!(res[2], 3);
 }
 
-macro_rules! test_get_array_elements {
-    ( $jni_get:tt, $jni_type:ty, $new_array:tt, $get_array:tt, $set_array:tt ) => {
+macro_rules! test_auto_array_read_write {
+    ( $test_name:tt, $jni_type:ty, $new_array:tt, $get_array:tt, $set_array:tt ) => {
         #[test]
-        pub fn $jni_get() {
+        pub fn $test_name() {
             let env = attach_current_thread();
 
             // Create original Java array
@@ -483,20 +485,20 @@ macro_rules! test_get_array_elements {
                 .expect(stringify!(JNIEnv#$new_array must create a Java $jni_type array with given size));
 
             // Insert array elements
-            let _ = env.$set_array(java_array, 0, buf);
+            let _ = env.$set_array(&java_array, 0, buf);
 
             // Use a scope to test Drop
             {
                 // Get byte array elements auto wrapper
-                let auto_ptr: AutoArray<$jni_type> = {
+                let mut auto_ptr: AutoElements<$jni_type> = unsafe {
                     // Make sure the lifetime is tied to the environment,
                     // not the particular JNIEnv reference
-                    let mut temporary_env: JNIEnv = unsafe { env.unsafe_clone() };
-                    temporary_env.$jni_get(java_array, ReleaseMode::CopyBack).unwrap()
+                    let mut temporary_env: JNIEnv = env.unsafe_clone();
+                    temporary_env.get_array_elements(&java_array, ReleaseMode::CopyBack).unwrap()
                 };
 
                 // Check array size
-                assert_eq!(auto_ptr.size().unwrap(), 2);
+                assert_eq!(auto_ptr.len(), 2);
 
                 // Check pointer access
                 let ptr = auto_ptr.as_ptr();
@@ -513,11 +515,26 @@ macro_rules! test_get_array_elements {
                 assert_eq!(unsafe { *ptr.offset(0) } as i32, 0);
                 assert_eq!(unsafe { *ptr.offset(1) } as i32, 1);
 
-                // Modify
+                // Check slice access
+                //
+                // # Safety
+                //
+                // We make sure that the slice is dropped before also testing access via `Deref`
+                // (to ensure we don't have aliased references)
                 unsafe {
-                    *ptr.offset(0) += 1 as $jni_type;
-                    *ptr.offset(1) -= 1 as $jni_type;
+                    let slice = std::slice::from_raw_parts(auto_ptr.as_ptr(), auto_ptr.len());
+                    assert_eq!(slice[0] as i32, 0);
+                    assert_eq!(slice[1] as i32, 1);
                 }
+
+                // Check access via Deref
+                assert_eq!(auto_ptr[0] as i32, 0);
+                assert_eq!(auto_ptr[1] as i32, 1);
+
+                // Modify via DerefMut
+                let tmp = auto_ptr[1];
+                auto_ptr[1] = auto_ptr[0];
+                auto_ptr[0] = tmp;
 
                 // Commit would be necessary here, if there were no closure
                 //auto_ptr.commit().unwrap();
@@ -525,7 +542,7 @@ macro_rules! test_get_array_elements {
 
             // Confirm modification of original Java array
             let mut res: [$jni_type; 2] = [0 as $jni_type; 2];
-            env.$get_array(java_array, 0, &mut res).unwrap();
+            env.$get_array(&java_array, 0, &mut res).unwrap();
             assert_eq!(res[0] as i32, 1);
             assert_eq!(res[1] as i32, 0);
         }
@@ -533,7 +550,7 @@ macro_rules! test_get_array_elements {
 }
 
 // Test generic get_array_elements
-test_get_array_elements!(
+test_auto_array_read_write!(
     get_array_elements,
     jint,
     new_int_array,
@@ -542,7 +559,7 @@ test_get_array_elements!(
 );
 
 // Test type-specific array accessors
-test_get_array_elements!(
+test_auto_array_read_write!(
     get_int_array_elements,
     jint,
     new_int_array,
@@ -550,7 +567,7 @@ test_get_array_elements!(
     set_int_array_region
 );
 
-test_get_array_elements!(
+test_auto_array_read_write!(
     get_long_array_elements,
     jlong,
     new_long_array,
@@ -558,7 +575,7 @@ test_get_array_elements!(
     set_long_array_region
 );
 
-test_get_array_elements!(
+test_auto_array_read_write!(
     get_byte_array_elements,
     jbyte,
     new_byte_array,
@@ -566,7 +583,7 @@ test_get_array_elements!(
     set_byte_array_region
 );
 
-test_get_array_elements!(
+test_auto_array_read_write!(
     get_boolean_array_elements,
     jboolean,
     new_boolean_array,
@@ -574,7 +591,7 @@ test_get_array_elements!(
     set_boolean_array_region
 );
 
-test_get_array_elements!(
+test_auto_array_read_write!(
     get_char_array_elements,
     jchar,
     new_char_array,
@@ -582,7 +599,7 @@ test_get_array_elements!(
     set_char_array_region
 );
 
-test_get_array_elements!(
+test_auto_array_read_write!(
     get_short_array_elements,
     jshort,
     new_short_array,
@@ -590,7 +607,7 @@ test_get_array_elements!(
     set_short_array_region
 );
 
-test_get_array_elements!(
+test_auto_array_read_write!(
     get_float_array_elements,
     jfloat,
     new_float_array,
@@ -598,7 +615,7 @@ test_get_array_elements!(
     set_float_array_region
 );
 
-test_get_array_elements!(
+test_auto_array_read_write!(
     get_double_array_elements,
     jdouble,
     new_double_array,
@@ -618,12 +635,13 @@ pub fn get_long_array_elements_commit() {
         .expect("JNIEnv#new_long_array must create a java array with given size");
 
     // Insert array elements
-    let _ = env.set_long_array_region(java_array, 0, buf);
+    let _ = env.set_long_array_region(&java_array, 0, buf);
 
     // Get long array elements auto wrapper
-    let mut auto_ptr = env
-        .get_long_array_elements(java_array, ReleaseMode::CopyBack)
-        .unwrap();
+    let mut auto_ptr = unsafe {
+        env.get_array_elements(&java_array, ReleaseMode::CopyBack)
+            .unwrap()
+    };
 
     // Copying the array depends on the VM vendor/version/GC combinations.
     // If the wrapped array is not being copied, we can skip the test.
@@ -643,7 +661,7 @@ pub fn get_long_array_elements_commit() {
 
     // Check that original Java array is unmodified
     let mut res: [i64; 3] = [0; 3];
-    env.get_long_array_region(java_array, 0, &mut res).unwrap();
+    env.get_long_array_region(&java_array, 0, &mut res).unwrap();
     assert_eq!(res[0], 1);
     assert_eq!(res[1], 2);
     assert_eq!(res[2], 3);
@@ -651,14 +669,14 @@ pub fn get_long_array_elements_commit() {
     auto_ptr.commit().unwrap();
 
     // Confirm modification of original Java array
-    env.get_long_array_region(java_array, 0, &mut res).unwrap();
+    env.get_long_array_region(&java_array, 0, &mut res).unwrap();
     assert_eq!(res[0], 2);
     assert_eq!(res[1], 3);
     assert_eq!(res[2], 4);
 }
 
 #[test]
-pub fn get_primitive_array_critical() {
+pub fn get_array_elements_critical() {
     let mut env = attach_current_thread();
 
     // Create original Java array
@@ -670,39 +688,41 @@ pub fn get_primitive_array_critical() {
     // Use a scope to test Drop
     {
         // Get primitive array elements auto wrapper
-        let auto_ptr = env
-            .get_primitive_array_critical(java_array, ReleaseMode::CopyBack)
-            .unwrap();
+        let mut auto_ptr = unsafe {
+            env.get_array_elements_critical(&java_array, ReleaseMode::CopyBack)
+                .unwrap()
+        };
 
         // Check array size
-        assert_eq!(auto_ptr.size().unwrap(), 3);
+        assert_eq!(auto_ptr.len(), 3);
 
-        // Get pointer
-        let ptr = auto_ptr.as_ptr();
+        // Convert void pointer to a &[i8] slice, without copy
+        //
+        // # Safety
+        //
+        // We make sure that the slice is dropped before also testing access via `Deref`
+        // (to ensure we don't have aliased references)
+        unsafe {
+            let slice = std::slice::from_raw_parts(auto_ptr.as_ptr(), auto_ptr.len());
+            assert_eq!(slice[0], 1);
+            assert_eq!(slice[1], 2);
+            assert_eq!(slice[2], 3);
+        }
 
-        // Convert void pointer to an unsigned byte array, without copy
-        let mut vec;
-        unsafe { vec = Vec::from_raw_parts(ptr as *mut u8, 3, 3) }
+        // Also check access via `Deref`
+        assert_eq!(auto_ptr[0], 1);
+        assert_eq!(auto_ptr[1], 2);
+        assert_eq!(auto_ptr[2], 3);
 
-        // Check
-        assert_eq!(vec[0], 1);
-        assert_eq!(vec[1], 2);
-        assert_eq!(vec[2], 3);
-
-        // Modify
-        vec[0] += 1;
-        vec[1] += 1;
-        vec[2] += 1;
-
-        // Release
-        // Make sure vec's destructor doesn't free the data it thinks it owns when it goes out
-        // of scope (avoid double free)
-        std::mem::forget(vec);
+        // Modify via `DerefMut`
+        auto_ptr[0] += 1;
+        auto_ptr[1] += 1;
+        auto_ptr[2] += 1;
     }
 
     // Confirm modification of original Java array
     let mut res: [i8; 3] = [0; 3];
-    env.get_byte_array_region(java_array, 0, &mut res).unwrap();
+    env.get_byte_array_region(&java_array, 0, &mut res).unwrap();
     assert_eq!(res[0], 2);
     assert_eq!(res[1], 3);
     assert_eq!(res[2], 4);
@@ -856,35 +876,35 @@ pub fn new_primitive_array_wrong() {
     let mut env = attach_current_thread();
     const WRONG_SIZE: jsize = -1;
 
-    let result = env.new_boolean_array(WRONG_SIZE);
+    let result = env.new_boolean_array(WRONG_SIZE).map(|arr| arr.as_raw());
     assert_exception(&result, "JNIEnv#new_boolean_array should throw exception");
     assert_pending_java_exception(&mut env);
 
-    let result = env.new_byte_array(WRONG_SIZE);
+    let result = env.new_byte_array(WRONG_SIZE).map(|arr| arr.as_raw());
     assert_exception(&result, "JNIEnv#new_byte_array should throw exception");
     assert_pending_java_exception(&mut env);
 
-    let result = env.new_char_array(WRONG_SIZE);
+    let result = env.new_char_array(WRONG_SIZE).map(|arr| arr.as_raw());
     assert_exception(&result, "JNIEnv#new_char_array should throw exception");
     assert_pending_java_exception(&mut env);
 
-    let result = env.new_short_array(WRONG_SIZE);
+    let result = env.new_short_array(WRONG_SIZE).map(|arr| arr.as_raw());
     assert_exception(&result, "JNIEnv#new_short_array should throw exception");
     assert_pending_java_exception(&mut env);
 
-    let result = env.new_int_array(WRONG_SIZE);
+    let result = env.new_int_array(WRONG_SIZE).map(|arr| arr.as_raw());
     assert_exception(&result, "JNIEnv#new_int_array should throw exception");
     assert_pending_java_exception(&mut env);
 
-    let result = env.new_long_array(WRONG_SIZE);
+    let result = env.new_long_array(WRONG_SIZE).map(|arr| arr.as_raw());
     assert_exception(&result, "JNIEnv#new_long_array should throw exception");
     assert_pending_java_exception(&mut env);
 
-    let result = env.new_float_array(WRONG_SIZE);
+    let result = env.new_float_array(WRONG_SIZE).map(|arr| arr.as_raw());
     assert_exception(&result, "JNIEnv#new_float_array should throw exception");
     assert_pending_java_exception(&mut env);
 
-    let result = env.new_double_array(WRONG_SIZE);
+    let result = env.new_double_array(WRONG_SIZE).map(|arr| arr.as_raw());
     assert_exception(&result, "JNIEnv#new_double_array should throw exception");
     assert_pending_java_exception(&mut env);
 }
@@ -1005,10 +1025,10 @@ fn get_object_array_element() {
         .new_object_array(1, STRING_CLASS, JObject::null())
         .unwrap();
     assert!(!array.is_null());
-    assert!(env.get_object_array_element(array, 0).unwrap().is_null());
+    assert!(env.get_object_array_element(&array, 0).unwrap().is_null());
     let test_str = env.new_string("test").unwrap();
-    env.set_object_array_element(array, 0, test_str).unwrap();
-    assert!(!env.get_object_array_element(array, 0).unwrap().is_null());
+    env.set_object_array_element(&array, 0, test_str).unwrap();
+    assert!(!env.get_object_array_element(&array, 0).unwrap().is_null());
 }
 
 #[test]
