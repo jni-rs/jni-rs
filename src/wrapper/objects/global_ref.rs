@@ -72,7 +72,6 @@ impl GlobalRef {
     ///
     /// This borrows the ref and prevents it from being dropped as long as the
     /// JObject sticks around.
-    #[deprecated(since = "0.21.0", note = "use `.as_ref()` instead")]
     pub fn as_obj(&self) -> &JObject<'static> {
         self.as_ref()
     }
