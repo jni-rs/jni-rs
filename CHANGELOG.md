@@ -28,7 +28,7 @@ This release makes extensive breaking changes in order to improve safety. Most p
 - `JavaVM::detach_current_thread()` (unsafe) as a way to explicitly detach a thread (normally this is automatic on thread exit). Needed to detach daemon threads manually if using `JavaVM::destroy()` ([#391](https://github.com/jni-rs/jni-rs/issues/391))
 - `JPrimitiveArray<T: TypeArray>` and type-specific aliases like `JByteArray`, `JIntArray` etc now provide safe, reference wrappers for the `sys` types `jarray` and `jbyteArray` etc with a lifetime like `JObject` ([#400](https://github.com/jni-rs/jni-rs/pull/400))
 - `JObjectArray` provides a reference wrapper for a `jobjectArray` with a lifetime like `JObject`. ([#400](https://github.com/jni-rs/jni-rs/pull/400))
-- `AutoElements` and `AutoElementsCritical` (previously `AutoArray`/`AutoPrimitiveArray`) implement `Deref<Target=[T]>` and `DerefMut` so array elements can be accessed via slices without needing `unsafe` code. ([#400](https://github.com/jni-rs/jni-rs/pull/400))
+- `AutoElements` and `AutoElementsCritical` (previously `AutoArray`/`AutoPrimitiveArray`) implement `Deref<Target=[T]>` and `DerefMut` so array elements can be accessed via slices without needing additional `unsafe` code. ([#400](https://github.com/jni-rs/jni-rs/pull/400))
 - `AsJArrayRaw` trait which enables `JNIEnv::get_array_length()` to work with `JPrimitiveArray` or `JObjectArray` types ([#400](https://github.com/jni-rs/jni-rs/pull/400))
 
 ### Changed
