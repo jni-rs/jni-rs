@@ -30,6 +30,7 @@ This release makes extensive breaking changes in order to improve safety. Most p
 - `JObjectArray` provides a reference wrapper for a `jobjectArray` with a lifetime like `JObject`. ([#400](https://github.com/jni-rs/jni-rs/pull/400))
 - `AutoElements` and `AutoElementsCritical` (previously `AutoArray`/`AutoPrimitiveArray`) implement `Deref<Target=[T]>` and `DerefMut` so array elements can be accessed via slices without needing additional `unsafe` code. ([#400](https://github.com/jni-rs/jni-rs/pull/400))
 - `AsJArrayRaw` trait which enables `JNIEnv::get_array_length()` to work with `JPrimitiveArray` or `JObjectArray` types ([#400](https://github.com/jni-rs/jni-rs/pull/400))
+- `InitArgsBuilder` now has `try_option` and `option_encoded` methods. ([#414](https://github.com/jni-rs/jni-rs/pull/414))
 
 ### Changed
 - `JNIEnv::get_string` checks that the given object is a `java.lang.String` instance to avoid undefined behaviour from the JNI implementation potentially aborting the program. ([#328](https://github.com/jni-rs/jni-rs/issues/328))
@@ -62,11 +63,13 @@ This release makes extensive breaking changes in order to improve safety. Most p
 - `get_array_elements` is now also `unsafe` (for many of the same reasons as `get_array_elements_critical`) and has detailed safety documentation ([#400](https://github.com/jni-rs/jni-rs/pull/400))
 - `AutoArray/AutoArrayCritical::size()` has been replaced with `.len()` which can't fail and returns a `usize` ([#400](https://github.com/jni-rs/jni-rs/pull/400))
 - The `TypeArray` trait is now a private / sealed trait, that is considered to be an implementation detail for the `AutoArray` API.
-
+- `JvmError` has several more variants and is now `non_exhaustive`. ([#414](https://github.com/jni-rs/jni-rs/pull/414))
+- `InitArgsBuilder::option` raises an error on Windows if the string is too long. The limit is currently 1048576 bytes. ([#414](https://github.com/jni-rs/jni-rs/pull/414))
 
 ### Fixed
 - Trying to use an object reference after it has been deleted now causes a compile error instead of undefined behavior. As a result, it is now safe to use `AutoLocal`, `JNIEnv::delete_local_ref`, and `JNIEnv::with_local_frame`. (Most of the limitations added in #392, listed above, were needed to make this work.) ([#381](https://github.com/jni-rs/jni-rs/issues/381), [#392](https://github.com/jni-rs/jni-rs/issues/392))
 - Class lookups via the `Desc` trait now return `AutoLocal`s, which prevents them from leaking. ([#109](https://github.com/jni-rs/jni-rs/issues/109), [#392](https://github.com/jni-rs/jni-rs/issues/392))
+- `InitArgsBuilder::option` properly encodes non-ASCII characters on Windows. ([#414](https://github.com/jni-rs/jni-rs/pull/414))
 
 ### Removed
 - `get_string_utf_chars` and `release_string_utf_chars` from `JNIEnv` (See `JavaStr::into_raw()` and `JavaStr::from_raw()` instead) ([#372](https://github.com/jni-rs/jni-rs/pull/372))
