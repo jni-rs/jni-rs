@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+
+## [0.21.0] — 2023-02-13
+
 This release makes extensive breaking changes in order to improve safety. Most projects that use this library will need to be changed. Please see [the migration guide](docs/0.21-MIGRATION.md).
 
 ### Added
@@ -304,7 +307,8 @@ to call if there is a pending exception (#124):
 ## [0.10.1]
 - No changes has been made to the Changelog until this release.
 
-[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.20.0...HEAD
+[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/jni-rs/jni-rs/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/jni-rs/jni-rs/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/jni-rs/jni-rs/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/jni-rs/jni-rs/compare/v0.17.0...v0.18.0
