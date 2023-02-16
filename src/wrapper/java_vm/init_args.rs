@@ -311,7 +311,7 @@ impl<'a> InitArgsBuilder<'a> {
         let opts: Vec<JavaVMOption> = opt_strings
             .iter()
             .map(|opt_string| JavaVMOption {
-                optionString: opt_string.as_ptr() as *mut i8,
+                optionString: opt_string.as_ptr() as _,
                 extraInfo: ptr::null_mut(),
             })
             .collect();
