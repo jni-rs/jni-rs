@@ -227,8 +227,9 @@ mod tests {
         let mut env = VM.attach_current_thread().unwrap();
         let s = env.new_string("").unwrap();
         let obj = black_box(JObject::from(s));
+        let obj_class = env.get_object_class(&obj).unwrap();
         let method_id = env
-            .get_method_id(&obj, METHOD_OBJECT_HASH_CODE, SIG_OBJECT_HASH_CODE)
+            .get_method_id(&obj_class, METHOD_OBJECT_HASH_CODE, SIG_OBJECT_HASH_CODE)
             .unwrap();
 
         b.iter(|| jni_int_call_unchecked(&mut env, &obj, method_id));
