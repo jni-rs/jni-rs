@@ -62,7 +62,7 @@ use {
 /// feature in the Cargo.toml:
 ///
 /// ```toml
-/// jni = { version = "0.21.0", features = ["invocation"] }
+/// jni = { version = "0.21.1", features = ["invocation"] }
 /// ```
 ///
 /// The application will be able to use [`JavaVM::new`] which will dynamically
