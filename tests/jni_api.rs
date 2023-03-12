@@ -1,9 +1,11 @@
 #![cfg(feature = "invocation")]
 use std::{convert::TryFrom, str::FromStr};
 
+use assert_matches::assert_matches;
+
 use jni::{
     descriptors::Desc,
-    errors::Error,
+    errors::{CharToJavaError, Error},
     objects::{
         AutoElements, AutoLocal, JByteBuffer, JList, JObject, JString, JThrowable, JValue,
         ReleaseMode,
@@ -1188,4 +1190,104 @@ fn assert_exception_message(env: &mut JNIEnv, exception: &JThrowable, expected_m
         .unwrap();
     let msg_rust: String = env.get_string(&message.into()).unwrap().into();
     assert_eq!(msg_rust, expected_message);
+}
+
+#[test]
+fn test_java_char_conversion() {
+    // Make a Java `StringBuilder`.
+    let mut env = attach_current_thread();
+
+    let sb = unwrap(env.new_object("java/lang/StringBuilder", "()V", &[]), &env);
+
+    // U+1F913 is not representable in a single UTF-16 unit, so this conversion should fail.
+    assert_matches!(JValue::try_from('🤓'), Err(CharToJavaError { char: '🤓' }));
+
+    // It is of course representable in a single UTF-32 unit.
+    unwrap(
+        env.call_method(
+            &sb,
+            "appendCodePoint",
+            "(I)Ljava/lang/StringBuilder;",
+            &[JValue::int_from_char('🤓')],
+        ),
+        &env,
+    );
+
+    // U+2603, on the other hand, *is* representable in a single UTF-16 unit.
+    unwrap(
+        env.call_method(
+            &sb,
+            "append",
+            "(C)Ljava/lang/StringBuilder;",
+            &[JValue::try_from('☃').unwrap()],
+        ),
+        &env,
+    );
+
+    // Finish the `StringBuilder` and get a Java `String`.
+    let s = unwrap(
+        env.call_method(&sb, "toString", "()Ljava/lang/String;", &[]),
+        &env,
+    )
+    .l()
+    .unwrap();
+
+    unwrap(env.delete_local_ref(sb), &env);
+
+    {
+        // The first character in the string is U+1F913, which is not representable in a single UTF-16 unit.
+
+        // Get the first Java `char` and try to unwrap it to a Rust `char`.
+        let c = unwrap(
+            env.call_method(&s, "charAt", "(I)C", &[JValue::Int(0)]),
+            &env,
+        )
+        .c_char();
+
+        // That should fail.
+        let c = assert_matches!(
+            c,
+            Err(Error::InvalidUtf16 { source })
+            => source
+        );
+
+        // The unpaired surrogate should be correct.
+        assert_eq!(c.unpaired_surrogate(), 0xd83e);
+    }
+
+    {
+        // The first character in the string *is* representable in a single UTF-32 unit.
+
+        // Get the UTF-32 unit and unwrap it.
+        let c = unwrap(
+            env.call_method(&s, "codePointAt", "(I)I", &[JValue::Int(0)]),
+            &env,
+        )
+        .i_char()
+        .unwrap();
+
+        // It should be correct.
+        assert_eq!(c, '🤓');
+    }
+
+    {
+        // The second character in the string *is* representable in a single UTF-16 unit.
+
+        // Get it and unwrap it. It should succeed.
+        let c = unwrap(
+            env.call_method(
+                &s,
+                "charAt",
+                "(I)C",
+                // The first character is represented in UTF-16 as a surrogate pair, so the second character occurs at index 2 instead of 1.
+                &[JValue::Int(2)],
+            ),
+            &env,
+        )
+        .c_char()
+        .unwrap();
+
+        // It should be correct.
+        assert_eq!(c, '☃');
+    }
 }
