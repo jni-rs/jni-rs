@@ -32,8 +32,10 @@ use crate::{objects::GlobalRef, JNIEnv};
 #[repr(transparent)]
 #[derive(Debug)]
 pub struct JObject<'local> {
-    internal: jobject,
-    lifetime: PhantomData<&'local ()>,
+    /// holds the pointer to the object
+    pub internal: jobject,
+    /// Phantom data to hold lifetime
+    pub lifetime: PhantomData<&'local ()>,
 }
 
 unsafe impl Send for JObject<'static> {}

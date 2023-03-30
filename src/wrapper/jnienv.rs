@@ -315,7 +315,7 @@ impl<'local> JNIEnv<'local> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn find_class<S>(&mut self, name: S) -> Result<JClass<'local>>
+    pub fn find_class<S>(&self, name: S) -> Result<JClass<'local>>
     where
         S: Into<JNIString>,
     {
