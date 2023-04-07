@@ -6,6 +6,7 @@ use std::{
     sync::{Mutex, MutexGuard},
 };
 
+use jni_sys::jobject;
 use log::warn;
 
 use crate::{
@@ -1160,6 +1161,11 @@ impl<'local> JNIEnv<'local> {
         T: Desc<'local, JClass<'other_local>>,
         U: Desc<'local, JStaticMethodID>,
     {
+        use super::signature::Primitive::{
+            Boolean, Byte, Char, Double, Float, Int, Long, Short, Void,
+        };
+        use ReturnType::{Array, Object, Primitive};
+
         let class = class.lookup(self)?;
 
         let method_id = method_id.lookup(self)?.as_ref().into_raw();
@@ -1167,101 +1173,44 @@ impl<'local> JNIEnv<'local> {
         let class_raw = class.as_ref().as_raw();
         let jni_args = args.as_ptr();
 
-        // TODO clean this up
-        let ret = Ok(match ret {
-            ReturnType::Object | ReturnType::Array => {
-                let obj = jni_non_void_call!(
+        macro_rules! invoke {
+            ($call:ident -> $ret:ty) => {{
+                let o: $ret =
+                    jni_non_void_call!(self.internal, $call, class_raw, method_id, jni_args);
+                o
+            }};
+        }
+
+        let ret = match ret {
+            Object | Array => {
+                let obj = invoke!(CallStaticObjectMethodA -> jobject);
+                let obj = unsafe { JObject::from_raw(obj) };
+                JValueOwned::from(obj)
+            }
+            Primitive(Boolean) => invoke!(CallStaticBooleanMethodA -> u8).into(),
+            Primitive(Char) => invoke!(CallStaticCharMethodA -> u16).into(),
+            Primitive(Byte) => invoke!(CallStaticByteMethodA -> i8).into(),
+            Primitive(Short) => invoke!(CallStaticShortMethodA -> i16).into(),
+            Primitive(Int) => invoke!(CallStaticIntMethodA -> i32).into(),
+            Primitive(Long) => invoke!(CallStaticLongMethodA -> i64).into(),
+            Primitive(Float) => invoke!(CallStaticFloatMethodA -> f32).into(),
+            Primitive(Double) => invoke!(CallStaticDoubleMethodA -> f64).into(),
+            Primitive(Void) => {
+                jni_void_call!(
                     self.internal,
-                    CallStaticObjectMethodA,
+                    CallStaticVoidMethodA,
                     class_raw,
                     method_id,
                     jni_args
                 );
-                let obj = unsafe { JObject::from_raw(obj) };
-                obj.into()
+                JValueOwned::Void
             }
-            ReturnType::Primitive(p) => match p {
-                Primitive::Boolean => jni_non_void_call!(
-                    self.internal,
-                    CallStaticBooleanMethodA,
-                    class_raw,
-                    method_id,
-                    jni_args
-                )
-                .into(),
-                Primitive::Char => jni_non_void_call!(
-                    self.internal,
-                    CallStaticCharMethodA,
-                    class_raw,
-                    method_id,
-                    jni_args
-                )
-                .into(),
-                Primitive::Short => jni_non_void_call!(
-                    self.internal,
-                    CallStaticShortMethodA,
-                    class_raw,
-                    method_id,
-                    jni_args
-                )
-                .into(),
-                Primitive::Int => jni_non_void_call!(
-                    self.internal,
-                    CallStaticIntMethodA,
-                    class_raw,
-                    method_id,
-                    jni_args
-                )
-                .into(),
-                Primitive::Long => jni_non_void_call!(
-                    self.internal,
-                    CallStaticLongMethodA,
-                    class_raw,
-                    method_id,
-                    jni_args
-                )
-                .into(),
-                Primitive::Float => jni_non_void_call!(
-                    self.internal,
-                    CallStaticFloatMethodA,
-                    class_raw,
-                    method_id,
-                    jni_args
-                )
-                .into(),
-                Primitive::Double => jni_non_void_call!(
-                    self.internal,
-                    CallStaticDoubleMethodA,
-                    class_raw,
-                    method_id,
-                    jni_args
-                )
-                .into(),
-                Primitive::Byte => jni_non_void_call!(
-                    self.internal,
-                    CallStaticByteMethodA,
-                    class_raw,
-                    method_id,
-                    jni_args
-                )
-                .into(),
-                Primitive::Void => {
-                    jni_void_call!(
-                        self.internal,
-                        CallStaticVoidMethodA,
-                        class_raw,
-                        method_id,
-                        jni_args
-                    );
-                    return Ok(JValueOwned::Void);
-                }
-            }, // JavaType::Primitive
-        }); // match parsed.ret
+        };
 
         // Ensure that `class` isn't dropped before the JNI call returns.
         drop(class);
 
-        ret
+        Ok(ret)
     }
 
     /// Call an object method in an unsafe manner. This does nothing to check
@@ -1279,66 +1228,52 @@ impl<'local> JNIEnv<'local> {
         &mut self,
         obj: O,
         method_id: T,
-        ret: ReturnType,
+        ret_ty: ReturnType,
         args: &[jvalue],
     ) -> Result<JValueOwned<'local>>
     where
         O: AsRef<JObject<'other_local>>,
         T: Desc<'local, JMethodID>,
     {
+        use super::signature::Primitive::{
+            Boolean, Byte, Char, Double, Float, Int, Long, Short, Void,
+        };
+        use ReturnType::{Array, Object, Primitive};
+
         let method_id = method_id.lookup(self)?.as_ref().into_raw();
 
         let obj = obj.as_ref().as_raw();
 
         let jni_args = args.as_ptr();
 
-        // TODO clean this up
-        Ok(match ret {
-            ReturnType::Object | ReturnType::Array => {
-                let obj =
-                    jni_non_void_call!(self.internal, CallObjectMethodA, obj, method_id, jni_args);
+        macro_rules! invoke {
+            ($call:ident -> $ret:ty) => {{
+                let o: $ret = jni_non_void_call!(self.internal, $call, obj, method_id, jni_args);
+                o
+            }};
+        }
+
+        let ret = match ret_ty {
+            Object | Array => {
+                let obj = invoke!(CallObjectMethodA -> jobject);
                 let obj = unsafe { JObject::from_raw(obj) };
-                obj.into()
+                JValueOwned::from(obj)
             }
-            ReturnType::Primitive(p) => match p {
-                Primitive::Boolean => {
-                    jni_non_void_call!(self.internal, CallBooleanMethodA, obj, method_id, jni_args)
-                        .into()
-                }
-                Primitive::Char => {
-                    jni_non_void_call!(self.internal, CallCharMethodA, obj, method_id, jni_args)
-                        .into()
-                }
-                Primitive::Short => {
-                    jni_non_void_call!(self.internal, CallShortMethodA, obj, method_id, jni_args)
-                        .into()
-                }
-                Primitive::Int => {
-                    jni_non_void_call!(self.internal, CallIntMethodA, obj, method_id, jni_args)
-                        .into()
-                }
-                Primitive::Long => {
-                    jni_non_void_call!(self.internal, CallLongMethodA, obj, method_id, jni_args)
-                        .into()
-                }
-                Primitive::Float => {
-                    jni_non_void_call!(self.internal, CallFloatMethodA, obj, method_id, jni_args)
-                        .into()
-                }
-                Primitive::Double => {
-                    jni_non_void_call!(self.internal, CallDoubleMethodA, obj, method_id, jni_args)
-                        .into()
-                }
-                Primitive::Byte => {
-                    jni_non_void_call!(self.internal, CallByteMethodA, obj, method_id, jni_args)
-                        .into()
-                }
-                Primitive::Void => {
-                    jni_void_call!(self.internal, CallVoidMethodA, obj, method_id, jni_args);
-                    return Ok(JValueOwned::Void);
-                }
-            }, // JavaType::Primitive
-        }) // match parsed.ret
+            Primitive(Boolean) => JValueOwned::from(invoke!(CallBooleanMethodA -> u8)),
+            Primitive(Char) => invoke!(CallCharMethodA -> u16).into(),
+            Primitive(Byte) => invoke!(CallByteMethodA -> i8).into(),
+            Primitive(Short) => invoke!(CallShortMethodA -> i16).into(),
+            Primitive(Int) => invoke!(CallIntMethodA -> i32).into(),
+            Primitive(Long) => invoke!(CallLongMethodA -> i64).into(),
+            Primitive(Float) => invoke!(CallFloatMethodA -> f32).into(),
+            Primitive(Double) => invoke!(CallDoubleMethodA -> f64).into(),
+            Primitive(Void) => {
+                jni_void_call!(self.internal, CallVoidMethodA, obj, method_id, jni_args);
+                JValueOwned::Void
+            }
+        };
+
+        Ok(ret)
     }
 
     /// Calls an object method safely. This comes with a number of
@@ -2208,37 +2143,39 @@ impl<'local> JNIEnv<'local> {
         O: AsRef<JObject<'other_local>>,
         T: Desc<'local, JFieldID>,
     {
+        use super::signature::Primitive::{
+            Boolean, Byte, Char, Double, Float, Int, Long, Short, Void,
+        };
+        use ReturnType::{Array, Object, Primitive};
+
         let obj = obj.as_ref();
         non_null!(obj, "get_field_typed obj argument");
 
         let field = field.lookup(self)?.as_ref().into_raw();
         let obj = obj.as_raw();
 
-        // TODO clean this up
-        Ok(match ty {
-            ReturnType::Object | ReturnType::Array => {
+        macro_rules! field {
+            ($get_field:ident) => {{
+                JValueOwned::from(jni_unchecked!(self.internal, $get_field, obj, field))
+            }};
+        }
+
+        match ty {
+            Object | Array => {
                 let obj = jni_non_void_call!(self.internal, GetObjectField, obj, field);
                 let obj = unsafe { JObject::from_raw(obj) };
-                obj.into()
+                Ok(obj.into())
             }
-            ReturnType::Primitive(p) => match p {
-                Primitive::Boolean => {
-                    jni_unchecked!(self.internal, GetBooleanField, obj, field).into()
-                }
-                Primitive::Char => jni_unchecked!(self.internal, GetCharField, obj, field).into(),
-                Primitive::Short => jni_unchecked!(self.internal, GetShortField, obj, field).into(),
-                Primitive::Int => jni_unchecked!(self.internal, GetIntField, obj, field).into(),
-                Primitive::Long => jni_unchecked!(self.internal, GetLongField, obj, field).into(),
-                Primitive::Float => jni_unchecked!(self.internal, GetFloatField, obj, field).into(),
-                Primitive::Double => {
-                    jni_unchecked!(self.internal, GetDoubleField, obj, field).into()
-                }
-                Primitive::Byte => jni_unchecked!(self.internal, GetByteField, obj, field).into(),
-                Primitive::Void => {
-                    return Err(Error::WrongJValueType("void", "see java field"));
-                }
-            },
-        })
+            Primitive(Char) => Ok(field!(GetCharField)),
+            Primitive(Boolean) => Ok(field!(GetBooleanField)),
+            Primitive(Short) => Ok(field!(GetShortField)),
+            Primitive(Int) => Ok(field!(GetIntField)),
+            Primitive(Long) => Ok(field!(GetLongField)),
+            Primitive(Float) => Ok(field!(GetFloatField)),
+            Primitive(Double) => Ok(field!(GetDoubleField)),
+            Primitive(Byte) => Ok(field!(GetByteField)),
+            Primitive(Void) => Err(Error::WrongJValueType("void", "see java field")),
+        }
     }
 
     /// Set a field without any type checking.
@@ -2252,45 +2189,33 @@ impl<'local> JNIEnv<'local> {
         O: AsRef<JObject<'other_local>>,
         T: Desc<'local, JFieldID>,
     {
+        if let JValue::Void = val {
+            return Err(Error::WrongJValueType("void", "see java field"));
+        }
+
         let obj = obj.as_ref();
         non_null!(obj, "set_field_typed obj argument");
 
         let field = field.lookup(self)?.as_ref().into_raw();
         let obj = obj.as_raw();
 
-        // TODO clean this up
+        macro_rules! set_field {
+            ($set_field:ident($val:expr)) => {{
+                jni_unchecked!(self.internal, $set_field, obj, field, $val);
+            }};
+        }
+
         match val {
-            JValue::Object(o) => {
-                jni_unchecked!(self.internal, SetObjectField, obj, field, o.as_raw());
-            }
-            // JavaType::Object
-            JValue::Bool(b) => {
-                jni_unchecked!(self.internal, SetBooleanField, obj, field, b);
-            }
-            JValue::Char(c) => {
-                jni_unchecked!(self.internal, SetCharField, obj, field, c);
-            }
-            JValue::Short(s) => {
-                jni_unchecked!(self.internal, SetShortField, obj, field, s);
-            }
-            JValue::Int(i) => {
-                jni_unchecked!(self.internal, SetIntField, obj, field, i);
-            }
-            JValue::Long(l) => {
-                jni_unchecked!(self.internal, SetLongField, obj, field, l);
-            }
-            JValue::Float(f) => {
-                jni_unchecked!(self.internal, SetFloatField, obj, field, f);
-            }
-            JValue::Double(d) => {
-                jni_unchecked!(self.internal, SetDoubleField, obj, field, d);
-            }
-            JValue::Byte(b) => {
-                jni_unchecked!(self.internal, SetByteField, obj, field, b);
-            }
-            JValue::Void => {
-                return Err(Error::WrongJValueType("void", "see java field"));
-            }
+            JValue::Object(o) => set_field!(SetObjectField(o.as_raw())),
+            JValue::Bool(b) => set_field!(SetBooleanField(b)),
+            JValue::Char(c) => set_field!(SetCharField(c)),
+            JValue::Short(s) => set_field!(SetShortField(s)),
+            JValue::Int(i) => set_field!(SetIntField(i)),
+            JValue::Long(l) => set_field!(SetLongField(l)),
+            JValue::Float(f) => set_field!(SetFloatField(f)),
+            JValue::Double(d) => set_field!(SetDoubleField(d)),
+            JValue::Byte(b) => set_field!(SetByteField(b)),
+            _ => (),
         };
 
         Ok(())
@@ -2334,32 +2259,25 @@ impl<'local> JNIEnv<'local> {
         T: Into<JNIString> + AsRef<str>,
     {
         let obj = obj.as_ref();
-        let parsed = JavaType::from_str(ty.as_ref())?;
-        let in_type = val.primitive_type();
+        let field_ty = JavaType::from_str(ty.as_ref())?;
+        let val_primitive = val.primitive_type();
 
-        match parsed {
-            JavaType::Object(_) | JavaType::Array(_) => {
-                if in_type.is_some() {
-                    return Err(Error::WrongJValueType(val.type_name(), "see java field"));
-                }
+        let wrong_type = Err(Error::WrongJValueType(val.type_name(), "see java field"));
+
+        match field_ty {
+            JavaType::Object(_) | JavaType::Array(_) if val_primitive.is_some() => wrong_type,
+            JavaType::Primitive(p) if val_primitive != Some(p) => wrong_type,
+            JavaType::Primitive(_) if val_primitive.is_none() => wrong_type,
+            JavaType::Method(_) => Err(Error::WrongJValueType(
+                val.type_name(),
+                "cannot set field with method type",
+            )),
+            _ => {
+                let class = self.auto_local(self.get_object_class(obj)?);
+
+                self.set_field_unchecked(obj, (&class, name, ty), val)
             }
-            JavaType::Primitive(p) => {
-                if let Some(in_p) = in_type {
-                    if in_p == p {
-                        // good
-                    } else {
-                        return Err(Error::WrongJValueType(val.type_name(), "see java field"));
-                    }
-                } else {
-                    return Err(Error::WrongJValueType(val.type_name(), "see java field"));
-                }
-            }
-            JavaType::Method(_) => unimplemented!(),
         }
-
-        let class = self.auto_local(self.get_object_class(obj)?);
-
-        self.set_field_unchecked(obj, (&class, name, ty), val)
     }
 
     /// Get a static field without checking the provided type against the actual
@@ -2374,86 +2292,47 @@ impl<'local> JNIEnv<'local> {
         T: Desc<'local, JClass<'other_local>>,
         U: Desc<'local, JStaticFieldID>,
     {
-        use JavaType::Primitive as JP;
+        use super::signature::Primitive::{
+            Boolean, Byte, Char, Double, Float, Int, Long, Short, Void,
+        };
+        use JavaType::{Array, Method, Object, Primitive};
 
         let class = class.lookup(self)?;
         let field = field.lookup(self)?;
 
-        let result = match ty {
-            JavaType::Object(_) | JavaType::Array(_) => {
-                let obj = jni_non_void_call!(
+        macro_rules! field {
+            ($get_field:ident) => {{
+                jni_non_void_call!(
                     self.internal,
-                    GetStaticObjectField,
+                    $get_field,
                     class.as_ref().as_raw(),
                     field.as_ref().into_raw()
-                );
+                )
+            }};
+        }
+
+        let ret = match ty {
+            Primitive(Void) => Err(Error::WrongJValueType("void", "see java field")),
+            Method(_) => Err(Error::WrongJValueType("Method", "see java field")),
+            Object(_) | Array(_) => {
+                let obj = field!(GetStaticObjectField);
                 let obj = unsafe { JObject::from_raw(obj) };
-                obj.into()
+                Ok(JValueOwned::from(obj))
             }
-            JavaType::Method(_) => return Err(Error::WrongJValueType("Method", "see java field")),
-            JP(Primitive::Boolean) => jni_unchecked!(
-                self.internal,
-                GetStaticBooleanField,
-                class.as_ref().as_raw(),
-                field.as_ref().into_raw()
-            )
-            .into(),
-            JP(Primitive::Char) => jni_unchecked!(
-                self.internal,
-                GetStaticCharField,
-                class.as_ref().as_raw(),
-                field.as_ref().into_raw()
-            )
-            .into(),
-            JP(Primitive::Short) => jni_unchecked!(
-                self.internal,
-                GetStaticShortField,
-                class.as_ref().as_raw(),
-                field.as_ref().into_raw()
-            )
-            .into(),
-            JP(Primitive::Int) => jni_unchecked!(
-                self.internal,
-                GetStaticIntField,
-                class.as_ref().as_raw(),
-                field.as_ref().into_raw()
-            )
-            .into(),
-            JP(Primitive::Long) => jni_unchecked!(
-                self.internal,
-                GetStaticLongField,
-                class.as_ref().as_raw(),
-                field.as_ref().into_raw()
-            )
-            .into(),
-            JP(Primitive::Float) => jni_unchecked!(
-                self.internal,
-                GetStaticFloatField,
-                class.as_ref().as_raw(),
-                field.as_ref().into_raw()
-            )
-            .into(),
-            JP(Primitive::Double) => jni_unchecked!(
-                self.internal,
-                GetStaticDoubleField,
-                class.as_ref().as_raw(),
-                field.as_ref().into_raw()
-            )
-            .into(),
-            JP(Primitive::Byte) => jni_unchecked!(
-                self.internal,
-                GetStaticByteField,
-                class.as_ref().as_raw(),
-                field.as_ref().into_raw()
-            )
-            .into(),
-            JP(Primitive::Void) => return Err(Error::WrongJValueType("void", "see java field")),
+            Primitive(Boolean) => Ok(field!(GetStaticBooleanField).into()),
+            Primitive(Char) => Ok(field!(GetStaticCharField).into()),
+            Primitive(Short) => Ok(field!(GetStaticShortField).into()),
+            Primitive(Int) => Ok(field!(GetStaticIntField).into()),
+            Primitive(Long) => Ok(field!(GetStaticLongField).into()),
+            Primitive(Float) => Ok(field!(GetStaticFloatField).into()),
+            Primitive(Double) => Ok(field!(GetStaticDoubleField).into()),
+            Primitive(Byte) => Ok(field!(GetStaticByteField).into()),
         };
 
         // Ensure that `class` isn't dropped before the JNI call returns.
         drop(class);
 
-        Ok(result)
+        ret
     }
 
     /// Get a static field. Requires a class lookup and a field id lookup
@@ -2489,78 +2368,36 @@ impl<'local> JNIEnv<'local> {
         T: Desc<'local, JClass<'other_local>>,
         U: Desc<'local, JStaticFieldID>,
     {
+        if let JValue::Void = value {
+            return Err(Error::WrongJValueType("void", "see java field"));
+        }
+
         let class = class.lookup(self)?;
         let field = field.lookup(self)?;
 
+        macro_rules! set_field {
+            ($set_field:ident($val:expr)) => {{
+                jni_unchecked!(
+                    self.internal,
+                    $set_field,
+                    class.as_ref().as_raw(),
+                    field.as_ref().into_raw(),
+                    $val
+                );
+            }};
+        }
+
         match value {
-            JValue::Object(v) => jni_unchecked!(
-                self.internal,
-                SetStaticObjectField,
-                class.as_ref().as_raw(),
-                field.as_ref().into_raw(),
-                v.as_raw()
-            ),
-            JValue::Byte(v) => jni_unchecked!(
-                self.internal,
-                SetStaticByteField,
-                class.as_ref().as_raw(),
-                field.as_ref().into_raw(),
-                v
-            ),
-            JValue::Char(v) => jni_unchecked!(
-                self.internal,
-                SetStaticCharField,
-                class.as_ref().as_raw(),
-                field.as_ref().into_raw(),
-                v
-            ),
-            JValue::Short(v) => jni_unchecked!(
-                self.internal,
-                SetStaticShortField,
-                class.as_ref().as_raw(),
-                field.as_ref().into_raw(),
-                v
-            ),
-            JValue::Int(v) => jni_unchecked!(
-                self.internal,
-                SetStaticIntField,
-                class.as_ref().as_raw(),
-                field.as_ref().into_raw(),
-                v
-            ),
-            JValue::Long(v) => jni_unchecked!(
-                self.internal,
-                SetStaticLongField,
-                class.as_ref().as_raw(),
-                field.as_ref().into_raw(),
-                v
-            ),
-            JValue::Bool(v) => {
-                jni_unchecked!(
-                    self.internal,
-                    SetStaticBooleanField,
-                    class.as_ref().as_raw(),
-                    field.as_ref().into_raw(),
-                    v
-                )
-            }
-            JValue::Float(v) => jni_unchecked!(
-                self.internal,
-                SetStaticFloatField,
-                class.as_ref().as_raw(),
-                field.as_ref().into_raw(),
-                v
-            ),
-            JValue::Double(v) => {
-                jni_unchecked!(
-                    self.internal,
-                    SetStaticDoubleField,
-                    class.as_ref().as_raw(),
-                    field.as_ref().into_raw(),
-                    v
-                )
-            }
-            JValue::Void => return Err(Error::WrongJValueType("void", "?")),
+            JValue::Object(v) => set_field!(SetStaticObjectField(v.as_raw())),
+            JValue::Byte(v) => set_field!(SetStaticByteField(v)),
+            JValue::Char(v) => set_field!(SetStaticCharField(v)),
+            JValue::Short(v) => set_field!(SetStaticShortField(v)),
+            JValue::Int(v) => set_field!(SetStaticIntField(v)),
+            JValue::Long(v) => set_field!(SetStaticLongField(v)),
+            JValue::Bool(v) => set_field!(SetStaticBooleanField(v)),
+            JValue::Float(v) => set_field!(SetStaticFloatField(v)),
+            JValue::Double(v) => set_field!(SetStaticDoubleField(v)),
+            _ => (),
         }
 
         // Ensure that `class` isn't dropped before the JNI call returns.
