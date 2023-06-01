@@ -1,5 +1,7 @@
 #![allow(missing_docs)]
 
+use std::char::{CharTryFromError, DecodeUtf16Error};
+
 use thiserror::Error;
 
 use crate::sys;
@@ -7,7 +9,11 @@ use crate::wrapper::signature::TypeSignature;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+#[cfg(doc)]
+use crate::objects::{char_from_java_int, char_to_java, char_to_java_int, JValue, JValueOwned};
+
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum Error {
     #[error("Invalid JValue type cast: {0}. Actual type: {1}")]
     WrongJValueType(&'static str, &'static str),
@@ -39,6 +45,27 @@ pub enum Error {
     ParseFailed(#[source] combine::error::StringStreamError, String),
     #[error("JNI call failed")]
     JniCall(#[source] JniError),
+
+    /// [`JValue::c_char`] or [`JValueOwned::c_char`] was used, and although the value does indeed contain a Java `char`, it is part of a UTF-16 [surrogate pair] and cannot be converted to a Rust `char` by itself.
+    ///
+    /// [surrogate pair]: https://en.wikipedia.org/wiki/Surrogate_pair
+    #[error("A Java `char` has the value 0x{char:x}; it is part of a UTF-16 surrogate pair and cannot be converted to a Rust `char` by itself", char = source.unpaired_surrogate())]
+    InvalidUtf16 {
+        /// The cause of this error. Use [`DecodeUtf16Error::unpaired_surrogate`] to get the Java `char` in question.
+        #[source]
+        source: DecodeUtf16Error,
+    },
+
+    /// [`JValue::i_char`] or [`JValueOwned::i_char`] was used, and although the value does indeed contain a Java `int`, it is not a valid UTF-32 unit.
+    #[error("A Java `int` has the value 0x{char:x}, which is not a valid UTF-32 unit; cannot convert it to a Rust `char`")]
+    InvalidUtf32 {
+        /// The Java `int` that doesn't contain a valid UTF-32 unit.
+        char: sys::jint,
+
+        /// The cause of this error.
+        #[source]
+        source: CharTryFromError,
+    },
 }
 
 #[derive(Debug, Error)]
@@ -127,3 +154,13 @@ pub enum StartJvmError {
 
 #[cfg(feature = "invocation")]
 pub type StartJvmResult<T> = std::result::Result<T, StartJvmError>;
+
+/// Raised by `char_to_java` and the implementation of `TryFrom<char>` for [`JValueGen`] when a Rust [`char`] is not representable as a Java `char`.
+///
+/// See [`char_to_java`] for more information.
+#[derive(Debug, Error)]
+#[error("The code point U+{char_as_u32:X} {char:?} cannot be converted to a Java `char`, because it is not representable as a single UTF-16 unit.", char_as_u32 = u32::from(*char))]
+pub struct CharToJavaError {
+    /// The character that could not be converted.
+    pub char: char,
+}
