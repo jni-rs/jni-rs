@@ -64,12 +64,12 @@ impl<'local> JString<'local> {
     /// * There must not be any other `JObject` representing the same local reference.
     /// * The lifetime `'local` must not outlive the local reference frame that the local reference
     ///   was created in.
-    pub unsafe fn from_raw(raw: jstring) -> Self {
+    pub const unsafe fn from_raw(raw: jstring) -> Self {
         Self(JObject::from_raw(raw as jobject))
     }
 
     /// Unwrap to the raw jni type.
-    pub fn into_raw(self) -> jstring {
+    pub const fn into_raw(self) -> jstring {
         self.0.into_raw() as jstring
     }
 }

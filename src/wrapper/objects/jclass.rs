@@ -67,17 +67,17 @@ impl<'local> JClass<'local> {
     /// * There must not be any other `JObject` representing the same local reference.
     /// * The lifetime `'local` must not outlive the local reference frame that the local reference
     ///   was created in.
-    pub unsafe fn from_raw(raw: jclass) -> Self {
+    pub const unsafe fn from_raw(raw: jclass) -> Self {
         Self(JObject::from_raw(raw as jobject))
     }
 
     /// Returns the raw JNI pointer.
-    pub fn as_raw(&self) -> jclass {
+    pub const fn as_raw(&self) -> jclass {
         self.0.as_raw() as jclass
     }
 
     /// Unwrap to the raw jni type.
-    pub fn into_raw(self) -> jclass {
+    pub const fn into_raw(self) -> jclass {
         self.0.into_raw() as jclass
     }
 }

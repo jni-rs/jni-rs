@@ -64,12 +64,12 @@ impl<'local> JThrowable<'local> {
     /// * There must not be any other `JObject` representing the same local reference.
     /// * The lifetime `'local` must not outlive the local reference frame that the local reference
     ///   was created in.
-    pub unsafe fn from_raw(raw: jthrowable) -> Self {
+    pub const unsafe fn from_raw(raw: jthrowable) -> Self {
         Self(JObject::from_raw(raw as jobject))
     }
 
     /// Unwrap to the raw jni type.
-    pub fn into_raw(self) -> jthrowable {
+    pub const fn into_raw(self) -> jthrowable {
         self.0.into_raw() as jthrowable
     }
 }

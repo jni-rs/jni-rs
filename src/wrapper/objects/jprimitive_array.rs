@@ -90,7 +90,7 @@ impl<'local, T: TypeArray> JPrimitiveArray<'local, T> {
     /// * There must not be any other `JObject` representing the same local reference.
     /// * The lifetime `'local` must not outlive the local reference frame that the local reference
     ///   was created in.
-    pub unsafe fn from_raw(raw: jarray) -> Self {
+    pub const unsafe fn from_raw(raw: jarray) -> Self {
         Self {
             obj: JObject::from_raw(raw as jobject),
             lifetime: PhantomData,
@@ -98,7 +98,7 @@ impl<'local, T: TypeArray> JPrimitiveArray<'local, T> {
     }
 
     /// Unwrap to the raw jni type.
-    pub fn into_raw(self) -> jarray {
+    pub const fn into_raw(self) -> jarray {
         self.obj.into_raw() as jarray
     }
 }
