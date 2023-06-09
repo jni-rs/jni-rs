@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 - `JValueGen` has been removed. `JValue` and `JValueOwned` are now separate, unrelated, non-generic types. ([#429](https://github.com/jni-rs/jni-rs/pull/429))
 - Make most `from_raw()`, `get_raw()` and `into_raw()` methods `const fn`. ([#453](https://github.com/jni-rs/jni-rs/pull/453))
+- `get_object_class` borrows the `JNIEnv` mutably because it creates a new local reference. ([#456](https://github.com/jni-rs/jni-rs/pull/456))
 
 ## [0.21.1] — 2023-03-08
 
