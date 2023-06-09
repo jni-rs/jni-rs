@@ -2786,6 +2786,35 @@ impl<'local> JNIEnv<'local> {
         Ok(())
     }
 
+    /// Looks up the field ID for the given field name and takes the monitor
+    /// lock on the given object so the field can be updated without racing
+    /// with other Java threads
+    fn lock_rust_field<'other_local, O, S>(
+        &self,
+        obj: O,
+        field: S,
+    ) -> Result<(MonitorGuard, JFieldID)>
+    where
+        O: AsRef<JObject<'other_local>>,
+        S: AsRef<str>,
+    {
+        // Safety: although we get a local reference from get_object_class, we wrap
+        // that in an AutoLocal to make sure that it is deleted before returning
+        // to the caller.
+        //
+        // `Desc::<JFieldID>::lookup` is not allowed to leak references and in
+        // this case since we explicitly lookup the object class then the
+        // `lookup` just needs to call `GetFieldID` without creating any
+        // other local reference for the class.
+        let mut env = unsafe { self.unsafe_clone() };
+        let obj = obj.as_ref();
+        let class = env.get_object_class(obj)?;
+        let class = self.auto_local(class);
+        let field_id: JFieldID = Desc::<JFieldID>::lookup((&class, &field, "J"), &mut env)?;
+        let guard = self.lock_obj(obj)?;
+        Ok((guard, field_id))
+    }
+
     /// Surrenders ownership of a Rust value to Java.
     ///
     /// This requires an object with a `long` field to store the pointer.
@@ -2810,6 +2839,9 @@ impl<'local> JNIEnv<'local> {
     ///
     /// # Safety
     ///
+    /// This will lead to undefined behaviour if the the specified field
+    /// doesn't have a type of `long`.
+    ///
     /// It's important to note that using this API will leak memory if
     /// [`Self::take_rust_field`] is never called so that the Rust type may be
     /// dropped.
@@ -2823,9 +2855,8 @@ impl<'local> JNIEnv<'local> {
     /// taken and dropped multiple times from Rust. If you need to copy an
     /// object with one of these fields then the field should be zero
     /// initialized in the copy.
-    #[allow(unused_variables)]
     pub unsafe fn set_rust_field<'other_local, O, S, T>(
-        &mut self,
+        &self,
         obj: O,
         field: S,
         rust_object: T,
@@ -2835,26 +2866,31 @@ impl<'local> JNIEnv<'local> {
         S: AsRef<str>,
         T: Send + 'static,
     {
-        let obj = obj.as_ref();
-        let class = self.get_object_class(obj)?;
-        let class = self.auto_local(class);
-        let field_id: JFieldID = Desc::<JFieldID>::lookup((&class, &field, "J"), self)?;
+        let (_guard, field_id) = self.lock_rust_field(&obj, &field)?;
 
-        let guard = self.lock_obj(obj)?;
+        // Safety: Since we know we are dealing with a `jlong` field and since
+        // we have already looked up the field ID then we also know that
+        // get_field_unchecked and set_field_unchecked don't need to create any
+        // local references.
+        let mut env = unsafe { self.unsafe_clone() };
 
-        // Check to see if we've already set this value. If it's not null, that
-        // means that we're going to leak memory if it gets overwritten.
-        let field_ptr = self
-            .get_field_unchecked(obj, field_id, ReturnType::Primitive(Primitive::Long))?
-            .j()? as *mut Mutex<T>;
-        if !field_ptr.is_null() {
-            return Err(Error::FieldAlreadySet(field.as_ref().to_owned()));
+        // Safety: the requirement that the given field must be a `long` is
+        // documented in the 'Safety' section of this function
+        unsafe {
+            let field_ptr = env
+                .get_field_unchecked(&obj, field_id, ReturnType::Primitive(Primitive::Long))?
+                .j()? as *mut Mutex<T>;
+            if !field_ptr.is_null() {
+                return Err(Error::FieldAlreadySet(field.as_ref().to_owned()));
+            }
         }
 
         let mbox = Box::new(::std::sync::Mutex::new(rust_object));
         let ptr: *mut Mutex<T> = Box::into_raw(mbox);
 
-        self.set_field_unchecked(obj, field_id, (ptr as crate::sys::jlong).into())
+        // Safety: the requirement that the given field must be a `long` is
+        // documented in the 'Safety' section of this function
+        unsafe { env.set_field_unchecked(obj, field_id, (ptr as crate::sys::jlong).into()) }
     }
 
     /// Gets a lock on a Rust value that's been given to a Java object.
@@ -2869,25 +2905,39 @@ impl<'local> JNIEnv<'local> {
     ///
     /// # Safety
     ///
-    /// Checks for a null pointer, but assumes that the data it points to is valid for T.
-    #[allow(unused_variables)]
+    /// This will lead to undefined behaviour if the the specified field
+    /// doesn't have a type of `long`.
+    ///
+    /// If the field contains a non-zero value then it is assumed to be a valid
+    /// pointer that was set via `set_rust_field` and will lead to undefined
+    /// behaviour if that is not true.
     pub unsafe fn get_rust_field<'other_local, O, S, T>(
-        &mut self,
+        &self,
         obj: O,
         field: S,
     ) -> Result<MutexGuard<T>>
     where
         O: AsRef<JObject<'other_local>>,
-        S: Into<JNIString>,
+        S: AsRef<str>,
         T: Send + 'static,
     {
-        let obj = obj.as_ref();
-        let guard = self.lock_obj(obj)?;
+        let (_guard, field_id) = self.lock_rust_field(&obj, &field)?;
 
-        let ptr = self.get_field(obj, field, "J")?.j()? as *mut Mutex<T>;
-        let ptr = null_check!(ptr, "rust value from Java")?;
-        // dereferencing is safe, because we checked it for null
-        Ok((*ptr).lock().unwrap())
+        // Safety: Since we know we are dealing with a `jlong` field and since
+        // we have already looked up the field ID then we also know that
+        // get_field_unchecked doesn't need to create any local references.
+        let mut env = self.unsafe_clone();
+
+        // Safety: the requirement that the given field must be a `long` is
+        // documented in the 'Safety' section of this function
+        unsafe {
+            let field_ptr = env
+                .get_field_unchecked(obj, field_id, ReturnType::Primitive(Primitive::Long))?
+                .j()? as *mut Mutex<T>;
+            null_check!(field_ptr, "rust value from Java")?;
+            // dereferencing is safe, because we checked it for null
+            Ok((*field_ptr).lock().unwrap())
+        }
     }
 
     /// Take a Rust field back from Java.
@@ -2898,44 +2948,47 @@ impl<'local> JNIEnv<'local> {
     ///
     /// # Safety
     ///
-    /// This will make sure that the pointer is non-null, but still assumes that
-    /// the data it points to is valid for T.
-    #[allow(unused_variables)]
-    pub unsafe fn take_rust_field<'other_local, O, S, T>(&mut self, obj: O, field: S) -> Result<T>
+    /// This will lead to undefined behaviour if the the specified field
+    /// doesn't have a type of `long`.
+    ///
+    /// If the field contains a non-zero value then it is assumed to be a valid
+    /// pointer that was set via `set_rust_field` and will lead to undefined
+    /// behaviour if that is not true.
+    pub unsafe fn take_rust_field<'other_local, O, S, T>(&self, obj: O, field: S) -> Result<T>
     where
         O: AsRef<JObject<'other_local>>,
         S: AsRef<str>,
         T: Send + 'static,
     {
-        let obj = obj.as_ref();
-        let class = self.get_object_class(obj)?;
-        let class = self.auto_local(class);
-        let field_id: JFieldID = Desc::<JFieldID>::lookup((&class, &field, "J"), self)?;
+        let (_guard, field_id) = self.lock_rust_field(&obj, &field)?;
 
-        let mbox = {
-            let guard = self.lock_obj(obj)?;
+        // Safety: Since we know we are dealing with a `jlong` field and since
+        // we have already looked up the field ID then we also know that
+        // get_field_unchecked and set_field_unchecked don't need to create any
+        // local references.
+        let mut env = self.unsafe_clone();
 
-            let ptr = self
-                .get_field_unchecked(obj, field_id, ReturnType::Primitive(Primitive::Long))?
+        // Safety: the requirement that the given field must be a `long` is
+        // documented in the 'Safety' section of this function
+        let mbox = unsafe {
+            let ptr = env
+                .get_field_unchecked(&obj, field_id, ReturnType::Primitive(Primitive::Long))?
                 .j()? as *mut Mutex<T>;
 
-            let ptr = null_check!(ptr, "rust value from Java")?;
-
-            let mbox = Box::from_raw(ptr);
-
-            // attempt to acquire the lock. This prevents us from consuming the
-            // mutex if there's an outstanding lock. No one else will be able to
-            // get a new one as long as we're in the guarded scope.
-            drop(mbox.try_lock()?);
-
-            self.set_field_unchecked(
-                obj,
-                field_id,
-                (::std::ptr::null_mut::<()>() as sys::jlong).into(),
-            )?;
-
-            mbox
+            null_check!(ptr, "rust value from Java")?;
+            Box::from_raw(ptr)
         };
+
+        // attempt to acquire the lock. This prevents us from consuming the
+        // mutex if there's an outstanding lock. No one else will be able to
+        // get a new one as long as we're in the guarded scope.
+        drop(mbox.try_lock()?);
+
+        // Safety: the requirement that the given field must be a `long` is
+        // documented in the 'Safety' section of this function
+        unsafe {
+            env.set_field_unchecked(obj, field_id, (0 as sys::jlong).into())?;
+        }
 
         Ok(mbox.into_inner().unwrap())
     }
