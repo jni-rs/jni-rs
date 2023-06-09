@@ -80,7 +80,7 @@ impl GlobalRef {
 impl GlobalRefGuard {
     /// Creates a new global reference guard. This assumes that `NewGlobalRef`
     /// has already been called.
-    unsafe fn from_raw(vm: JavaVM, obj: sys::jobject) -> Self {
+    const unsafe fn from_raw(vm: JavaVM, obj: sys::jobject) -> Self {
         GlobalRefGuard {
             obj: JObject::from_raw(obj),
             vm,

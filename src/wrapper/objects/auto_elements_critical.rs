@@ -69,7 +69,7 @@ impl<'local, 'other_local, 'array, 'env, T: TypeArray>
     }
 
     /// Get a reference to the wrapped pointer
-    pub fn as_ptr(&self) -> *mut T {
+    pub const fn as_ptr(&self) -> *mut T {
         self.ptr.as_ptr()
     }
 
