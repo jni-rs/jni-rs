@@ -2489,9 +2489,9 @@ impl<'local> JNIEnv<'local> {
     /// Get a field without checking the provided type against the actual field.
     ///
     /// # Safety
-    /// The field must have the specified type
-    ///
-    pub fn get_field_unchecked<'other_local, O, T>(
+    /// There will be undefined behaviour if the return type `ty` doesn't match
+    /// the type for the given `field`
+    pub unsafe fn get_field_unchecked<'other_local, O, T>(
         &mut self,
         obj: O,
         field: T,
@@ -2543,7 +2543,11 @@ impl<'local> JNIEnv<'local> {
     }
 
     /// Set a field without any type checking.
-    pub fn set_field_unchecked<'other_local, O, T>(
+    ///
+    /// # Safety
+    /// There will be undefined behaviour if the `val` type doesn't match
+    /// the type for the given `field`
+    pub unsafe fn set_field_unchecked<'other_local, O, T>(
         &mut self,
         obj: O,
         field: T,
@@ -2606,7 +2610,9 @@ impl<'local> JNIEnv<'local> {
 
         let field_id: JFieldID = Desc::<JFieldID>::lookup((&class, name, ty), self)?;
 
-        self.get_field_unchecked(obj, field_id, parsed)
+        // Safety: Since we have explicitly looked up the field ID based on the given
+        // return type we have already validate that they match
+        unsafe { self.get_field_unchecked(obj, field_id, parsed) }
     }
 
     /// Set a field. Does the same lookups as `get_field` and ensures that the
@@ -2641,7 +2647,9 @@ impl<'local> JNIEnv<'local> {
                 let class = self.get_object_class(obj)?;
                 let class = self.auto_local(class);
 
-                self.set_field_unchecked(obj, (&class, name, ty), val)
+                // Safety: We have explicitly checked that the field type matches
+                // the value type
+                unsafe { self.set_field_unchecked(obj, (&class, name, ty), val) }
             }
         }
     }
