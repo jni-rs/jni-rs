@@ -1275,7 +1275,7 @@ impl<'local> JNIEnv<'local> {
 
         Ok(ret)
     }
-    
+
     /// Call an non-virtual object method in an unsafe manner. This does nothing to check
     /// whether the method is valid to call on the object, whether the return
     /// type is correct, or whether the number of args is valid for the method.
@@ -1295,10 +1295,10 @@ impl<'local> JNIEnv<'local> {
         ret_ty: ReturnType,
         args: &[jvalue],
     ) -> Result<JValueOwned<'local>>
-        where
-            O: AsRef<JObject<'other_local>>,
-            T: Desc<'local, JClass<'other_local>>,
-            U: Desc<'local, JMethodID>,
+    where
+        O: AsRef<JObject<'other_local>>,
+        T: Desc<'local, JClass<'other_local>>,
+        U: Desc<'local, JMethodID>,
     {
         use super::signature::Primitive::{
             Boolean, Byte, Char, Double, Float, Int, Long, Short, Void,
@@ -1315,7 +1315,8 @@ impl<'local> JNIEnv<'local> {
 
         macro_rules! invoke {
             ($call:ident -> $ret:ty) => {{
-                let o: $ret = jni_non_void_call!(self.internal, $call, obj, class_raw, method_id, jni_args);
+                let o: $ret =
+                    jni_non_void_call!(self.internal, $call, obj, class_raw, method_id, jni_args);
                 o
             }};
         }
@@ -1335,7 +1336,14 @@ impl<'local> JNIEnv<'local> {
             Primitive(Float) => invoke!(CallNonvirtualFloatMethodA -> f32).into(),
             Primitive(Double) => invoke!(CallNonvirtualDoubleMethodA -> f64).into(),
             Primitive(Void) => {
-                jni_void_call!(self.internal, CallNonvirtualVoidMethodA, obj, class_raw, method_id, jni_args);
+                jni_void_call!(
+                    self.internal,
+                    CallNonvirtualVoidMethodA,
+                    obj,
+                    class_raw,
+                    method_id,
+                    jni_args
+                );
                 JValueOwned::Void
             }
         };
@@ -1480,11 +1488,11 @@ impl<'local> JNIEnv<'local> {
         sig: V,
         args: &[JValue],
     ) -> Result<JValueOwned<'local>>
-        where
-            O: AsRef<JObject<'other_local>>,
-            T: Desc<'local, JClass<'other_local>>,
-            U: Into<JNIString>,
-            V: Into<JNIString> + AsRef<str>,
+    where
+        O: AsRef<JObject<'other_local>>,
+        T: Desc<'local, JClass<'other_local>>,
+        U: Into<JNIString>,
+        V: Into<JNIString> + AsRef<str>,
     {
         let obj = obj.as_ref();
         non_null!(obj, "call_method obj argument");
@@ -1519,9 +1527,11 @@ impl<'local> JNIEnv<'local> {
         // SAFETY: We've obtained the method_id above, so it is valid for this class.
         // We've also validated the argument counts and types using the same type signature
         // we fetched the original method ID from.
-        unsafe { self.call_nonvirtual_method_unchecked(obj, class, (class, name, sig), parsed.ret, &args) }
+        unsafe {
+            self.call_nonvirtual_method_unchecked(obj, class, (class, name, sig), parsed.ret, &args)
+        }
     }
-    
+
     /// Create a new object using a constructor. This is done safely using
     /// checks similar to those in `call_static_method`.
     pub fn new_object<'other_local, T, U>(
