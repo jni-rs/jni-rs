@@ -92,7 +92,7 @@ impl<'local, 'other_local: 'obj_ref, 'obj_ref> JavaStr<'local, 'other_local, 'ob
     /// The string will be `NULL` terminated and encoded as
     /// [Modified UTF-8](https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8) /
     /// [CESU-8](https://en.wikipedia.org/wiki/CESU-8).
-    pub fn get_raw(&self) -> *const c_char {
+    pub const fn get_raw(&self) -> *const c_char {
         self.internal
     }
 

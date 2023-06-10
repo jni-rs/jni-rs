@@ -70,12 +70,12 @@ impl<'local> JObjectArray<'local> {
     /// * There must not be any other `JObject` representing the same local reference.
     /// * The lifetime `'local` must not outlive the local reference frame that the local reference
     ///   was created in.
-    pub unsafe fn from_raw(raw: jobjectArray) -> Self {
+    pub const unsafe fn from_raw(raw: jobjectArray) -> Self {
         Self(JObject::from_raw(raw as jobject))
     }
 
     /// Unwrap to the raw jni type.
-    pub fn into_raw(self) -> jobjectArray {
+    pub const fn into_raw(self) -> jobjectArray {
         self.0.into_raw() as jobjectArray
     }
 }

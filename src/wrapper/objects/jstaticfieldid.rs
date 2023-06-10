@@ -36,13 +36,12 @@ impl JStaticFieldID {
     /// # Safety
     ///
     /// Expects a valid, non-`null` ID
-    pub unsafe fn from_raw(raw: jfieldID) -> Self {
-        debug_assert!(!raw.is_null(), "from_raw fieldID argument");
+    pub const unsafe fn from_raw(raw: jfieldID) -> Self {
         Self { internal: raw }
     }
 
     /// Unwrap to the internal jni type.
-    pub fn into_raw(self) -> jfieldID {
+    pub const fn into_raw(self) -> jfieldID {
         self.internal
     }
 }

@@ -36,13 +36,12 @@ impl JStaticMethodID {
     /// # Safety
     ///
     /// Expects a valid, non-`null` ID
-    pub unsafe fn from_raw(raw: jmethodID) -> Self {
-        debug_assert!(!raw.is_null(), "from_raw methodID argument");
+    pub const unsafe fn from_raw(raw: jmethodID) -> Self {
         Self { internal: raw }
     }
 
     /// Unwrap to the internal jni type.
-    pub fn into_raw(self) -> jmethodID {
+    pub const fn into_raw(self) -> jmethodID {
         self.internal
     }
 }

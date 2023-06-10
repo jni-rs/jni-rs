@@ -70,7 +70,7 @@ impl<'local> JObject<'local> {
     /// * There must not be any other `JObject` representing the same local reference.
     /// * The lifetime `'local` must not outlive the local reference frame that the local reference
     ///   was created in.
-    pub unsafe fn from_raw(raw: jobject) -> Self {
+    pub const unsafe fn from_raw(raw: jobject) -> Self {
         Self {
             internal: raw,
             lifetime: PhantomData,
@@ -78,12 +78,12 @@ impl<'local> JObject<'local> {
     }
 
     /// Returns the raw JNI pointer.
-    pub fn as_raw(&self) -> jobject {
+    pub const fn as_raw(&self) -> jobject {
         self.internal
     }
 
     /// Unwrap to the internal jni type.
-    pub fn into_raw(self) -> jobject {
+    pub const fn into_raw(self) -> jobject {
         self.internal
     }
 
@@ -91,7 +91,7 @@ impl<'local> JObject<'local> {
     ///
     /// Null references are always valid and do not belong to a local reference frame. Therefore,
     /// the returned `JObject` always has the `'static` lifetime.
-    pub fn null() -> JObject<'static> {
+    pub const fn null() -> JObject<'static> {
         unsafe { JObject::from_raw(std::ptr::null_mut() as jobject) }
     }
 }

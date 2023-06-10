@@ -57,12 +57,12 @@ impl<'local> JByteBuffer<'local> {
     /// # Safety
     /// No runtime check is made to verify that the given [`jobject`] is an instance of
     /// a `ByteBuffer`.
-    pub unsafe fn from_raw(raw: jobject) -> Self {
+    pub const unsafe fn from_raw(raw: jobject) -> Self {
         Self(JObject::from_raw(raw as jobject))
     }
 
     /// Unwrap to the raw jni type.
-    pub fn into_raw(self) -> jobject {
+    pub const fn into_raw(self) -> jobject {
         self.0.into_raw() as jobject
     }
 }
