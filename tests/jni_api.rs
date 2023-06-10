@@ -1000,6 +1000,43 @@ fn auto_local_null() {
 }
 
 #[test]
+fn test_call_nonvirtual_method() {
+    let mut env = attach_current_thread();
+    let a_string = JObject::from(env.new_string("test").unwrap());
+    let another_string = JObject::from(env.new_string("test").unwrap());
+
+    // The `equals` method in java/lang/Object will compare the reference
+    let obj_class = env.find_class("java/lang/Object").unwrap();
+    let object_result = env
+        .call_nonvirtual_method(
+            &a_string,
+            &obj_class,
+            "equals",
+            "(Ljava/lang/Object;)Z",
+            &[JValue::from(&another_string)],
+        )
+        .unwrap()
+        .z()
+        .unwrap();
+    assert!(!object_result);
+
+    // However, java/lang/String overrided it and it now compares the content.
+    let string_class = env.find_class("java/lang/String").unwrap();
+    let string_result = env
+        .call_nonvirtual_method(
+            &a_string,
+            &string_class,
+            "equals",
+            "(Ljava/lang/Object;)Z",
+            &[JValue::from(&another_string)],
+        )
+        .unwrap()
+        .z()
+        .unwrap();
+    assert!(string_result)
+}
+
+#[test]
 fn short_lifetime_with_local_frame() {
     let mut env = attach_current_thread();
     let object = short_lifetime_with_local_frame_sub_fn(&mut env);
