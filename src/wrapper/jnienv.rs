@@ -1276,6 +1276,81 @@ impl<'local> JNIEnv<'local> {
         Ok(ret)
     }
 
+    /// Call an non-virtual object method in an unsafe manner. This does nothing to check
+    /// whether the method is valid to call on the object, whether the return
+    /// type is correct, or whether the number of args is valid for the method.
+    ///
+    /// Under the hood, this simply calls the `CallNonvirtual<Type>MethodA` method with
+    /// the provided arguments.
+    ///
+    /// # Safety
+    ///
+    /// The provided JClass, JMethodID must be valid, and match the types and number of arguments, and return type.
+    /// If these are incorrect, the JVM may crash. The JMethodID must also match the passed type.
+    pub unsafe fn call_nonvirtual_method_unchecked<'other_local, O, T, U>(
+        &mut self,
+        obj: O,
+        class: T,
+        method_id: U,
+        ret_ty: ReturnType,
+        args: &[jvalue],
+    ) -> Result<JValueOwned<'local>>
+    where
+        O: AsRef<JObject<'other_local>>,
+        T: Desc<'local, JClass<'other_local>>,
+        U: Desc<'local, JMethodID>,
+    {
+        use super::signature::Primitive::{
+            Boolean, Byte, Char, Double, Float, Int, Long, Short, Void,
+        };
+        use ReturnType::{Array, Object, Primitive};
+
+        let method_id = method_id.lookup(self)?.as_ref().into_raw();
+        let class = class.lookup(self)?;
+
+        let obj = obj.as_ref().as_raw();
+        let class_raw = class.as_ref().as_raw();
+
+        let jni_args = args.as_ptr();
+
+        macro_rules! invoke {
+            ($call:ident -> $ret:ty) => {{
+                let o: $ret =
+                    jni_non_void_call!(self.internal, $call, obj, class_raw, method_id, jni_args);
+                o
+            }};
+        }
+
+        let ret = match ret_ty {
+            Object | Array => {
+                let obj = invoke!(CallNonvirtualObjectMethodA -> jobject);
+                let obj = unsafe { JObject::from_raw(obj) };
+                JValueOwned::from(obj)
+            }
+            Primitive(Boolean) => JValueOwned::from(invoke!(CallNonvirtualBooleanMethodA -> u8)),
+            Primitive(Char) => invoke!(CallNonvirtualCharMethodA -> u16).into(),
+            Primitive(Byte) => invoke!(CallNonvirtualByteMethodA -> i8).into(),
+            Primitive(Short) => invoke!(CallNonvirtualShortMethodA -> i16).into(),
+            Primitive(Int) => invoke!(CallNonvirtualIntMethodA -> i32).into(),
+            Primitive(Long) => invoke!(CallNonvirtualLongMethodA -> i64).into(),
+            Primitive(Float) => invoke!(CallNonvirtualFloatMethodA -> f32).into(),
+            Primitive(Double) => invoke!(CallNonvirtualDoubleMethodA -> f64).into(),
+            Primitive(Void) => {
+                jni_void_call!(
+                    self.internal,
+                    CallNonvirtualVoidMethodA,
+                    obj,
+                    class_raw,
+                    method_id,
+                    jni_args
+                );
+                JValueOwned::Void
+            }
+        };
+
+        Ok(ret)
+    }
+
     /// Calls an object method safely. This comes with a number of
     /// lookups/checks. It
     ///
@@ -1344,7 +1419,7 @@ impl<'local> JNIEnv<'local> {
     /// * Looks up the JMethodID for the class/name/signature combination
     /// * Ensures that the number/types of args matches the signature
     ///   * Cannot check an object's type - but primitive types are matched against each other (including Object)
-    /// * Calls `call_method_unchecked` with the verified safe arguments.
+    /// * Calls `call_static_method_unchecked` with the verified safe arguments.
     ///
     /// Note: this may cause a Java exception if the arguments are the wrong
     /// type, in addition to if the method itself throws.
@@ -1391,6 +1466,70 @@ impl<'local> JNIEnv<'local> {
         // We've also validated the argument counts and types using the same type signature
         // we fetched the original method ID from.
         unsafe { self.call_static_method_unchecked(class, (class, name, sig), parsed.ret, &args) }
+    }
+
+    /// Calls a non-virtual method safely. This comes with a number of
+    /// lookups/checks. It
+    ///
+    /// * Parses the type signature to find the number of arguments and return
+    ///   type
+    /// * Looks up the JMethodID for the class/name/signature combination
+    /// * Ensures that the number/types of args matches the signature
+    ///   * Cannot check an object's type - but primitive types are matched against each other (including Object)
+    /// * Calls `call_nonvirtual_method_unchecked` with the verified safe arguments.
+    ///
+    /// Note: this may cause a Java exception if the arguments are the wrong
+    /// type, in addition to if the method itself throws.
+    pub fn call_nonvirtual_method<'other_local, O, T, U, V>(
+        &mut self,
+        obj: O,
+        class: T,
+        name: U,
+        sig: V,
+        args: &[JValue],
+    ) -> Result<JValueOwned<'local>>
+    where
+        O: AsRef<JObject<'other_local>>,
+        T: Desc<'local, JClass<'other_local>>,
+        U: Into<JNIString>,
+        V: Into<JNIString> + AsRef<str>,
+    {
+        let obj = obj.as_ref();
+        non_null!(obj, "call_method obj argument");
+
+        let parsed = TypeSignature::from_str(&sig)?;
+        if parsed.args.len() != args.len() {
+            return Err(Error::InvalidArgList(parsed));
+        }
+
+        // check arguments types
+        let base_types_match = parsed
+            .args
+            .iter()
+            .zip(args.iter())
+            .all(|(exp, act)| match exp {
+                JavaType::Primitive(p) => act.primitive_type() == Some(*p),
+                JavaType::Object(_) | JavaType::Array(_) => act.primitive_type().is_none(),
+                JavaType::Method(_) => {
+                    unreachable!("JavaType::Method(_) should not come from parsing a method sig")
+                }
+            });
+        if !base_types_match {
+            return Err(Error::InvalidArgList(parsed));
+        }
+
+        // go ahead and look up the class since we'll need that for the next call.
+        let class = class.lookup(self)?;
+        let class = class.as_ref();
+
+        let args: Vec<jvalue> = args.iter().map(|v| v.as_jni()).collect();
+
+        // SAFETY: We've obtained the method_id above, so it is valid for this class.
+        // We've also validated the argument counts and types using the same type signature
+        // we fetched the original method ID from.
+        unsafe {
+            self.call_nonvirtual_method_unchecked(obj, class, (class, name, sig), parsed.ret, &args)
+        }
     }
 
     /// Create a new object using a constructor. This is done safely using
