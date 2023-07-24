@@ -79,7 +79,7 @@ use {
 /// // Build the VM properties
 /// let jvm_args = InitArgsBuilder::new()
 ///           // Pass the JNI API version (default is 8)
-///           .version(JNIVersion::V8)
+///           .version(JNIVersion::V1_8)
 ///           // You can additionally pass any JVM options (standard, like a system property,
 ///           // or VM-specific).
 ///           // Here we enable some extra JNI checks useful during development
@@ -135,7 +135,7 @@ use {
 /// [spec-references]: https://docs.oracle.com/en/java/javase/12/docs/specs/jni/design.html#referencing-java-objects
 /// [java-locator]: https://crates.io/crates/java-locator
 #[repr(transparent)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct JavaVM(*mut sys::JavaVM);
 
 unsafe impl Send for JavaVM {}
@@ -226,7 +226,7 @@ impl JavaVM {
         ))?;
 
         let vm = Self::from_raw(ptr)?;
-        java_vm_unchecked!(vm.0, DetachCurrentThread);
+        java_vm_call_unchecked!(vm, v1_1, DetachCurrentThread);
 
         Ok(vm)
     }
@@ -235,12 +235,15 @@ impl JavaVM {
     ///
     /// # Safety
     ///
-    /// Expects a valid pointer retrieved from the `JNI_CreateJavaVM` JNI function. Only does null check.
+    /// Expects a valid, non-null JavaVM pointer that supports JNI version >= 1.4.
+    ///
+    /// Only does a `null` check.
     pub unsafe fn from_raw(ptr: *mut sys::JavaVM) -> Result<Self> {
-        non_null!(ptr, "from_raw ptr argument");
+        let ptr = null_check!(ptr, "from_raw ptr argument")?;
         Ok(JavaVM(ptr))
     }
 
+    // TODO: rename this `.get_raw()` for consistency with `JNIEnv::get_raw()`
     /// Returns underlying `sys::JavaVM` interface.
     pub fn get_java_vm_pointer(&self) -> *mut sys::JavaVM {
         self.0
@@ -349,7 +352,7 @@ impl JavaVM {
     pub fn get_env(&self) -> Result<JNIEnv> {
         let mut ptr = ptr::null_mut();
         unsafe {
-            let res = java_vm_unchecked!(self.0, GetEnv, &mut ptr, sys::JNI_VERSION_1_1);
+            let res = java_vm_call_unchecked!(self, v1_2, GetEnv, &mut ptr, sys::JNI_VERSION_1_2);
             jni_error_code_to_result(res)?;
 
             JNIEnv::from_raw(ptr as *mut sys::JNIEnv)
@@ -358,7 +361,7 @@ impl JavaVM {
 
     /// Creates `InternalAttachGuard` and attaches current thread.
     fn attach_current_thread_impl(&self, thread_type: ThreadType) -> Result<JNIEnv> {
-        let guard = InternalAttachGuard::new(self.get_java_vm_pointer());
+        let guard = InternalAttachGuard::new(self.clone());
         let env_ptr = unsafe {
             if thread_type == ThreadType::Daemon {
                 guard.attach_current_thread_as_daemon()?
@@ -452,7 +455,7 @@ impl JavaVM {
     /// `JavaVM` before `destroy()` returns.
     pub unsafe fn destroy(&self) -> Result<()> {
         unsafe {
-            let res = java_vm_unchecked!(self.0, DestroyJavaVM);
+            let res = java_vm_call_unchecked!(self, v1_1, DestroyJavaVM);
             jni_error_code_to_result(res)
         }
     }
@@ -521,7 +524,7 @@ enum ThreadType {
 
 #[derive(Debug)]
 struct InternalAttachGuard {
-    java_vm: *mut sys::JavaVM,
+    java_vm: JavaVM,
     /// A call std::thread::current() function can panic in case the local data has been destroyed
     /// before the thead local variables. The possibility of this happening depends on the platform
     /// implementation of the crate::sys_common::thread_local_dtor::register_dtor_fallback.
@@ -531,7 +534,7 @@ struct InternalAttachGuard {
 }
 
 impl InternalAttachGuard {
-    fn new(java_vm: *mut sys::JavaVM) -> Self {
+    fn new(java_vm: JavaVM) -> Self {
         Self {
             java_vm,
             thread: current(),
@@ -555,8 +558,9 @@ impl InternalAttachGuard {
 
     unsafe fn attach_current_thread(&self) -> Result<*mut sys::JNIEnv> {
         let mut env_ptr = ptr::null_mut();
-        let res = java_vm_unchecked!(
+        let res = java_vm_call_unchecked!(
             self.java_vm,
+            v1_1,
             AttachCurrentThread,
             &mut env_ptr,
             ptr::null_mut()
@@ -575,10 +579,14 @@ impl InternalAttachGuard {
         Ok(env_ptr as *mut sys::JNIEnv)
     }
 
+    // TODO: remove this API: https://github.com/jni-rs/jni-rs/issues/469
+    // This API is also awkward because we don't currently have a way
+    // to know that the implementation supports JNI >= 1.4
     unsafe fn attach_current_thread_as_daemon(&self) -> Result<*mut sys::JNIEnv> {
         let mut env_ptr = ptr::null_mut();
-        let res = java_vm_unchecked!(
+        let res = java_vm_call_unchecked!(
             self.java_vm,
+            v1_4,
             AttachCurrentThreadAsDaemon,
             &mut env_ptr,
             ptr::null_mut()
@@ -599,7 +607,7 @@ impl InternalAttachGuard {
 
     fn detach(&mut self) -> Result<()> {
         unsafe {
-            java_vm_unchecked!(self.java_vm, DetachCurrentThread);
+            java_vm_call_unchecked!(self.java_vm, v1_1, DetachCurrentThread);
         }
         ATTACHED_THREADS.fetch_sub(1, Ordering::SeqCst);
         debug!(

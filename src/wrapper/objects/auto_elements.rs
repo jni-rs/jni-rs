@@ -64,15 +64,10 @@ mod type_array_sealed {
                     array: jarray,
                     is_copy: &mut jboolean,
                 ) -> Result<*mut Self> {
-                    let internal = env.get_native_interface();
-                    // Even though this method may throw OoME, use `jni_unchecked`
-                    // instead of `jni_non_null_call` to remove (a slight) overhead
-                    // of exception checking. An error will still be detected as a `null`
-                    // result inside AutoElements ctor. Also, modern Hotspot in case of lack
-                    // of memory will return null and won't throw an exception:
-                    // https://sourcegraph.com/github.com/openjdk/jdk/-/blob/src/hotspot/share/memory/allocation.hpp#L488-489
-                    let res = jni_unchecked!(internal, $jni_get, array, is_copy);
-                    Ok(res)
+                    // There are no documented exceptions for Get<Primitive>ArrayElements() but
+                    // they may return `NULL`.
+                    let ptr = jni_call_only_check_null_ret!(env, v1_1, $jni_get, array, is_copy)?;
+                    Ok(ptr as _)
                 }
 
                 /// Release Java $jni_type array
@@ -82,8 +77,8 @@ mod type_array_sealed {
                     ptr: NonNull<Self>,
                     mode: i32,
                 ) -> Result<()> {
-                    let internal = env.get_native_interface();
-                    jni_unchecked!(internal, $jni_release, array, ptr.as_ptr(), mode as i32);
+                    // There are no documented exceptions for Release<Primitive>ArrayElements()
+                    jni_call_unchecked!(env, v1_1, $jni_release, array, ptr.as_ptr(), mode as i32);
                     Ok(())
                 }
             }
@@ -145,7 +140,7 @@ impl<'local, 'other_local, 'array, T: TypeArray> AutoElements<'local, 'other_loc
         // implementations are required to uphold the invariants of `unsafe_clone`.
         let mut env = unsafe { env.unsafe_clone() };
 
-        let mut is_copy: jboolean = 0xff;
+        let mut is_copy: jboolean = true;
         let ptr = unsafe { T::get(&mut env, array.as_raw(), &mut is_copy) }?;
         Ok(AutoElements {
             array,

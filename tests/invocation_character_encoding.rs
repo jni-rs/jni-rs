@@ -7,7 +7,7 @@ use jni::{objects::JString, InitArgsBuilder, JavaVM};
 #[test]
 fn invocation_character_encoding() {
     let jvm_args = InitArgsBuilder::new()
-        .version(jni::JNIVersion::V8)
+        .version(jni::JNIVersion::V1_8)
         .option("-Xcheck:jni")
         // U+00A0 NO-BREAK SPACE is the only non-ASCII character that's present in all parts of
         // ISO 8859. This minimizes the chance of this test failing as a result of the character

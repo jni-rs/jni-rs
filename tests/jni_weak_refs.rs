@@ -129,10 +129,7 @@ fn weak_ref_is_actually_weak() {
                 );
 
                 assert!(!obj_local_from_weak.is_null());
-                assert!(unwrap(
-                    env.is_same_object(&obj_local_from_weak, &obj_local),
-                    &env,
-                ));
+                assert!(env.is_same_object(&obj_local_from_weak, &obj_local));
             }
 
             {
@@ -140,24 +137,18 @@ fn weak_ref_is_actually_weak() {
                     .expect("object shouldn't have been GC'd yet");
 
                 assert!(!obj_global_from_weak.is_null());
-                assert!(unwrap(
-                    env.is_same_object(&obj_global_from_weak, &obj_local),
-                    &env,
-                ));
+                assert!(env.is_same_object(&obj_global_from_weak, &obj_local));
             }
 
-            assert!(unwrap(obj_weak.is_same_object(&env, &obj_local), &env));
+            assert!(obj_weak.is_same_object(&env, &obj_local));
 
             assert!(
-                !unwrap(obj_weak.is_garbage_collected(&env), &env),
+                !obj_weak.is_garbage_collected(&env),
                 "`is_garbage_collected` returned incorrect value"
             );
         }
 
-        assert!(unwrap(
-            obj_weak.is_weak_ref_to_same_object(&env, &obj_weak2),
-            &env,
-        ));
+        assert!(obj_weak.is_weak_ref_to_same_object(&env, &obj_weak2));
 
         drop(obj_local);
         run_gc(&mut env);
@@ -182,14 +173,11 @@ fn weak_ref_is_actually_weak() {
             }
 
             assert!(
-                unwrap(obj_weak.is_garbage_collected(&env), &env),
+                obj_weak.is_garbage_collected(&env),
                 "`is_garbage_collected` returned incorrect value"
             );
         }
 
-        assert!(unwrap(
-            obj_weak.is_weak_ref_to_same_object(&env, &obj_weak2),
-            &env,
-        ));
+        assert!(obj_weak.is_weak_ref_to_same_object(&env, &obj_weak2));
     }
 }

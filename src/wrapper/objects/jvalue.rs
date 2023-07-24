@@ -381,19 +381,6 @@ impl<'local> TryFrom<JValueOwned<'local>> for JObject<'local> {
     }
 }
 
-impl<'local> From<bool> for JValueOwned<'local> {
-    fn from(other: bool) -> Self {
-        Self::Bool(if other { JNI_TRUE } else { JNI_FALSE })
-    }
-}
-
-impl<'obj_ref> From<bool> for JValue<'obj_ref> {
-    fn from(other: bool) -> Self {
-        Self::Bool(if other { JNI_TRUE } else { JNI_FALSE })
-    }
-}
-
-// jbool
 impl<'local> From<jboolean> for JValueOwned<'local> {
     fn from(other: jboolean) -> Self {
         Self::Bool(other)

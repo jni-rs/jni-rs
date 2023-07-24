@@ -66,6 +66,9 @@ pub enum Error {
         #[source]
         source: CharTryFromError,
     },
+
+    #[error("This Java virtual machine is too old; at least Java 1.4 is required")]
+    UnsupportedVersion,
 }
 
 #[derive(Debug, Error)]

@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD022 MD024 MD032  -->
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -14,6 +16,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - Security in case of vulnerabilities. -->
 
 ## [Unreleased]
+### Changed
+- `jni-sys` dependency dumped to `0.4` ([#478](https://github.com/jni-rs/jni-rs/issues/478)
+- `JNIEnv::get_version` has been renamed to `JNIEnv::version` ([#478](https://github.com/jni-rs/jni-rs/issues/478)
+- `JNIEnv::from_raw` now explicitly checks that the JNI version is `>= 1.4` since the crate needs to be able to assume `>= 1.2` so it can check for exceptions and assume `>= 1.4` to avoid runtime checks for direct byte buffers ([#478](https://github.com/jni-rs/jni-rs/issues/478)
+- The following functions are now infallible ([#478](https://github.com/jni-rs/jni-rs/issues/478):
+  - `JNIEnv::version`
+  - `JNIEnv::exception_check`
+  - `JNIEnv::exception_clear`
+  - `JNIEnv::exception_describe`
+  - `JNIEnv::is_same_object`
+  - `JNIEnv::delete_local_ref`
+  - `WeakRef::is_same_object`
+  - `WeakRef::is_weak_ref_to_same_object`
+  - `WeakRef::is_garbage_collected`
 
 ### Added
 - New functions for converting Rust `char` to and from Java `char` and `int` ([#427](https://github.com/jni-rs/jni-rs/issues/427) / [#434](https://github.com/jni-rs/jni-rs/pull/434))

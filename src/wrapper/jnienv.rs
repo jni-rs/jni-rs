@@ -1,4 +1,5 @@
 use std::{
+    convert::TryInto,
     marker::PhantomData,
     os::raw::{c_char, c_void},
     ptr, str,
@@ -7,7 +8,6 @@ use std::{
 };
 
 use jni_sys::jobject;
-use log::warn;
 
 use crate::{
     descriptors::Desc,
@@ -20,7 +20,7 @@ use crate::{
     signature::{JavaType, Primitive, TypeSignature},
     strings::{JNIString, JavaStr},
     sys::{
-        self, jarray, jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jshort, jsize, jvalue,
+        self, jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jshort, jsize, jvalue,
         JNINativeMethod,
     },
     JNIVersion, JavaVM,
@@ -195,26 +195,65 @@ use crate::{objects::AsJArrayRaw, signature::ReturnType};
 #[repr(transparent)]
 #[derive(Debug)]
 pub struct JNIEnv<'local> {
+    /// A non-null JNIEnv pointer
     internal: *mut sys::JNIEnv,
     lifetime: PhantomData<&'local ()>,
 }
 
 impl<'local> JNIEnv<'local> {
+    /// Returns an `UnsupportedVersion` error if the current JNI version is
+    /// lower than the one given.
+    #[allow(unused)]
+    fn ensure_version(&self, version: JNIVersion) -> Result<()> {
+        if self.version() < version {
+            Err(Error::UnsupportedVersion)
+        } else {
+            Ok(())
+        }
+    }
+
     /// Create a JNIEnv from a raw pointer.
+    ///
+    /// This does a null check, and checks that the JNI version is >= 1.4
     ///
     /// # Safety
     ///
-    /// Expects a valid pointer retrieved from the `GetEnv` JNI function or [Self::get_raw] function. Only does a null check.
+    /// Expects a valid pointer retrieved from the `GetEnv` JNI function or [Self::get_raw] function.
     pub unsafe fn from_raw(ptr: *mut sys::JNIEnv) -> Result<Self> {
-        non_null!(ptr, "from_raw ptr argument");
-        Ok(JNIEnv {
+        let ptr = null_check!(ptr, "from_raw ptr argument")?;
+        let env = JNIEnv {
             internal: ptr,
             lifetime: PhantomData,
-        })
+        };
+        if env.version() < JNIVersion::V1_4 {
+            Err(Error::UnsupportedVersion)
+        } else {
+            Ok(env)
+        }
+    }
+
+    /// Create a JNIEnv from a raw pointer.
+    ///
+    /// Doesn't check for `null` or check the JNI version
+    ///
+    /// # Safety
+    ///
+    /// Expects a valid, non-null pointer retrieved from the `GetEnv` JNI function or [`Self::get_raw`] function.
+    /// Requires a JNI version >= 1.4
+    pub unsafe fn from_raw_unchecked(ptr: *mut sys::JNIEnv) -> Self {
+        JNIEnv {
+            internal: ptr,
+            lifetime: PhantomData,
+        }
     }
 
     /// Get the raw JNIEnv pointer
     pub fn get_raw(&self) -> *mut sys::JNIEnv {
+        self.internal
+    }
+
+    /// Returns underlying `sys::JNIEnv` interface.
+    pub fn get_native_interface(&self) -> *mut sys::JNIEnv {
         self.internal
     }
 
@@ -238,9 +277,10 @@ impl<'local> JNIEnv<'local> {
         }
     }
 
-    /// Get the java version that we're being executed from.
-    pub fn get_version(&self) -> Result<JNIVersion> {
-        Ok(jni_unchecked!(self.internal, GetVersion).into())
+    /// Get the JNI version that this [`JNIEnv`] supports.
+    pub fn version(&self) -> JNIVersion {
+        // Safety: GetVersion is 1.1 API that must be valid
+        JNIVersion::from(unsafe { jni_call_unchecked!(self, v1_1, GetVersion) })
     }
 
     /// Load a class from a buffer of raw class data. The name of the class must match the name
@@ -271,15 +311,22 @@ impl<'local> JNIEnv<'local> {
         loader: &JObject,
         buf: &[u8],
     ) -> Result<JClass<'local>> {
-        let class = jni_non_null_call!(
-            self.internal,
-            DefineClass,
-            name,
-            loader.as_raw(),
-            buf.as_ptr() as *const jbyte,
-            buf.len() as jsize
-        );
-        Ok(unsafe { JClass::from_raw(class) })
+        // Safety:
+        // DefineClass is 1.1 API that must be valid
+        // It is valid to potentially pass a `null` `name` to `DefineClass`, since the
+        // name can bre read from the bytecode.
+        unsafe {
+            jni_call_check_ex_and_null_ret!(
+                self,
+                v1_1,
+                DefineClass,
+                name,
+                loader.as_raw(),
+                buf.as_ptr() as *const jbyte,
+                buf.len() as jsize
+            )
+            .map(|class| JClass::from_raw(class))
+        }
     }
 
     /// Load a class from a buffer of raw class data. The name of the class must match the name
@@ -294,15 +341,22 @@ impl<'local> JNIEnv<'local> {
         S: Into<JNIString>,
     {
         let name = name.into();
-        let class = jni_non_null_call!(
-            self.internal,
-            DefineClass,
-            name.as_ptr(),
-            loader.as_raw(),
-            buf.as_ptr(),
-            buf.len() as _
-        );
-        Ok(unsafe { JClass::from_raw(class) })
+        // Safety:
+        // DefineClass is 1.1 API that must be valid
+        // It is valid to potentially pass a `null` `name` to `DefineClass`, since the
+        // name can bre read from the bytecode.
+        unsafe {
+            jni_call_check_ex_and_null_ret!(
+                self,
+                v1_1,
+                DefineClass,
+                name.as_ptr(),
+                loader.as_raw(),
+                buf.as_ptr(),
+                buf.len() as _
+            )
+            .map(|class| JClass::from_raw(class))
+        }
     }
 
     /// Look up a class by name.
@@ -321,8 +375,13 @@ impl<'local> JNIEnv<'local> {
         S: Into<JNIString>,
     {
         let name = name.into();
-        let class = jni_non_null_call!(self.internal, FindClass, name.as_ptr());
-        Ok(unsafe { JClass::from_raw(class) })
+        // Safety:
+        // FindClass is 1.1 API that must be valid
+        // name is non-null
+        unsafe {
+            jni_call_check_ex_and_null_ret!(self, v1_1, FindClass, name.as_ptr())
+                .map(|class| JClass::from_raw(class))
+        }
     }
 
     /// Returns the superclass for a particular class. Returns None for `java.lang.Object` or
@@ -337,8 +396,9 @@ impl<'local> JNIEnv<'local> {
     {
         let class = class.lookup(self)?;
         let superclass = unsafe {
-            JClass::from_raw(jni_unchecked!(
-                self.internal,
+            JClass::from_raw(jni_call_unchecked!(
+                self,
+                v1_1,
                 GetSuperclass,
                 class.as_ref().as_raw()
             ))
@@ -358,13 +418,22 @@ impl<'local> JNIEnv<'local> {
         U: Desc<'local, JClass<'other_local_2>>,
     {
         let class1 = class1.lookup(self)?;
+        let class1 = null_check!(class1.as_ref(), "is_assignable_from class1")?;
         let class2 = class2.lookup(self)?;
-        Ok(jni_unchecked!(
-            self.internal,
-            IsAssignableFrom,
-            class1.as_ref().as_raw(),
-            class2.as_ref().as_raw()
-        ) == sys::JNI_TRUE)
+        let class2 = null_check!(class2.as_ref(), "is_assignable_from class2")?;
+
+        // Safety:
+        // - IsAssignableFrom is 1.1 API that must be valid
+        // - We make sure class1 and class2 can't be null
+        unsafe {
+            Ok(jni_call_unchecked!(
+                self,
+                v1_1,
+                IsAssignableFrom,
+                class1.as_raw(), // MUST not be null
+                class2.as_raw()  // MUST not be null
+            ))
+        }
     }
 
     /// Returns true if the object reference can be cast to the given type.
@@ -384,31 +453,41 @@ impl<'local> JNIEnv<'local> {
         T: Desc<'local, JClass<'other_local_2>>,
     {
         let class = class.lookup(self)?;
-        Ok(jni_unchecked!(
-            self.internal,
-            IsInstanceOf,
-            object.as_ref().as_raw(),
-            class.as_ref().as_raw()
-        ) == sys::JNI_TRUE)
+        let class = null_check!(class.as_ref(), "is_instance_of class")?;
+
+        // Safety:
+        // - IsInstanceOf is 1.1 API that must be valid
+        // - We make sure class can't be null
+        unsafe {
+            Ok(jni_call_unchecked!(
+                self,
+                v1_1,
+                IsInstanceOf,
+                object.as_ref().as_raw(), // may be null
+                class.as_raw()            // MUST not be null
+            ))
+        }
     }
 
     /// Returns true if ref1 and ref2 refer to the same Java object, or are both `NULL`. Otherwise,
     /// returns false.
-    pub fn is_same_object<'other_local_1, 'other_local_2, O, T>(
-        &self,
-        ref1: O,
-        ref2: T,
-    ) -> Result<bool>
+    pub fn is_same_object<'other_local_1, 'other_local_2, O, T>(&self, ref1: O, ref2: T) -> bool
     where
         O: AsRef<JObject<'other_local_1>>,
         T: AsRef<JObject<'other_local_2>>,
     {
-        Ok(jni_unchecked!(
-            self.internal,
-            IsSameObject,
-            ref1.as_ref().as_raw(),
-            ref2.as_ref().as_raw()
-        ) == sys::JNI_TRUE)
+        // Safety:
+        // - IsSameObject is 1.1 API that must be valid
+        // - the spec allows either object reference to be `null`
+        unsafe {
+            jni_call_unchecked!(
+                self,
+                v1_1,
+                IsSameObject,
+                ref1.as_ref().as_raw(), // may be null
+                ref2.as_ref().as_raw()  // may be null
+            )
+        }
     }
 
     /// Raise an exception from an existing object. This will continue being
@@ -439,7 +518,14 @@ impl<'local> JNIEnv<'local> {
         E: Desc<'local, JThrowable<'other_local>>,
     {
         let throwable = obj.lookup(self)?;
-        let res: i32 = jni_unchecked!(self.internal, Throw, throwable.as_ref().as_raw());
+
+        // Safety:
+        // Throw is 1.1 API that must be valid
+        //
+        // We are careful to ensure that we don't drop the reference
+        // to `throwable` after converting to a raw pointer.
+        let res: i32 =
+            unsafe { jni_call_unchecked!(self, v1_1, Throw, throwable.as_ref().as_raw()) };
 
         // Ensure that `throwable` isn't dropped before the JNI call returns.
         drop(throwable);
@@ -470,15 +556,19 @@ impl<'local> JNIEnv<'local> {
     {
         let class = class.lookup(self)?;
         let msg = msg.into();
-        let res: i32 = jni_unchecked!(
-            self.internal,
-            ThrowNew,
-            class.as_ref().as_raw(),
-            msg.as_ptr()
-        );
 
-        // Ensure that `class` isn't dropped before the JNI call returns.
+        // Safety:
+        // ThrowNew is 1.1 API that must be valid
+        //
+        // We are careful to ensure that we don't drop the reference
+        // to `class` or `msg` after converting to raw pointers.
+        let res: i32 = unsafe {
+            jni_call_unchecked!(self, v1_1, ThrowNew, class.as_ref().as_raw(), msg.as_ptr())
+        };
+
+        // Ensure that `class` and msg aren't dropped before the JNI call returns.
         drop(class);
+        drop(msg);
 
         if res == 0 {
             Ok(())
@@ -487,46 +577,54 @@ impl<'local> JNIEnv<'local> {
         }
     }
 
+    /// Returns true if an exception is currently in the process of being thrown.
+    ///
+    /// This doesn't need to create any local references
+    #[inline]
+    pub fn exception_check(&self) -> bool {
+        // Safety: ExceptionCheck is 1.2 API, which we check for in `from_raw()`
+        unsafe { jni_call_unchecked!(self, v1_2, ExceptionCheck) }
+    }
+
     /// Check whether or not an exception is currently in the process of being
-    /// thrown. An exception is in this state from the time it gets thrown and
+    /// thrown.
+    ///
+    /// An exception is in this state from the time it gets thrown and
     /// not caught in a java function until `exception_clear` is called.
     pub fn exception_occurred(&mut self) -> Result<JThrowable<'local>> {
-        let throwable = jni_unchecked!(self.internal, ExceptionOccurred);
+        let throwable = unsafe { jni_call_unchecked!(self, v1_1, ExceptionOccurred) };
         Ok(unsafe { JThrowable::from_raw(throwable) })
     }
 
     /// Print exception information to the console.
-    pub fn exception_describe(&self) -> Result<()> {
-        jni_unchecked!(self.internal, ExceptionDescribe);
-        Ok(())
+    pub fn exception_describe(&self) {
+        // Safety: ExceptionDescribe is 1.1 API that must be valid
+        unsafe { jni_call_unchecked!(self, v1_1, ExceptionDescribe) };
     }
 
     /// Clear an exception in the process of being thrown. If this is never
     /// called, the exception will continue being thrown when control is
     /// returned to java.
-    pub fn exception_clear(&self) -> Result<()> {
-        jni_unchecked!(self.internal, ExceptionClear);
-        Ok(())
+    pub fn exception_clear(&self) {
+        // Safety: ExceptionClear is 1.1 API that must be valid
+        unsafe { jni_call_unchecked!(self, v1_1, ExceptionClear) };
     }
 
     /// Abort the JVM with an error message.
     #[allow(unused_variables, unreachable_code)]
     pub fn fatal_error<S: Into<JNIString>>(&self, msg: S) -> ! {
         let msg = msg.into();
-        let res: Result<()> = catch!({
-            jni_unchecked!(self.internal, FatalError, msg.as_ptr());
-            unreachable!()
-        });
 
-        panic!("{:?}", res.unwrap_err());
-    }
-
-    /// Check to see if an exception is being thrown. This only differs from
-    /// `exception_occurred` in that it doesn't return the actual thrown
-    /// exception.
-    pub fn exception_check(&self) -> Result<bool> {
-        let check = jni_unchecked!(self.internal, ExceptionCheck) == sys::JNI_TRUE;
-        Ok(check)
+        // Safety: FatalError is 1.1 API that must be valid
+        //
+        // Very little is specified about the implementation of FatalError but we still
+        // currently consider this "safe", similar to how `abort()` is considered safe.
+        // It won't give the application an opportunity to clean or save state but the
+        // process will be terminated.
+        unsafe {
+            jni_call_unchecked!(self, v1_1, FatalError, msg.as_ptr());
+            unreachable!();
+        }
     }
 
     /// Create a new instance of a direct java.nio.ByteBuffer
@@ -558,23 +656,34 @@ impl<'local> JNIEnv<'local> {
         data: *mut u8,
         len: usize,
     ) -> Result<JByteBuffer<'local>> {
-        non_null!(data, "new_direct_byte_buffer data argument");
-        let obj = jni_non_null_call!(
-            self.internal,
+        let data = null_check!(data, "new_direct_byte_buffer data argument")?;
+        // Safety: jni-rs requires JNI >= 1.4 and this is checked in `from_raw`
+        let obj = jni_call_check_ex_and_null_ret!(
+            self,
+            v1_4,
             NewDirectByteBuffer,
             data as *mut c_void,
             len as jlong
-        );
+        )?;
         Ok(JByteBuffer::from_raw(obj))
     }
 
     /// Returns the starting address of the memory of the direct
     /// java.nio.ByteBuffer.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure the lifetime of `buf` extends to all uses of the
+    /// returned pointer.
     pub fn get_direct_buffer_address(&self, buf: &JByteBuffer) -> Result<*mut u8> {
-        non_null!(buf, "get_direct_buffer_address argument");
-        let ptr = jni_unchecked!(self.internal, GetDirectBufferAddress, buf.as_raw());
-        non_null!(ptr, "get_direct_buffer_address return value");
-        Ok(ptr as _)
+        let buf = null_check!(buf, "get_direct_buffer_address argument")?;
+        // Safety: jni-rs requires JNI >= 1.4 and this is checked in `from_raw`
+        unsafe {
+            // GetDirectBufferAddress has no documented exceptions that it can throw
+            let ptr =
+                jni_call_only_check_null_ret!(self, v1_4, GetDirectBufferAddress, buf.as_raw())?;
+            Ok(ptr as _)
+        }
     }
 
     /// Returns the capacity (length) of the direct java.nio.ByteBuffer.
@@ -587,11 +696,14 @@ impl<'local> JNIEnv<'local> {
     ///
     /// The terminology is simply kept from the original JNI API (`GetDirectBufferCapacity`).
     pub fn get_direct_buffer_capacity(&self, buf: &JByteBuffer) -> Result<usize> {
-        non_null!(buf, "get_direct_buffer_capacity argument");
-        let capacity = jni_unchecked!(self.internal, GetDirectBufferCapacity, buf.as_raw());
-        match capacity {
-            -1 => Err(Error::JniCall(JniError::Unknown)),
-            _ => Ok(capacity as usize),
+        let buf = null_check!(buf, "get_direct_buffer_capacity argument")?;
+        // Safety: jni-rs requires JNI >= 1.4 and this is checked in `from_raw`
+        unsafe {
+            let capacity = jni_call_unchecked!(self, v1_4, GetDirectBufferCapacity, buf.as_raw());
+            match capacity {
+                -1 => Err(Error::JniCall(JniError::Unknown)),
+                _ => Ok(capacity as usize),
+            }
         }
     }
 
@@ -603,9 +715,11 @@ impl<'local> JNIEnv<'local> {
         O: AsRef<JObject<'other_local>>,
     {
         let jvm = self.get_java_vm()?;
-        let new_ref = jni_unchecked!(self.internal, NewGlobalRef, obj.as_ref().as_raw());
-        let global = unsafe { GlobalRef::from_raw(jvm, new_ref) };
-        Ok(global)
+        unsafe {
+            let new_ref = jni_call_unchecked!(self, v1_1, NewGlobalRef, obj.as_ref().as_raw());
+            let global = GlobalRef::from_raw(jvm, new_ref);
+            Ok(global)
+        }
     }
 
     /// Creates a new [weak global reference][WeakRef].
@@ -633,17 +747,20 @@ impl<'local> JNIEnv<'local> {
             return Ok(None);
         }
 
-        let weak: sys::jweak = jni_non_void_call!(self.internal, NewWeakGlobalRef, obj);
+        unsafe {
+            // Safety: jni-rs requires JNI_VERSION > 1.2
+            let weak: sys::jweak = jni_call_check_ex!(self, v1_2, NewWeakGlobalRef, obj)?;
 
-        // Check if the pointer returned by `NewWeakGlobalRef` is null. This can happen if `obj` is
-        // itself a weak reference that was already garbage collected.
-        if weak.is_null() {
-            return Ok(None);
+            // Check if the pointer returned by `NewWeakGlobalRef` is null. This can happen if `obj` is
+            // itself a weak reference that was already garbage collected.
+            if weak.is_null() {
+                return Ok(None);
+            }
+
+            let weak = WeakRef::from_raw(vm, weak);
+
+            Ok(Some(weak))
         }
-
-        let weak = unsafe { WeakRef::from_raw(vm, weak) };
-
-        Ok(Some(weak))
     }
 
     /// Create a new local reference to an object.
@@ -744,8 +861,30 @@ impl<'local> JNIEnv<'local> {
     where
         O: AsRef<JObject<'other_local>>,
     {
-        let local = jni_unchecked!(self.internal, NewLocalRef, obj.as_ref().as_raw());
-        Ok(unsafe { JObject::from_raw(local) })
+        let obj = obj.as_ref();
+
+        // By checking for `null` before calling `NewLocalRef` we can recognise
+        // that a `null` returned from `NewLocalRef` is from being out of memory.
+        if obj.is_null() {
+            return Ok(JObject::null());
+        }
+
+        // Safety: we check the JNI version is > 1.2 in `from_raw`
+        let local = unsafe {
+            JObject::from_raw(jni_call_unchecked!(self, v1_2, NewLocalRef, obj.as_raw()))
+        };
+
+        // Since we know we didn't pass a `null` `obj` reference to `NewLocalRef` then
+        // a `null` implies an out-of-memory error.
+        //
+        // (We assume it's not a `null` from failing to upgrade a weak reference because
+        //  that would be done via `WeakRef::upgrade_local`)
+        //
+        if local.is_null() {
+            return Err(Error::JniCall(JniError::NoMemory));
+        }
+
+        Ok(local)
     }
 
     /// Creates a new auto-deleted local reference.
@@ -764,18 +903,13 @@ impl<'local> JNIEnv<'local> {
     /// Deletes the local reference.
     ///
     /// Local references are valid for the duration of a native method call.
-    /// They are
-    /// freed automatically after the native method returns. Each local
-    /// reference costs
-    /// some amount of Java Virtual Machine resource. Programmers need to make
-    /// sure that
-    /// native methods do not excessively allocate local references. Although
-    /// local
-    /// references are automatically freed after the native method returns to
-    /// Java,
-    /// excessive allocation of local references may cause the VM to run out of
-    /// memory
-    /// during the execution of a native method.
+    /// They are freed automatically after the native method returns. Each local
+    /// reference costs some amount of Java Virtual Machine resource.
+    /// Programmers need to make sure that native methods do not excessively
+    /// allocate local references. Although local references are automatically
+    /// freed after the native method returns to Java, excessive allocation of
+    /// local references may cause the VM to run out of memory during the
+    /// execution of a native method.
     ///
     /// In most cases it is better to use `AutoLocal` (see `auto_local` method)
     /// or `with_local_frame` instead of direct `delete_local_ref` calls.
@@ -784,13 +918,17 @@ impl<'local> JNIEnv<'local> {
     /// `&mut JObject`) instead of the local reference itself (such as
     /// `JObject`). In this case, the local reference will still exist after
     /// this method returns, but it will be null.
-    pub fn delete_local_ref<'other_local, O>(&self, obj: O) -> Result<()>
+    pub fn delete_local_ref<'other_local, O>(&self, obj: O)
     where
         O: Into<JObject<'other_local>>,
     {
-        let raw = obj.into().into_raw();
-        jni_unchecked!(self.internal, DeleteLocalRef, raw);
-        Ok(())
+        let obj = obj.into();
+        let raw = obj.into_raw();
+
+        // Safety: `raw` may be `null`
+        unsafe {
+            jni_call_unchecked!(self, v1_1, DeleteLocalRef, raw);
+        }
     }
 
     /// Creates a new local reference frame, in which at least a given number
@@ -805,8 +943,10 @@ impl<'local> JNIEnv<'local> {
     /// See also [`auto_local`](struct.JNIEnv.html#method.auto_local) method
     /// and `AutoLocal` type — that approach can be more convenient in loops.
     pub fn push_local_frame(&self, capacity: i32) -> Result<()> {
+        // Safety:
         // This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
-        let res = jni_unchecked!(self.internal, PushLocalFrame, capacity);
+        // We check for JNI > 1.2 in `from_raw`
+        let res = unsafe { jni_call_unchecked!(self, v1_2, PushLocalFrame, capacity) };
         jni_error_code_to_result(res)
     }
 
@@ -826,9 +966,12 @@ impl<'local> JNIEnv<'local> {
     /// [`JNIEnv::push_local_frame`] (or the underlying JNI function) must not
     /// be used after calling this method.
     pub unsafe fn pop_local_frame(&self, result: &JObject) -> Result<JObject<'local>> {
+        // Safety:
         // This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
-        Ok(JObject::from_raw(jni_unchecked!(
-            self.internal,
+        // We check for JNI > 1.2 in `from_raw`
+        Ok(JObject::from_raw(jni_call_unchecked!(
+            self,
+            v1_2,
             PopLocalFrame,
             result.as_raw()
         )))
@@ -901,7 +1044,9 @@ impl<'local> JNIEnv<'local> {
         T: Desc<'local, JClass<'other_local>>,
     {
         let class = class.lookup(self)?;
-        let obj = jni_non_null_call!(self.internal, AllocObject, class.as_ref().as_raw());
+        let obj = unsafe {
+            jni_call_check_ex_and_null_ret!(self, v1_1, AllocObject, class.as_ref().as_raw())?
+        };
 
         // Ensure that `class` isn't dropped before the JNI call returns.
         drop(class);
@@ -933,7 +1078,7 @@ impl<'local> JNIEnv<'local> {
         let ffi_name = name.into();
         let sig = sig.into();
 
-        let res: Result<R> = catch!({ get_method(self, class.as_ref(), &ffi_name, &sig) });
+        let res: Result<R> = get_method(self, class.as_ref(), &ffi_name, &sig);
 
         match res {
             Ok(m) => Ok(m),
@@ -972,15 +1117,16 @@ impl<'local> JNIEnv<'local> {
         U: Into<JNIString>,
         V: Into<JNIString>,
     {
-        self.get_method_id_base(class, name, sig, |env, class, name, sig| {
-            let method_id = jni_non_null_call!(
-                env.internal,
+        self.get_method_id_base(class, name, sig, |env, class, name, sig| unsafe {
+            jni_call_check_ex_and_null_ret!(
+                env,
+                v1_1,
                 GetMethodID,
                 class.as_raw(),
                 name.as_ptr(),
                 sig.as_ptr()
-            );
-            Ok(unsafe { JMethodID::from_raw(method_id) })
+            )
+            .map(|method_id| JMethodID::from_raw(method_id))
         })
     }
 
@@ -1008,15 +1154,16 @@ impl<'local> JNIEnv<'local> {
         U: Into<JNIString>,
         V: Into<JNIString>,
     {
-        self.get_method_id_base(class, name, sig, |env, class, name, sig| {
-            let method_id = jni_non_null_call!(
-                env.internal,
+        self.get_method_id_base(class, name, sig, |env, class, name, sig| unsafe {
+            jni_call_check_ex_and_null_ret!(
+                env,
+                v1_1,
                 GetStaticMethodID,
                 class.as_raw(),
                 name.as_ptr(),
                 sig.as_ptr()
-            );
-            Ok(unsafe { JStaticMethodID::from_raw(method_id) })
+            )
+            .map(|method_id| JStaticMethodID::from_raw(method_id))
         })
     }
 
@@ -1046,16 +1193,17 @@ impl<'local> JNIEnv<'local> {
         let ffi_name = name.into();
         let ffi_sig = sig.into();
 
-        let res: Result<JFieldID> = catch!({
-            let field_id = jni_non_null_call!(
-                self.internal,
+        let res = unsafe {
+            jni_call_check_ex_and_null_ret!(
+                self,
+                v1_1,
                 GetFieldID,
                 class.as_ref().as_raw(),
                 ffi_name.as_ptr(),
                 ffi_sig.as_ptr()
-            );
-            Ok(unsafe { JFieldID::from_raw(field_id) })
-        });
+            )
+            .map(|field_id| JFieldID::from_raw(field_id))
+        };
 
         match res {
             Ok(m) => Ok(m),
@@ -1096,16 +1244,17 @@ impl<'local> JNIEnv<'local> {
         let ffi_name = name.into();
         let ffi_sig = sig.into();
 
-        let res: Result<JStaticFieldID> = catch!({
-            let field_id = jni_non_null_call!(
-                self.internal,
+        let res = unsafe {
+            jni_call_check_ex_and_null_ret!(
+                self,
+                v1_1,
                 GetStaticFieldID,
                 class.as_ref().as_raw(),
                 ffi_name.as_ptr(),
                 ffi_sig.as_ptr()
-            );
-            Ok(unsafe { JStaticFieldID::from_raw(field_id) })
-        });
+            )
+            .map(|field_id| JStaticFieldID::from_raw(field_id))
+        };
 
         // Ensure that `class` isn't dropped before the JNI call returns.
         drop(class);
@@ -1129,10 +1278,11 @@ impl<'local> JNIEnv<'local> {
         O: AsRef<JObject<'other_local>>,
     {
         let obj = obj.as_ref();
-        non_null!(obj, "get_object_class");
+        let obj = null_check!(obj, "get_object_class")?;
         unsafe {
-            Ok(JClass::from_raw(jni_unchecked!(
-                self.internal,
+            Ok(JClass::from_raw(jni_call_unchecked!(
+                self,
+                v1_1,
                 GetObjectClass,
                 obj.as_raw()
             )))
@@ -1176,7 +1326,7 @@ impl<'local> JNIEnv<'local> {
         macro_rules! invoke {
             ($call:ident -> $ret:ty) => {{
                 let o: $ret =
-                    jni_non_void_call!(self.internal, $call, class_raw, method_id, jni_args);
+                    jni_call_check_ex!(self, v1_1, $call, class_raw, method_id, jni_args)?;
                 o
             }};
         }
@@ -1187,7 +1337,7 @@ impl<'local> JNIEnv<'local> {
                 let obj = unsafe { JObject::from_raw(obj) };
                 JValueOwned::from(obj)
             }
-            Primitive(Boolean) => invoke!(CallStaticBooleanMethodA -> u8).into(),
+            Primitive(Boolean) => invoke!(CallStaticBooleanMethodA -> bool).into(),
             Primitive(Char) => invoke!(CallStaticCharMethodA -> u16).into(),
             Primitive(Byte) => invoke!(CallStaticByteMethodA -> i8).into(),
             Primitive(Short) => invoke!(CallStaticShortMethodA -> i16).into(),
@@ -1196,13 +1346,14 @@ impl<'local> JNIEnv<'local> {
             Primitive(Float) => invoke!(CallStaticFloatMethodA -> f32).into(),
             Primitive(Double) => invoke!(CallStaticDoubleMethodA -> f64).into(),
             Primitive(Void) => {
-                jni_void_call!(
-                    self.internal,
+                jni_call_check_ex!(
+                    self,
+                    v1_1,
                     CallStaticVoidMethodA,
                     class_raw,
                     method_id,
                     jni_args
-                );
+                )?;
                 JValueOwned::Void
             }
         };
@@ -1248,7 +1399,7 @@ impl<'local> JNIEnv<'local> {
 
         macro_rules! invoke {
             ($call:ident -> $ret:ty) => {{
-                let o: $ret = jni_non_void_call!(self.internal, $call, obj, method_id, jni_args);
+                let o: $ret = jni_call_check_ex!(self, v1_1, $call, obj, method_id, jni_args)?;
                 o
             }};
         }
@@ -1259,7 +1410,7 @@ impl<'local> JNIEnv<'local> {
                 let obj = unsafe { JObject::from_raw(obj) };
                 JValueOwned::from(obj)
             }
-            Primitive(Boolean) => JValueOwned::from(invoke!(CallBooleanMethodA -> u8)),
+            Primitive(Boolean) => invoke!(CallBooleanMethodA -> bool).into(),
             Primitive(Char) => invoke!(CallCharMethodA -> u16).into(),
             Primitive(Byte) => invoke!(CallByteMethodA -> i8).into(),
             Primitive(Short) => invoke!(CallShortMethodA -> i16).into(),
@@ -1268,7 +1419,7 @@ impl<'local> JNIEnv<'local> {
             Primitive(Float) => invoke!(CallFloatMethodA -> f32).into(),
             Primitive(Double) => invoke!(CallDoubleMethodA -> f64).into(),
             Primitive(Void) => {
-                jni_void_call!(self.internal, CallVoidMethodA, obj, method_id, jni_args);
+                jni_call_check_ex!(self, v1_1, CallVoidMethodA, obj, method_id, jni_args)?;
                 JValueOwned::Void
             }
         };
@@ -1316,7 +1467,7 @@ impl<'local> JNIEnv<'local> {
         macro_rules! invoke {
             ($call:ident -> $ret:ty) => {{
                 let o: $ret =
-                    jni_non_void_call!(self.internal, $call, obj, class_raw, method_id, jni_args);
+                    jni_call_check_ex!(self, v1_1, $call, obj, class_raw, method_id, jni_args)?;
                 o
             }};
         }
@@ -1327,7 +1478,7 @@ impl<'local> JNIEnv<'local> {
                 let obj = unsafe { JObject::from_raw(obj) };
                 JValueOwned::from(obj)
             }
-            Primitive(Boolean) => JValueOwned::from(invoke!(CallNonvirtualBooleanMethodA -> u8)),
+            Primitive(Boolean) => invoke!(CallNonvirtualBooleanMethodA -> bool).into(),
             Primitive(Char) => invoke!(CallNonvirtualCharMethodA -> u16).into(),
             Primitive(Byte) => invoke!(CallNonvirtualByteMethodA -> i8).into(),
             Primitive(Short) => invoke!(CallNonvirtualShortMethodA -> i16).into(),
@@ -1336,14 +1487,15 @@ impl<'local> JNIEnv<'local> {
             Primitive(Float) => invoke!(CallNonvirtualFloatMethodA -> f32).into(),
             Primitive(Double) => invoke!(CallNonvirtualDoubleMethodA -> f64).into(),
             Primitive(Void) => {
-                jni_void_call!(
-                    self.internal,
+                jni_call_check_ex!(
+                    self,
+                    v1_1,
                     CallNonvirtualVoidMethodA,
                     obj,
                     class_raw,
                     method_id,
                     jni_args
-                );
+                )?;
                 JValueOwned::Void
             }
         };
@@ -1377,7 +1529,7 @@ impl<'local> JNIEnv<'local> {
         T: Into<JNIString> + AsRef<str>,
     {
         let obj = obj.as_ref();
-        non_null!(obj, "call_method obj argument");
+        let obj = null_check!(obj, "call_method obj argument")?;
 
         // parse the signature
         let parsed = TypeSignature::from_str(sig.as_ref())?;
@@ -1495,7 +1647,7 @@ impl<'local> JNIEnv<'local> {
         V: Into<JNIString> + AsRef<str>,
     {
         let obj = obj.as_ref();
-        non_null!(obj, "call_method obj argument");
+        let obj = null_check!(obj, "call_method obj argument")?;
 
         let parsed = TypeSignature::from_str(&sig)?;
         if parsed.args.len() != args.len() {
@@ -1608,18 +1760,22 @@ impl<'local> JNIEnv<'local> {
 
         let jni_args = ctor_args.as_ptr();
 
-        let obj = jni_non_null_call!(
-            self.internal,
-            NewObjectA,
-            class.as_ref().as_raw(),
-            ctor_id.into_raw(),
-            jni_args
-        );
+        let obj = unsafe {
+            jni_call_check_ex_and_null_ret!(
+                self,
+                v1_1,
+                NewObjectA,
+                class.as_ref().as_raw(),
+                ctor_id.into_raw(),
+                jni_args
+            )
+            .map(|obj| JObject::from_raw(obj))
+        }?;
 
         // Ensure that `class` isn't dropped before the JNI call returns.
         drop(class);
 
-        Ok(unsafe { JObject::from_raw(obj) })
+        Ok(obj)
     }
 
     /// Cast a JObject to a `JList`. This won't throw exceptions or return errors
@@ -1632,7 +1788,7 @@ impl<'local> JNIEnv<'local> {
     where
         'other_local_1: 'obj_ref,
     {
-        non_null!(obj, "get_list obj argument");
+        let obj = null_check!(obj, "get_list obj argument")?;
         JList::from_env(self, obj)
     }
 
@@ -1646,7 +1802,7 @@ impl<'local> JNIEnv<'local> {
     where
         'other_local_1: 'obj_ref,
     {
-        non_null!(obj, "get_map obj argument");
+        let obj = null_check!(obj, "get_map obj argument")?;
         JMap::from_env(self, obj)
     }
 
@@ -1673,7 +1829,7 @@ impl<'local> JNIEnv<'local> {
         &self,
         obj: &'obj_ref JString<'other_local>,
     ) -> Result<JavaStr<'local, 'other_local, 'obj_ref>> {
-        non_null!(obj, "get_string obj argument");
+        let obj = null_check!(obj, "get_string obj argument")?;
         JavaStr::from_env(self, obj)
     }
 
@@ -1718,8 +1874,10 @@ impl<'local> JNIEnv<'local> {
     /// format.
     pub fn new_string<S: Into<JNIString>>(&self, from: S) -> Result<JString<'local>> {
         let ffi_str = from.into();
-        let s = jni_non_null_call!(self.internal, NewStringUTF, ffi_str.as_ptr());
-        Ok(unsafe { JString::from_raw(s) })
+        unsafe {
+            jni_call_check_ex_and_null_ret!(self, v1_1, NewStringUTF, ffi_str.as_ptr())
+                .map(|s| JString::from_raw(s))
+        }
     }
 
     /// Get the length of a [`JPrimitiveArray`] or [`JObjectArray`].
@@ -1727,8 +1885,8 @@ impl<'local> JNIEnv<'local> {
         &self,
         array: &'array impl AsJArrayRaw<'other_local>,
     ) -> Result<jsize> {
-        non_null!(array.as_jarray_raw(), "get_array_length array argument");
-        let len: jsize = jni_unchecked!(self.internal, GetArrayLength, array.as_jarray_raw());
+        let array = null_check!(array.as_jarray_raw(), "get_array_length array argument")?;
+        let len: jsize = unsafe { jni_call_unchecked!(self, v1_1, GetArrayLength, array) };
         Ok(len)
     }
 
@@ -1752,15 +1910,17 @@ impl<'local> JNIEnv<'local> {
     {
         let class = element_class.lookup(self)?;
 
-        let array: jarray = jni_non_null_call!(
-            self.internal,
-            NewObjectArray,
-            length,
-            class.as_ref().as_raw(),
-            initial_element.as_ref().as_raw()
-        );
-
-        let array = unsafe { JObjectArray::from_raw(array) };
+        let array = unsafe {
+            jni_call_check_ex_and_null_ret!(
+                self,
+                v1_1,
+                NewObjectArray,
+                length,
+                class.as_ref().as_raw(),
+                initial_element.as_ref().as_raw()
+            )
+            .map(|array| JObjectArray::from_raw(array))?
+        };
 
         // Ensure that `class` isn't dropped before the JNI call returns.
         drop(class);
@@ -1774,15 +1934,11 @@ impl<'local> JNIEnv<'local> {
         array: impl AsRef<JObjectArray<'other_local>>,
         index: jsize,
     ) -> Result<JObject<'local>> {
-        non_null!(array.as_ref(), "get_object_array_element array argument");
-        Ok(unsafe {
-            JObject::from_raw(jni_non_void_call!(
-                self.internal,
-                GetObjectArrayElement,
-                array.as_ref().as_raw(),
-                index
-            ))
-        })
+        let array = null_check!(array.as_ref(), "get_object_array_element array argument")?;
+        unsafe {
+            jni_call_check_ex!(self, v1_1, GetObjectArrayElement, array.as_raw(), index)
+                .map(|obj| JObject::from_raw(obj))
+        }
     }
 
     /// Sets an element of the [`JObjectArray`] `array`.
@@ -1792,14 +1948,17 @@ impl<'local> JNIEnv<'local> {
         index: jsize,
         value: impl AsRef<JObject<'other_local_2>>,
     ) -> Result<()> {
-        non_null!(array.as_ref(), "set_object_array_element array argument");
-        jni_void_call!(
-            self.internal,
-            SetObjectArrayElement,
-            array.as_ref().as_raw(),
-            index,
-            value.as_ref().as_raw()
-        );
+        let array = null_check!(array.as_ref(), "set_object_array_element array argument")?;
+        unsafe {
+            jni_call_check_ex!(
+                self,
+                v1_1,
+                SetObjectArrayElement,
+                array.as_raw(),
+                index,
+                value.as_ref().as_raw()
+            )?;
+        }
         Ok(())
     }
 
@@ -1807,14 +1966,17 @@ impl<'local> JNIEnv<'local> {
     pub fn byte_array_from_slice(&self, buf: &[u8]) -> Result<JByteArray<'local>> {
         let length = buf.len() as i32;
         let bytes = self.new_byte_array(length)?;
-        jni_unchecked!(
-            self.internal,
-            SetByteArrayRegion,
-            bytes.as_raw(),
-            0,
-            length,
-            buf.as_ptr() as *const i8
-        );
+        unsafe {
+            jni_call_unchecked!(
+                self,
+                v1_1,
+                SetByteArrayRegion,
+                bytes.as_raw(),
+                0,
+                length,
+                buf.as_ptr() as *const i8
+            );
+        }
         Ok(bytes)
     }
 
@@ -1824,73 +1986,92 @@ impl<'local> JNIEnv<'local> {
         array: impl AsRef<JByteArray<'other_local>>,
     ) -> Result<Vec<u8>> {
         let array = array.as_ref().as_raw();
-        non_null!(array, "convert_byte_array array argument");
-        let length = jni_non_void_call!(self.internal, GetArrayLength, array);
+        let array = null_check!(array, "convert_byte_array array argument")?;
+        let length = unsafe { jni_call_check_ex!(self, v1_1, GetArrayLength, array)? };
         let mut vec = vec![0u8; length as usize];
-        jni_unchecked!(
-            self.internal,
-            GetByteArrayRegion,
-            array,
-            0,
-            length,
-            vec.as_mut_ptr() as *mut i8
-        );
+        unsafe {
+            jni_call_unchecked!(
+                self,
+                v1_1,
+                GetByteArrayRegion,
+                array,
+                0,
+                length,
+                vec.as_mut_ptr() as *mut i8
+            );
+        }
         Ok(vec)
     }
 
     /// Create a new java boolean array of supplied length.
     pub fn new_boolean_array(&self, length: jsize) -> Result<JBooleanArray<'local>> {
-        let array: jarray = jni_non_null_call!(self.internal, NewBooleanArray, length);
-        let array = unsafe { JBooleanArray::from_raw(array) };
+        let array = unsafe {
+            jni_call_check_ex_and_null_ret!(self, v1_1, NewBooleanArray, length)
+                .map(|array| JBooleanArray::from_raw(array))?
+        };
         Ok(array)
     }
 
     /// Create a new java byte array of supplied length.
     pub fn new_byte_array(&self, length: jsize) -> Result<JByteArray<'local>> {
-        let array: jarray = jni_non_null_call!(self.internal, NewByteArray, length);
-        let array = unsafe { JByteArray::from_raw(array) };
+        let array = unsafe {
+            jni_call_check_ex_and_null_ret!(self, v1_1, NewByteArray, length)
+                .map(|array| JByteArray::from_raw(array))?
+        };
         Ok(array)
     }
 
     /// Create a new java char array of supplied length.
     pub fn new_char_array(&self, length: jsize) -> Result<JCharArray<'local>> {
-        let array: jarray = jni_non_null_call!(self.internal, NewCharArray, length);
-        let array = unsafe { JCharArray::from_raw(array) };
+        let array = unsafe {
+            jni_call_check_ex_and_null_ret!(self, v1_1, NewCharArray, length)
+                .map(|array| JCharArray::from_raw(array))?
+        };
         Ok(array)
     }
 
     /// Create a new java short array of supplied length.
     pub fn new_short_array(&self, length: jsize) -> Result<JShortArray<'local>> {
-        let array: jarray = jni_non_null_call!(self.internal, NewShortArray, length);
-        let array = unsafe { JShortArray::from_raw(array) };
+        let array = unsafe {
+            jni_call_check_ex_and_null_ret!(self, v1_1, NewShortArray, length)
+                .map(|array| JShortArray::from_raw(array))?
+        };
         Ok(array)
     }
 
     /// Create a new java int array of supplied length.
     pub fn new_int_array(&self, length: jsize) -> Result<JIntArray<'local>> {
-        let array: jarray = jni_non_null_call!(self.internal, NewIntArray, length);
-        let array = unsafe { JIntArray::from_raw(array) };
+        let array = unsafe {
+            jni_call_check_ex_and_null_ret!(self, v1_1, NewIntArray, length)
+                .map(|array| JIntArray::from_raw(array))?
+        };
         Ok(array)
     }
 
     /// Create a new java long array of supplied length.
     pub fn new_long_array(&self, length: jsize) -> Result<JLongArray<'local>> {
-        let array: jarray = jni_non_null_call!(self.internal, NewLongArray, length);
-        let array = unsafe { JLongArray::from_raw(array) };
+        let array = unsafe {
+            jni_call_check_ex_and_null_ret!(self, v1_1, NewLongArray, length)
+                .map(|array| JLongArray::from_raw(array))?
+        };
         Ok(array)
     }
 
     /// Create a new java float array of supplied length.
     pub fn new_float_array(&self, length: jsize) -> Result<JFloatArray<'local>> {
-        let array: jarray = jni_non_null_call!(self.internal, NewFloatArray, length);
-        let array = unsafe { JFloatArray::from_raw(array) };
+        let array = unsafe {
+            jni_call_check_ex_and_null_ret!(self, v1_1, NewFloatArray, length)
+                .map(|array| JFloatArray::from_raw(array))?
+        };
         Ok(array)
     }
 
     /// Create a new java double array of supplied length.
     pub fn new_double_array(&self, length: jsize) -> Result<JDoubleArray<'local>> {
-        let array: jarray = jni_non_null_call!(self.internal, NewDoubleArray, length);
-        let array = unsafe { JDoubleArray::from_raw(array) };
+        let array = unsafe {
+            jni_call_check_ex_and_null_ret!(self, v1_1, NewDoubleArray, length)
+                .map(|array| JDoubleArray::from_raw(array))?
+        };
         Ok(array)
     }
 
@@ -1909,15 +2090,18 @@ impl<'local> JNIEnv<'local> {
         start: jsize,
         buf: &mut [jboolean],
     ) -> Result<()> {
-        non_null!(array.as_ref(), "get_boolean_array_region array argument");
-        jni_void_call!(
-            self.internal,
-            GetBooleanArrayRegion,
-            array.as_ref().as_raw(),
-            start,
-            buf.len() as jsize,
-            buf.as_mut_ptr()
-        );
+        let array = null_check!(array.as_ref(), "get_boolean_array_region array argument")?;
+        unsafe {
+            jni_call_check_ex!(
+                self,
+                v1_1,
+                GetBooleanArrayRegion,
+                array.as_raw(),
+                start,
+                buf.len() as jsize,
+                buf.as_mut_ptr()
+            )?;
+        }
         Ok(())
     }
 
@@ -1936,17 +2120,18 @@ impl<'local> JNIEnv<'local> {
         start: jsize,
         buf: &mut [jbyte],
     ) -> Result<()> {
-        non_null!(array.as_ref(), "get_byte_array_region array argument");
-        jni_void_call!(
-            self.internal,
-            GetByteArrayRegion,
-            array.as_ref().as_raw(),
-            start,
-            buf.len() as jsize,
-            buf.as_mut_ptr()
-        );
-
-        Ok(())
+        let array = null_check!(array.as_ref(), "get_byte_array_region array argument")?;
+        unsafe {
+            jni_call_check_ex!(
+                self,
+                v1_1,
+                GetByteArrayRegion,
+                array.as_raw(),
+                start,
+                buf.len() as jsize,
+                buf.as_mut_ptr()
+            )
+        }
     }
 
     /// Copy elements of the java char array from the `start` index to the
@@ -1964,16 +2149,18 @@ impl<'local> JNIEnv<'local> {
         start: jsize,
         buf: &mut [jchar],
     ) -> Result<()> {
-        non_null!(array.as_ref(), "get_char_array_region array argument");
-        jni_void_call!(
-            self.internal,
-            GetCharArrayRegion,
-            array.as_ref().as_raw(),
-            start,
-            buf.len() as jsize,
-            buf.as_mut_ptr()
-        );
-        Ok(())
+        let array = null_check!(array.as_ref(), "get_char_array_region array argument")?;
+        unsafe {
+            jni_call_check_ex!(
+                self,
+                v1_1,
+                GetCharArrayRegion,
+                array.as_raw(),
+                start,
+                buf.len() as jsize,
+                buf.as_mut_ptr()
+            )
+        }
     }
 
     /// Copy elements of the java short array from the `start` index to the
@@ -1991,16 +2178,18 @@ impl<'local> JNIEnv<'local> {
         start: jsize,
         buf: &mut [jshort],
     ) -> Result<()> {
-        non_null!(array.as_ref(), "get_short_array_region array argument");
-        jni_void_call!(
-            self.internal,
-            GetShortArrayRegion,
-            array.as_ref().as_raw(),
-            start,
-            buf.len() as jsize,
-            buf.as_mut_ptr()
-        );
-        Ok(())
+        let array = null_check!(array.as_ref(), "get_short_array_region array argument")?;
+        unsafe {
+            jni_call_check_ex!(
+                self,
+                v1_1,
+                GetShortArrayRegion,
+                array.as_raw(),
+                start,
+                buf.len() as jsize,
+                buf.as_mut_ptr()
+            )
+        }
     }
 
     /// Copy elements of the java int array from the `start` index to the
@@ -2018,16 +2207,18 @@ impl<'local> JNIEnv<'local> {
         start: jsize,
         buf: &mut [jint],
     ) -> Result<()> {
-        non_null!(array.as_ref(), "get_int_array_region array argument");
-        jni_void_call!(
-            self.internal,
-            GetIntArrayRegion,
-            array.as_ref().as_raw(),
-            start,
-            buf.len() as jsize,
-            buf.as_mut_ptr()
-        );
-        Ok(())
+        let array = null_check!(array.as_ref(), "get_int_array_region array argument")?;
+        unsafe {
+            jni_call_check_ex!(
+                self,
+                v1_1,
+                GetIntArrayRegion,
+                array.as_raw(),
+                start,
+                buf.len() as jsize,
+                buf.as_mut_ptr()
+            )
+        }
     }
 
     /// Copy elements of the java long array from the `start` index to the
@@ -2045,16 +2236,18 @@ impl<'local> JNIEnv<'local> {
         start: jsize,
         buf: &mut [jlong],
     ) -> Result<()> {
-        non_null!(array.as_ref(), "get_long_array_region array argument");
-        jni_void_call!(
-            self.internal,
-            GetLongArrayRegion,
-            array.as_ref().as_raw(),
-            start,
-            buf.len() as jsize,
-            buf.as_mut_ptr()
-        );
-        Ok(())
+        let array = null_check!(array.as_ref(), "get_long_array_region array argument")?;
+        unsafe {
+            jni_call_check_ex!(
+                self,
+                v1_1,
+                GetLongArrayRegion,
+                array.as_raw(),
+                start,
+                buf.len() as jsize,
+                buf.as_mut_ptr()
+            )
+        }
     }
 
     /// Copy elements of the java float array from the `start` index to the
@@ -2072,16 +2265,18 @@ impl<'local> JNIEnv<'local> {
         start: jsize,
         buf: &mut [jfloat],
     ) -> Result<()> {
-        non_null!(array.as_ref(), "get_float_array_region array argument");
-        jni_void_call!(
-            self.internal,
-            GetFloatArrayRegion,
-            array.as_ref().as_raw(),
-            start,
-            buf.len() as jsize,
-            buf.as_mut_ptr()
-        );
-        Ok(())
+        let array = null_check!(array.as_ref(), "get_float_array_region array argument")?;
+        unsafe {
+            jni_call_check_ex!(
+                self,
+                v1_1,
+                GetFloatArrayRegion,
+                array.as_raw(),
+                start,
+                buf.len() as jsize,
+                buf.as_mut_ptr()
+            )
+        }
     }
 
     /// Copy elements of the java double array from the `start` index to the
@@ -2099,16 +2294,18 @@ impl<'local> JNIEnv<'local> {
         start: jsize,
         buf: &mut [jdouble],
     ) -> Result<()> {
-        non_null!(array.as_ref(), "get_double_array_region array argument");
-        jni_void_call!(
-            self.internal,
-            GetDoubleArrayRegion,
-            array.as_ref().as_raw(),
-            start,
-            buf.len() as jsize,
-            buf.as_mut_ptr()
-        );
-        Ok(())
+        let array = null_check!(array.as_ref(), "get_double_array_region array argument")?;
+        unsafe {
+            jni_call_check_ex!(
+                self,
+                v1_1,
+                GetDoubleArrayRegion,
+                array.as_raw(),
+                start,
+                buf.len() as jsize,
+                buf.as_mut_ptr()
+            )
+        }
     }
 
     /// Copy the contents of the `buf` slice to the java boolean array at the
@@ -2119,16 +2316,18 @@ impl<'local> JNIEnv<'local> {
         start: jsize,
         buf: &[jboolean],
     ) -> Result<()> {
-        non_null!(array.as_ref(), "set_boolean_array_region array argument");
-        jni_void_call!(
-            self.internal,
-            SetBooleanArrayRegion,
-            array.as_ref().as_raw(),
-            start,
-            buf.len() as jsize,
-            buf.as_ptr()
-        );
-        Ok(())
+        let array = null_check!(array.as_ref(), "set_boolean_array_region array argument")?;
+        unsafe {
+            jni_call_check_ex!(
+                self,
+                v1_1,
+                SetBooleanArrayRegion,
+                array.as_raw(),
+                start,
+                buf.len() as jsize,
+                buf.as_ptr()
+            )
+        }
     }
 
     /// Copy the contents of the `buf` slice to the java byte array at the
@@ -2139,16 +2338,18 @@ impl<'local> JNIEnv<'local> {
         start: jsize,
         buf: &[jbyte],
     ) -> Result<()> {
-        non_null!(array.as_ref(), "set_byte_array_region array argument");
-        jni_void_call!(
-            self.internal,
-            SetByteArrayRegion,
-            array.as_ref().as_raw(),
-            start,
-            buf.len() as jsize,
-            buf.as_ptr()
-        );
-        Ok(())
+        let array = null_check!(array.as_ref(), "set_byte_array_region array argument")?;
+        unsafe {
+            jni_call_check_ex!(
+                self,
+                v1_1,
+                SetByteArrayRegion,
+                array.as_raw(),
+                start,
+                buf.len() as jsize,
+                buf.as_ptr()
+            )
+        }
     }
 
     /// Copy the contents of the `buf` slice to the java char array at the
@@ -2159,16 +2360,18 @@ impl<'local> JNIEnv<'local> {
         start: jsize,
         buf: &[jchar],
     ) -> Result<()> {
-        non_null!(array.as_ref(), "set_char_array_region array argument");
-        jni_void_call!(
-            self.internal,
-            SetCharArrayRegion,
-            array.as_ref().as_raw(),
-            start,
-            buf.len() as jsize,
-            buf.as_ptr()
-        );
-        Ok(())
+        let array = null_check!(array.as_ref(), "set_char_array_region array argument")?;
+        unsafe {
+            jni_call_check_ex!(
+                self,
+                v1_1,
+                SetCharArrayRegion,
+                array.as_raw(),
+                start,
+                buf.len() as jsize,
+                buf.as_ptr()
+            )
+        }
     }
 
     /// Copy the contents of the `buf` slice to the java short array at the
@@ -2179,16 +2382,18 @@ impl<'local> JNIEnv<'local> {
         start: jsize,
         buf: &[jshort],
     ) -> Result<()> {
-        non_null!(array.as_ref(), "set_short_array_region array argument");
-        jni_void_call!(
-            self.internal,
-            SetShortArrayRegion,
-            array.as_ref().as_raw(),
-            start,
-            buf.len() as jsize,
-            buf.as_ptr()
-        );
-        Ok(())
+        let array = null_check!(array.as_ref(), "set_short_array_region array argument")?;
+        unsafe {
+            jni_call_check_ex!(
+                self,
+                v1_1,
+                SetShortArrayRegion,
+                array.as_raw(),
+                start,
+                buf.len() as jsize,
+                buf.as_ptr()
+            )
+        }
     }
 
     /// Copy the contents of the `buf` slice to the java int array at the
@@ -2199,16 +2404,18 @@ impl<'local> JNIEnv<'local> {
         start: jsize,
         buf: &[jint],
     ) -> Result<()> {
-        non_null!(array.as_ref(), "set_int_array_region array argument");
-        jni_void_call!(
-            self.internal,
-            SetIntArrayRegion,
-            array.as_ref().as_raw(),
-            start,
-            buf.len() as jsize,
-            buf.as_ptr()
-        );
-        Ok(())
+        let array = null_check!(array.as_ref(), "set_int_array_region array argument")?;
+        unsafe {
+            jni_call_check_ex!(
+                self,
+                v1_1,
+                SetIntArrayRegion,
+                array.as_raw(),
+                start,
+                buf.len() as jsize,
+                buf.as_ptr()
+            )
+        }
     }
 
     /// Copy the contents of the `buf` slice to the java long array at the
@@ -2219,16 +2426,18 @@ impl<'local> JNIEnv<'local> {
         start: jsize,
         buf: &[jlong],
     ) -> Result<()> {
-        non_null!(array.as_ref(), "set_long_array_region array argument");
-        jni_void_call!(
-            self.internal,
-            SetLongArrayRegion,
-            array.as_ref().as_raw(),
-            start,
-            buf.len() as jsize,
-            buf.as_ptr()
-        );
-        Ok(())
+        let array = null_check!(array.as_ref(), "set_long_array_region array argument")?;
+        unsafe {
+            jni_call_check_ex!(
+                self,
+                v1_1,
+                SetLongArrayRegion,
+                array.as_raw(),
+                start,
+                buf.len() as jsize,
+                buf.as_ptr()
+            )
+        }
     }
 
     /// Copy the contents of the `buf` slice to the java float array at the
@@ -2239,16 +2448,18 @@ impl<'local> JNIEnv<'local> {
         start: jsize,
         buf: &[jfloat],
     ) -> Result<()> {
-        non_null!(array.as_ref(), "set_float_array_region array argument");
-        jni_void_call!(
-            self.internal,
-            SetFloatArrayRegion,
-            array.as_ref().as_raw(),
-            start,
-            buf.len() as jsize,
-            buf.as_ptr()
-        );
-        Ok(())
+        let array = null_check!(array.as_ref(), "set_float_array_region array argument")?;
+        unsafe {
+            jni_call_check_ex!(
+                self,
+                v1_1,
+                SetFloatArrayRegion,
+                array.as_raw(),
+                start,
+                buf.len() as jsize,
+                buf.as_ptr()
+            )
+        }
     }
 
     /// Copy the contents of the `buf` slice to the java double array at the
@@ -2259,19 +2470,25 @@ impl<'local> JNIEnv<'local> {
         start: jsize,
         buf: &[jdouble],
     ) -> Result<()> {
-        non_null!(array.as_ref(), "set_double_array_region array argument");
-        jni_void_call!(
-            self.internal,
-            SetDoubleArrayRegion,
-            array.as_ref().as_raw(),
-            start,
-            buf.len() as jsize,
-            buf.as_ptr()
-        );
-        Ok(())
+        let array = null_check!(array.as_ref(), "set_double_array_region array argument")?;
+        unsafe {
+            jni_call_check_ex!(
+                self,
+                v1_1,
+                SetDoubleArrayRegion,
+                array.as_raw(),
+                start,
+                buf.len() as jsize,
+                buf.as_ptr()
+            )
+        }
     }
 
     /// Get a field without checking the provided type against the actual field.
+    ///
+    /// # Safety
+    /// The field must have the specified type
+    ///
     pub fn get_field_unchecked<'other_local, O, T>(
         &mut self,
         obj: O,
@@ -2288,21 +2505,27 @@ impl<'local> JNIEnv<'local> {
         use ReturnType::{Array, Object, Primitive};
 
         let obj = obj.as_ref();
-        non_null!(obj, "get_field_typed obj argument");
+        let obj = null_check!(obj, "get_field_typed obj argument")?;
 
         let field = field.lookup(self)?.as_ref().into_raw();
         let obj = obj.as_raw();
 
         macro_rules! field {
             ($get_field:ident) => {{
-                JValueOwned::from(jni_unchecked!(self.internal, $get_field, obj, field))
+                // Safety: No exceptions are defined for Get*Field and we assume
+                // the caller knows that the field is valid
+                unsafe {
+                    JValueOwned::from(jni_call_unchecked!(self, v1_1, $get_field, obj, field))
+                }
             }};
         }
 
         match ty {
             Object | Array => {
-                let obj = jni_non_void_call!(self.internal, GetObjectField, obj, field);
-                let obj = unsafe { JObject::from_raw(obj) };
+                let obj = unsafe {
+                    jni_call_check_ex!(self, v1_1, GetObjectField, obj, field)
+                        .map(|obj| JObject::from_raw(obj))?
+                };
                 Ok(obj.into())
             }
             Primitive(Char) => Ok(field!(GetCharField)),
@@ -2333,14 +2556,14 @@ impl<'local> JNIEnv<'local> {
         }
 
         let obj = obj.as_ref();
-        non_null!(obj, "set_field_typed obj argument");
+        let obj = null_check!(obj, "set_field_typed obj argument")?;
 
         let field = field.lookup(self)?.as_ref().into_raw();
         let obj = obj.as_raw();
 
         macro_rules! set_field {
             ($set_field:ident($val:expr)) => {{
-                jni_unchecked!(self.internal, $set_field, obj, field, $val);
+                unsafe { jni_call_unchecked!(self, v1_1, $set_field, obj, field, $val) };
             }};
         }
 
@@ -2441,12 +2664,15 @@ impl<'local> JNIEnv<'local> {
 
         macro_rules! field {
             ($get_field:ident) => {{
-                jni_non_void_call!(
-                    self.internal,
-                    $get_field,
-                    class.as_ref().as_raw(),
-                    field.as_ref().into_raw()
-                )
+                unsafe {
+                    jni_call_check_ex!(
+                        self,
+                        v1_1,
+                        $get_field,
+                        class.as_ref().as_raw(),
+                        field.as_ref().into_raw()
+                    )?
+                }
             }};
         }
 
@@ -2516,13 +2742,16 @@ impl<'local> JNIEnv<'local> {
 
         macro_rules! set_field {
             ($set_field:ident($val:expr)) => {{
-                jni_unchecked!(
-                    self.internal,
-                    $set_field,
-                    class.as_ref().as_raw(),
-                    field.as_ref().into_raw(),
-                    $val
-                );
+                unsafe {
+                    jni_call_unchecked!(
+                        self,
+                        v1_1,
+                        $set_field,
+                        class.as_ref().as_raw(),
+                        field.as_ref().into_raw(),
+                        $val
+                    );
+                }
             }};
         }
 
@@ -2643,7 +2872,7 @@ impl<'local> JNIEnv<'local> {
         let guard = self.lock_obj(obj)?;
 
         let ptr = self.get_field(obj, field, "J")?.j()? as *mut Mutex<T>;
-        non_null!(ptr, "rust value from Java");
+        let ptr = null_check!(ptr, "rust value from Java")?;
         // dereferencing is safe, because we checked it for null
         Ok((*ptr).lock().unwrap())
     }
@@ -2676,7 +2905,7 @@ impl<'local> JNIEnv<'local> {
                 .get_field_unchecked(obj, field_id, ReturnType::Primitive(Primitive::Long))?
                 .j()? as *mut Mutex<T>;
 
-            non_null!(ptr, "rust value from Java");
+            let ptr = null_check!(ptr, "rust value from Java")?;
 
             let mbox = Box::from_raw(ptr);
 
@@ -2704,7 +2933,8 @@ impl<'local> JNIEnv<'local> {
         O: AsRef<JObject<'other_local>>,
     {
         let inner = obj.as_ref().as_raw();
-        let _ = jni_unchecked!(self.internal, MonitorEnter, inner);
+        let res = unsafe { jni_call_unchecked!(self, v1_1, MonitorEnter, inner) };
+        jni_error_code_to_result(res)?;
 
         Ok(MonitorGuard {
             obj: inner,
@@ -2713,23 +2943,26 @@ impl<'local> JNIEnv<'local> {
         })
     }
 
-    /// Returns underlying `sys::JNIEnv` interface.
-    pub fn get_native_interface(&self) -> *mut sys::JNIEnv {
-        self.internal
-    }
-
     /// Returns the Java VM interface.
     pub fn get_java_vm(&self) -> Result<JavaVM> {
         let mut raw = ptr::null_mut();
-        let res = jni_unchecked!(self.internal, GetJavaVM, &mut raw);
+        let res = unsafe { jni_call_unchecked!(self, v1_1, GetJavaVM, &mut raw) };
         jni_error_code_to_result(res)?;
         unsafe { JavaVM::from_raw(raw) }
     }
 
     /// Ensures that at least a given number of local references can be created
     /// in the current thread.
-    pub fn ensure_local_capacity(&self, capacity: jint) -> Result<()> {
-        jni_void_call!(self.internal, EnsureLocalCapacity, capacity);
+    pub fn ensure_local_capacity(&self, capacity: usize) -> Result<()> {
+        let capacity: jint = capacity
+            .try_into()
+            .map_err(|_| Error::JniCall(JniError::InvalidArguments))?;
+        // Safety:
+        // - jni-rs required JNI_VERSION > 1.2
+        // - we have ensured capacity is >= 0
+        // - EnsureLocalCapacity has no documented exceptions that it throws
+        let res = unsafe { jni_call_unchecked!(self, v1_2, EnsureLocalCapacity, capacity) };
+        jni_error_code_to_result(res)?;
         Ok(())
     }
 
@@ -2753,13 +2986,16 @@ impl<'local> JNIEnv<'local> {
                 fnPtr: nm.fn_ptr,
             })
             .collect();
-        let res = jni_non_void_call!(
-            self.internal,
-            RegisterNatives,
-            class.as_ref().as_raw(),
-            jni_native_methods.as_ptr(),
-            jni_native_methods.len() as jint
-        );
+        let res = unsafe {
+            jni_call_check_ex!(
+                self,
+                v1_1,
+                RegisterNatives,
+                class.as_ref().as_raw(),
+                jni_native_methods.as_ptr(),
+                jni_native_methods.len() as jint
+            )?
+        };
 
         // Ensure that `class` isn't dropped before the JNI call returns.
         drop(class);
@@ -2773,7 +3009,8 @@ impl<'local> JNIEnv<'local> {
         T: Desc<'local, JClass<'other_local>>,
     {
         let class = class.lookup(self)?;
-        let res = jni_non_void_call!(self.internal, UnregisterNatives, class.as_ref().as_raw());
+        let res =
+            unsafe { jni_call_check_ex!(self, v1_1, UnregisterNatives, class.as_ref().as_raw())? };
 
         // Ensure that `class` isn't dropped before the JNI call returns.
         drop(class);
@@ -2842,7 +3079,7 @@ impl<'local> JNIEnv<'local> {
         array: &'array JPrimitiveArray<'other_local, T>,
         mode: ReleaseMode,
     ) -> Result<AutoElements<'local, 'other_local, 'array, T>> {
-        non_null!(array, "get_array_elements array argument");
+        let array = null_check!(array, "get_array_elements array argument")?;
         AutoElements::new(self, array, mode)
     }
 
@@ -2942,7 +3179,7 @@ impl<'local> JNIEnv<'local> {
         array: &'array JPrimitiveArray<'other_local, T>,
         mode: ReleaseMode,
     ) -> Result<AutoElementsCritical<'local, 'other_local, 'array, 'env, T>> {
-        non_null!(array, "get_primitive_array_critical array argument");
+        let array = null_check!(array, "get_primitive_array_critical array argument")?;
         AutoElementsCritical::new(self, array, mode)
     }
 }
@@ -2969,15 +3206,32 @@ pub struct MonitorGuard<'local> {
     life: PhantomData<&'local ()>,
 }
 
+static_assertions::assert_not_impl_any!(MonitorGuard: Send);
+
 impl<'local> Drop for MonitorGuard<'local> {
     fn drop(&mut self) {
-        let res: Result<()> = catch!({
-            jni_unchecked!(self.env, MonitorExit, self.obj);
-            Ok(())
-        });
-
-        if let Err(e) = res {
-            warn!("error releasing java monitor: {}", e)
+        // Safety:
+        //
+        // Calling JNIEnv::from_raw_unchecked is safe since we know self.env is
+        // non-null and valid, and implements JNI > 1.2
+        //
+        // This relies on `MonitorGuard` not being `Send` to maintain the
+        // invariant that "The current thread must be the owner of the monitor
+        // associated with the underlying Java object referred to by obj"
+        //
+        // This also means we can assume the `IllegalMonitorStateException`
+        // exception can't be thrown due to the current thread not owning
+        // the monitor.
+        let res = unsafe {
+            jni_call_unchecked!(
+                &JNIEnv::from_raw_unchecked(self.env),
+                v1_1,
+                MonitorExit,
+                self.obj
+            )
+        };
+        if let Err(err) = jni_error_code_to_result(res) {
+            log::error!("error releasing java monitor: {err}");
         }
     }
 }

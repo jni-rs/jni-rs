@@ -93,9 +93,10 @@ impl Drop for GlobalRefGuard {
         let raw: sys::jobject = mem::take(&mut self.obj).into_raw();
 
         let drop_impl = |env: &JNIEnv| -> Result<()> {
-            let internal = env.get_native_interface();
-            // This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
-            jni_unchecked!(internal, DeleteGlobalRef, raw);
+            // Safety: This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
+            unsafe {
+                jni_call_unchecked!(env, v1_1, DeleteGlobalRef, raw);
+            }
             Ok(())
         };
 

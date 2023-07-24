@@ -36,18 +36,16 @@ impl<'local, 'other_local, 'array, 'env, T: TypeArray>
         len: usize,
         mode: ReleaseMode,
     ) -> Result<Self> {
-        let mut is_copy: jboolean = 0xff;
-        // Even though this method may throw OoME, use `jni_unchecked`
-        // instead of `jni_non_null_call` to remove (a slight) overhead
-        // of exception checking. An error will still be detected as a `null`
-        // result below; and, as this method is unlikely to create a copy,
-        // an OoME is highly unlikely.
-        let ptr = jni_unchecked!(
-            env.get_native_interface(),
+        let mut is_copy: jboolean = true;
+        // There are no documented exceptions for GetPrimitiveArrayCritical() but
+        // it may return `NULL`.
+        let ptr = jni_call_only_check_null_ret!(
+            env,
+            v1_2,
             GetPrimitiveArrayCritical,
             array.as_raw(),
             &mut is_copy
-        ) as *mut T;
+        )? as *mut T;
 
         Ok(AutoElementsCritical {
             array,
@@ -82,8 +80,9 @@ impl<'local, 'other_local, 'array, 'env, T: TypeArray>
     ///
     /// If `mode` is not [`sys::JNI_COMMIT`], then `self.ptr` must not have already been released.
     unsafe fn release_primitive_array_critical(&mut self, mode: i32) -> Result<()> {
-        jni_unchecked!(
-            self.env.get_native_interface(),
+        jni_call_unchecked!(
+            self.env,
+            v1_2,
             ReleasePrimitiveArrayCritical,
             self.array.as_raw(),
             self.ptr.as_ptr().cast(),
