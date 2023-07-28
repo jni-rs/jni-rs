@@ -4,26 +4,96 @@ use log::{debug, warn};
 
 use crate::{errors::Result, objects::JObject, sys, JNIEnv, JNIVersion, JavaVM};
 
+#[cfg(doc)]
+use crate::objects::WeakRef;
+
 // Note: `GlobalRef` must not implement `Into<JObject>`! If it did, then it would be possible to
 // wrap it in `AutoLocal`, which would cause undefined behavior upon drop as a result of calling
 // the wrong JNI function to delete the reference.
 
-/// A global JVM reference. These are "pinned" by the garbage collector and are
-/// guaranteed to not get collected until released. Thus, this is allowed to
-/// outlive the `JNIEnv` that it came from and can be used in other threads.
+/// A global reference to a Java object.
 ///
-/// `GlobalRef` can be cloned to use _the same_ global reference in different
-/// contexts. If you want to create yet another global ref to the same java object
-/// you may call `JNIEnv#new_global_ref` just like you do when create `GlobalRef`
-/// from a local reference.
+/// Global references are slower to create and delete than ordinary local
+/// references, but have several properties that distinguish them:
 ///
-/// Underlying global reference will be dropped, when the last instance
-/// of `GlobalRef` leaves its scope.
+/// * Global references are not bound to the lifetime of a [`JNIEnv`].
 ///
-/// It is _recommended_ that a native thread that drops the global reference is attached
-/// to the Java thread (i.e., has an instance of `JNIEnv`). If the native thread is *not* attached,
-/// the `GlobalRef#drop` will print a warning and implicitly `attach` and `detach` it, which
-/// significantly affects performance.
+/// * Global references are not bound to any particular thread; they have the
+///   [`Send`] and [`Sync`] traits.
+///
+/// * Until a global reference is dropped, it will prevent the referenced Java
+///   object from being garbage collected.
+///
+/// * It takes more time to create or delete a global reference than to create
+///   or delete a local reference.
+///
+/// These properties make global references useful in a few specific
+/// situations:
+///
+/// * When you need to keep a reference to the same Java object across multiple
+///   invocations of a native method, especially if you need a guarantee that
+///   it's the exact same object every time, one way to do it is by storing a
+///   global reference to it in a Rust `static` variable.
+///
+/// * When you need to send a Java object reference to a different thread, or
+///   use a Java object reference from several different threads at the same
+///   time, a global reference can be used to do so.
+///
+/// * When you need a Java object to not be garbage collected too soon, because
+///   some side effect will happen (via `java.lang.Object::finalize`,
+///   `java.lang.ref.Cleaner`, or the like) when it is garbage collected, a
+///   global reference can be used to prevent it from being garbage collected.
+///   (This hold is released when the global reference is dropped.)
+///
+/// See also [`WeakRef`], a global reference that does *not* prevent the
+/// underlying Java object from being garbage collected.
+///
+///
+/// # Creating and Deleting
+///
+/// To create a global reference, use the [`JNIEnv::new_global_ref`] method.
+/// To delete it, simply drop the `GlobalRef` (but be sure to do so on an
+/// attached thread if possible; see the warning below).
+///
+/// Note that, because global references take more time to create or delete
+/// than local references do, they should only be used when their benefits
+/// outweigh this drawback. Also note that this performance penalty does not
+/// apply to *using* a global reference (such as calling methods on the
+/// underlying Java object), only to creation and deletion of the reference.
+///
+///
+/// # Clone and Drop Behavior
+///
+/// `GlobalRef` implements [`Clone`] using [`Arc`], making it inexpensive and
+/// infallible. If a `GlobalRef` is cloned, the underlying JNI global
+/// reference will only be deleted when the last of the clones is dropped.
+///
+/// It is also possible to create a new JNI global reference from an existing
+/// one. Assuming you have a `JNIEnv` named `env` and a `GlobalRef` named `x`,
+/// use [`JNIEnv::new_global_ref`] like this:
+///
+/// ```no_run
+/// # use jni::{JNIEnv, objects::GlobalRef};
+/// # let mut env: JNIEnv = unimplemented!();
+/// # let x: GlobalRef = unimplemented!();
+/// # let _ =
+/// env.new_global_ref(&x)
+/// # ;
+/// ```
+///
+///
+/// # Warning: Drop On an Attached Thread If Possible
+///
+/// When a `GlobalRef` is dropped, a JNI call is made to delete the global
+/// reference. If this frequently happens on a thread that is not already
+/// attached to the JVM, the thread will be temporarily attached using
+/// [`JavaVM::attach_current_thread`], causing a severe performance penalty.
+///
+/// To avoid this performance penalty, ensure that `GlobalRef`s are only
+/// dropped on a thread that is already attached (or never dropped at all).
+///
+/// In the event that a global reference is dropped on an unattached thread, a
+/// message is [logged][log] at [`log::Level::Warn`].
 
 #[derive(Clone, Debug)]
 pub struct GlobalRef {
@@ -68,10 +138,13 @@ impl GlobalRef {
         }
     }
 
-    /// Get the object from the global ref
+    /// Borrows a `JObject` referring to the same Java object as this
+    /// `GlobalRef`.
     ///
-    /// This borrows the ref and prevents it from being dropped as long as the
-    /// JObject sticks around.
+    /// This method is zero-cost and does not create a new local reference.
+    ///
+    /// `GlobalRef` also implements <code>[AsRef]&lt;[JObject]&gt;</code>.
+    /// That trait's `as_ref` method does the same thing as this method.
     pub fn as_obj(&self) -> &JObject<'static> {
         self.as_ref()
     }
@@ -105,7 +178,7 @@ impl Drop for GlobalRefGuard {
         let res = match unsafe { self.vm.get_env(JNIVersion::V1_4) } {
             Ok(env) => drop_impl(&env),
             Err(_) => {
-                warn!("Dropping a GlobalRef in a detached thread. Fix your code if this message appears frequently (see the GlobalRef docs).");
+                warn!("A JNI global reference was dropped on a thread that is not attached. This will cause a performance problem if it happens frequently. For more information, see the documentation for `jni::objects::GlobalRef`.");
                 self.vm
                     .attach_current_thread()
                     .and_then(|env| drop_impl(&env))
