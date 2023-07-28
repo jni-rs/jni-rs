@@ -12,21 +12,63 @@ use crate::{
 // wrap it in `AutoLocal`, which would cause undefined behavior upon drop as a result of calling
 // the wrong JNI function to delete the reference.
 
-/// A *weak* global JVM reference. These are global in scope like
-/// [`GlobalRef`], and may outlive the `JNIEnv` they came from, but are
-/// *not* guaranteed to not get collected until released.
+/// A global reference to a Java object that does *not* prevent it from being
+/// garbage collected.
 ///
-/// `WeakRef` can be cloned to use _the same_ weak reference in different
-/// contexts. If you want to create yet another weak ref to the same java object, call
-/// [`WeakRef::clone_in_jvm`].
+/// <dfn>Weak global references</dfn> have the same properties as [ordinary
+/// “strong” global references][GlobalRef], with one exception: a weak global
+/// reference does not prevent the referenced Java object from being garbage
+/// collected. In other words, the Java object can be garbage collected even if
+/// there is a weak global reference to it.
 ///
-/// Underlying weak reference will be dropped, when the last instance
-/// of `WeakRef` leaves its scope.
 ///
-/// It is _recommended_ that a native thread that drops the weak reference is attached
-/// to the Java thread (i.e., has an instance of `JNIEnv`). If the native thread is *not* attached,
-/// the `WeakRef#drop` will print a warning and implicitly `attach` and `detach` it, which
-/// significantly affects performance.
+/// # Upgrading
+///
+/// Because the Java object referred to by a weak global reference may be
+/// garbage collected at any moment, it cannot be directly used (such as
+/// calling methods on the referenced Java object). Instead, it must first be
+/// <dfn>upgraded</dfn> to a local or strong global reference, using the
+/// [`WeakRef::upgrade_local`] or [`WeakRef::upgrade_global`] method,
+/// respectively.
+///
+/// Both upgrade methods return an [`Option`]. If, when the upgrade method is
+/// called, the Java object has not yet been garbage collected, then the
+/// `Option` will be [`Some`] containing a newly created strong reference that
+/// can be used as normal. If not, the `Option` will be [`None`].
+///
+/// Upgrading a weak global reference does not delete it. It is only deleted
+/// when the `WeakRef` is dropped, and it can be upgraded more than once.
+///
+///
+/// # Creating and Deleting
+///
+/// To create a weak global reference, use the [`JNIEnv::new_weak_ref`] method.
+/// To delete it, simply drop the `WeakRef` (but be sure to do so on an
+/// attached thread if possible; see the warning below).
+///
+///
+/// # Clone and Drop Behavior
+///
+/// `WeakRef` implements [`Clone`] using [`Arc`], making it inexpensive and
+/// infallible. If a `WeakRef` is cloned, the underlying JNI weak global
+/// reference will only be deleted when the last of the clones is dropped.
+///
+/// It is also possible to create a new JNI weak global reference from an
+/// existing one. To do that, use the [`WeakRef::clone_in_jvm`] method.
+///
+///
+/// # Warning: Drop On an Attached Thread If Possible
+///
+/// When a `WeakRef` is dropped, a JNI call is made to delete the global
+/// reference. If this frequently happens on a thread that is not already
+/// attached to the JVM, the thread will be temporarily attached using
+/// [`JavaVM::attach_current_thread`], causing a severe performance penalty.
+///
+/// To avoid this performance penalty, ensure that `WeakRef`s are only
+/// dropped on a thread that is already attached (or never dropped at all).
+///
+/// In the event that a global reference is dropped on an unattached thread, a
+/// message is [logged][log] at [`log::Level::Warn`].
 
 #[derive(Clone)]
 pub struct WeakRef {

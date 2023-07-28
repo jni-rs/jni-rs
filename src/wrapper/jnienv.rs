@@ -707,9 +707,11 @@ impl<'local> JNIEnv<'local> {
         }
     }
 
-    /// Turns an object into a global ref. This has the benefit of removing the
-    /// lifetime bounds since it's guaranteed to not get GC'd by java. It
-    /// releases the GC pin upon being dropped.
+    /// Creates a new global reference to the Java object `obj`.
+    ///
+    /// Global references take more time to create or delete than ordinary
+    /// local references do, but have several properties that make them useful
+    /// in certain situations. See [`GlobalRef`] for more information.
     pub fn new_global_ref<'other_local, O>(&self, obj: O) -> Result<GlobalRef>
     where
         O: AsRef<JObject<'other_local>>,
@@ -722,7 +724,11 @@ impl<'local> JNIEnv<'local> {
         }
     }
 
-    /// Creates a new [weak global reference][WeakRef].
+    /// Creates a new weak global reference.
+    ///
+    /// Weak global references are a special kind of Java object reference that
+    /// doesn't prevent the Java object from being garbage collected. See
+    /// [`WeakRef`] for more information.
     ///
     /// If the provided object is null, this method returns `None`. Otherwise, it returns `Some`
     /// containing the new weak global reference.
