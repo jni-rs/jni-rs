@@ -18,7 +18,7 @@ use crate::{
         JValue, JValueOwned, ReleaseMode, TypeArray, WeakRef,
     },
     signature::{JavaType, Primitive, TypeSignature},
-    strings::{JNIString, JavaStr},
+    strings::{JNIStr, JNIString, JavaStr},
     sys::{
         self, jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jshort, jsize, jvalue,
         JNINativeMethod,
@@ -611,20 +611,57 @@ impl<'local> JNIEnv<'local> {
     }
 
     /// Abort the JVM with an error message.
-    #[allow(unused_variables, unreachable_code)]
-    pub fn fatal_error<S: Into<JNIString>>(&self, msg: S) -> ! {
-        let msg = msg.into();
-
+    ///
+    /// This method is guaranteed not to panic, call any JNI function other
+    /// than [`FatalError`], or perform any heap allocations (although
+    /// `FatalError` might perform heap allocations of its own).
+    ///
+    /// In exchange for these strong guarantees, this method requires an error
+    /// message to already be suitably encoded, as described in the
+    /// documentation for the [`JNIStr`] type.
+    ///
+    /// The simplest way to use this is to convert an ordinary Rust string to a
+    /// [`JNIString`], like so:
+    ///
+    /// ```no_run
+    /// # use jni::{JNIEnv, strings::JNIString};
+    /// # let env: JNIEnv = unimplemented!();
+    /// env.fatal_error(&JNIString::from("Game over, man! Game over!"))
+    /// ```
+    ///
+    /// This can also be used in a way that's completely guaranteed to be
+    /// panic- and allocation-free, but it is somewhat complicated and
+    /// `unsafe`:
+    ///
+    /// ```no_run
+    /// # use jni::{JNIEnv, strings::JNIStr};
+    /// # use std::ffi::CStr;
+    /// const MESSAGE: &JNIStr = unsafe {
+    ///     JNIStr::from_cstr_unchecked(
+    ///         CStr::from_bytes_with_nul_unchecked(
+    ///             b"Game over, man! Game over!\0"
+    ///         )
+    ///     )
+    /// };
+    ///
+    /// # let env: JNIEnv = unimplemented!();
+    /// env.fatal_error(MESSAGE)
+    /// ```
+    ///
+    /// When doing this, be careful not to forget the `\0` at the end of the
+    /// string, and to correctly encode non-ASCII characters according to
+    /// Java's [Modified UTF-8].
+    ///
+    /// [`FatalError`]: https://docs.oracle.com/en/java/javase/11/docs/specs/jni/functions.html#fatalerror
+    /// [Modified UTF-8]: https://docs.oracle.com/en/java/javase/11/docs/specs/jni/types.html#modified-utf-8-strings
+    pub fn fatal_error(&self, msg: &JNIStr) -> ! {
         // Safety: FatalError is 1.1 API that must be valid
         //
         // Very little is specified about the implementation of FatalError but we still
         // currently consider this "safe", similar to how `abort()` is considered safe.
         // It won't give the application an opportunity to clean or save state but the
         // process will be terminated.
-        unsafe {
-            jni_call_unchecked!(self, v1_1, FatalError, msg.as_ptr());
-            unreachable!();
-        }
+        unsafe { jni_call_unchecked!(self, v1_1, FatalError, msg.as_ptr()) }
     }
 
     /// Create a new instance of a direct java.nio.ByteBuffer
