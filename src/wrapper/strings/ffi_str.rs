@@ -1,6 +1,6 @@
 use std::{
     borrow::{Borrow, Cow, ToOwned},
-    ffi,
+    ffi::{CStr, CString},
     os::raw::c_char,
 };
 
@@ -9,17 +9,54 @@ use log::debug;
 
 use crate::wrapper::strings::ffi_str;
 
-/// Wrapper for `std::ffi::CString` that also takes care of encoding between
-/// UTF-8 and Java's Modified UTF-8. As with `CString`, this implements `Deref`
-/// to `&JNIStr`.
+#[cfg(doc)]
+use std::ops::Deref;
+
+/// An owned, null-terminated string, encoded in Java's [Modified UTF-8].
+///
+/// Most JNI functions that accept or return strings, such as [`NewStringUTF`],
+/// expect or produce strings encoded this way.
+///
+/// This type plays a similar role as [`CString`]. Its borrowed counterpart is
+/// [`JNIStr`], which this type [dereferences][Deref] to.
+///
+/// Ordinary Rust strings ([`String`], <code>&amp;[str]</code>, or any other
+/// type implementing <code>[AsRef]&lt;str&gt;</code>) can be converted to this
+/// type using `.into()`. Specifically, this type implements
+/// <code>[From]&lt;T&gt; where T: AsRef&lt;str&gt;</code>.
+///
+/// [Modified UTF-8]: https://docs.oracle.com/en/java/javase/11/docs/specs/jni/types.html#modified-utf-8-strings
+/// [`NewStringUTF`]: https://docs.oracle.com/en/java/javase/11/docs/specs/jni/functions.html#newstringutf
 pub struct JNIString {
-    internal: ffi::CString,
+    internal: CString,
 }
 
-/// Wrapper for `std::ffi::CStr` that also takes care of encoding between
-/// UTF-8 and Java's Modified UTF-8.
+/// A borrowed, null-terminated string, encoded in Java's [Modified UTF-8].
+///
+/// Most JNI functions that accept or return strings, such as [`NewStringUTF`],
+/// expect or produce strings encoded this way.
+///
+/// This type plays a similar role as (and [dereferences][Deref] to) [`CStr`].
+/// Its owned counterpart is [`JNIString`].
+///
+///
+/// # Instantiating
+///
+/// There are two main ways to create a `JNIStr` from a string.
+///
+/// The simplest way is to convert an ordinary Rust string to `JNIString`,
+/// which implements <code>[From]&lt;&amp;[str]&gt;</code> and dereferences to
+/// this type. The downside is that this conversion has a run-time cost.
+///
+/// If you have a `CStr` that you are certain is already encoded in Modified
+/// UTF-8, you can instead use [`JNIStr::from_cstr_unchecked`] to convert it
+/// to a `JNIStr` at no run-time cost. The downside is that this is `unsafe`;
+/// see the “safety” section of that method's documentation for details.
+///
+/// [Modified UTF-8]: https://docs.oracle.com/en/java/javase/11/docs/specs/jni/types.html#modified-utf-8-strings
+/// [`NewStringUTF`]: https://docs.oracle.com/en/java/javase/11/docs/specs/jni/functions.html#newstringutf
 pub struct JNIStr {
-    internal: ffi::CStr,
+    internal: CStr,
 }
 
 impl ::std::ops::Deref for JNIString {
@@ -31,7 +68,7 @@ impl ::std::ops::Deref for JNIString {
 }
 
 impl ::std::ops::Deref for JNIStr {
-    type Target = ffi::CStr;
+    type Target = CStr;
 
     fn deref(&self) -> &Self::Target {
         &self.internal
@@ -45,7 +82,7 @@ where
     fn from(other: T) -> Self {
         let enc = to_java_cesu8(other.as_ref()).into_owned();
         JNIString {
-            internal: unsafe { ffi::CString::from_vec_unchecked(enc) },
+            internal: unsafe { CString::from_vec_unchecked(enc) },
         }
     }
 }
@@ -85,7 +122,22 @@ impl JNIStr {
     /// Expects a valid pointer to a null-terminated C string and does not perform any lifetime
     /// checks for the resulting value.
     pub unsafe fn from_ptr<'jni_str>(ptr: *const c_char) -> &'jni_str JNIStr {
-        &*(ffi::CStr::from_ptr(ptr) as *const ffi::CStr as *const ffi_str::JNIStr)
+        &*(CStr::from_ptr(ptr) as *const CStr as *const JNIStr)
+    }
+
+    /// Converts a `&CStr` to a `&JNIStr` without checking for validity.
+    ///
+    /// # Safety
+    ///
+    /// The provided string must be encoded in Java's [Modified UTF-8].
+    /// Undefined behavior will result if it is not.
+    ///
+    /// Note that standard UTF-8 has the same encoding as Modified UTF-8 for the code points U+0001 through U+FFFF (inclusive).
+    ///
+    /// [Modified UTF-8]: https://docs.oracle.com/en/java/javase/11/docs/specs/jni/types.html#modified-utf-8-strings
+    pub const unsafe fn from_cstr_unchecked(cstr: &CStr) -> &JNIStr {
+        // The reason we don't just use `from_ptr` here is that `CStr::from_ptr` is not yet a `const fn`.
+        &*(cstr as *const CStr as *const JNIStr)
     }
 }
 
@@ -102,7 +154,7 @@ impl ToOwned for JNIStr {
     fn to_owned(&self) -> JNIString {
         unsafe {
             JNIString {
-                internal: ffi::CString::from_vec_unchecked(self.to_bytes().to_vec()),
+                internal: CString::from_vec_unchecked(self.to_bytes().to_vec()),
             }
         }
     }
