@@ -15,6 +15,14 @@ repository = "https://github.com/jni-rs/jni-rs"
 # ¡When bumping version please also update it in examples and documentation!
 version = "0.21.1"
 edition = "2018"
+exclude = [
+    "/.github",
+    "/benches",
+    "/docs",
+    "/example",
+    "/tests",
+    "/test_profile",
+]
 
 [dependencies]
 cfg-if = "1.0.0"
