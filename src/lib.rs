@@ -175,6 +175,7 @@
 //! - Consider [GraalVM][projects-graalvm] — a recently released VM that gives zero-cost
 //!   interoperability between various languages (including Java and [Rust][graalvm-rust] compiled
 //!   into LLVM-bitcode)
+//! - See a [plugin](https://github.com/questdb/rust-maven-plugin/) for invoking cargo from Java Maven builds
 //!
 //! [Invocation API]: https://docs.oracle.com/en/java/javase/11/docs/specs/jni/invocation.html
 //! [jni-spec]: https://docs.oracle.com/en/java/javase/11/docs/specs/jni/index.html
