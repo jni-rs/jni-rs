@@ -38,8 +38,8 @@ struct WeakRefGuard {
     vm: JavaVM,
 }
 
-unsafe impl Send for WeakRef {}
-unsafe impl Sync for WeakRef {}
+unsafe impl Send for WeakRefGuard {}
+unsafe impl Sync for WeakRefGuard {}
 
 impl WeakRef {
     /// Creates a new wrapper for a global reference.
@@ -173,4 +173,16 @@ impl Drop for WeakRefGuard {
             debug!("error dropping weak ref: {:#?}", err);
         }
     }
+}
+
+#[test]
+fn test_weak_ref_send() {
+    fn assert_send<T: Send>() {}
+    assert_send::<WeakRef>();
+}
+
+#[test]
+fn test_weak_ref_sync() {
+    fn assert_sync<T: Sync>() {}
+    assert_sync::<WeakRef>();
 }
