@@ -23,7 +23,7 @@ You need to install the following dependencies:
 
 To build `jni-rs`, simply run
 
-```$sh
+```shell
 cargo build
 ```
 
@@ -56,8 +56,8 @@ adding `--release` flag.
   library using `extern crate` keyword.
 
   ```rust
-    extern crate jni;
-    use jni::*;
+  extern crate jni;
+  use jni::*;
   ```
 
   Integration tests typically require running a JVM, so you should add
@@ -84,7 +84,7 @@ As some tests need to launch a JVM, add a directory with JVM library that you wa
 to use to `LD_LIBRARY_PATH` on Linux/Mac or `PATH` environment variable on Windows.
 On Linux/Mac, you can use the following script for this purpose:
 
-```$sh
+```shell
 source test_profile
 ```
 
@@ -92,7 +92,7 @@ source test_profile
 
 To run all tests, execute the following command:
 
-```$sh
+```shell
 cargo test --features=invocation
 ```
 
@@ -103,7 +103,7 @@ tests.
 
 To run all benchmarks, execute the following command (nightly Rust required):
 
-```$sh
+```shell
 cargo +nightly bench --features=invocation
 ```
 
@@ -120,7 +120,7 @@ Rust code follows the [Rust style guide](https://github.com/rust-lang-nursery/fm
 
 After installation, you can run it with
 
-```$sh
+```shell
 cargo fmt --all -- --check
 ```
 
@@ -132,13 +132,14 @@ Do not forget to update project guides and tutorials along with documentation.
 
 To open local documentation of the project, you can use the following command:
 
-```$sh
+```shell
 cargo doc --open
 ```
 
 ## Submitting Issues
 
-Use Github Issues to submit an issue, whether it is a question, some feedback, a bug or a feature request: <https://github.com/jni-rs/jni-rs/issues/new>
+Use [GitHub Issues](https://github.com/jni-rs/jni-rs/issues/new) to submit an issue,
+whether it is a question, some feedback, a bug or a feature request.
 
 ## Submitting Pull Requests
 
@@ -152,10 +153,10 @@ It’s fine to open a PR as soon as you need any feedback — ask any questions 
 
 Licensed under either of
 
-* Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or
-  <http://www.apache.org/licenses/LICENSE-2.0>)
-* MIT license ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
-  at your option.
+* Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+* MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+
+at your option.
 
 ### Contributor License Agreement
 
