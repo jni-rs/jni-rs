@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - `JNIEnv::exception_check`
   - `JNIEnv::exception_clear`
   - `JNIEnv::exception_describe`
+  - `JNIEnv::exception_occurred` ([#517](https://github.com/jni-rs/jni-rs/issues/517)
   - `JNIEnv::is_same_object`
   - `JNIEnv::delete_local_ref`
   - `WeakRef::is_same_object`
