@@ -17,6 +17,9 @@ use {
     std::{ffi::OsStr, path::PathBuf},
 };
 
+#[cfg(doc)]
+use crate::objects::GlobalRef;
+
 /// The Java VM, providing [Invocation API][invocation-api] support.
 ///
 /// The JavaVM can be obtained either via [`JNIEnv#get_java_vm`][get-vm] in an already attached
@@ -537,6 +540,29 @@ impl<'local> AttachGuard<'local> {
             env,
             should_detach: false,
         }
+    }
+
+    /// Returns true if, prior to the call to [`JavaVM::attach_current_thread`]
+    /// that resulted in this `AttachGuard`, the current thread was already
+    /// attached.
+    ///
+    /// `attach_current_thread` takes a fast path if the current thread is
+    /// already attached, but a slow path if the current thread is *not*
+    /// attached. The fast path merely checks for attachment, whereas the slow
+    /// path actually attaches the thread (and then detaches it later), which
+    /// is much more costly.
+    ///
+    /// This method returns true if `attach_current_thread` took the fast path,
+    /// or false if the slow path was taken.
+    ///
+    /// This can be useful in situations where the current thread *should*
+    /// already be attached, but isn't guaranteed to be, and must be attached
+    /// if it isn't already. In that case, it may be wise to log a warning
+    /// message if this method returns false, because attaching a thread is
+    /// quite slow and should be done as rarely as possible. The [`GlobalRef`]
+    /// destructor does this, for example.
+    pub fn was_already_attached(&self) -> bool {
+        !self.should_detach
     }
 }
 
