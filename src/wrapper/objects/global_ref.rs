@@ -148,6 +148,11 @@ impl GlobalRef {
     pub fn as_obj(&self) -> &JObject<'static> {
         self.as_ref()
     }
+
+    /// Returns the `JavaVM` that created this `GlobalRef`.
+    pub(crate) fn vm(&self) -> &JavaVM {
+        &self.inner.vm
+    }
 }
 
 impl GlobalRefGuard {

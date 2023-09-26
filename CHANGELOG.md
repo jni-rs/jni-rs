@@ -32,11 +32,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - `WeakRef::is_weak_ref_to_same_object`
   - `WeakRef::is_garbage_collected`
 - `JNIEnv::fatal_error` is now guaranteed not to panic or allocate, but requires the error message to be encoded ahead of time. ([#480](https://github.com/jni-rs/jni-rs/pull/480))
+- `Error::JavaException` is now a tuple variant containing information about the Java exception. ([#498](https://github.com/jni-rs/jni-rs/pull/498))
+- `Error::JavaException` error message now shows Java exception message if possible. ([#496](https://github.com/jni-rs/jni-rs/issues/496) / [#498](https://github.com/jni-rs/jni-rs/pull/498))
 
 ### Added
 - New functions for converting Rust `char` to and from Java `char` and `int` ([#427](https://github.com/jni-rs/jni-rs/issues/427) / [#434](https://github.com/jni-rs/jni-rs/pull/434))
 - `JNIEnv::call_nonvirtual_method` and `JNIEnv::call_nonvirtual_method_unchecked` to call non-virtual method. ([#454](https://github.com/jni-rs/jni-rs/issues/454))
-- `AttachGuard::was_already_attached` to check if `JavaVM::attach_current_thread` took the fast path or the slow path.
+- `AttachGuard::was_already_attached` to check if `JavaVM::attach_current_thread` took the fast path or the slow path. ([#498](https://github.com/jni-rs/jni-rs/pull/498))
+- New type `jni::errors::JavaException`, which captures information about the currently pending Java exception. `impl Display for JavaException` shows the Java exception message. ([#496](https://github.com/jni-rs/jni-rs/issues/496) / [#498](https://github.com/jni-rs/jni-rs/pull/498))
 
 ### Changed
 - `JValueGen` has been removed. `JValue` and `JValueOwned` are now separate, unrelated, non-generic types. ([#429](https://github.com/jni-rs/jni-rs/pull/429))

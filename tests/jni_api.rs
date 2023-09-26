@@ -1,5 +1,5 @@
 #![cfg(feature = "invocation")]
-use std::{convert::TryFrom, str::FromStr};
+use std::{convert::TryFrom, fmt::Debug, str::FromStr};
 
 use assert_matches::assert_matches;
 
@@ -12,7 +12,7 @@ use jni::{
     },
     signature::{JavaType, Primitive, ReturnType},
     strings::JNIString,
-    sys::{jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jobject, jshort, jsize},
+    sys::{jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jshort, jsize},
     JNIEnv,
 };
 
@@ -419,21 +419,18 @@ pub fn call_static_method_throws() {
     let mut env = attach_current_thread();
 
     let x = JValue::Long(4_000_000_000);
-    let is_java_exception = env
-        .call_static_method(
+
+    assert_exception(
+        &env.call_static_method(
             MATH_CLASS,
             MATH_TO_INT_METHOD_NAME,
             MATH_TO_INT_SIGNATURE,
             &[x],
-        )
-        .map_err(|error| matches!(error, Error::JavaException))
-        .expect_err("JNIEnv#call_static_method_unsafe should return error");
-
-    // Throws a java.lang.ArithmeticException: integer overflow
-    assert!(
-        is_java_exception,
-        "ErrorKind::JavaException expected as error"
+        ),
+        "java.lang.ArithmeticException",
+        "JNIEnv#call_static_method_unsafe should throw exception",
     );
+
     assert_pending_java_exception(&mut env);
 }
 
@@ -912,37 +909,70 @@ pub fn new_primitive_array_ok() {
 pub fn new_primitive_array_wrong() {
     let mut env = attach_current_thread();
     const WRONG_SIZE: jsize = -1;
+    const WRONG_SIZE_EXCEPTION_CLASS: &'static str = "java.lang.NegativeArraySizeException";
 
     let result = env.new_boolean_array(WRONG_SIZE).map(|arr| arr.as_raw());
-    assert_exception(&result, "JNIEnv#new_boolean_array should throw exception");
+    assert_exception(
+        &result,
+        WRONG_SIZE_EXCEPTION_CLASS,
+        "JNIEnv#new_boolean_array should throw exception",
+    );
     assert_pending_java_exception(&mut env);
 
     let result = env.new_byte_array(WRONG_SIZE).map(|arr| arr.as_raw());
-    assert_exception(&result, "JNIEnv#new_byte_array should throw exception");
+    assert_exception(
+        &result,
+        WRONG_SIZE_EXCEPTION_CLASS,
+        "JNIEnv#new_byte_array should throw exception",
+    );
     assert_pending_java_exception(&mut env);
 
     let result = env.new_char_array(WRONG_SIZE).map(|arr| arr.as_raw());
-    assert_exception(&result, "JNIEnv#new_char_array should throw exception");
+    assert_exception(
+        &result,
+        WRONG_SIZE_EXCEPTION_CLASS,
+        "JNIEnv#new_char_array should throw exception",
+    );
     assert_pending_java_exception(&mut env);
 
     let result = env.new_short_array(WRONG_SIZE).map(|arr| arr.as_raw());
-    assert_exception(&result, "JNIEnv#new_short_array should throw exception");
+    assert_exception(
+        &result,
+        WRONG_SIZE_EXCEPTION_CLASS,
+        "JNIEnv#new_short_array should throw exception",
+    );
     assert_pending_java_exception(&mut env);
 
     let result = env.new_int_array(WRONG_SIZE).map(|arr| arr.as_raw());
-    assert_exception(&result, "JNIEnv#new_int_array should throw exception");
+    assert_exception(
+        &result,
+        WRONG_SIZE_EXCEPTION_CLASS,
+        "JNIEnv#new_int_array should throw exception",
+    );
     assert_pending_java_exception(&mut env);
 
     let result = env.new_long_array(WRONG_SIZE).map(|arr| arr.as_raw());
-    assert_exception(&result, "JNIEnv#new_long_array should throw exception");
+    assert_exception(
+        &result,
+        WRONG_SIZE_EXCEPTION_CLASS,
+        "JNIEnv#new_long_array should throw exception",
+    );
     assert_pending_java_exception(&mut env);
 
     let result = env.new_float_array(WRONG_SIZE).map(|arr| arr.as_raw());
-    assert_exception(&result, "JNIEnv#new_float_array should throw exception");
+    assert_exception(
+        &result,
+        WRONG_SIZE_EXCEPTION_CLASS,
+        "JNIEnv#new_float_array should throw exception",
+    );
     assert_pending_java_exception(&mut env);
 
     let result = env.new_double_array(WRONG_SIZE).map(|arr| arr.as_raw());
-    assert_exception(&result, "JNIEnv#new_double_array should throw exception");
+    assert_exception(
+        &result,
+        WRONG_SIZE_EXCEPTION_CLASS,
+        "JNIEnv#new_double_array should throw exception",
+    );
     assert_pending_java_exception(&mut env);
 }
 
@@ -1193,12 +1223,26 @@ where
 }
 
 // Helper method that asserts that result is Error and the cause is JavaException.
-fn assert_exception(res: &Result<jobject, Error>, expect_message: &str) {
-    assert!(res.is_err());
-    assert!(res
-        .as_ref()
-        .map_err(|error| matches!(error, Error::JavaException))
-        .expect_err(expect_message));
+fn assert_exception<T>(res: &Result<T, Error>, exception_class_name: &str, expect_message: &str)
+where
+    T: Debug,
+{
+    let error = res.as_ref().expect_err(expect_message);
+
+    assert!(
+        matches!(error, Error::JavaException(_)),
+        "{}",
+        expect_message
+    );
+
+    let error_to_string = error.to_string();
+    assert!(
+        (error_to_string.starts_with(&format!(
+            "Java exception was thrown: {exception_class_name}: "
+        )) || error_to_string == format!("Java exception was thrown: {exception_class_name}")),
+        "error message {} doesn't match the expected pattern",
+        error_to_string,
+    );
 }
 
 // Shortcut to `assert_pending_java_exception_detailed()` without checking for expected  type and
@@ -1341,4 +1385,21 @@ fn test_java_char_conversion() {
         // It should be correct.
         assert_eq!(c, '☃');
     }
+}
+
+#[test]
+fn test_java_exception_formatting() {
+    let mut env = attach_current_thread();
+
+    unwrap(
+        env.throw_new("java/lang/RuntimeException", "Test exception message"),
+        &env,
+    );
+
+    let exception = jni::errors::JavaException::capture(&env);
+    let exception_message = exception.unwrap().to_string();
+    assert_eq!(
+        exception_message,
+        "java.lang.RuntimeException: Test exception message"
+    );
 }
