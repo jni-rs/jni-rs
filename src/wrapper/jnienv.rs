@@ -288,7 +288,7 @@ impl<'local> JNIEnv<'local> {
         &mut self,
         name: S,
         loader: &JObject,
-        buf: &AutoElements<'_, '_, '_, jbyte>,
+        buf: &[jbyte],
     ) -> Result<JClass<'local>>
     where
         S: Into<JNIString>,
@@ -2837,12 +2837,15 @@ impl<'local> JNIEnv<'local> {
     /// [`get_array_elements_critical`](Self::get_array_elements_critical) which
     /// imposes additional restrictions that make it less likely to incur the
     /// cost of copying the array elements.
-    pub unsafe fn get_array_elements<'other_local, 'array, T: TypeArray>(
+    pub unsafe fn get_array_elements<'other_local, 'array, T: TypeArray + 'other_local, TArray>(
         &mut self,
-        array: &'array JPrimitiveArray<'other_local, T>,
+        array: TArray,
         mode: ReleaseMode,
-    ) -> Result<AutoElements<'local, 'other_local, 'array, T>> {
-        non_null!(array, "get_array_elements array argument");
+    ) -> Result<AutoElements<'local, 'other_local, T, TArray>>
+    where
+        TArray: AsRef<JPrimitiveArray<'other_local, T>>,
+    {
+        non_null!(array.as_ref(), "get_array_elements array argument");
         AutoElements::new(self, array, mode)
     }
 

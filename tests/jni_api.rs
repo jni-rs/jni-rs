@@ -512,7 +512,7 @@ macro_rules! test_auto_array_read_write {
             // Use a scope to test Drop
             {
                 // Get byte array elements auto wrapper
-                let mut auto_ptr: AutoElements<$jni_type> = unsafe {
+                let mut auto_ptr: AutoElements<$jni_type, _> = unsafe {
                     // Make sure the lifetime is tied to the environment,
                     // not the particular JNIEnv reference
                     let mut temporary_env: JNIEnv = env.unsafe_clone();

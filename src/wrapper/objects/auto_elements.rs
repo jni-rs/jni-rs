@@ -1,4 +1,5 @@
 use log::error;
+use std::marker::PhantomData;
 use std::ptr::NonNull;
 
 use crate::sys::{jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jshort};
@@ -121,8 +122,12 @@ impl TypeArray for jdouble {}
 ///
 /// This type is used to wrap pointers returned by `Get<Type>ArrayElements`
 /// and ensure the pointer is released via `Release<Type>ArrayElements` when dropped.
-pub struct AutoElements<'local, 'other_local, 'array, T: TypeArray> {
-    array: &'array JPrimitiveArray<'other_local, T>,
+pub struct AutoElements<'local, 'other_local, T: TypeArray + 'other_local, TArray>
+where
+    TArray: AsRef<JPrimitiveArray<'other_local, T>>,
+{
+    array: TArray,
+    array_lifetime: PhantomData<&'other_local ()>,
     len: usize,
     ptr: NonNull<T>,
     mode: ReleaseMode,
@@ -130,13 +135,17 @@ pub struct AutoElements<'local, 'other_local, 'array, T: TypeArray> {
     env: JNIEnv<'local>,
 }
 
-impl<'local, 'other_local, 'array, T: TypeArray> AutoElements<'local, 'other_local, 'array, T> {
+impl<'local, 'other_local, T: TypeArray + 'other_local, TArray>
+    AutoElements<'local, 'other_local, T, TArray>
+where
+    TArray: AsRef<JPrimitiveArray<'other_local, T>>,
+{
     /// # Safety
     ///
     /// `len` must be the correct length (number of elements) of the given `array`
     pub(crate) unsafe fn new_with_len(
         env: &mut JNIEnv<'local>,
-        array: &'array JPrimitiveArray<'other_local, T>,
+        array: TArray,
         len: usize,
         mode: ReleaseMode,
     ) -> Result<Self> {
@@ -146,9 +155,10 @@ impl<'local, 'other_local, 'array, T: TypeArray> AutoElements<'local, 'other_loc
         let mut env = unsafe { env.unsafe_clone() };
 
         let mut is_copy: jboolean = 0xff;
-        let ptr = unsafe { T::get(&mut env, array.as_raw(), &mut is_copy) }?;
+        let ptr = unsafe { T::get(&mut env, array.as_ref().as_raw(), &mut is_copy) }?;
         Ok(AutoElements {
             array,
+            array_lifetime: PhantomData,
             len,
             ptr: NonNull::new(ptr).ok_or(Error::NullPtr("Non-null ptr expected"))?,
             mode,
@@ -157,12 +167,8 @@ impl<'local, 'other_local, 'array, T: TypeArray> AutoElements<'local, 'other_loc
         })
     }
 
-    pub(crate) fn new(
-        env: &mut JNIEnv<'local>,
-        array: &'array JPrimitiveArray<'other_local, T>,
-        mode: ReleaseMode,
-    ) -> Result<Self> {
-        let len = env.get_array_length(array)? as usize;
+    pub(crate) fn new(env: &mut JNIEnv<'local>, array: TArray, mode: ReleaseMode) -> Result<Self> {
+        let len = env.get_array_length(array.as_ref())? as usize;
         unsafe { Self::new_with_len(env, array, len, mode) }
     }
 
@@ -185,7 +191,7 @@ impl<'local, 'other_local, 'array, T: TypeArray> AutoElements<'local, 'other_loc
     ///
     /// If `mode` is not [`sys::JNI_COMMIT`], then `self.ptr` must not have already been released.
     unsafe fn release_array_elements(&mut self, mode: i32) -> Result<()> {
-        T::release(&mut self.env, self.array.as_raw(), self.ptr, mode)
+        T::release(&mut self.env, self.array.as_ref().as_raw(), self.ptr, mode)
     }
 
     /// Don't copy back the changes to the array on release (if it is a copy).
@@ -214,17 +220,21 @@ impl<'local, 'other_local, 'array, T: TypeArray> AutoElements<'local, 'other_loc
     }
 }
 
-impl<'local, 'other_local, 'array, T: TypeArray>
-    AsRef<AutoElements<'local, 'other_local, 'array, T>>
-    for AutoElements<'local, 'other_local, 'array, T>
+impl<'local, 'other_local, T: TypeArray + 'other_local, TArray>
+    AsRef<AutoElements<'local, 'other_local, T, TArray>>
+    for AutoElements<'local, 'other_local, T, TArray>
+where
+    TArray: AsRef<JPrimitiveArray<'other_local, T>>,
 {
-    fn as_ref(&self) -> &AutoElements<'local, 'other_local, 'array, T> {
+    fn as_ref(&self) -> &AutoElements<'local, 'other_local, T, TArray> {
         self
     }
 }
 
-impl<'local, 'other_local, 'array, T: TypeArray> Drop
-    for AutoElements<'local, 'other_local, 'array, T>
+impl<'local, 'other_local, T: TypeArray + 'other_local, TArray> Drop
+    for AutoElements<'local, 'other_local, T, TArray>
+where
+    TArray: AsRef<JPrimitiveArray<'other_local, T>>,
 {
     fn drop(&mut self) {
         // Safety: `self.mode` is valid and the array has not yet been released.
@@ -237,16 +247,20 @@ impl<'local, 'other_local, 'array, T: TypeArray> Drop
     }
 }
 
-impl<'local, 'other_local, 'array, T: TypeArray>
-    From<&AutoElements<'local, 'other_local, 'array, T>> for *mut T
+impl<'local, 'other_local, T: TypeArray + 'other_local, TArray>
+    From<&AutoElements<'local, 'other_local, T, TArray>> for *mut T
+where
+    TArray: AsRef<JPrimitiveArray<'other_local, T>>,
 {
-    fn from(other: &AutoElements<T>) -> *mut T {
+    fn from(other: &AutoElements<'local, 'other_local, T, TArray>) -> *mut T {
         other.as_ptr()
     }
 }
 
-impl<'local, 'other_local, 'array, T: TypeArray> std::ops::Deref
-    for AutoElements<'local, 'other_local, 'array, T>
+impl<'local, 'other_local, T: TypeArray + 'other_local, TArray> std::ops::Deref
+    for AutoElements<'local, 'other_local, T, TArray>
+where
+    TArray: AsRef<JPrimitiveArray<'other_local, T>>,
 {
     type Target = [T];
 
@@ -255,8 +269,10 @@ impl<'local, 'other_local, 'array, T: TypeArray> std::ops::Deref
     }
 }
 
-impl<'local, 'other_local, 'array, T: TypeArray> std::ops::DerefMut
-    for AutoElements<'local, 'other_local, 'array, T>
+impl<'local, 'other_local, T: TypeArray + 'other_local, TArray> std::ops::DerefMut
+    for AutoElements<'local, 'other_local, T, TArray>
+where
+    TArray: AsRef<JPrimitiveArray<'other_local, T>>,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { std::slice::from_raw_parts_mut(self.ptr.as_mut(), self.len) }
