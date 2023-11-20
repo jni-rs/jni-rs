@@ -1,6 +1,7 @@
 #![cfg(feature = "invocation")]
 
 mod util;
+use jni::JNIVersion;
 use util::{
     attach_current_thread, attach_current_thread_as_daemon, attach_current_thread_permanently,
     call_java_abs, jvm,
@@ -39,11 +40,11 @@ pub fn nested_attaches_should_not_detach_permanent_thread() {
 
     // Nested attach_as_daemon is a no-op.
     {
-        let mut env_nested = attach_current_thread_as_daemon();
+        let mut env_nested = unsafe { attach_current_thread_as_daemon() };
         let val = call_java_abs(&mut env_nested, -5);
         assert_eq!(val, 5);
         assert_eq!(jvm().threads_attached(), 1);
     }
     assert_eq!(jvm().threads_attached(), 1);
-    assert!(jvm().get_env().is_ok());
+    unsafe { assert!(jvm().get_env(JNIVersion::V1_4).is_ok()) };
 }

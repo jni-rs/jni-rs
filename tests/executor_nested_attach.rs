@@ -4,7 +4,7 @@ use std::{sync::Arc, thread::spawn};
 
 use jni::{
     errors::{Error, JniError},
-    Executor, JavaVM,
+    Executor, JNIVersion, JavaVM,
 };
 
 mod util;
@@ -52,7 +52,8 @@ fn check_detached(vm: &JavaVM) {
 }
 
 fn is_attached(vm: &JavaVM) -> bool {
-    vm.get_env()
+    // Safety: assumes tests are only run against a JavaVM that implements JNI >= 1.4
+    unsafe { vm.get_env(JNIVersion::V1_4) }
         .map(|_| true)
         .or_else(|jni_err| match jni_err {
             Error::JniCall(JniError::ThreadDetached) => Ok(false),

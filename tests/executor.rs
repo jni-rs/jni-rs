@@ -132,7 +132,7 @@ fn test_destroy() {
             // JavaVM before it gets destroyed, including dropping the AutoLocal
             // for the `MATH_CLASS`
             {
-                let mut env = jvm.attach_current_thread_as_daemon().unwrap();
+                let mut env = unsafe { jvm.attach_current_thread_as_daemon().unwrap() };
                 println!("daemon thread attach");
                 attach_barrier.wait();
                 println!("daemon thread run");

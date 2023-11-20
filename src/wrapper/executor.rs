@@ -73,7 +73,7 @@ impl Executor {
     {
         assert!(capacity > 0, "capacity should be a positive integer");
 
-        let mut jni_env = self.vm.attach_current_thread_as_daemon()?;
+        let mut jni_env = self.vm.attach_current_thread_permanently()?;
         jni_env.with_local_frame(capacity, |jni_env| f(jni_env))
     }
 

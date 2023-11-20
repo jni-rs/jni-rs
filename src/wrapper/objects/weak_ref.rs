@@ -5,7 +5,7 @@ use log::{debug, warn};
 use crate::{
     errors::Result,
     objects::{GlobalRef, JObject},
-    sys, JNIEnv, JavaVM,
+    sys, JNIEnv, JNIVersion, JavaVM,
 };
 
 // Note: `WeakRef` must not implement `Into<JObject>`! If it did, then it would be possible to
@@ -169,7 +169,9 @@ impl Drop for WeakRefGuard {
             Ok(())
         }
 
-        let res = match self.vm.get_env() {
+        // Safety: we can assume we couldn't have created the weak reference in the first place without
+        // having already required the JavaVM to support JNI >= 1.4
+        let res = match unsafe { self.vm.get_env(JNIVersion::V1_4) } {
             Ok(env) => drop_impl(&env, self.raw),
             Err(_) => {
                 warn!("Dropping a WeakRef in a detached thread. Fix your code if this message appears frequently (see the WeakRef docs).");
