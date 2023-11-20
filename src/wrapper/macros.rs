@@ -85,7 +85,7 @@ macro_rules! java_vm_call_unchecked {
     ( $jvm:expr, $version:tt, $name:tt $(, $args:expr )*) => {{
         // Safety: we know that the pointer can't be null, since that's
         // checked in `from_raw()`
-        let jvm: *mut jni_sys::JavaVM = $jvm.get_java_vm_pointer();
+        let jvm: *mut jni_sys::JavaVM = $jvm.get_raw();
         ((*(*jvm)).$version.$name)(jvm $(, $args)*)
     }};
 }

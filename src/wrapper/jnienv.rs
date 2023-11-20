@@ -252,11 +252,6 @@ impl<'local> JNIEnv<'local> {
         self.internal
     }
 
-    /// Returns underlying `sys::JNIEnv` interface.
-    pub fn get_native_interface(&self) -> *mut sys::JNIEnv {
-        self.internal
-    }
-
     /// Duplicates this `JNIEnv`.
     ///
     /// # Safety

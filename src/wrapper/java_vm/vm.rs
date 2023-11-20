@@ -243,9 +243,8 @@ impl JavaVM {
         Ok(JavaVM(ptr))
     }
 
-    // TODO: rename this `.get_raw()` for consistency with `JNIEnv::get_raw()`
     /// Returns underlying `sys::JavaVM` interface.
-    pub fn get_java_vm_pointer(&self) -> *mut sys::JavaVM {
+    pub fn get_raw(&self) -> *mut sys::JavaVM {
         self.0
     }
 
