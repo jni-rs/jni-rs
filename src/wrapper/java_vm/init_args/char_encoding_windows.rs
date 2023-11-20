@@ -29,8 +29,8 @@ type WCodepage = c_uint;
 const MAX_INPUT_LEN: usize = 1048576;
 
 /// Converts `s` into a `Cow<CStr>` encoded in the specified Windows code page.
-pub(super) fn str_to_cstr_win32<'a>(
-    s: Cow<'a, str>,
+pub(super) fn str_to_cstr_win32(
+    s: Cow<str>,
     needed_codepage: WCodepage,
 ) -> Result<Cow<'static, CStr>, JvmError> {
     // First, check if the input string (UTF-8) is too long to transcode. Bail early if so.
@@ -179,13 +179,11 @@ pub(super) fn str_to_cstr_win32<'a>(
 
     // That's it, it's converted. Now turn it into a `CString`. This will add a null terminator if
     // there isn't one already and check for null bytes in the middle.
-    unsafe { bytes_to_cstr(Cow::Owned(output), Some(s.into())) }
+    unsafe { bytes_to_cstr(Cow::Owned(output), Some(s)) }
 }
 
 /// Converts `s` into the Windows default character encoding.
-pub(super) fn str_to_cstr_win32_default_codepage<'a>(
-    s: Cow<'a, str>,
-) -> Result<Cow<'a, CStr>, JvmError> {
+pub(super) fn str_to_cstr_win32_default_codepage(s: Cow<str>) -> Result<Cow<CStr>, JvmError> {
     // Get the code page. There is a remote possibility that it is UTF-8. If so, pass the
     // string through unchanged (other than adding a null terminator). If not, we need to have
     // Windows convert the string to the expected code page first.
