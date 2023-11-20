@@ -43,14 +43,15 @@ impl<'local, 'other_local: 'obj_ref, 'obj_ref> JavaStr<'local, 'other_local, 'ob
         env: &JNIEnv<'_>,
         obj: &JString<'_>,
     ) -> Result<(*const c_char, bool)> {
-        non_null!(obj, "get_string_utf_chars obj argument");
-        let mut is_copy: jboolean = 0;
-        let ptr: *const c_char = jni_non_null_call!(
-            env.get_raw(),
+        let obj = null_check!(obj, "get_string_utf_chars obj argument")?;
+        let mut is_copy: jboolean = false;
+        let ptr: *const c_char = jni_call_only_check_null_ret!(
+            env,
+            v1_1,
             GetStringUTFChars,
             obj.as_raw(),
             &mut is_copy as *mut _
-        );
+        )?;
 
         let is_copy = is_copy == JNI_TRUE;
         Ok((ptr, is_copy))
@@ -65,12 +66,13 @@ impl<'local, 'other_local: 'obj_ref, 'obj_ref> JavaStr<'local, 'other_local, 'ob
     ///
     /// The caller must guarantee that [Self::internal] was constructed from a valid pointer obtained from [Self::get_string_utf_chars]
     unsafe fn release_string_utf_chars(&mut self) -> Result<()> {
-        non_null!(self.obj, "release_string_utf_chars obj argument");
+        let obj = null_check!(self.obj, "release_string_utf_chars obj argument")?;
         // This method is safe to call in case of pending exceptions (see the chapter 2 of the spec)
-        jni_unchecked!(
-            self.env.get_raw(),
+        jni_call_unchecked!(
+            self.env,
+            v1_1,
             ReleaseStringUTFChars,
-            self.obj.as_raw(),
+            obj.as_raw(),
             self.internal
         );
 

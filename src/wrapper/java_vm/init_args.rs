@@ -124,7 +124,7 @@ impl<'a> Default for InitArgsBuilder<'a> {
         InitArgsBuilder {
             opts: Ok(vec![]),
             ignore_unrecognized: false,
-            version: JNIVersion::V8,
+            version: JNIVersion::V1_8,
         }
     }
 }

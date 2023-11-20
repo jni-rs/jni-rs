@@ -4,8 +4,6 @@ use std::{
     ptr,
 };
 
-use log::debug;
-
 use crate::{objects::JObject, JNIEnv};
 
 /// Auto-delete wrapper for local refs.
@@ -108,12 +106,7 @@ where
         // Safety: `self.obj` is not used again after this `take` call.
         let obj = unsafe { ManuallyDrop::take(&mut self.obj) };
 
-        // Delete the extracted local reference.
-        let res = self.env.delete_local_ref(obj);
-        match res {
-            Ok(()) => {}
-            Err(e) => debug!("error dropping global ref: {:#?}", e),
-        }
+        self.env.delete_local_ref(obj);
     }
 }
 

@@ -14,7 +14,7 @@ pub fn jvm() -> &'static Arc<JavaVM> {
 
     INIT.call_once(|| {
         let jvm_args = InitArgsBuilder::new()
-            .version(JNIVersion::V8)
+            .version(JNIVersion::V1_8)
             .option("-Xcheck:jni")
             .build()
             .unwrap_or_else(|e| panic!("{:#?}", e));
@@ -50,7 +50,7 @@ pub fn attach_current_thread() -> AttachGuard<'static> {
 }
 
 #[allow(dead_code)]
-pub fn attach_current_thread_as_daemon() -> JNIEnv<'static> {
+pub unsafe fn attach_current_thread_as_daemon() -> JNIEnv<'static> {
     jvm()
         .attach_current_thread_as_daemon()
         .expect("failed to attach jvm daemon thread")
@@ -69,10 +69,9 @@ pub unsafe fn detach_current_thread() {
 }
 
 pub fn print_exception(env: &JNIEnv) {
-    let exception_occurred = env.exception_check().unwrap_or_else(|e| panic!("{:?}", e));
+    let exception_occurred = env.exception_check();
     if exception_occurred {
-        env.exception_describe()
-            .unwrap_or_else(|e| panic!("{:?}", e));
+        env.exception_describe();
     }
 }
 

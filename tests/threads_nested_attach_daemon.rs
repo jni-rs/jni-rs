@@ -9,7 +9,7 @@ use util::{
 #[test]
 pub fn nested_attaches_should_not_detach_daemon_thread() {
     assert_eq!(jvm().threads_attached(), 0);
-    let mut env = attach_current_thread_as_daemon();
+    let mut env = unsafe { attach_current_thread_as_daemon() };
     let val = call_java_abs(&mut env, -1);
     assert_eq!(val, 1);
     assert_eq!(jvm().threads_attached(), 1);
@@ -39,7 +39,7 @@ pub fn nested_attaches_should_not_detach_daemon_thread() {
 
     // Nested attach_as_daemon is a no-op.
     {
-        let mut env_nested = attach_current_thread_as_daemon();
+        let mut env_nested = unsafe { attach_current_thread_as_daemon() };
         let val = call_java_abs(&mut env_nested, -5);
         assert_eq!(val, 5);
         assert_eq!(jvm().threads_attached(), 1);

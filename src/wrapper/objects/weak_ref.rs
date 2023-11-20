@@ -5,7 +5,7 @@ use log::{debug, warn};
 use crate::{
     errors::Result,
     objects::{GlobalRef, JObject},
-    sys, JNIEnv, JavaVM,
+    sys, JNIEnv, JNIVersion, JavaVM,
 };
 
 // Note: `WeakRef` must not implement `Into<JObject>`! If it did, then it would be possible to
@@ -68,9 +68,17 @@ impl WeakRef {
     /// If this method returns `Ok(Some(r))`, it is guaranteed that the object will not be garbage
     /// collected at least until `r` is deleted or becomes invalid.
     pub fn upgrade_local<'local>(&self, env: &JNIEnv<'local>) -> Result<Option<JObject<'local>>> {
-        let r = env.new_local_ref(unsafe { JObject::from_raw(self.as_raw()) })?;
+        // XXX: Don't use env.new_local_ref here because that will treat `null`
+        // return values (for non-null objects) as out-of-memory errors
+        let r = unsafe {
+            JObject::from_raw(jni_call_unchecked!(env, v1_2, NewLocalRef, self.as_raw()))
+        };
 
         // Per JNI spec, `NewLocalRef` will return a null pointer if the object was GC'd.
+        //
+        // XXX: technically the `null` could also mean that the system is out of memory
+        // but we have no way of differentiating that here.
+        //
         if r.is_null() {
             Ok(None)
         } else {
@@ -91,7 +99,7 @@ impl WeakRef {
 
         // Unlike `NewLocalRef`, the JNI spec does *not* guarantee that `NewGlobalRef` will return a
         // null pointer if the object was GC'd, so we'll have to check.
-        if env.is_same_object(&r, JObject::null())? {
+        if env.is_same_object(&r, JObject::null()) {
             Ok(None)
         } else {
             Ok(Some(r))
@@ -106,7 +114,7 @@ impl WeakRef {
     ///
     /// This is equivalent to
     /// <code>self.[is_same_object][WeakRef::is_same_object](env, [JObject::null]\())</code>.
-    pub fn is_garbage_collected(&self, env: &JNIEnv) -> Result<bool> {
+    pub fn is_garbage_collected(&self, env: &JNIEnv) -> bool {
         self.is_same_object(env, JObject::null())
     }
 
@@ -121,7 +129,7 @@ impl WeakRef {
     /// [`WeakRef::is_garbage_collected`]: it returns true if the object referred to by this
     /// `WeakRef` has been garbage collected, or false if the object has not yet been garbage
     /// collected.
-    pub fn is_same_object<'local, O>(&self, env: &JNIEnv<'local>, object: O) -> Result<bool>
+    pub fn is_same_object<'local, O>(&self, env: &JNIEnv<'local>, object: O) -> bool
     where
         O: AsRef<JObject<'local>>,
     {
@@ -133,7 +141,7 @@ impl WeakRef {
     ///
     /// This method will also return true if both weak references refer to an object that has been
     /// garbage collected.
-    pub fn is_weak_ref_to_same_object(&self, env: &JNIEnv, other: &WeakRef) -> Result<bool> {
+    pub fn is_weak_ref_to_same_object(&self, env: &JNIEnv, other: &WeakRef) -> bool {
         self.is_same_object(env, unsafe { JObject::from_raw(other.as_raw()) })
     }
 
@@ -153,13 +161,17 @@ impl WeakRef {
 impl Drop for WeakRefGuard {
     fn drop(&mut self) {
         fn drop_impl(env: &JNIEnv, raw: sys::jweak) -> Result<()> {
-            let internal = env.get_native_interface();
-            // This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
-            jni_unchecked!(internal, DeleteWeakGlobalRef, raw);
+            // Safety: This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
+            // jni-rs requires JNI_VERSION > 1.2
+            unsafe {
+                jni_call_unchecked!(env, v1_2, DeleteWeakGlobalRef, raw);
+            }
             Ok(())
         }
 
-        let res = match self.vm.get_env() {
+        // Safety: we can assume we couldn't have created the weak reference in the first place without
+        // having already required the JavaVM to support JNI >= 1.4
+        let res = match unsafe { self.vm.get_env(JNIVersion::V1_4) } {
             Ok(env) => drop_impl(&env, self.raw),
             Err(_) => {
                 warn!("Dropping a WeakRef in a detached thread. Fix your code if this message appears frequently (see the WeakRef docs).");

@@ -1,142 +1,91 @@
-// A JNI call that is expected to return a non-null pointer when successful.
-// If a null pointer is returned, it is converted to an Err.
-// Returns Err if there is a pending exception after the call.
-macro_rules! jni_non_null_call {
-    ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
-        let res = jni_non_void_call!($jnienv, $name $(, $args)*);
-        non_null!(res, concat!(stringify!($name), " result"))
-    })
-}
-
-// A non-void JNI call. May return anything — primitives, references, error codes.
-// Returns Err if there is a pending exception after the call.
-macro_rules! jni_non_void_call {
-    ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
-        log::trace!("calling checked jni method: {}", stringify!($name));
-
-        #[allow(unused_unsafe)]
-        let res = unsafe {
-            jni_method!($jnienv, $name)($jnienv, $($args),*)
-        };
-
-        check_exception!($jnienv);
-        res
-    })
-}
-
-macro_rules! non_null {
-    ( $obj:expr, $ctx:expr ) => {
-        if $obj.is_null() {
-            return Err($crate::errors::Error::NullPtr($ctx));
-        } else {
-            $obj
-        }
-    };
-}
-
-// A void JNI call.
-// Returns Err if there is a pending exception after the call.
-macro_rules! jni_void_call {
-    ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
-        log::trace!("calling checked jni method: {}", stringify!($name));
-
-        #[allow(unused_unsafe)]
-        unsafe {
-            jni_method!($jnienv, $name)($jnienv, $($args),*)
-        };
-
-        check_exception!($jnienv);
-    })
-}
-
-// A JNI call that does not check for exceptions or verify
-// error codes (if any).
-macro_rules! jni_unchecked {
-    ( $jnienv:expr, $name:tt $(, $args:expr )* ) => ({
-        log::trace!("calling unchecked jni method: {}", stringify!($name));
-
-        #[allow(unused_unsafe)]
-        unsafe {
-            jni_method!($jnienv, $name)($jnienv, $($args),*)
-        }
-    })
-}
-
-macro_rules! jni_method {
-    ( $jnienv:expr, $name:tt ) => {{
-        log::trace!("looking up jni method {}", stringify!($name));
-        let env = $jnienv;
-        match deref!(deref!(env, "JNIEnv"), "*JNIEnv").$name {
-            Some(method) => {
-                log::trace!("found jni method");
-                method
-            }
-            None => {
-                log::trace!("jnienv method not defined, returning error");
-                return Err($crate::errors::Error::JNIEnvMethodNotFound(stringify!(
-                    $name
-                )));
-            }
-        }
+/// Directly calls a JNIEnv FFI function, nothing else
+///
+/// # Safety
+///
+/// When calling any function added after JNI 1.1 you must know that it's valid
+/// for the current JNI version.
+macro_rules! jni_call_unchecked {
+    ( $jnienv:expr, $version:tt, $name:tt $(, $args:expr )*) => {{
+        // Safety: we know that the JNIEnv pointer can't be null, since that's
+        // checked in `from_raw()`
+        let env: *mut jni_sys::JNIEnv = $jnienv.get_raw();
+        let interface: *const jni_sys::JNINativeInterface_ = *env;
+        ((*interface).$version.$name)(env $(, $args)*)
     }};
 }
 
-macro_rules! check_exception {
-    ( $jnienv:expr ) => {
-        log::trace!("checking for exception");
-        let check = { jni_unchecked!($jnienv, ExceptionCheck) } == $crate::sys::JNI_TRUE;
-        if check {
-            log::trace!("exception found, returning error");
-            return Err($crate::errors::Error::JavaException);
+/// Calls a JNIEnv function, then checks for a pending exception
+///
+/// This only checks for an exception, it doesn't map an exception into
+/// an Error and it doesn't clear the exception and so the exception will
+/// be thrown if the native code returns to the JVM.
+///
+/// Returns `Err` if there is a pending exception after the call.
+macro_rules! jni_call_check_ex {
+    ( $jnienv:expr, $version:tt, $name:tt $(, $args:expr )* ) => ({
+        let ret = jni_call_unchecked!($jnienv, $version, $name $(, $args)*);
+        if $jnienv.exception_check() {
+            Err(crate::errors::Error::JavaException)
+        } else {
+            Ok(ret)
         }
-        log::trace!("no exception found");
-    };
-}
-
-macro_rules! catch {
-    ( move $b:block ) => {
-        (move || $b)()
-    };
-    ( $b:block ) => {
-        (|| $b)()
-    };
-}
-
-macro_rules! java_vm_unchecked {
-    ( $java_vm:expr, $name:tt $(, $args:expr )* ) => ({
-        log::trace!("calling unchecked JavaVM method: {}", stringify!($name));
-        java_vm_method!($java_vm, $name)($java_vm, $($args),*)
     })
 }
 
-macro_rules! java_vm_method {
-    ( $jnienv:expr, $name:tt ) => {{
-        log::trace!("looking up JavaVM method {}", stringify!($name));
-        let env = $jnienv;
-        match deref!(deref!(env, "JavaVM"), "*JavaVM").$name {
-            Some(meth) => {
-                log::trace!("found JavaVM method");
-                meth
+/// Calls a JNIEnv function, then checks for a pending exception, then checks for a `null` return value
+///
+/// Returns `Err` if there is a pending exception after the call.
+/// Returns `Err(Error::NullPtr)` if the JNI function returns `null`
+macro_rules! jni_call_check_ex_and_null_ret {
+    ( $jnienv:expr, $version:tt, $name:tt $(, $args:expr )* ) => ({
+        jni_call_check_ex!($jnienv, $version, $name $(, $args)*).and_then(|ret| {
+            if ret.is_null() {
+                Err($crate::errors::Error::NullPtr(concat!(stringify!($name), " result")))
+            } else {
+                Ok(ret)
             }
-            None => {
-                log::trace!("JavaVM method not defined, returning error");
-                return Err($crate::errors::Error::JavaVMMethodNotFound(stringify!(
-                    $name
-                )));
-            }
-        }
-    }};
+        })
+    })
 }
 
-macro_rules! deref {
+/// Calls a JNIEnv function, with no check for exceptions, then checks for a `null` return value
+///
+/// Returns `Err(Error::NullPtr)` if the JNI function returns `null`
+macro_rules! jni_call_only_check_null_ret {
+    ( $jnienv:expr, $version:tt, $name:tt $(, $args:expr )* ) => ({
+        let ret = jni_call_unchecked!($jnienv, $version, $name $(, $args)*);
+        if ret.is_null() {
+            Err($crate::errors::Error::NullPtr(concat!(stringify!($name), " result")))
+        } else {
+            Ok(ret)
+        }
+    })
+}
+
+/// Maps a pointer to either Ok(ptr) or Err(Error::NullPtr)
+///
+/// This makes it reasonably ergonomic to use `?` to early-exit with an `Err` in
+/// case of `null` pointer arguments.
+///
+/// Unlike earlier macros this avoids using `return`, since that can result in
+/// surprising control flow if the caller doesn't realize that a macro might
+/// explicitly return from the current function.
+macro_rules! null_check {
     ( $obj:expr, $ctx:expr ) => {
         if $obj.is_null() {
-            return Err($crate::errors::Error::NullDeref($ctx));
+            Err($crate::errors::Error::NullPtr($ctx))
         } else {
-            #[allow(unused_unsafe)]
-            unsafe {
-                *$obj
-            }
+            Ok($obj)
         }
     };
+}
+
+/// Directly calls a JavaVM function, nothing else
+macro_rules! java_vm_call_unchecked {
+    ( $jvm:expr, $version:tt, $name:tt $(, $args:expr )*) => {{
+        // Safety: we know that the pointer can't be null, since that's
+        // checked in `from_raw()`
+        let jvm: *mut jni_sys::JavaVM = $jvm.get_java_vm_pointer();
+        ((*(*jvm)).$version.$name)(jvm $(, $args)*)
+    }};
 }

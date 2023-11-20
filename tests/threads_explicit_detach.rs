@@ -1,6 +1,7 @@
 #![cfg(feature = "invocation")]
 
 mod util;
+use jni::JNIVersion;
 use util::{attach_current_thread, call_java_abs, detach_current_thread, jvm};
 
 #[test]
@@ -17,5 +18,5 @@ pub fn explicit_detach_detaches_thread_attached_locally() {
         detach_current_thread();
     }
     assert_eq!(jvm().threads_attached(), 0);
-    assert!(jvm().get_env().is_err());
+    unsafe { assert!(jvm().get_env(JNIVersion::V1_4).is_err()) };
 }

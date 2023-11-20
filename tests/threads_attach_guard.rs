@@ -1,6 +1,7 @@
 #![cfg(feature = "invocation")]
 
 mod util;
+use jni::JNIVersion;
 use util::{attach_current_thread, call_java_abs, jvm};
 
 #[test]
@@ -14,5 +15,5 @@ fn thread_attach_guard_detaches_on_drop() {
     }
     assert_eq!(jvm().threads_attached(), 0);
     // Verify that this thread is really detached.
-    assert!(jvm().get_env().is_err());
+    unsafe { assert!(jvm().get_env(JNIVersion::V1_4).is_err()) };
 }

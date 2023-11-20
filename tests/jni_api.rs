@@ -111,15 +111,15 @@ pub fn is_same_object_diff_references() {
     let env = attach_current_thread();
     let string = env.new_string(TESTING_OBJECT_STR).unwrap();
     let ref_from_string = unwrap(env.new_local_ref(&string), &env);
-    assert!(unwrap(env.is_same_object(&string, &ref_from_string), &env));
-    unwrap(env.delete_local_ref(ref_from_string), &env);
+    assert!(env.is_same_object(&string, &ref_from_string));
+    env.delete_local_ref(ref_from_string);
 }
 
 #[test]
 pub fn is_same_object_same_reference() {
     let env = attach_current_thread();
     let string = env.new_string(TESTING_OBJECT_STR).unwrap();
-    assert!(unwrap(env.is_same_object(&string, &string), &env));
+    assert!(env.is_same_object(&string, &string));
 }
 
 #[test]
@@ -127,16 +127,13 @@ pub fn is_not_same_object() {
     let env = attach_current_thread();
     let string = env.new_string(TESTING_OBJECT_STR).unwrap();
     let same_src_str = env.new_string(TESTING_OBJECT_STR).unwrap();
-    assert!(!unwrap(env.is_same_object(string, same_src_str), &env));
+    assert!(!env.is_same_object(string, same_src_str));
 }
 
 #[test]
 pub fn is_not_same_object_null() {
     let env = attach_current_thread();
-    assert!(unwrap(
-        env.is_same_object(JObject::null(), JObject::null()),
-        &env,
-    ));
+    assert!(env.is_same_object(JObject::null(), JObject::null()));
 }
 
 #[test]
@@ -186,7 +183,7 @@ pub fn pop_local_frame_pending_exception() {
     unsafe { env.pop_local_frame(&JObject::null()) }
         .expect("JNIEnv#pop_local_frame must work in case of pending exception");
 
-    env.exception_clear().unwrap();
+    env.exception_clear();
 }
 
 #[test]
@@ -200,7 +197,7 @@ pub fn push_local_frame_pending_exception() {
     env.push_local_frame(16)
         .expect("JNIEnv#push_local_frame must work in case of pending exception");
 
-    env.exception_clear().unwrap();
+    env.exception_clear();
 
     unsafe { env.pop_local_frame(&JObject::null()) }.unwrap();
 }
@@ -246,7 +243,7 @@ pub fn with_local_frame_pending_exception() {
     env.with_local_frame(16, |_| -> Result<_, Error> { Ok(()) })
         .expect("JNIEnv#with_local_frame must work in case of pending exception");
 
-    env.exception_clear().unwrap();
+    env.exception_clear();
 }
 
 #[test]
@@ -495,13 +492,13 @@ pub fn java_byte_array_from_slice() {
 }
 
 macro_rules! test_auto_array_read_write {
-    ( $test_name:tt, $jni_type:ty, $new_array:tt, $get_array:tt, $set_array:tt ) => {
+    ( $test_name:tt, $jni_type:ty, $new_array:tt, $get_array:tt, $set_array:tt, $value_a:tt, $value_b:tt ) => {
         #[test]
         pub fn $test_name() {
             let env = attach_current_thread();
 
             // Create original Java array
-            let buf: &[$jni_type] = &[0 as $jni_type, 1 as $jni_type];
+            let buf: &[$jni_type] = &[$value_a as $jni_type, $value_b as $jni_type];
             let java_array = env
                 .$new_array(2)
                 .expect(stringify!(JNIEnv#$new_array must create a Java $jni_type array with given size));
@@ -524,18 +521,18 @@ macro_rules! test_auto_array_read_write {
 
                 // Check pointer access
                 let ptr = auto_ptr.as_ptr();
-                assert_eq!(unsafe { *ptr.offset(0) } as i32, 0);
-                assert_eq!(unsafe { *ptr.offset(1) } as i32, 1);
+                assert_eq!(unsafe { *ptr.offset(0) }, $value_a);
+                assert_eq!(unsafe { *ptr.offset(1) }, $value_b);
 
                 // Check pointer From access
                 let ptr: *mut $jni_type = std::convert::From::from(&auto_ptr);
-                assert_eq!(unsafe { *ptr.offset(0) } as i32, 0);
-                assert_eq!(unsafe { *ptr.offset(1) } as i32, 1);
+                assert_eq!(unsafe { *ptr.offset(0) }, $value_a);
+                assert_eq!(unsafe { *ptr.offset(1) }, $value_b);
 
                 // Check pointer into() access
                 let ptr: *mut $jni_type = (&auto_ptr).into();
-                assert_eq!(unsafe { *ptr.offset(0) } as i32, 0);
-                assert_eq!(unsafe { *ptr.offset(1) } as i32, 1);
+                assert_eq!(unsafe { *ptr.offset(0) }, $value_a);
+                assert_eq!(unsafe { *ptr.offset(1) }, $value_b);
 
                 // Check slice access
                 //
@@ -545,13 +542,13 @@ macro_rules! test_auto_array_read_write {
                 // (to ensure we don't have aliased references)
                 unsafe {
                     let slice = std::slice::from_raw_parts(auto_ptr.as_ptr(), auto_ptr.len());
-                    assert_eq!(slice[0] as i32, 0);
-                    assert_eq!(slice[1] as i32, 1);
+                    assert_eq!(slice[0], $value_a);
+                    assert_eq!(slice[1], $value_b);
                 }
 
                 // Check access via Deref
-                assert_eq!(auto_ptr[0] as i32, 0);
-                assert_eq!(auto_ptr[1] as i32, 1);
+                assert_eq!(auto_ptr[0], $value_a);
+                assert_eq!(auto_ptr[1], $value_b);
 
                 // Modify via DerefMut
                 let tmp = auto_ptr[1];
@@ -563,10 +560,10 @@ macro_rules! test_auto_array_read_write {
             }
 
             // Confirm modification of original Java array
-            let mut res: [$jni_type; 2] = [0 as $jni_type; 2];
+            let mut res: [$jni_type; 2] = [$value_a as $jni_type; 2];
             env.$get_array(&java_array, 0, &mut res).unwrap();
-            assert_eq!(res[0] as i32, 1);
-            assert_eq!(res[1] as i32, 0);
+            assert_eq!(res[0], $value_b);
+            assert_eq!(res[1], $value_a);
         }
     };
 }
@@ -577,7 +574,9 @@ test_auto_array_read_write!(
     jint,
     new_int_array,
     get_int_array_region,
-    set_int_array_region
+    set_int_array_region,
+    0,
+    1
 );
 
 // Test type-specific array accessors
@@ -586,7 +585,9 @@ test_auto_array_read_write!(
     jint,
     new_int_array,
     get_int_array_region,
-    set_int_array_region
+    set_int_array_region,
+    0,
+    1
 );
 
 test_auto_array_read_write!(
@@ -594,7 +595,9 @@ test_auto_array_read_write!(
     jlong,
     new_long_array,
     get_long_array_region,
-    set_long_array_region
+    set_long_array_region,
+    0,
+    1
 );
 
 test_auto_array_read_write!(
@@ -602,7 +605,9 @@ test_auto_array_read_write!(
     jbyte,
     new_byte_array,
     get_byte_array_region,
-    set_byte_array_region
+    set_byte_array_region,
+    0,
+    1
 );
 
 test_auto_array_read_write!(
@@ -610,7 +615,9 @@ test_auto_array_read_write!(
     jboolean,
     new_boolean_array,
     get_boolean_array_region,
-    set_boolean_array_region
+    set_boolean_array_region,
+    true,
+    false
 );
 
 test_auto_array_read_write!(
@@ -618,7 +625,9 @@ test_auto_array_read_write!(
     jchar,
     new_char_array,
     get_char_array_region,
-    set_char_array_region
+    set_char_array_region,
+    0,
+    1
 );
 
 test_auto_array_read_write!(
@@ -626,7 +635,9 @@ test_auto_array_read_write!(
     jshort,
     new_short_array,
     get_short_array_region,
-    set_short_array_region
+    set_short_array_region,
+    0,
+    1
 );
 
 test_auto_array_read_write!(
@@ -634,7 +645,9 @@ test_auto_array_read_write!(
     jfloat,
     new_float_array,
     get_float_array_region,
-    set_float_array_region
+    set_float_array_region,
+    0.0,
+    1.0
 );
 
 test_auto_array_read_write!(
@@ -642,7 +655,9 @@ test_auto_array_read_write!(
     jdouble,
     new_double_array,
     get_double_array_region,
-    set_double_array_region
+    set_double_array_region,
+    0.0,
+    1.0
 );
 
 #[test]
@@ -967,9 +982,8 @@ fn local_ref_null() {
     assert!(result.is_ok());
     assert!(result.unwrap().is_null());
 
-    // try to delete null reference
-    let result = env.delete_local_ref(null_obj);
-    assert!(result.is_ok());
+    // "delete" null reference
+    env.delete_local_ref(null_obj);
 }
 
 #[test]
@@ -1130,19 +1144,19 @@ pub fn test_conversion() {
     let obj: JObject = unwrap(env.new_local_ref(&orig_obj), &env);
     let string = JString::from(obj);
     let actual = JObject::from(string);
-    assert!(unwrap(env.is_same_object(&orig_obj, actual), &env));
+    assert!(env.is_same_object(&orig_obj, actual));
 
     let global_ref = env.new_global_ref(&orig_obj).unwrap();
-    assert!(unwrap(env.is_same_object(&orig_obj, global_ref), &env));
+    assert!(env.is_same_object(&orig_obj, global_ref));
 
     let weak_ref = unwrap(env.new_weak_ref(&orig_obj), &env).expect("weak ref should not be null");
     let actual =
         unwrap(weak_ref.upgrade_local(&env), &env).expect("weak ref should not have been GC'd");
-    assert!(unwrap(env.is_same_object(&orig_obj, actual), &env));
+    assert!(env.is_same_object(&orig_obj, actual));
 
     let obj: JObject = unwrap(env.new_local_ref(&orig_obj), &env);
     let auto_local = env.auto_local(obj);
-    assert!(unwrap(env.is_same_object(&orig_obj, auto_local), &env));
+    assert!(env.is_same_object(&orig_obj, auto_local));
 }
 
 #[test]
@@ -1200,9 +1214,9 @@ fn assert_pending_java_exception_detailed(
     expected_type: Option<&str>,
     expected_message: Option<&str>,
 ) {
-    assert!(env.exception_check().unwrap());
+    assert!(env.exception_check());
     let exception = env.exception_occurred().expect("Unable to get exception");
-    env.exception_clear().unwrap();
+    env.exception_clear();
 
     if let Some(expected_type) = expected_type {
         assert_exception_type(env, &exception, expected_type);
@@ -1269,7 +1283,7 @@ fn test_java_char_conversion() {
     .l()
     .unwrap();
 
-    unwrap(env.delete_local_ref(sb), &env);
+    env.delete_local_ref(sb);
 
     {
         // The first character in the string is U+1F913, which is not representable in a single UTF-16 unit.

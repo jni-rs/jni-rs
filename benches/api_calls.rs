@@ -134,7 +134,7 @@ mod tests {
     lazy_static! {
         static ref VM: JavaVM = {
             let args = InitArgsBuilder::new()
-                .version(JNIVersion::V8)
+                .version(JNIVersion::V1_8)
                 .build()
                 .unwrap();
             JavaVM::new(args).unwrap()
@@ -182,7 +182,7 @@ mod tests {
         let mut env = VM.attach_current_thread().unwrap();
         b.iter(|| {
             let obj = jni_local_date_time_of_safe(&mut env, 1, 1, 1, 1, 1, 1, 1);
-            env.delete_local_ref(obj).unwrap();
+            env.delete_local_ref(obj);
         });
     }
 
@@ -209,7 +209,7 @@ mod tests {
                     JValue::Int(1).as_jni(),
                 ],
             );
-            env.delete_local_ref(obj).unwrap();
+            env.delete_local_ref(obj);
         });
     }
 
@@ -242,7 +242,7 @@ mod tests {
 
         b.iter(|| {
             let obj = env.new_object(class, SIG_OBJECT_CTOR, &[]).unwrap();
-            env.delete_local_ref(obj).unwrap();
+            env.delete_local_ref(obj);
         });
     }
 
@@ -256,7 +256,7 @@ mod tests {
 
         b.iter(|| {
             let obj = unsafe { env.new_object_unchecked(class, ctor_id, &[]) }.unwrap();
-            env.delete_local_ref(obj).unwrap();
+            env.delete_local_ref(obj);
         });
     }
 
@@ -267,7 +267,7 @@ mod tests {
 
         b.iter(|| {
             let obj = env.new_object(&class, SIG_OBJECT_CTOR, &[]).unwrap();
-            env.delete_local_ref(obj).unwrap();
+            env.delete_local_ref(obj);
         });
     }
 
@@ -281,7 +281,7 @@ mod tests {
 
         b.iter(|| {
             let obj = unsafe { env.new_object_unchecked(&class, ctor_id, &[]) }.unwrap();
-            env.delete_local_ref(obj).unwrap();
+            env.delete_local_ref(obj);
         });
     }
 
@@ -291,7 +291,7 @@ mod tests {
         let class = CLASS_OBJECT;
         let obj = env.new_object(class, SIG_OBJECT_CTOR, &[]).unwrap();
         let global_ref = env.new_global_ref(&obj).unwrap();
-        env.delete_local_ref(obj).unwrap();
+        env.delete_local_ref(obj);
 
         b.iter(|| env.new_global_ref(&global_ref).unwrap());
     }
@@ -306,7 +306,7 @@ mod tests {
     fn jni_check_exception(b: &mut Bencher) {
         let env = VM.attach_current_thread().unwrap();
 
-        b.iter(|| env.exception_check().unwrap());
+        b.iter(|| env.exception_check());
     }
 
     #[bench]
@@ -415,7 +415,7 @@ mod tests {
         let class = CLASS_OBJECT;
         let obj = env.new_object(class, SIG_OBJECT_CTOR, &[]).unwrap();
         let global_ref = env.new_global_ref(&obj).unwrap();
-        env.delete_local_ref(obj).unwrap();
+        env.delete_local_ref(obj);
         let arc = Arc::new(global_ref);
 
         b.iter(|| {
