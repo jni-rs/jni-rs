@@ -229,7 +229,7 @@ pub fn with_local_frame() {
     let s = env
         .get_string(&s)
         .expect("The object returned from the local frame must remain valid");
-    assert_eq!(s.to_str().unwrap(), "Test");
+    assert_eq!(s.to_str(), "Test");
 }
 
 #[test]
@@ -357,7 +357,7 @@ pub fn call_new_object_unchecked_ok() {
 
     let jstr = JString::from(val);
     let javastr = env.get_string(&jstr).unwrap();
-    let rstr = javastr.to_str().unwrap();
+    let rstr = javastr.to_str();
     assert_eq!(rstr, TESTING_OBJECT_STR);
 }
 

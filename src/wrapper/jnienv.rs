@@ -1849,15 +1849,14 @@ impl<'local> JNIEnv<'local> {
         JMap::from_env(self, obj)
     }
 
-    /// Get a [`JavaStr`] from a [`JString`]. This allows conversions from java string
-    /// objects to rust strings.
+    /// Gets the bytes of a Java string, in [modified UTF-8] encoding.
     ///
-    /// This only entails calling `GetStringUTFChars`, which will return a [`JavaStr`] in Java's
-    /// [Modified UTF-8](https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8)
-    /// format.
+    /// The returned `JavaStr` can be used to access the modified UTF-8 bytes,
+    /// or to convert to a Rust string (which uses standard UTF-8 encoding).
     ///
-    /// This doesn't automatically decode Java's modified UTF-8 format but you
-    /// can use `.into()` to convert the returned [`JavaStr`] into a Rust [`String`].
+    /// This only entails calling the JNI function `GetStringUTFChars`.
+    ///
+    /// [modified UTF-8]: https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
     ///
     /// # Safety
     ///
@@ -1865,40 +1864,43 @@ impl<'local> JNIEnv<'local> {
     /// passing in anything else will lead to undefined behaviour (The JNI implementation
     /// is likely to crash or abort the process).
     ///
+    /// If this cannot be guaranteed, use the [`get_string`][Self::get_string]
+    /// method instead.
+    ///
     /// # Errors
     ///
-    /// Returns an error if `obj` is `null`
+    /// Returns an error if `obj` is `null`.
     pub unsafe fn get_string_unchecked<'other_local: 'obj_ref, 'obj_ref>(
         &self,
         obj: &'obj_ref JString<'other_local>,
     ) -> Result<JavaStr<'local, 'other_local, 'obj_ref>> {
         let obj = null_check!(obj, "get_string obj argument")?;
-        JavaStr::from_env(self, obj)
+        JavaStr::from_env_totally_unchecked(self, obj)
     }
 
-    /// Get a [`JavaStr`] from a [`JString`]. This allows conversions from java string
-    /// objects to rust strings.
+    /// Gets the bytes of a Java string, in [modified UTF-8] encoding.
     ///
-    /// This entails checking that the given object is a `java.lang.String` and
-    /// calling `GetStringUTFChars`, which will return a [`JavaStr`] in Java's
-    /// [Modified UTF-8](https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8)
-    /// format.
+    /// The returned `JavaStr` can be used to access the modified UTF-8 bytes,
+    /// or to convert to a Rust string (which uses standard UTF-8 encoding).
     ///
-    /// This doesn't automatically decode Java's modified UTF-8 format but you
-    /// can use `.into()` to convert the returned [`JavaStr`] into a Rust [`String`].
+    /// This entails checking that the given object is a `java.lang.String`,
+    /// then calling the JNI function `GetStringUTFChars`.
+    ///
+    /// [modified UTF-8]: https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
     ///
     /// # Performance
     ///
     /// This function has a large relative performance impact compared to
-    /// [Self::get_string_unchecked]. For example it may be about five times
-    /// slower than `get_string_unchecked` for very short string. This
-    /// performance penalty comes from the extra validation performed by this
-    /// function. If and only if you can guarantee that your `obj` is of
-    /// `java.lang.String`, use [Self::get_string_unchecked].
+    /// [`get_string_unchecked`][Self::get_string_unchecked]. For example it
+    /// may be about five times slower than `get_string_unchecked` for a very
+    /// short string. This performance penalty comes from the extra validation
+    /// performed by this function. If and only if you can guarantee that your
+    /// `obj` is of the class `java.lang.String`, use `get_string_unchecked` to
+    /// skip this extra validation.
     ///
     /// # Errors
     ///
-    /// Returns an error if `obj` is `null` or is not an instance of `java.lang.String`
+    /// Returns an error if `obj` is `null` or is not an instance of `java.lang.String`.
     pub fn get_string<'other_local: 'obj_ref, 'obj_ref>(
         &mut self,
         obj: &'obj_ref JString<'other_local>,

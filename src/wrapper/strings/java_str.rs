@@ -5,10 +5,31 @@ use log::warn;
 
 use crate::{errors::*, objects::JString, strings::JNIStr, JNIEnv};
 
-/// Reference to a string in the JVM. Holds a pointer to the array
-/// returned by `GetStringUTFChars`. Calls `ReleaseStringUTFChars` on Drop.
-/// Can be converted to a `&JNIStr` with the same cost as the `&CStr.from_ptr`
-/// conversion.
+#[cfg(doc)]
+use crate::strings::JNIString;
+
+/// Represents the bytes of a string in the JVM, in Java's [modified UTF-8]
+/// encoding.
+///
+/// This type is returned by [`JNIEnv::get_string`]. It can be used to convert
+/// a Java string into a Rust string (in standard UTF-8 encoding) with the
+/// [`to_str`][JNIStr::to_str] method, and to get the bytes of the string in
+/// modified UTF-8 encoding using the [`as_cstr`][JNIStr::as_cstr] method.
+///
+/// [modified UTF-8]: https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
+///
+///
+/// # Relationships with Other Types
+///
+/// The borrowed form of this type is [`JNIStr`], whose relationship with this
+/// type is similar to the relationship between [`str`] and [`String`].
+///
+/// This is related to, but different from, the [`JNIString`] type. A
+/// `JNIString` is created and owned by Rust code, whereas a `JavaStr`
+/// represents a string owned by the JVM and merely borrowed by Rust code.
+///
+/// This is not to be confused with [`JString`]. That refers to a
+/// `java.lang.String` object, whereas this refers to the bytes of the string.
 pub struct JavaStr<'local, 'other_local: 'obj_ref, 'obj_ref> {
     internal: *const c_char,
     obj: &'obj_ref JString<'other_local>,
@@ -79,36 +100,35 @@ impl<'local, 'other_local: 'obj_ref, 'obj_ref> JavaStr<'local, 'other_local, 'ob
         Ok(())
     }
 
-    /// Get a [JavaStr] from a [JNIEnv] and a [JString].
-    /// You probably want [JNIEnv::get_string] instead of this method.
-    pub fn from_env(env: &JNIEnv<'local>, obj: &'obj_ref JString<'other_local>) -> Result<Self> {
-        Ok(unsafe {
+    pub(crate) unsafe fn from_env_totally_unchecked(
+        env: &JNIEnv<'local>,
+        obj: &'obj_ref JString<'other_local>,
+    ) -> Result<Self> {
+        Ok({
             let (ptr, _) = Self::get_string_utf_chars(env, obj)?;
 
             Self::from_raw(env, obj, ptr)
         })
     }
 
-    /// Get the raw string pointer from the JavaStr.
+    /// Destroys the `JavaStr` without freeing the underlying string, and
+    /// returns a raw pointer to it.
     ///
-    /// The string will be `NULL` terminated and encoded as
-    /// [Modified UTF-8](https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8) /
-    /// [CESU-8](https://en.wikipedia.org/wiki/CESU-8).
-    pub const fn get_raw(&self) -> *const c_char {
-        self.internal
-    }
-
-    /// Consumes the `JavaStr`, returning the raw string pointer
+    /// The returned pointer is the same as the one returned by the
+    /// [`as_ptr`][JNIStr::as_ptr] method. It points to a null-terminated
+    /// string in [modified UTF-8] encoding (which is similar, but not
+    /// identical, to [CESU-8]). It is valid when returned by this method, and
+    /// will remain valid until freed (see below).
     ///
-    /// The string will be `NULL` terminated and encoded as
-    /// [Modified UTF-8](https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8) /
-    /// [CESU-8](https://en.wikipedia.org/wiki/CESU-8).
+    /// [CESU-8]: https://en.wikipedia.org/wiki/CESU-8
+    /// [modified UTF-8]: https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
     ///
     /// # Warning
-    /// The programmer is responsible for making sure the backing string gets
-    /// released when they are done with it, for example by reconstructing a
-    /// [JavaStr] with [`Self::from_raw`], which will release the backing string
-    /// when it is dropped.
+    ///
+    /// After calling this method, the underlying string must be manually
+    /// freed. This can be done either by reconstructing the [`JavaStr`] using
+    /// [`JavaStr::from_raw`] and then dropping it, or by passing the pointer
+    /// to the JNI function `ReleaseStringUTFChars`.
     pub fn into_raw(self) -> *const c_char {
         let mut _dont_call_drop = std::mem::ManuallyDrop::new(self);
 
@@ -125,12 +145,22 @@ impl<'local, 'other_local: 'obj_ref, 'obj_ref> JavaStr<'local, 'other_local, 'ob
         _dont_call_drop.internal
     }
 
-    /// Get a [JavaStr] from it's raw components
+    /// Constructs a [`JavaStr`] from raw components.
+    ///
+    /// The required components are the current `JNIEnv`, a reference to a
+    /// `java.lang.String` object, and a pointer to the characters of that
+    /// `java.lang.String`.
     ///
     /// # Safety
     ///
-    /// The caller must guarantee that `ptr` is a valid, non-null pointer returned by [`Self::into_raw`],
-    /// and that `obj` is the same `String` object originally used to create the [JavaStr]
+    /// `ptr` must be a valid, non-null pointer, previously returned by
+    /// [`JavaStr::into_raw`] or the JNI function `GetStringUTFChars`. `ptr`
+    /// must not belong to another `JavaStr` at the same time.
+    ///
+    /// `str` must be a non-null reference to the same `java.lang.String`
+    /// object that was originally passed to [`JNIEnv::get_string`],
+    /// [`JNIEnv::get_string_unchecked`], or the JNI function
+    /// `GetStringUTFChars`, in order to obtain `ptr`.
     ///
     /// # Example
     /// ```rust,no_run
@@ -203,5 +233,13 @@ impl<'local, 'other_local: 'obj_ref, 'obj_ref> Drop for JavaStr<'local, 'other_l
             Ok(()) => {}
             Err(e) => warn!("error dropping java str: {}", e),
         }
+    }
+}
+
+impl<'local, 'other_local: 'obj_ref, 'obj_ref> AsRef<JNIStr>
+    for JavaStr<'local, 'other_local, 'obj_ref>
+{
+    fn as_ref(&self) -> &JNIStr {
+        self
     }
 }
