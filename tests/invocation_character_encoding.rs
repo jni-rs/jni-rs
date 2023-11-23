@@ -2,6 +2,8 @@
 
 #![cfg(feature = "invocation")]
 
+use std::borrow::Cow;
+
 use jni::{objects::JString, InitArgsBuilder, JavaVM};
 
 #[test]
@@ -37,7 +39,7 @@ fn invocation_character_encoding() {
         .into();
 
     let prop_value_str = env.get_string(&prop_value).unwrap();
-    let prop_value_str: &str = prop_value_str.to_str().unwrap();
+    let prop_value_str: Cow<str> = prop_value_str.to_str();
 
     assert_eq!("\u{00a0}", prop_value_str);
 }

@@ -213,7 +213,10 @@ mod wrapper {
     /// Wrappers for object pointers returned from the JVM.
     pub mod objects;
 
-    /// String types for going to/from java strings.
+    /// Handling of strings in Java's [modified UTF-8] encoding, including
+    /// conversion to and from Rust strings (which use standard UTF-8).
+    ///
+    /// [modified UTF-8]: https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
     pub mod strings;
 
     /// Actual communication with the JVM.
