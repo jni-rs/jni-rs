@@ -355,7 +355,7 @@ pub fn call_new_object_unchecked_ok() {
     }
     .expect("JNIEnv#new_object_unchecked should return JValue");
 
-    let jstr = JString::try_from(val).expect("asd");
+    let jstr = JString::from(val);
     let javastr = env.get_string(&jstr).unwrap();
     let rstr = javastr.to_str().unwrap();
     assert_eq!(rstr, TESTING_OBJECT_STR);

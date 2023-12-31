@@ -6,7 +6,9 @@ use jni::{
 };
 
 mod example_proxy;
-pub use self::example_proxy::AtomicIntegerProxy;
+
+#[allow(unused_imports)]
+pub use example_proxy::AtomicIntegerProxy;
 
 pub fn jvm() -> &'static Arc<JavaVM> {
     static mut JVM: Option<Arc<JavaVM>> = None;
