@@ -16,6 +16,10 @@ repository = "https://github.com/jni-rs/jni-rs"
 version = "0.21.1"
 edition = "2018"
 
+[[bench]]
+name = "api_calls"
+harness = false
+
 [dependencies]
 cfg-if = "1.0.0"
 cesu8 = "1.1.0"
@@ -30,6 +34,7 @@ thiserror = "1.0.20"
 walkdir = "2"
 
 [dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
 assert_matches = "1.5.0"
 lazy_static = "1"
 rusty-fork = "0.3.0"
