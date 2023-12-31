@@ -25,7 +25,7 @@ macro_rules! jni_call_check_ex {
     ( $jnienv:expr, $version:tt, $name:tt $(, $args:expr )* ) => ({
         let ret = jni_call_unchecked!($jnienv, $version, $name $(, $args)*);
         if $jnienv.exception_check() {
-            Err(crate::errors::Error::JavaException)
+            Err(crate::errors::Error::JavaException(crate::errors::JavaException::force_capture($jnienv)))
         } else {
             Ok(ret)
         }

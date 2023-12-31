@@ -2,7 +2,7 @@ use std::{mem, ops::Deref, sync::Arc};
 
 use log::{debug, warn};
 
-use crate::{errors::Result, objects::JObject, sys, JNIEnv, JNIVersion, JavaVM};
+use crate::{errors::Result, objects::JObject, sys, JavaVM};
 
 #[cfg(doc)]
 use crate::objects::WeakRef;
@@ -148,6 +148,11 @@ impl GlobalRef {
     pub fn as_obj(&self) -> &JObject<'static> {
         self.as_ref()
     }
+
+    /// Returns the `JavaVM` that created this `GlobalRef`.
+    pub(crate) fn vm(&self) -> &JavaVM {
+        &self.inner.vm
+    }
 }
 
 impl GlobalRefGuard {
@@ -165,25 +170,19 @@ impl Drop for GlobalRefGuard {
     fn drop(&mut self) {
         let raw: sys::jobject = mem::take(&mut self.obj).into_raw();
 
-        let drop_impl = |env: &JNIEnv| -> Result<()> {
+        let res: Result<()> = (|| {
+            let env = self.vm.attach_current_thread()?;
+
+            if !env.was_already_attached() {
+                warn!("Dropping a GlobalRef in a detached thread. Fix your code if this message appears frequently (see the GlobalRef docs).");
+            }
+
             // Safety: This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
             unsafe {
                 jni_call_unchecked!(env, v1_1, DeleteGlobalRef, raw);
             }
             Ok(())
-        };
-
-        // Safety: we can assume we couldn't have created the global reference in the first place without
-        // having already required the JavaVM to support JNI >= 1.4
-        let res = match unsafe { self.vm.get_env(JNIVersion::V1_4) } {
-            Ok(env) => drop_impl(&env),
-            Err(_) => {
-                warn!("A JNI global reference was dropped on a thread that is not attached. This will cause a performance problem if it happens frequently. For more information, see the documentation for `jni::objects::GlobalRef`.");
-                self.vm
-                    .attach_current_thread()
-                    .and_then(|env| drop_impl(&env))
-            }
-        };
+        })();
 
         if let Err(err) = res {
             debug!("error dropping global ref: {:#?}", err);
