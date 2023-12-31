@@ -50,6 +50,7 @@ fn jni_hash_safe(env: &mut JNIEnv, obj: &JObject) -> jint {
     v.i().unwrap()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn jni_local_date_time_of_safe<'local>(
     env: &mut JNIEnv<'local>,
     year: jint,
