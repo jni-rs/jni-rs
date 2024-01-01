@@ -2,6 +2,7 @@ use std::{
     convert::TryInto,
     marker::PhantomData,
     os::raw::{c_char, c_void},
+    panic::{catch_unwind, resume_unwind, AssertUnwindSafe},
     ptr, str,
     str::FromStr,
     sync::{Mutex, MutexGuard},
@@ -1036,9 +1037,15 @@ impl<'local> JNIEnv<'local> {
     {
         unsafe {
             self.push_local_frame(capacity)?;
-            let ret = f(self);
+            let ret = catch_unwind(AssertUnwindSafe(|| f(self)));
             self.pop_local_frame(&JObject::null())?;
-            ret
+
+            match ret {
+                Ok(ret) => ret,
+                Err(payload) => {
+                    resume_unwind(payload);
+                }
+            }
         }
     }
 
@@ -1066,14 +1073,21 @@ impl<'local> JNIEnv<'local> {
     {
         unsafe {
             self.push_local_frame(capacity)?;
-            match f(self) {
-                Ok(obj) => {
-                    let obj = self.pop_local_frame(&obj)?;
-                    Ok(obj)
-                }
-                Err(err) => {
+            let ret = catch_unwind(AssertUnwindSafe(|| f(self)));
+            match ret {
+                Ok(ret) => match ret {
+                    Ok(obj) => {
+                        let obj = self.pop_local_frame(&obj)?;
+                        Ok(obj)
+                    }
+                    Err(err) => {
+                        self.pop_local_frame(&JObject::null())?;
+                        Err(err)
+                    }
+                },
+                Err(payload) => {
                     self.pop_local_frame(&JObject::null())?;
-                    Err(err)
+                    resume_unwind(payload);
                 }
             }
         }
