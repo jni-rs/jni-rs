@@ -9,6 +9,7 @@ use std::{
 };
 
 use jni_sys::jobject;
+use once_cell::sync::OnceCell;
 
 use crate::{
     descriptors::Desc,
@@ -1904,10 +1905,9 @@ impl<'local> JNIEnv<'local> {
     ///
     /// # Performance
     ///
-    /// This function has a large relative performance impact compared to
-    /// [`get_string_unchecked`][Self::get_string_unchecked]. For example it
-    /// may be about five times slower than `get_string_unchecked` for a very
-    /// short string. This performance penalty comes from the extra validation
+    /// This function has some relative performance impact compared to
+    /// [`get_string_unchecked`][Self::get_string_unchecked].
+    /// This performance penalty comes from the extra validation
     /// performed by this function. If and only if you can guarantee that your
     /// `obj` is of the class `java.lang.String`, use `get_string_unchecked` to
     /// skip this extra validation.
@@ -1919,9 +1919,13 @@ impl<'local> JNIEnv<'local> {
         &mut self,
         obj: &'obj_ref JString<'other_local>,
     ) -> Result<JavaStr<'local, 'other_local, 'obj_ref>> {
-        let string_class = self.find_class("java/lang/String")?;
-        let obj_class = self.get_object_class(obj)?;
-        if !self.is_assignable_from(string_class, obj_class)? {
+        static STRING_CLASS: OnceCell<GlobalRef> = OnceCell::new();
+        let string_class = STRING_CLASS.get_or_try_init(|| {
+            let string_class_local = self.find_class("java/lang/String")?;
+            self.new_global_ref(string_class_local)
+        })?;
+
+        if !self.is_instance_of(obj, string_class)? {
             return Err(JniCall(JniError::InvalidArguments));
         }
 
