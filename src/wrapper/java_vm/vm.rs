@@ -507,7 +507,7 @@ impl JavaVM {
 }
 
 thread_local! {
-    static THREAD_ATTACH_GUARD: RefCell<Option<InternalAttachGuard>> = RefCell::new(None)
+    static THREAD_ATTACH_GUARD: RefCell<Option<InternalAttachGuard>> = const { RefCell::new(None) };
 }
 
 static ATTACHED_THREADS: AtomicUsize = AtomicUsize::new(0);

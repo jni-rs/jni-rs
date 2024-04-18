@@ -1,5 +1,5 @@
-use std::{fmt, str::FromStr};
 use std::sync::Arc;
+use std::{fmt, str::FromStr};
 
 use combine::{
     between, many, many1, parser, satisfy, token, ParseError, Parser, StdParseResult, Stream,
@@ -186,7 +186,10 @@ where
     let end = token(';');
     let obj = between(marker, end, many1(satisfy(|c| c != ';')));
 
-    obj.map(Arc::new).map(JavaType::Object).parse_stream(input).into()
+    obj.map(Arc::new)
+        .map(JavaType::Object)
+        .parse_stream(input)
+        .into()
 }
 
 fn parse_type<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<JavaType, S>
