@@ -1,4 +1,5 @@
 use std::{fmt, str::FromStr};
+use std::sync::Arc;
 
 use combine::{
     between, many, many1, parser, satisfy, token, ParseError, Parser, StdParseResult, Stream,
@@ -43,7 +44,7 @@ impl fmt::Display for Primitive {
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum JavaType {
     Primitive(Primitive),
-    Object(String),
+    Object(Arc<String>),
     Array(Box<JavaType>),
     Method(Box<TypeSignature>),
 }
@@ -185,7 +186,7 @@ where
     let end = token(';');
     let obj = between(marker, end, many1(satisfy(|c| c != ';')));
 
-    obj.map(JavaType::Object).parse_stream(input).into()
+    obj.map(Arc::new).map(JavaType::Object).parse_stream(input).into()
 }
 
 fn parse_type<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<JavaType, S>
