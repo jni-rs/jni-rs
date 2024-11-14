@@ -37,7 +37,7 @@ jni-sys = "0.4"
 libloading = { version = "0.8", optional = true }
 log = "0.4.4"
 static_assertions = "1"
-thiserror = "1.0.20"
+thiserror = "2.0.0"
 
 [build-dependencies]
 walkdir = "2"
