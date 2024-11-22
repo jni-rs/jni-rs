@@ -35,6 +35,9 @@ use crate::{
 };
 use crate::{objects::AsJArrayRaw, signature::ReturnType};
 
+#[cfg(doc)]
+use crate::AttachGuard;
+
 /// FFI-compatible JNIEnv struct. You can safely use this as the JNIEnv argument
 /// to exported methods that will be called by java. This is where most of the
 /// magic happens. All methods on this object are wrappers around JNI functions,
@@ -260,12 +263,15 @@ impl<'local> JNIEnv<'local> {
     /// The duplicate `JNIEnv` must not be used to create any local references, unless they are
     /// discarded before the current [local reference frame] is exited. Otherwise, they may have a
     /// lifetime longer than they are actually valid for, resulting in a use-after-free bug and
-    /// undefined behavior.
+    /// undefined behavior. (See [issue #392] for background.)
     ///
-    /// See [issue #392] for background.
+    /// The duplicate `JNIEnv` must also not be used after the current thread is detached. The
+    /// current thread can be detached by calling [`JavaVM::detach_current_thread`] or by dropping
+    /// an [`AttachGuard`]. (See [issue #548] for background.)
     ///
     /// [local reference frame]: JNIEnv::with_local_frame
     /// [issue #392]: https://github.com/jni-rs/jni-rs/issues/392
+    /// [issue #548]: https://github.com/jni-rs/jni-rs/issues/548
     pub unsafe fn unsafe_clone(&self) -> Self {
         Self {
             internal: self.internal,

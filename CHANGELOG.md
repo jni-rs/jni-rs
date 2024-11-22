@@ -34,6 +34,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `JNIEnv::fatal_error` is now guaranteed not to panic or allocate, but requires the error message to be encoded ahead of time. ([#480](https://github.com/jni-rs/jni-rs/pull/480))
 - `JNIEnv::get_native_interface` has been removed since it's redundant and `JNIEnv::get_raw` is more consistent with other APIs.
 - `JavaVM::get_java_vm_pointer` has been renamed `JavaVM::get_raw` for consistency.
+- `JavaVM::get_env` is now `unsafe`. ([#548](https://github.com/jni-rs/jni-rs/issues/548))
+- `JavaVM` methods that attach the current thread will now fail if the current thread is already attached. `get_env` is now the only `JavaVM` method that will return a `JNIEnv` for an already attached thread. ([#548](https://github.com/jni-rs/jni-rs/issues/548) / [#555](https://github.com/jni-rs/jni-rs/pull/555))
 
 ### Added
 - New functions for converting Rust `char` to and from Java `char` and `int` ([#427](https://github.com/jni-rs/jni-rs/issues/427) / [#434](https://github.com/jni-rs/jni-rs/pull/434))

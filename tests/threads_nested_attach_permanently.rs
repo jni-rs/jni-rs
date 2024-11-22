@@ -1,11 +1,13 @@
 #![cfg(feature = "invocation")]
 
+use assert_matches::assert_matches;
+
 mod util;
-use jni::JNIVersion;
-use util::{
-    attach_current_thread, attach_current_thread_as_daemon, attach_current_thread_permanently,
-    call_java_abs, jvm,
+use jni::{
+    errors::{Error, JniError},
+    JNIVersion,
 };
+use util::{attach_current_thread_permanently, call_java_abs, jvm};
 
 #[test]
 pub fn nested_attaches_should_not_detach_permanent_thread() {
@@ -15,36 +17,42 @@ pub fn nested_attaches_should_not_detach_permanent_thread() {
     assert_eq!(val, 1);
     assert_eq!(jvm().threads_attached(), 1);
 
-    // Create nested AttachGuard.
-    {
-        let mut env_nested = attach_current_thread();
-        let val = call_java_abs(&mut env_nested, -2);
-        assert_eq!(val, 2);
-        assert_eq!(jvm().threads_attached(), 1);
-    }
+    // Can't create nested AttachGuard.
+    assert_matches!(
+        jvm().attach_current_thread(),
+        Err(Error::JniCall(JniError::ThreadAlreadyAttached))
+    );
 
-    // Call a Java method after nested guard has been dropped to check that
+    // Call a Java method after nested attach attempt has failed to check that
     // this thread has not been detached.
     let val = call_java_abs(&mut env, -3);
     assert_eq!(val, 3);
     assert_eq!(jvm().threads_attached(), 1);
 
-    // Nested attach_permanently is a no-op.
-    {
-        let mut env_nested = attach_current_thread_permanently();
-        let val = call_java_abs(&mut env_nested, -4);
-        assert_eq!(val, 4);
-        assert_eq!(jvm().threads_attached(), 1);
-    }
+    // Can't create nested attach_permanently.
+    assert_matches!(
+        jvm().attach_current_thread_permanently(),
+        Err(Error::JniCall(JniError::ThreadAlreadyAttached))
+    );
+
+    // Call a Java method after nested attach attempt has failed to check that
+    // this thread has not been detached.
+    let val = call_java_abs(&mut env, -4);
+    assert_eq!(val, 4);
     assert_eq!(jvm().threads_attached(), 1);
 
-    // Nested attach_as_daemon is a no-op.
-    {
-        let mut env_nested = unsafe { attach_current_thread_as_daemon() };
-        let val = call_java_abs(&mut env_nested, -5);
-        assert_eq!(val, 5);
-        assert_eq!(jvm().threads_attached(), 1);
-    }
+    // Can't create nested attach_as_daemon.
+    assert_matches!(
+        unsafe { jvm().attach_current_thread_as_daemon() },
+        Err(Error::JniCall(JniError::ThreadAlreadyAttached))
+    );
+
+    // Call a Java method after nested attach attempt has failed to check that
+    // this thread has not been detached.
+    let val = call_java_abs(&mut env, -5);
+    assert_eq!(val, 5);
     assert_eq!(jvm().threads_attached(), 1);
-    unsafe { assert!(jvm().get_env(JNIVersion::V1_4).is_ok()) };
+
+    // Check that the current thread is still attached.
+    assert_matches!(unsafe { jvm().get_env(JNIVersion::V1_4) }, Ok(_));
 }

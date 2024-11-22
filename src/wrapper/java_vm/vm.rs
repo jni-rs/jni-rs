@@ -248,8 +248,7 @@ impl JavaVM {
         self.0
     }
 
-    /// Attaches the current thread to the JVM. Calling this for a thread that is already attached
-    /// is a no-op.
+    /// Attaches the current thread to the JVM.
     ///
     /// The thread will detach itself automatically when it exits.
     ///
@@ -258,20 +257,28 @@ impl JavaVM {
     ///
     /// [block]: https://docs.oracle.com/en/java/javase/12/docs/specs/jni/invocation.html#unloading-the-vm
     /// [attach-as-daemon]: struct.JavaVM.html#method.attach_current_thread_as_daemon
+    ///
+    /// # Errors
+    ///
+    /// Calling this in a thread that is already attached will fail with [`Error::JniCall`]
+    /// containing [`JniError::ThreadAlreadyAttached`]. To get a `JNIEnv` for an already attached thread, call [`JavaVM::get_env`].
     pub fn attach_current_thread_permanently(&self) -> Result<JNIEnv> {
-        // Safety: NOT SAFE CURRENTLY: https://github.com/jni-rs/jni-rs/discussions/436#discussioncomment-5421738
+        // Safety: This will only return a `JNIEnv` if the thread is currently detached, and it is
+        // `unsafe` to detach it.
         unsafe {
             match self.get_env(JNIVersion::V1_4) {
-                Ok(env) => Ok(env),
-                Err(_) => self.attach_current_thread_impl(ThreadType::Normal),
+                Ok(_) => Err(Error::JniCall(JniError::ThreadAlreadyAttached)),
+                Err(Error::JniCall(JniError::ThreadDetached)) => {
+                    self.attach_current_thread_impl(ThreadType::Normal)
+                }
+                Err(other_error) => Err(other_error),
             }
         }
     }
 
     /// Attaches the current thread to the Java VM. The returned `AttachGuard`
     /// can be dereferenced to a `JNIEnv` and automatically detaches the thread
-    /// when dropped. Calling this in a thread that is already attached is a no-op, and
-    /// will neither change its daemon status nor prematurely detach it.
+    /// when dropped.
     ///
     /// Attached threads [block JVM exit][block].
     ///
@@ -281,15 +288,22 @@ impl JavaVM {
     ///
     /// [block]: https://docs.oracle.com/en/java/javase/12/docs/specs/jni/invocation.html#unloading-the-vm
     /// [attach-as-daemon]: struct.JavaVM.html#method.attach_current_thread_as_daemon
+    ///
+    /// # Errors
+    ///
+    /// Calling this in a thread that is already attached will fail with [`Error::JniCall`]
+    /// containing [`JniError::ThreadAlreadyAttached`]. To get a `JNIEnv` for an already attached thread, call [`JavaVM::get_env`].
     pub fn attach_current_thread(&self) -> Result<AttachGuard> {
-        // Safety: NOT SAFE CURRENTLY: https://github.com/jni-rs/jni-rs/discussions/436#discussioncomment-5421738
+        // Safety: This will only return an `AttachGuard` if the thread is currently detached, and
+        // it is `unsafe` to detach the current thread other than by dropping the `AttachGuard`.
         unsafe {
             match self.get_env(JNIVersion::V1_4) {
-                Ok(env) => Ok(AttachGuard::new_nested(env)),
-                Err(_) => {
+                Ok(_) => Err(Error::JniCall(JniError::ThreadAlreadyAttached)),
+                Err(Error::JniCall(JniError::ThreadDetached)) => {
                     let env = self.attach_current_thread_impl(ThreadType::Normal)?;
                     Ok(AttachGuard::new(env))
                 }
+                Err(other_error) => Err(other_error),
             }
         }
     }
@@ -333,10 +347,14 @@ impl JavaVM {
         InternalAttachGuard::clear_tls();
     }
 
-    /// Attaches the current thread to the Java VM as a _daemon_. Calling this in a thread
-    /// that is already attached is a no-op, and will not change its status to a daemon thread.
+    /// Attaches the current thread to the Java VM as a _daemon_.
     ///
     /// The thread will detach itself automatically when it exits.
+    ///
+    /// # Errors
+    ///
+    /// Calling this in a thread that is already attached will fail with [`Error::JniCall`]
+    /// containing [`JniError::ThreadAlreadyAttached`]. To get a `JNIEnv` for an already attached thread, call [`JavaVM::get_env`].
     ///
     /// # Safety
     ///
@@ -350,8 +368,11 @@ impl JavaVM {
     /// functionality to the `jni-sys` crate instead.
     pub unsafe fn attach_current_thread_as_daemon(&self) -> Result<JNIEnv> {
         match self.get_env(JNIVersion::V1_4) {
-            Ok(env) => Ok(env),
-            Err(_) => self.attach_current_thread_impl(ThreadType::Daemon),
+            Ok(_) => Err(Error::JniCall(JniError::ThreadAlreadyAttached)),
+            Err(Error::JniCall(JniError::ThreadDetached)) => {
+                self.attach_current_thread_impl(ThreadType::Daemon)
+            }
+            Err(other_error) => Err(other_error),
         }
     }
 
@@ -392,6 +413,11 @@ impl JavaVM {
     /// don't inadvertantly associate the [`JNIEnv`] with a lifetime from a
     /// pre-existing [`JObject`] that might belong to a lower stack frame.
     ///
+    /// Additionally, the returned `JNIEnv` must not be used after the current
+    /// thread is detached. The current thread can be silently detached by
+    /// dropping the [`AttachGuard`] that was returned by a prior call to
+    /// [`JavaVM::attach_current_thread`], as well as explicitly detached using
+    /// [`JavaVM::detach_current_thread`].
     pub unsafe fn get_env(&self, version: JNIVersion) -> Result<JNIEnv> {
         let mut ptr = ptr::null_mut();
         if version < JNIVersion::V1_4 {
@@ -515,27 +541,17 @@ static ATTACHED_THREADS: AtomicUsize = AtomicUsize::new(0);
 /// A RAII implementation of scoped guard which detaches the current thread
 /// when dropped. The attached `JNIEnv` can be accessed through this guard
 /// via its `Deref` implementation.
+///
+/// This is returned by [`JavaVM::attach_current_thread`].
+#[derive(Debug)]
 pub struct AttachGuard<'local> {
     env: JNIEnv<'local>,
-    should_detach: bool,
 }
 
 impl<'local> AttachGuard<'local> {
     /// AttachGuard created with this method will detach current thread on drop
     fn new(env: JNIEnv<'local>) -> Self {
-        Self {
-            env,
-            should_detach: true,
-        }
-    }
-
-    /// AttachGuard created with this method will not detach current thread on drop, which is
-    /// the case for nested attaches.
-    fn new_nested(env: JNIEnv<'local>) -> Self {
-        Self {
-            env,
-            should_detach: false,
-        }
+        Self { env }
     }
 }
 
@@ -555,9 +571,7 @@ impl<'local> DerefMut for AttachGuard<'local> {
 
 impl<'local> Drop for AttachGuard<'local> {
     fn drop(&mut self) {
-        if self.should_detach {
-            InternalAttachGuard::clear_tls();
-        }
+        InternalAttachGuard::clear_tls();
     }
 }
 
