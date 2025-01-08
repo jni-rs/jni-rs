@@ -42,12 +42,13 @@ jobs:
     name: ${{ matrix.build }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - build: Linux
             os: ubuntu-latest
           - build: macOS
-            os: macOS-latest
+            os: macOS-13
           - build: Windows
             os: windows-latest
     steps:
@@ -60,15 +61,20 @@ jobs:
         with:
           java-version: '1.8.0'
       - name: Build
+        if: ${{ !cancelled() }}
         run: cargo build --examples --all
       - name: Test default features
+        if: ${{ !cancelled() }}
         run: cargo test
       - name: Shellcheck
-        if: runner.os == 'Linux'
+        if: ${{ runner.os == 'Linux' && !cancelled() }}
         run: .github/workflows/shellcheck.sh
       - name: Test invocation
-        if: runner.os != 'Windows'
+        if: ${{ runner.os != 'Windows' && !cancelled() }}
         run: .github/workflows/run_invocation_tests.sh
       - name: Test invocation
-        if: runner.os == 'Windows'
+        if: ${{ runner.os == 'Windows' && !cancelled() }}
         run: .github/workflows/run_windows_invocation_tests.ps1
+      - name: Abort on error
+        if: ${{ failure() }}
+        run: echo "test failed" && false
