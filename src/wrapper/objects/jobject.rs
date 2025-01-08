@@ -51,7 +51,7 @@ impl<'local> AsMut<JObject<'local>> for JObject<'local> {
     }
 }
 
-impl<'local> ::std::ops::Deref for JObject<'local> {
+impl ::std::ops::Deref for JObject<'_> {
     type Target = jobject;
 
     fn deref(&self) -> &Self::Target {
@@ -59,7 +59,7 @@ impl<'local> ::std::ops::Deref for JObject<'local> {
     }
 }
 
-impl<'local> JObject<'local> {
+impl JObject<'_> {
     /// Creates a [`JObject`] that wraps the given `raw` [`jobject`]
     ///
     /// # Safety
@@ -96,7 +96,7 @@ impl<'local> JObject<'local> {
     }
 }
 
-impl<'local> std::default::Default for JObject<'local> {
+impl std::default::Default for JObject<'_> {
     fn default() -> Self {
         Self::null()
     }

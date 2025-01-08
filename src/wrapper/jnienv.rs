@@ -94,7 +94,7 @@ use crate::{objects::AsJArrayRaw, signature::ReturnType};
 /// ## `null` Java references
 /// `null` Java references are handled by the following rules:
 ///   - If a `null` Java reference is passed to a method that expects a non-`null`
-///   argument, an `Err` result with the kind `NullPtr` is returned.
+///     argument, an `Err` result with the kind `NullPtr` is returned.
 ///   - If a JNI function returns `null` to indicate an error (e.g. `new_int_array`),
 ///     it is converted to `Err`/`NullPtr` or, where possible, to a more applicable
 ///     error type, such as `MethodNotFound`. If the JNI function also throws
@@ -3218,9 +3218,9 @@ impl<'local> JNIEnv<'local> {
     /// accessible to native code:
     ///
     /// 1. No other use of JNI calls are allowed (on the same thread) within the critical
-    /// section that exists while holding the [`AutoElementsCritical`] guard.
+    ///    section that exists while holding the [`AutoElementsCritical`] guard.
     /// 2. No system calls can be made (Such as `read`) that may depend on a result
-    /// from another Java thread.
+    ///    from another Java thread.
     ///
     /// The JNI spec does not specify what will happen if these rules aren't adhered to
     /// but it should be assumed it will lead to undefined behaviour, likely deadlock
@@ -3333,7 +3333,7 @@ pub struct MonitorGuard<'local> {
 
 static_assertions::assert_not_impl_any!(MonitorGuard: Send);
 
-impl<'local> Drop for MonitorGuard<'local> {
+impl Drop for MonitorGuard<'_> {
     fn drop(&mut self) {
         // Safety:
         //

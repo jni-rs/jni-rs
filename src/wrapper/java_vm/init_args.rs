@@ -100,13 +100,7 @@ impl JvmError {
 
 const SPECIAL_OPTIONS: &[&str] = &["vfprintf", "abort", "exit"];
 
-const SPECIAL_OPTIONS_C: &[&CStr] = unsafe {
-    &[
-        CStr::from_bytes_with_nul_unchecked(b"vfprintf\0"),
-        CStr::from_bytes_with_nul_unchecked(b"abort\0"),
-        CStr::from_bytes_with_nul_unchecked(b"exit\0"),
-    ]
-};
+const SPECIAL_OPTIONS_C: &[&CStr] = &[c"vfprintf", c"abort", c"exit"];
 
 /// Builder for JavaVM InitArgs.
 ///
@@ -119,7 +113,7 @@ pub struct InitArgsBuilder<'a> {
     version: JNIVersion,
 }
 
-impl<'a> Default for InitArgsBuilder<'a> {
+impl Default for InitArgsBuilder<'_> {
     fn default() -> Self {
         InitArgsBuilder {
             opts: Ok(vec![]),
@@ -213,11 +207,11 @@ impl<'a> InitArgsBuilder<'a> {
         // C string. This isn't just an optimization; Win32 `WideCharToMultiByte` will **fail** if
         // passed an empty string, so we have to do this check first.
         if matches!(opt_string.as_ref(), "" | "\0") {
-            opts.push(Cow::Borrowed(unsafe {
+            opts.push(Cow::Borrowed(
                 // Safety: This string not only is null-terminated without any interior null bytes,
                 // it's nothing but a null terminator.
-                CStr::from_bytes_with_nul_unchecked(b"\0")
-            }));
+                c"",
+            ));
             return Ok(());
         }
         // If this is one of the special options, do nothing.
@@ -353,7 +347,7 @@ pub struct InitArgs<'a> {
     _opt_strings: Vec<Cow<'a, CStr>>,
 }
 
-impl<'a> InitArgs<'a> {
+impl InitArgs<'_> {
     pub(crate) fn inner_ptr(&self) -> *mut c_void {
         &self.inner as *const _ as _
     }

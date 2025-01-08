@@ -192,25 +192,23 @@ impl<'local, 'other_local: 'obj_ref, 'obj_ref> JavaStr<'local, 'other_local, 'ob
     }
 }
 
-impl<'local, 'other_local: 'obj_ref, 'obj_ref> ::std::ops::Deref
-    for JavaStr<'local, 'other_local, 'obj_ref>
-{
+impl<'other_local: 'obj_ref, 'obj_ref> ::std::ops::Deref for JavaStr<'_, 'other_local, 'obj_ref> {
     type Target = JNIStr;
     fn deref(&self) -> &Self::Target {
         self.into()
     }
 }
 
-impl<'local, 'other_local: 'obj_ref, 'obj_ref: 'java_str, 'java_str>
-    From<&'java_str JavaStr<'local, 'other_local, 'obj_ref>> for &'java_str JNIStr
+impl<'other_local: 'obj_ref, 'obj_ref: 'java_str, 'java_str>
+    From<&'java_str JavaStr<'_, 'other_local, 'obj_ref>> for &'java_str JNIStr
 {
     fn from(other: &'java_str JavaStr) -> &'java_str JNIStr {
         unsafe { JNIStr::from_ptr(other.internal) }
     }
 }
 
-impl<'local, 'other_local: 'obj_ref, 'obj_ref: 'java_str, 'java_str>
-    From<&'java_str JavaStr<'local, 'other_local, 'obj_ref>> for Cow<'java_str, str>
+impl<'other_local: 'obj_ref, 'obj_ref: 'java_str, 'java_str>
+    From<&'java_str JavaStr<'_, 'other_local, 'obj_ref>> for Cow<'java_str, str>
 {
     fn from(other: &'java_str JavaStr) -> Cow<'java_str, str> {
         let jni_str: &JNIStr = other;
@@ -218,16 +216,14 @@ impl<'local, 'other_local: 'obj_ref, 'obj_ref: 'java_str, 'java_str>
     }
 }
 
-impl<'local, 'other_local: 'obj_ref, 'obj_ref> From<JavaStr<'local, 'other_local, 'obj_ref>>
-    for String
-{
+impl<'other_local: 'obj_ref, 'obj_ref> From<JavaStr<'_, 'other_local, 'obj_ref>> for String {
     fn from(other: JavaStr) -> String {
         let cow: Cow<str> = (&other).into();
         cow.into_owned()
     }
 }
 
-impl<'local, 'other_local: 'obj_ref, 'obj_ref> Drop for JavaStr<'local, 'other_local, 'obj_ref> {
+impl<'other_local: 'obj_ref, 'obj_ref> Drop for JavaStr<'_, 'other_local, 'obj_ref> {
     fn drop(&mut self) {
         match unsafe { self.release_string_utf_chars() } {
             Ok(()) => {}
@@ -236,9 +232,7 @@ impl<'local, 'other_local: 'obj_ref, 'obj_ref> Drop for JavaStr<'local, 'other_l
     }
 }
 
-impl<'local, 'other_local: 'obj_ref, 'obj_ref> AsRef<JNIStr>
-    for JavaStr<'local, 'other_local, 'obj_ref>
-{
+impl<'other_local: 'obj_ref, 'obj_ref> AsRef<JNIStr> for JavaStr<'_, 'other_local, 'obj_ref> {
     fn as_ref(&self) -> &JNIStr {
         self
     }

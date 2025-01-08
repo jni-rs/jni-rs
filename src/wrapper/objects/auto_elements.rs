@@ -218,9 +218,7 @@ impl<'local, 'other_local, 'array, T: TypeArray>
     }
 }
 
-impl<'local, 'other_local, 'array, T: TypeArray> Drop
-    for AutoElements<'local, 'other_local, 'array, T>
-{
+impl<T: TypeArray> Drop for AutoElements<'_, '_, '_, T> {
     fn drop(&mut self) {
         // Safety: `self.mode` is valid and the array has not yet been released.
         let res = unsafe { self.release_array_elements(self.mode as i32) };
@@ -232,17 +230,13 @@ impl<'local, 'other_local, 'array, T: TypeArray> Drop
     }
 }
 
-impl<'local, 'other_local, 'array, T: TypeArray>
-    From<&AutoElements<'local, 'other_local, 'array, T>> for *mut T
-{
+impl<T: TypeArray> From<&AutoElements<'_, '_, '_, T>> for *mut T {
     fn from(other: &AutoElements<T>) -> *mut T {
         other.as_ptr()
     }
 }
 
-impl<'local, 'other_local, 'array, T: TypeArray> std::ops::Deref
-    for AutoElements<'local, 'other_local, 'array, T>
-{
+impl<T: TypeArray> std::ops::Deref for AutoElements<'_, '_, '_, T> {
     type Target = [T];
 
     fn deref(&self) -> &Self::Target {
@@ -250,9 +244,7 @@ impl<'local, 'other_local, 'array, T: TypeArray> std::ops::Deref
     }
 }
 
-impl<'local, 'other_local, 'array, T: TypeArray> std::ops::DerefMut
-    for AutoElements<'local, 'other_local, 'array, T>
-{
+impl<T: TypeArray> std::ops::DerefMut for AutoElements<'_, '_, '_, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { std::slice::from_raw_parts_mut(self.ptr.as_mut(), self.len) }
     }
