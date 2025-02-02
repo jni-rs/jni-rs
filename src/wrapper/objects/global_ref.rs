@@ -1,4 +1,9 @@
-use std::{mem, ops::Deref, sync::Arc};
+use std::{
+    mem::{self, ManuallyDrop},
+    ops::Deref,
+    ptr,
+    sync::Arc,
+};
 
 use log::{debug, warn};
 
@@ -136,6 +141,17 @@ impl GlobalRef {
         GlobalRef {
             inner: Arc::new(GlobalRefGuard::from_raw(vm, raw_global_ref)),
         }
+    }
+
+    /// Unwrap to the internal jni type.
+    /// This will return `None` if more than a single clone of the `GlobalRef` exists.
+    /// This is useful when you manage the lifetime of the `GlobalRef` yourself.
+    pub fn try_into_raw(self) -> std::result::Result<sys::jobject, Arc<Self>> {
+        let inner = Arc::try_unwrap(self.inner).map_err(|inner| Self { inner })?;
+        let no_drop = ManuallyDrop::new(inner);
+        let ptr = unsafe { ptr::read(&no_drop.obj) };
+        let _vm = unsafe { ptr::read(&no_drop.vm) };
+        Ok(ptr.into_raw())
     }
 
     /// Borrows a `JObject` referring to the same Java object as this
