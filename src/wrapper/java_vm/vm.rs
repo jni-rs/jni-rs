@@ -507,7 +507,7 @@ impl JavaVM {
 }
 
 thread_local! {
-    static THREAD_ATTACH_GUARD: RefCell<Option<InternalAttachGuard>> = RefCell::new(None)
+    static THREAD_ATTACH_GUARD: RefCell<Option<InternalAttachGuard>> = const { RefCell::new(None) }
 }
 
 static ATTACHED_THREADS: AtomicUsize = AtomicUsize::new(0);
@@ -547,13 +547,13 @@ impl<'local> Deref for AttachGuard<'local> {
     }
 }
 
-impl<'local> DerefMut for AttachGuard<'local> {
+impl DerefMut for AttachGuard<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.env
     }
 }
 
-impl<'local> Drop for AttachGuard<'local> {
+impl Drop for AttachGuard<'_> {
     fn drop(&mut self) {
         if self.should_detach {
             InternalAttachGuard::clear_tls();

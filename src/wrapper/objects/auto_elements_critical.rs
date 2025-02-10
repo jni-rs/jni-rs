@@ -126,9 +126,7 @@ impl<'local, 'other_local, 'array, 'env, T: TypeArray>
     }
 }
 
-impl<'local, 'other_local, 'array, 'env, T: TypeArray> Drop
-    for AutoElementsCritical<'local, 'other_local, 'array, 'env, T>
-{
+impl<T: TypeArray> Drop for AutoElementsCritical<'_, '_, '_, '_, T> {
     fn drop(&mut self) {
         // Safety: `self.mode` is valid and the array has not yet been released.
         let res = unsafe { self.release_primitive_array_critical(self.mode as i32) };
@@ -140,17 +138,13 @@ impl<'local, 'other_local, 'array, 'env, T: TypeArray> Drop
     }
 }
 
-impl<'local, 'other_local, 'array, 'env, T: TypeArray>
-    From<&AutoElementsCritical<'local, 'other_local, 'array, 'env, T>> for *mut T
-{
+impl<T: TypeArray> From<&AutoElementsCritical<'_, '_, '_, '_, T>> for *mut T {
     fn from(other: &AutoElementsCritical<T>) -> *mut T {
         other.as_ptr()
     }
 }
 
-impl<'local, 'other_local, 'array, 'env, T: TypeArray> std::ops::Deref
-    for AutoElementsCritical<'local, 'other_local, 'array, 'env, T>
-{
+impl<T: TypeArray> std::ops::Deref for AutoElementsCritical<'_, '_, '_, '_, T> {
     type Target = [T];
 
     fn deref(&self) -> &Self::Target {
@@ -158,9 +152,7 @@ impl<'local, 'other_local, 'array, 'env, T: TypeArray> std::ops::Deref
     }
 }
 
-impl<'local, 'other_local, 'array, 'env, T: TypeArray> std::ops::DerefMut
-    for AutoElementsCritical<'local, 'other_local, 'array, 'env, T>
-{
+impl<T: TypeArray> std::ops::DerefMut for AutoElementsCritical<'_, '_, '_, '_, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { std::slice::from_raw_parts_mut(self.ptr.as_mut(), self.len) }
     }

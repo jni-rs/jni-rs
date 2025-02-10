@@ -31,8 +31,8 @@ impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> AsRef<JList<'local, 'other_loca
     }
 }
 
-impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> AsRef<JObject<'other_local_1>>
-    for JList<'local, 'other_local_1, 'obj_ref>
+impl<'other_local_1: 'obj_ref, 'obj_ref> AsRef<JObject<'other_local_1>>
+    for JList<'_, 'other_local_1, 'obj_ref>
 {
     fn as_ref(&self) -> &JObject<'other_local_1> {
         self.internal
@@ -253,9 +253,7 @@ pub struct JListIter<'list, 'local, 'other_local_1: 'obj_ref, 'obj_ref> {
     size: jint,
 }
 
-impl<'list, 'local, 'other_local_1: 'obj_ref, 'obj_ref>
-    JListIter<'list, 'local, 'other_local_1, 'obj_ref>
-{
+impl<'other_local_1: 'obj_ref, 'obj_ref> JListIter<'_, '_, 'other_local_1, 'obj_ref> {
     /// Advances the iterator and returns the next object in the
     /// `java.util.List`, or `None` if there are no more objects.
     ///

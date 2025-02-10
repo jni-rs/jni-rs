@@ -32,7 +32,7 @@ unsafe impl<'local> Desc<'local, JThrowable<'local>> for Exception {
     }
 }
 
-unsafe impl<'local, 'str_ref> Desc<'local, JThrowable<'local>> for &'str_ref str {
+unsafe impl<'local> Desc<'local, JThrowable<'local>> for &str {
     type Output = AutoLocal<'local, JThrowable<'local>>;
 
     fn lookup(self, env: &mut JNIEnv<'local>) -> Result<Self::Output> {
