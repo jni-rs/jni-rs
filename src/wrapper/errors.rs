@@ -10,7 +10,10 @@ use crate::wrapper::signature::TypeSignature;
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[cfg(doc)]
-use crate::objects::{char_from_java_int, char_to_java, char_to_java_int, JValue, JValueOwned};
+use crate::{
+    objects::{char_from_java_int, char_to_java, char_to_java_int, JValue, JValueOwned},
+    JavaVM,
+};
 
 #[derive(Debug, Error)]
 #[non_exhaustive]
@@ -77,6 +80,13 @@ pub enum JniError {
     Unknown,
     #[error("Current thread is not attached to the Java VM")]
     ThreadDetached,
+
+    /// An attempt was made to attach the current thread to the JVM using one of the [`JavaVM`]
+    /// methods (like [`JavaVM::attach_current_thread`]), but the current thread is already
+    /// attached.
+    #[error("Current thread is already attached to the Java VM (use `JavaVM::get_env` to get a `JNIEnv` for this thread)")]
+    ThreadAlreadyAttached,
+
     #[error("JNI version error")]
     WrongVersion,
     #[error("Not enough memory")]
