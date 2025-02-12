@@ -8,4 +8,4 @@ edition = "2021"
 jni = { path = "../../" }
 
 [lib]
-crate_type = ["cdylib"]
+crate-type = ["cdylib"]
