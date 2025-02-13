@@ -1,4 +1,6 @@
 use super::{char_encoding_generic::*, JvmError};
+#[path = "../../windows_sys.rs"]
+mod winnls;
 use std::{
     borrow::Cow,
     convert::TryInto,
@@ -7,7 +9,6 @@ use std::{
     mem::MaybeUninit,
     ptr,
 };
-use windows_sys::Win32::Globalization as winnls;
 
 // The integer type used by `WideCharToMultiByte` for string lengths.
 type WSize = c_int;

@@ -1,0 +1,12 @@
+[package]
+name = "windows-bindings"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+windows-bindgen = "0.59"
+
+# Prevent this from interfering with other crates/workspaces
+[workspace]
+members = ["."]
