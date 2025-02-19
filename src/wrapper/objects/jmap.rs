@@ -28,8 +28,8 @@ impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> AsRef<JMap<'local, 'other_local
     }
 }
 
-impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> AsRef<JObject<'other_local_1>>
-    for JMap<'local, 'other_local_1, 'obj_ref>
+impl<'other_local_1: 'obj_ref, 'obj_ref> AsRef<JObject<'other_local_1>>
+    for JMap<'_, 'other_local_1, 'obj_ref>
 {
     fn as_ref(&self) -> &JObject<'other_local_1> {
         self.internal
@@ -250,9 +250,7 @@ pub struct JMapIter<'map, 'local, 'other_local_1: 'obj_ref, 'obj_ref, 'iter_loca
     iter: AutoLocal<'iter_local, JObject<'iter_local>>,
 }
 
-impl<'map, 'local, 'other_local_1: 'obj_ref, 'obj_ref, 'iter_local>
-    JMapIter<'map, 'local, 'other_local_1, 'obj_ref, 'iter_local>
-{
+impl<'other_local_1: 'obj_ref, 'obj_ref> JMapIter<'_, '_, 'other_local_1, 'obj_ref, '_> {
     /// Advances the iterator and returns the next key-value pair in the
     /// `java.util.Map`, or `None` if there are no more objects.
     ///

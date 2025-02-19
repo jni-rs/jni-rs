@@ -51,7 +51,7 @@ impl<'local, 'obj_ref> From<&'obj_ref JObject<'local>> for &'obj_ref JObjectArra
     }
 }
 
-impl<'local> std::default::Default for JObjectArray<'local> {
+impl std::default::Default for JObjectArray<'_> {
     fn default() -> Self {
         Self(JObject::null())
     }
@@ -59,7 +59,7 @@ impl<'local> std::default::Default for JObjectArray<'local> {
 
 unsafe impl<'local> AsJArrayRaw<'local> for JObjectArray<'local> {}
 
-impl<'local> JObjectArray<'local> {
+impl JObjectArray<'_> {
     /// Creates a [`JObjectArray`] that wraps the given `raw` [`jobjectArray`]
     ///
     /// # Safety

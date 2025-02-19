@@ -28,7 +28,10 @@ pub fn jvm() -> &'static Arc<JavaVM> {
         }
     });
 
-    unsafe { JVM.as_ref().unwrap() }
+    #[allow(static_mut_refs)]
+    unsafe {
+        JVM.as_ref().unwrap()
+    }
 }
 
 #[allow(dead_code)]

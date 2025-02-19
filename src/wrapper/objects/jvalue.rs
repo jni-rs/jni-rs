@@ -195,7 +195,7 @@ impl<'obj_ref> JValue<'obj_ref> {
             },
         };
         trace!("converted {:?} to jvalue {:?}", self, unsafe {
-            ::std::mem::transmute::<_, u64>(val)
+            ::std::mem::transmute::<jvalue, u64>(val)
         });
         val
     }
@@ -381,13 +381,13 @@ impl<'local> TryFrom<JValueOwned<'local>> for JObject<'local> {
     }
 }
 
-impl<'local> From<jboolean> for JValueOwned<'local> {
+impl From<jboolean> for JValueOwned<'_> {
     fn from(other: jboolean) -> Self {
         Self::Bool(other)
     }
 }
 
-impl<'local> TryFrom<JValueOwned<'local>> for jboolean {
+impl TryFrom<JValueOwned<'_>> for jboolean {
     type Error = Error;
 
     fn try_from(value: JValueOwned) -> Result<Self> {
@@ -395,13 +395,13 @@ impl<'local> TryFrom<JValueOwned<'local>> for jboolean {
     }
 }
 
-impl<'obj_ref> From<jboolean> for JValue<'obj_ref> {
+impl From<jboolean> for JValue<'_> {
     fn from(other: jboolean) -> Self {
         Self::Bool(other)
     }
 }
 
-impl<'obj_ref> TryFrom<JValue<'obj_ref>> for jboolean {
+impl TryFrom<JValue<'_>> for jboolean {
     type Error = Error;
 
     fn try_from(value: JValue) -> Result<Self> {
@@ -413,13 +413,13 @@ impl<'obj_ref> TryFrom<JValue<'obj_ref>> for jboolean {
 }
 
 // jchar
-impl<'local> From<jchar> for JValueOwned<'local> {
+impl From<jchar> for JValueOwned<'_> {
     fn from(other: jchar) -> Self {
         Self::Char(other)
     }
 }
 
-impl<'local> TryFrom<JValueOwned<'local>> for jchar {
+impl TryFrom<JValueOwned<'_>> for jchar {
     type Error = Error;
 
     fn try_from(value: JValueOwned) -> Result<Self> {
@@ -427,13 +427,13 @@ impl<'local> TryFrom<JValueOwned<'local>> for jchar {
     }
 }
 
-impl<'obj_ref> From<jchar> for JValue<'obj_ref> {
+impl From<jchar> for JValue<'_> {
     fn from(other: jchar) -> Self {
         Self::Char(other)
     }
 }
 
-impl<'obj_ref> TryFrom<JValue<'obj_ref>> for jchar {
+impl TryFrom<JValue<'_>> for jchar {
     type Error = Error;
 
     fn try_from(value: JValue) -> Result<Self> {
@@ -444,7 +444,7 @@ impl<'obj_ref> TryFrom<JValue<'obj_ref>> for jchar {
 /// Converts a Rust `char` to a Java `char`, if possible.
 ///
 /// **Warning:** This conversion is likely to fail. Using it is not recommended. Prefer [`JValueGen::int_from_char`] where possible. See [`char_to_java`] for more information.
-impl<'local> TryFrom<char> for JValueOwned<'local> {
+impl TryFrom<char> for JValueOwned<'_> {
     type Error = CharToJavaError;
 
     fn try_from(value: char) -> std::result::Result<Self, Self::Error> {
@@ -455,7 +455,7 @@ impl<'local> TryFrom<char> for JValueOwned<'local> {
 /// Converts a Rust `char` to a Java `char`, if possible.
 ///
 /// **Warning:** This conversion is likely to fail. Using it is not recommended. Prefer [`JValueGen::int_from_char`] where possible. See [`char_to_java`] for more information.
-impl<'obj_ref> TryFrom<char> for JValue<'obj_ref> {
+impl TryFrom<char> for JValue<'_> {
     type Error = CharToJavaError;
 
     fn try_from(value: char) -> std::result::Result<Self, Self::Error> {
@@ -521,13 +521,13 @@ pub fn char_to_java(char: char) -> std::result::Result<jchar, CharToJavaError> {
 }
 
 // jshort
-impl<'local> From<jshort> for JValueOwned<'local> {
+impl From<jshort> for JValueOwned<'_> {
     fn from(other: jshort) -> Self {
         Self::Short(other)
     }
 }
 
-impl<'local> TryFrom<JValueOwned<'local>> for jshort {
+impl TryFrom<JValueOwned<'_>> for jshort {
     type Error = Error;
 
     fn try_from(value: JValueOwned) -> Result<Self> {
@@ -535,13 +535,13 @@ impl<'local> TryFrom<JValueOwned<'local>> for jshort {
     }
 }
 
-impl<'obj_ref> From<jshort> for JValue<'obj_ref> {
+impl From<jshort> for JValue<'_> {
     fn from(other: jshort) -> Self {
         Self::Short(other)
     }
 }
 
-impl<'obj_ref> TryFrom<JValue<'obj_ref>> for jshort {
+impl TryFrom<JValue<'_>> for jshort {
     type Error = Error;
 
     fn try_from(value: JValue) -> Result<Self> {
@@ -550,13 +550,13 @@ impl<'obj_ref> TryFrom<JValue<'obj_ref>> for jshort {
 }
 
 // jfloat
-impl<'local> From<jfloat> for JValueOwned<'local> {
+impl From<jfloat> for JValueOwned<'_> {
     fn from(other: jfloat) -> Self {
         Self::Float(other)
     }
 }
 
-impl<'local> TryFrom<JValueOwned<'local>> for jfloat {
+impl TryFrom<JValueOwned<'_>> for jfloat {
     type Error = Error;
 
     fn try_from(value: JValueOwned) -> Result<Self> {
@@ -564,13 +564,13 @@ impl<'local> TryFrom<JValueOwned<'local>> for jfloat {
     }
 }
 
-impl<'obj_ref> From<jfloat> for JValue<'obj_ref> {
+impl From<jfloat> for JValue<'_> {
     fn from(other: jfloat) -> Self {
         Self::Float(other)
     }
 }
 
-impl<'obj_ref> TryFrom<JValue<'obj_ref>> for jfloat {
+impl TryFrom<JValue<'_>> for jfloat {
     type Error = Error;
 
     fn try_from(value: JValue) -> Result<Self> {
@@ -579,13 +579,13 @@ impl<'obj_ref> TryFrom<JValue<'obj_ref>> for jfloat {
 }
 
 // jdouble
-impl<'local> From<jdouble> for JValueOwned<'local> {
+impl From<jdouble> for JValueOwned<'_> {
     fn from(other: jdouble) -> Self {
         Self::Double(other)
     }
 }
 
-impl<'local> TryFrom<JValueOwned<'local>> for jdouble {
+impl TryFrom<JValueOwned<'_>> for jdouble {
     type Error = Error;
 
     fn try_from(value: JValueOwned) -> Result<Self> {
@@ -593,13 +593,13 @@ impl<'local> TryFrom<JValueOwned<'local>> for jdouble {
     }
 }
 
-impl<'obj_ref> From<jdouble> for JValue<'obj_ref> {
+impl From<jdouble> for JValue<'_> {
     fn from(other: jdouble) -> Self {
         Self::Double(other)
     }
 }
 
-impl<'obj_ref> TryFrom<JValue<'obj_ref>> for jdouble {
+impl TryFrom<JValue<'_>> for jdouble {
     type Error = Error;
 
     fn try_from(value: JValue) -> Result<Self> {
@@ -608,13 +608,13 @@ impl<'obj_ref> TryFrom<JValue<'obj_ref>> for jdouble {
 }
 
 // jint
-impl<'local> From<jint> for JValueOwned<'local> {
+impl From<jint> for JValueOwned<'_> {
     fn from(other: jint) -> Self {
         Self::Int(other)
     }
 }
 
-impl<'local> TryFrom<JValueOwned<'local>> for jint {
+impl TryFrom<JValueOwned<'_>> for jint {
     type Error = Error;
 
     fn try_from(value: JValueOwned) -> Result<Self> {
@@ -622,13 +622,13 @@ impl<'local> TryFrom<JValueOwned<'local>> for jint {
     }
 }
 
-impl<'obj_ref> From<jint> for JValue<'obj_ref> {
+impl From<jint> for JValue<'_> {
     fn from(other: jint) -> Self {
         Self::Int(other)
     }
 }
 
-impl<'obj_ref> TryFrom<JValue<'obj_ref>> for jint {
+impl TryFrom<JValue<'_>> for jint {
     type Error = Error;
 
     fn try_from(value: JValue) -> Result<Self> {
@@ -675,13 +675,13 @@ pub fn char_from_java_int(jint: jint) -> std::result::Result<char, CharTryFromEr
 }
 
 // jlong
-impl<'local> From<jlong> for JValueOwned<'local> {
+impl From<jlong> for JValueOwned<'_> {
     fn from(other: jlong) -> Self {
         Self::Long(other)
     }
 }
 
-impl<'local> TryFrom<JValueOwned<'local>> for jlong {
+impl TryFrom<JValueOwned<'_>> for jlong {
     type Error = Error;
 
     fn try_from(value: JValueOwned) -> Result<Self> {
@@ -689,13 +689,13 @@ impl<'local> TryFrom<JValueOwned<'local>> for jlong {
     }
 }
 
-impl<'obj_ref> From<jlong> for JValue<'obj_ref> {
+impl From<jlong> for JValue<'_> {
     fn from(other: jlong) -> Self {
         Self::Long(other)
     }
 }
 
-impl<'obj_ref> TryFrom<JValue<'obj_ref>> for jlong {
+impl TryFrom<JValue<'_>> for jlong {
     type Error = Error;
 
     fn try_from(value: JValue) -> Result<Self> {
@@ -704,13 +704,13 @@ impl<'obj_ref> TryFrom<JValue<'obj_ref>> for jlong {
 }
 
 // jbyte
-impl<'local> From<jbyte> for JValueOwned<'local> {
+impl From<jbyte> for JValueOwned<'_> {
     fn from(other: jbyte) -> Self {
         Self::Byte(other)
     }
 }
 
-impl<'local> TryFrom<JValueOwned<'local>> for jbyte {
+impl TryFrom<JValueOwned<'_>> for jbyte {
     type Error = Error;
 
     fn try_from(value: JValueOwned) -> Result<Self> {
@@ -718,13 +718,13 @@ impl<'local> TryFrom<JValueOwned<'local>> for jbyte {
     }
 }
 
-impl<'obj_ref> From<jbyte> for JValue<'obj_ref> {
+impl From<jbyte> for JValue<'_> {
     fn from(other: jbyte) -> Self {
         Self::Byte(other)
     }
 }
 
-impl<'obj_ref> TryFrom<JValue<'obj_ref>> for jbyte {
+impl TryFrom<JValue<'_>> for jbyte {
     type Error = Error;
 
     fn try_from(value: JValue) -> Result<Self> {
@@ -733,13 +733,13 @@ impl<'obj_ref> TryFrom<JValue<'obj_ref>> for jbyte {
 }
 
 // jvoid
-impl<'local> From<()> for JValueOwned<'local> {
+impl From<()> for JValueOwned<'_> {
     fn from(_: ()) -> Self {
         Self::Void
     }
 }
 
-impl<'local> TryFrom<JValueOwned<'local>> for () {
+impl TryFrom<JValueOwned<'_>> for () {
     type Error = Error;
 
     fn try_from(value: JValueOwned) -> Result<Self> {
@@ -747,13 +747,13 @@ impl<'local> TryFrom<JValueOwned<'local>> for () {
     }
 }
 
-impl<'obj_ref> From<()> for JValue<'obj_ref> {
+impl From<()> for JValue<'_> {
     fn from(_: ()) -> Self {
         Self::Void
     }
 }
 
-impl<'obj_ref> TryFrom<JValue<'obj_ref>> for () {
+impl TryFrom<JValue<'_>> for () {
     type Error = Error;
 
     fn try_from(value: JValue) -> Result<Self> {

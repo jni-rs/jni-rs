@@ -47,13 +47,13 @@ impl<'local, 'obj_ref> From<&'obj_ref JObject<'local>> for &'obj_ref JString<'lo
     }
 }
 
-impl<'local> std::default::Default for JString<'local> {
+impl std::default::Default for JString<'_> {
     fn default() -> Self {
         Self(JObject::null())
     }
 }
 
-impl<'local> JString<'local> {
+impl JString<'_> {
     /// Creates a [`JString`] that wraps the given `raw` [`jstring`]
     ///
     /// # Safety

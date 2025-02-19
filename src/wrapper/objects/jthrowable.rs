@@ -47,13 +47,13 @@ impl<'local, 'obj_ref> From<&'obj_ref JObject<'local>> for &'obj_ref JThrowable<
     }
 }
 
-impl<'local> std::default::Default for JThrowable<'local> {
+impl std::default::Default for JThrowable<'_> {
     fn default() -> Self {
         Self(JObject::null())
     }
 }
 
-impl<'local> JThrowable<'local> {
+impl JThrowable<'_> {
     /// Creates a [`JThrowable`] that wraps the given `raw` [`jthrowable`]
     ///
     /// # Safety

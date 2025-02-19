@@ -99,7 +99,7 @@ where
     }
 }
 
-unsafe impl<'local, 't_ref, T> Desc<'local, T> for &'t_ref T
+unsafe impl<'local, T> Desc<'local, T> for &T
 where
     T: AsRef<T>,
 {
@@ -121,8 +121,7 @@ where
     }
 }
 
-unsafe impl<'local, 'other_local, 'obj_ref, T> Desc<'local, T>
-    for &'obj_ref AutoLocal<'other_local, T>
+unsafe impl<'local, 'other_local, T> Desc<'local, T> for &AutoLocal<'other_local, T>
 where
     T: AsRef<T> + Into<JObject<'other_local>>,
 {
