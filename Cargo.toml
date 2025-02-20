@@ -46,7 +46,7 @@ lazy_static = "1"
 rusty-fork = "0.3.0"
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.48.0", features = ["Win32_Globalization"] }
+windows-sys = { version = "0.59.0", features = ["Win32_Globalization"] }
 
 [target.'cfg(windows)'.dev-dependencies]
 bytemuck = "1.13.0"
