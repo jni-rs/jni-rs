@@ -39,6 +39,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - New functions for converting Rust `char` to and from Java `char` and `int` ([#427](https://github.com/jni-rs/jni-rs/issues/427) / [#434](https://github.com/jni-rs/jni-rs/pull/434))
 - `JNIEnv::call_nonvirtual_method` and `JNIEnv::call_nonvirtual_method_unchecked` to call non-virtual method. ([#454](https://github.com/jni-rs/jni-rs/issues/454))
 - `JavaStr`, `JNIStr`, and `JNIString` have several new methods and traits, most notably a `to_str` method that converts to a regular Rust string. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
+- Added dependency on `once_cell` version `1.19.0` for lazy initialization in `JNIEnv::get_string`.
 
 ### Changed
 - `JValueGen` has been removed. `JValue` and `JValueOwned` are now separate, unrelated, non-generic types. ([#429](https://github.com/jni-rs/jni-rs/pull/429))
@@ -49,11 +50,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `JavaStr::from_env` has been removed because it was unsound (it could cause undefined behavior and was not marked `unsafe`). Use `JNIEnv::get_string` or `JNIEnv::get_string_unchecked` instead. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
 - `JavaStr::get_raw` has been renamed to `as_ptr`. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
 - `JavaStr`, `JNIStr`, and `JNIString` no longer coerce to `CStr`, because using `CStr::to_str` will often have incorrect results. You can still get a `CStr`, but must use the new `as_cstr` method to do so. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
+- `JNIEnv::get_string` performance is improved by caching an expensive class lookup, and using a faster instanceof check.
 
 ## [0.21.1] — 2023-03-08
 
 ### Fixes
 - Compilation is fixed for architectures with a C ABI that has unsigned `char` types. ([#419](https://github.com/jni-rs/jni-rs/pull/419))
+- `JNIEnv::get_string` no longer leaks local references. ([#528](https://github.com/jni-rs/jni-rs/pull/528))
 
 ## [0.21.0] — 2023-02-13
 
