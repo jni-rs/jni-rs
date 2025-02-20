@@ -196,7 +196,7 @@ impl JavaVM {
             Err(error) => return Err(StartJvmError::LoadError(libjvm_path_string, error)),
         };
 
-        unsafe {
+        let result = unsafe {
             // Try to find the `JNI_CreateJavaVM` function in the loaded library.
             let create_fn = libjvm
                 .get(b"JNI_CreateJavaVM\0")
@@ -204,7 +204,27 @@ impl JavaVM {
 
             // Create the JVM.
             Self::with_create_fn_ptr(args, *create_fn).map_err(StartJvmError::Create)
-        }
+        };
+
+        // Prevent libjvm from being unloaded.
+        //
+        // If libjvm is unloaded while the JVM is running, the program will crash as soon as it
+        // tries to execute any JVM code, including the many threads that the JVM automatically
+        // creates.
+        //
+        // For reasons unknown, HotSpot seems to somehow prevent itself from being unloaded, so it
+        // will work even if this `forget` call isn't here, but there's no guarantee that other JVM
+        // implementations will also prevent themselves from being unloaded.
+        //
+        // It would be ideal if `libjvm` could instead be retained, and then dropped in
+        // `JavaVM::destroy`, but this is not possible because `JavaVM` is `repr(transparent)`. It
+        // can only have a single field. Nor does JNI offer any other place to store the
+        // `libloading::Library` from which `JavaVM::destroy` can retrieve it.
+        //
+        // See discussion at: https://github.com/jni-rs/jni-rs/issues/550
+        std::mem::forget(libjvm);
+
+        result
     }
 
     #[cfg(feature = "invocation")]
