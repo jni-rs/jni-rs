@@ -50,13 +50,13 @@ impl<'local, 'obj_ref> From<&'obj_ref JObject<'local>> for &'obj_ref JClass<'loc
     }
 }
 
-impl<'local> std::default::Default for JClass<'local> {
+impl std::default::Default for JClass<'_> {
     fn default() -> Self {
         Self(JObject::null())
     }
 }
 
-impl<'local> JClass<'local> {
+impl JClass<'_> {
     /// Creates a [`JClass`] that wraps the given `raw` [`jclass`]
     ///
     /// # Safety

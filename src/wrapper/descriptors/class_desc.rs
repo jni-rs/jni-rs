@@ -26,7 +26,7 @@ where
 // it a lot easier to mistakenly pass an object instance in places where a class
 // is required.
 
-/// This conversion assumes that the `GlobalRef` is a pointer to a class object.
+// This conversion assumes that the `GlobalRef` is a pointer to a class object.
 
 // TODO: Generify `GlobalRef` and get rid of this `impl`. The transmute is
 // sound-ish at the moment (`JClass` is currently `repr(transparent)`
@@ -38,6 +38,6 @@ unsafe impl<'local, 'obj_ref> Desc<'local, JClass<'static>> for &'obj_ref Global
 
     fn lookup(self, _: &mut JNIEnv<'local>) -> Result<Self::Output> {
         let obj: &JObject<'static> = self.as_ref();
-        Ok(unsafe { std::mem::transmute(obj) })
+        Ok(unsafe { std::mem::transmute::<&JObject<'_>, &JClass<'_>>(obj) })
     }
 }

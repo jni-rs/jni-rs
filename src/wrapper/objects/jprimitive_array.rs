@@ -48,7 +48,7 @@ impl<'local, T: TypeArray> ::std::ops::Deref for JPrimitiveArray<'local, T> {
 }
 
 impl<'local, T: TypeArray> From<JPrimitiveArray<'local, T>> for JObject<'local> {
-    fn from(other: JPrimitiveArray<'local, T>) -> JObject {
+    fn from(other: JPrimitiveArray<'local, T>) -> JObject<'local> {
         other.obj
     }
 }
@@ -70,7 +70,7 @@ impl<'local, 'obj_ref, T: TypeArray> From<&'obj_ref JObject<'local>>
     }
 }
 
-impl<'local, T: TypeArray> std::default::Default for JPrimitiveArray<'local, T> {
+impl<T: TypeArray> std::default::Default for JPrimitiveArray<'_, T> {
     fn default() -> Self {
         Self {
             obj: JObject::null(),
@@ -79,7 +79,7 @@ impl<'local, T: TypeArray> std::default::Default for JPrimitiveArray<'local, T> 
     }
 }
 
-impl<'local, T: TypeArray> JPrimitiveArray<'local, T> {
+impl<T: TypeArray> JPrimitiveArray<'_, T> {
     /// Creates a [`JPrimitiveArray`] that wraps the given `raw` [`jarray`]
     ///
     /// # Safety

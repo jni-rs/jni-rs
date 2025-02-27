@@ -1,3 +1,6 @@
+.vscode/
+.VSCodeCounter/
+
 ## Rust
 target/
 Cargo.lock
