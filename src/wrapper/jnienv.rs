@@ -1921,6 +1921,7 @@ impl<'local> JNIEnv<'local> {
     ) -> Result<JavaStr<'local, 'other_local, 'obj_ref>> {
         let string_class = AutoLocal::new(self.find_class("java/lang/String")?, self);
         let obj_class = self.get_object_class(obj)?;
+        let obj_class = self.auto_local(obj_class);
         if !self.is_assignable_from(string_class, obj_class)? {
             return Err(JniCall(JniError::InvalidArguments));
         }
