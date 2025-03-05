@@ -3095,10 +3095,20 @@ impl<'local> JNIEnv<'local> {
         Ok(())
     }
 
-    /// Bind function pointers to native methods of class
-    /// according to method name and signature.
-    /// For details see [documentation](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#RegisterNatives).
-    pub fn register_native_methods<'other_local, T>(
+    /// Bind function pointers to native methods of class according to method
+    /// name and signature.
+    ///
+    /// For details see
+    /// [documentation](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#RegisterNatives).
+    ///
+    /// # Safety
+    ///
+    /// All the native method pointers must be valid, non-null pointers to
+    /// functions that match the signature of the corresponding Java method.
+    ///
+    /// All of the pointers must remain valid for the lifetime of the class unless
+    /// they are unregistered, via [`Self::unregister_native_methods`].
+    pub unsafe fn register_native_methods<'other_local, T>(
         &mut self,
         class: T,
         methods: &[NativeMethod],
