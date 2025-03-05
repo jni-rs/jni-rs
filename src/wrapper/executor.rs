@@ -14,9 +14,6 @@ pub const DEFAULT_LOCAL_FRAME_CAPACITY: i32 = 32;
 /// locals _inside_ the closure if an unbounded number of them is created (e.g., in a loop).
 /// See ["Local Reference Management"](struct.JavaVM.html#local-reference-management) for details.
 ///
-/// Threads using the Executor are attached on the first invocation as daemons,
-/// hence they do not block JVM exit. Finished threads detach automatically.
-///
 /// ## Example
 ///
 /// ```rust
