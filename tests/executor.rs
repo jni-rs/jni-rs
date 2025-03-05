@@ -122,6 +122,23 @@ fn test_destroy() {
         threads.push(jh);
     }
 
+    unsafe fn attach_current_thread_as_daemon(vm: &jni::JavaVM) -> jni::errors::Result<jni::JNIEnv<'_>> {
+        let mut env_ptr = std::ptr::null_mut();
+        let jvm: *mut jni_sys::JavaVM = vm.get_raw();
+        let res = ((*(*jvm)).v1_4.AttachCurrentThreadAsDaemon)(
+            jvm,
+            &mut env_ptr,
+            std::ptr::null_mut(),
+        );
+        jni::errors::jni_error_code_to_result(res)?;
+        jni::JNIEnv::from_raw(env_ptr as *mut jni::sys::JNIEnv)
+    }
+
+    unsafe fn detach_current_thread(vm: &jni::JavaVM) {
+        let jvm: *mut jni_sys::JavaVM = vm.get_raw();
+        ((*(*jvm)).v1_4.DetachCurrentThread)(jvm);
+    }
+
     for _ in 0..DAEMON_THREAD_NUM {
         let attach_barrier = Arc::clone(&attach_barrier);
         let daemons_detached_barrier = Arc::clone(&daemons_detached_barrier);
@@ -132,7 +149,8 @@ fn test_destroy() {
             // JavaVM before it gets destroyed, including dropping the AutoLocal
             // for the `MATH_CLASS`
             {
-                let mut env = unsafe { jvm.attach_current_thread_as_daemon().unwrap() };
+                //jvm.get_env().unwrap()
+                let mut env = unsafe { attach_current_thread_as_daemon(&jvm).unwrap() };
                 println!("daemon thread attach");
                 attach_barrier.wait();
                 println!("daemon thread run");
@@ -152,7 +170,9 @@ fn test_destroy() {
             // We won't be accessing any (invalid) `JNIEnv` once we have detached this
             // thread
             unsafe {
-                jvm.detach_current_thread();
+                // Note: jni-rs doesn't directly support 'daemon' threads so we're
+                // manually detaching them with the `jni-sys` API.
+                detach_current_thread(&jvm);
             }
 
             daemons_detached_barrier.wait();

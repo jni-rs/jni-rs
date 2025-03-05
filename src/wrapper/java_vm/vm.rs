@@ -30,7 +30,6 @@ use {
 /// * A scoped attachment with [`attach_current_thread`][act].
 ///   The thread will automatically detach itself once the returned guard is dropped.
 /// * A permanent attachment with [`attach_current_thread_permanently`][actp]
-///   or [`attach_current_thread_as_daemon`][actd].
 ///   The thread will automatically detach itself before it terminates.
 ///
 /// As attachment and detachment of a thread is an expensive operation, the scoped attachment
@@ -131,7 +130,6 @@ use {
 /// [launch-vm]: struct.JavaVM.html#method.new
 /// [act]: struct.JavaVM.html#method.attach_current_thread
 /// [actp]: struct.JavaVM.html#method.attach_current_thread_permanently
-/// [actd]: struct.JavaVM.html#method.attach_current_thread_as_daemon
 /// [spec-references]: https://docs.oracle.com/en/java/javase/12/docs/specs/jni/design.html#referencing-java-objects
 /// [java-locator]: https://crates.io/crates/java-locator
 #[repr(transparent)]
@@ -274,41 +272,42 @@ impl JavaVM {
     ///
     /// The thread will detach itself automatically when it exits.
     ///
-    /// Attached threads [block JVM exit][block]. If it is not desirable — consider using
-    /// [`attach_current_thread_as_daemon`][attach-as-daemon].
+    /// Calls to [`JavaVM::destroy()`] will block until all attached threads are detached.
     ///
-    /// [block]: https://docs.oracle.com/en/java/javase/12/docs/specs/jni/invocation.html#unloading-the-vm
-    /// [attach-as-daemon]: struct.JavaVM.html#method.attach_current_thread_as_daemon
     pub fn attach_current_thread_permanently(&'_ self) -> Result<JNIEnv<'_>> {
         // Safety: NOT SAFE CURRENTLY: https://github.com/jni-rs/jni-rs/discussions/436#discussioncomment-5421738
         unsafe {
             match self.get_env(JNIVersion::V1_4) {
                 Ok(env) => Ok(env),
-                Err(_) => self.attach_current_thread_impl(ThreadType::Normal),
+                Err(_) => self.attach_current_thread_impl(),
             }
         }
     }
 
-    /// Attaches the current thread to the Java VM. The returned `AttachGuard`
-    /// can be dereferenced to a `JNIEnv` and automatically detaches the thread
-    /// when dropped. Calling this in a thread that is already attached is a no-op, and
-    /// will neither change its daemon status nor prematurely detach it.
+    /// Attaches the current thread to the Java VM. The returned [`AttachGuard`]
+    /// can be dereferenced to a [`JNIEnv`] and automatically detaches the
+    /// thread when dropped.
     ///
-    /// Attached threads [block JVM exit][block].
+    /// Calling this in a thread that is already attached is a no-op.
     ///
-    /// Attaching and detaching a thread is an expensive operation. If you use it frequently
-    /// in the same threads, consider either [attaching them permanently][attach-as-daemon],
-    /// or, if the scope where you need the `JNIEnv` is well-defined, keeping the returned guard.
+    /// Calls to [`JavaVM::destroy()`] will block until all attached threads are
+    /// detached.
     ///
-    /// [block]: https://docs.oracle.com/en/java/javase/12/docs/specs/jni/invocation.html#unloading-the-vm
-    /// [attach-as-daemon]: struct.JavaVM.html#method.attach_current_thread_as_daemon
+    /// Attaching and detaching a thread is an expensive operation, unless you
+    /// hit the no-op path because the thread was already attached. The
+    /// automatic detachment makes it more likely that your code will hit the
+    /// slower path in the future.
+    ///
+    /// In most cases it's probably better to use
+    /// [`Self::attach_current_thread_permanently`] and enable all JNI code to
+    /// amortize the cost of "attaching" to a thread.
     pub fn attach_current_thread(&'_ self) -> Result<AttachGuard<'_>> {
         // Safety: NOT SAFE CURRENTLY: https://github.com/jni-rs/jni-rs/discussions/436#discussioncomment-5421738
         unsafe {
             match self.get_env(JNIVersion::V1_4) {
                 Ok(env) => Ok(AttachGuard::new_nested(env)),
                 Err(_) => {
-                    let env = self.attach_current_thread_impl(ThreadType::Normal)?;
+                    let env = self.attach_current_thread_impl()?;
                     Ok(AttachGuard::new(env))
                 }
             }
@@ -323,9 +322,15 @@ impl JavaVM {
     ///
     /// Detaching a non-attached thread is a no-op.
     ///
-    /// To support the use of `JavaVM::destroy()` it may be necessary to use this API to
+    /// This API will only detach threads that were attached via `jni-rs` APIs,
+    /// and since `jni-rs` doesn't directly support 'daemon' threads, you
+    /// can't rely on the `jni-rs` API to detach daemon threads.
+    ///
+    /// To support the use of `JavaVM::destroy()` it may be necessary to
     /// explicitly detach daemon threads before `JavaVM::destroy()` is called because
     /// `JavaVM::destroy()` does not synchronize and wait for daemon threads.
+    /// (since `jni-rs` doesn't directly support 'daemon' threads, you shouldn't
+    /// rely on the `jn-rs` API to detach daemon threads)
     ///
     /// Any daemon thread that is still "attached" after `JavaVM::destroy()` returns would
     /// cause undefined behaviour if it then tries to make any JNI calls or tries
@@ -352,28 +357,6 @@ impl JavaVM {
     // extra care. Its status might be reconsidered if we learn of any use cases that require it.
     pub unsafe fn detach_current_thread(&self) {
         InternalAttachGuard::clear_tls();
-    }
-
-    /// Attaches the current thread to the Java VM as a _daemon_. Calling this in a thread
-    /// that is already attached is a no-op, and will not change its status to a daemon thread.
-    ///
-    /// The thread will detach itself automatically when it exits.
-    ///
-    /// # Safety
-    ///
-    /// The use of daemon threads is only relevant in applications that might later try to
-    /// call [`JavaVM::destroy()`] and it would be inherently unsound to allow any Rust code
-    /// to continue beyond [`JavaVM::destroy()`] if it could possibly attempt to access
-    /// the destroyed [`JavaVM`].
-    ///
-    /// This API is so unsafe to consider for its intended purpose that it will
-    /// likely be removed from this crate, in favor of relegating the
-    /// functionality to the `jni-sys` crate instead.
-    pub unsafe fn attach_current_thread_as_daemon(&'_ self) -> Result<JNIEnv<'_>> {
-        match self.get_env(JNIVersion::V1_4) {
-            Ok(env) => Ok(env),
-            Err(_) => self.attach_current_thread_impl(ThreadType::Daemon),
-        }
     }
 
     /// Returns the current number of threads attached to the JVM.
@@ -426,15 +409,9 @@ impl JavaVM {
     }
 
     /// Creates `InternalAttachGuard` and attaches current thread.
-    unsafe fn attach_current_thread_impl(&'_ self, thread_type: ThreadType) -> Result<JNIEnv<'_>> {
+    unsafe fn attach_current_thread_impl(&'_ self) -> Result<JNIEnv<'_>> {
         let guard = InternalAttachGuard::new(self.clone());
-        let env_ptr = unsafe {
-            if thread_type == ThreadType::Daemon {
-                guard.attach_current_thread_as_daemon()?
-            } else {
-                guard.attach_current_thread()?
-            }
-        };
+        let env_ptr = unsafe { guard.attach_current_thread()? };
 
         InternalAttachGuard::fill_tls(guard);
 
@@ -443,8 +420,8 @@ impl JavaVM {
 
     /// Unloads the JavaVM and frees all it's associated resources
     ///
-    /// Firstly if this thread is not already attached to the `JavaVM` then
-    /// it will be attached.
+    /// Firstly if this thread is not already attached to the `JavaVM` then it
+    /// will be attached.
     ///
     /// This thread will then wait until there are no other non-daemon threads
     /// attached to the `JavaVM` before unloading it (including threads spawned
@@ -456,30 +433,28 @@ impl JavaVM {
     ///
     /// ## Daemon thread rules
     ///
-    /// Since the JNI spec makes it clear that `DestroyJavaVM` will not wait for
-    /// attached deamon threads to exit, this also means that if you do have any
-    /// attached daemon threads it is your responsibility to ensure that they
-    /// don't try and use JNI after the `JavaVM` is destroyed and you won't be able
-    /// to detach them after the `JavaVM` has been destroyed.
+    /// Since the JNI spec makes it clear that [`DestroyJavaVM`][destroy] will
+    /// not wait for attached deamon threads to exit, this also means that if
+    /// you do have any attached daemon threads it is your responsibility to
+    /// ensure that they don't try and use JNI after the `JavaVM` is destroyed
+    /// and you won't be able to detach them after the `JavaVM` has been
+    /// destroyed.
     ///
-    /// This creates a very unsafe hazard in `jni-rs` because it normally automatically
-    /// ensures that any thread that gets attached will be detached before it exits.
+    /// This creates a very unsafe hazard if using `jni-rs` due to the various
+    /// RAII types that will automatically make JNI calls within their `Drop`
+    /// implementation.
     ///
-    /// Normally `jni-rs` will automatically detach threads from the `JavaVM` by storing
-    /// a guard in thread-local-storage that will detach on `Drop` but this will cause
-    /// undefined behaviour if `JavaVM::destroy()` has been called before the thread
-    /// exits.
+    /// For this reason `jni-rs` doesn't directly support attaching or detaching
+    /// 'daemon' threads and it's assumed you will manage their safety yourself
+    /// if you're using them.
     ///
-    /// To clear this thread-local-storage guard from daemon threads you can call
-    /// [`JavaVM::detach_current_thread()`] within each daemon thread, before calling
-    /// this API.
-    ///
-    /// Calling this will clear the thread-local-storage guard and detach the thread
-    /// early to avoid any attempt to automatically detach when the thread exits.
+    /// Note: [`JavaVM::detach_current_thread()`] is a no-op for daemon threads
+    /// because it will only detach threads that were attached via `jni-rs` APIs.
     ///
     /// ## Don't call from a Java native function
     ///
-    /// There must be no Java methods on the call stack when `JavaVM::destroy()` is called.
+    /// There must be no Java methods on the call stack when `JavaVM::destroy()`
+    /// is called.
     ///
     /// ## Drop all JNI state, including auto-release types before calling `JavaVM::destroy()`
     ///
@@ -508,8 +483,9 @@ impl JavaVM {
     ///
     /// ## Invalid `JavaVM` on return
     ///
-    /// After `destroy()` returns then the `JavaVM` will be in an undefined state
-    /// and must be dropped (e.g. via `std::mem::drop()`) to avoid undefined behaviour.
+    /// After `destroy()` returns then the `JavaVM` will be in an undefined
+    /// state and must be dropped (e.g. via `std::mem::drop()`) to avoid
+    /// undefined behaviour.
     ///
     /// This method doesn't take ownership of the `JavaVM` before it is
     /// destroyed because the `JavaVM` may have been shared (E.g. via an `Arc`)
@@ -519,6 +495,9 @@ impl JavaVM {
     /// So although the `JavaVM` won't necessarily be solely owned by this
     /// thread when `destroy()` is first called it will conceptually own the
     /// `JavaVM` before `destroy()` returns.
+    ///
+    /// [destroy]:
+    ///     https://docs.oracle.com/en/java/javase/12/docs/specs/jni/invocation.html#unloading-the-vm
     pub unsafe fn destroy(&self) -> Result<()> {
         unsafe {
             let res = java_vm_call_unchecked!(self, v1_1, DestroyJavaVM);
@@ -582,12 +561,6 @@ impl Drop for AttachGuard<'_> {
     }
 }
 
-#[derive(PartialEq)]
-enum ThreadType {
-    Normal,
-    Daemon,
-}
-
 #[derive(Debug)]
 struct InternalAttachGuard {
     java_vm: JavaVM,
@@ -637,32 +610,6 @@ impl InternalAttachGuard {
 
         debug!(
             "Attached thread {} ({:?}). {} threads attached",
-            self.thread.name().unwrap_or_default(),
-            self.thread.id(),
-            ATTACHED_THREADS.load(Ordering::SeqCst)
-        );
-
-        Ok(env_ptr as *mut sys::JNIEnv)
-    }
-
-    // TODO: remove this API: https://github.com/jni-rs/jni-rs/issues/469
-    // This API is also awkward because we don't currently have a way
-    // to know that the implementation supports JNI >= 1.4
-    unsafe fn attach_current_thread_as_daemon(&self) -> Result<*mut sys::JNIEnv> {
-        let mut env_ptr = ptr::null_mut();
-        let res = java_vm_call_unchecked!(
-            self.java_vm,
-            v1_4,
-            AttachCurrentThreadAsDaemon,
-            &mut env_ptr,
-            ptr::null_mut()
-        );
-        jni_error_code_to_result(res)?;
-
-        ATTACHED_THREADS.fetch_add(1, Ordering::SeqCst);
-
-        debug!(
-            "Attached daemon thread {} ({:?}). {} threads attached",
             self.thread.name().unwrap_or_default(),
             self.thread.id(),
             ATTACHED_THREADS.load(Ordering::SeqCst)

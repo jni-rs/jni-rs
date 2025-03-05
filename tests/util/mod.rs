@@ -55,13 +55,6 @@ pub fn attach_current_thread() -> AttachGuard<'static> {
 }
 
 #[allow(dead_code)]
-pub unsafe fn attach_current_thread_as_daemon() -> JNIEnv<'static> {
-    jvm()
-        .attach_current_thread_as_daemon()
-        .expect("failed to attach jvm daemon thread")
-}
-
-#[allow(dead_code)]
 pub fn attach_current_thread_permanently() -> JNIEnv<'static> {
     jvm()
         .attach_current_thread_permanently()
