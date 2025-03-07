@@ -1,9 +1,9 @@
 use crate::{
+    env::JNIEnv,
     errors::*,
     objects::{AutoLocal, IntoAutoLocal as _, JClass, JMethodID, JObject, JValue},
     signature::{Primitive, ReturnType},
     sys::jint,
-    JNIEnv,
 };
 
 use std::marker::PhantomData;
@@ -209,7 +209,7 @@ impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> JList<'local, 'other_local_1, '
     /// instead:
     ///
     /// ```rust,no_run
-    /// # use jni::{errors::Result, JNIEnv, objects::{IntoAutoLocal as _, JList, JObject}};
+    /// # use jni::{errors::Result, env::JNIEnv, objects::{IntoAutoLocal as _, JList, JObject}};
     /// #
     /// # fn example(env: &mut JNIEnv, list: JList) -> Result<()> {
     /// let mut iterator = list.iter(env)?;

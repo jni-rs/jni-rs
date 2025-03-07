@@ -22,24 +22,28 @@ fn invocation_character_encoding() {
 
     let jvm = JavaVM::new(jvm_args).unwrap_or_else(|e| panic!("{:#?}", e));
 
-    let mut env = jvm.attach_current_thread().unwrap();
+    jvm.attach_current_thread(|env| -> jni::errors::Result<()> {
+        println!("creating new_string, env = {:?}", env.get_raw());
+        let prop_name = env.new_string("nbsp").unwrap();
 
-    let prop_name = env.new_string("nbsp").unwrap();
+        println!("calling getProperty");
+        let prop_value: JString = env
+            .call_static_method(
+                "java/lang/System",
+                "getProperty",
+                "(Ljava/lang/String;)Ljava/lang/String;",
+                &[(&prop_name).into()],
+            )
+            .unwrap()
+            .l()
+            .unwrap()
+            .into();
 
-    let prop_value: JString = env
-        .call_static_method(
-            "java/lang/System",
-            "getProperty",
-            "(Ljava/lang/String;)Ljava/lang/String;",
-            &[(&prop_name).into()],
-        )
-        .unwrap()
-        .l()
-        .unwrap()
-        .into();
+        let prop_value_str = env.get_string(&prop_value).unwrap();
+        let prop_value_str: Cow<str> = prop_value_str.to_str();
 
-    let prop_value_str = env.get_string(&prop_value).unwrap();
-    let prop_value_str: Cow<str> = prop_value_str.to_str();
-
-    assert_eq!("\u{00a0}", prop_value_str);
+        assert_eq!("\u{00a0}", prop_value_str);
+        Ok(())
+    })
+    .unwrap()
 }

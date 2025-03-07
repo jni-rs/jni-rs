@@ -1,9 +1,9 @@
 use crate::{
     descriptors::Desc,
+    env::JNIEnv,
     errors::*,
     objects::{AutoLocal, IntoAutoLocal as _, JClass, JThrowable, JValue},
     strings::JNIString,
-    JNIEnv,
 };
 
 const DEFAULT_EXCEPTION_CLASS: &str = "java/lang/RuntimeException";

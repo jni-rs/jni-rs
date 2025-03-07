@@ -1,9 +1,9 @@
 use crate::{
     descriptors::Desc,
+    env::JNIEnv,
     errors::*,
     objects::{AutoLocal, GlobalRef, IntoAutoLocal as _, JClass, JObject},
     strings::JNIString,
-    JNIEnv,
 };
 
 unsafe impl<'local, T> Desc<'local, JClass<'local>> for T

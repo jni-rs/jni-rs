@@ -1,9 +1,9 @@
 use crate::{
     descriptors::Desc,
+    env::JNIEnv,
     errors::*,
     objects::{JClass, JFieldID, JStaticFieldID},
     strings::JNIString,
-    JNIEnv,
 };
 
 unsafe impl<'local, 'other_local, T, U, V> Desc<'local, JFieldID> for (T, U, V)

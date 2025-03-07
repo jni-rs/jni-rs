@@ -2,7 +2,7 @@ use std::{marker::PhantomData, mem::ManuallyDrop, ops::Deref, ptr};
 
 use jni_sys::jobject;
 
-use crate::{objects::JObject, JNIEnv, JNIVersion, JavaVM};
+use crate::{errors, objects::JObject, JavaVM};
 
 use super::JObjectRef;
 
@@ -149,15 +149,18 @@ where
         if !obj.is_null() {
             // Panic:
             //
-            // Since we have a non-null local reference associated with a JNIEnv lifetime we
-            // know that the thread is attached and this is enough to know that `JavaVM::singleton()`
-            // and `get_env().expect()` will not panic.
-            unsafe {
-                JavaVM::singleton()
-                    .get_env(JNIVersion::V1_4)
-                    .expect("AutoLocal drop must run while thread is attached")
-                    .delete_local_ref(obj);
-            }
+            // Since we can't construct `AutoLocal` without a valid `JNIEnv` reference we know we
+            // can call `JavaVM::singleton()` without a panic.
+            //
+            // Since we have a non-null local reference associated with a JNIEnv lifetime we also
+            // know that the thread is attached and so `with_env_current_frame` can't return a
+            // `ThreadDetached` error.
+            JavaVM::singleton()
+                .with_env_current_frame(|env| -> errors::Result<()> {
+                    env.delete_local_ref(obj);
+                    Ok(())
+                })
+                .expect("Infallible"); // The closure is infallible
         }
     }
 }
