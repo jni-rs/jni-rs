@@ -18,7 +18,8 @@ use util::{attach_current_thread, unwrap};
 pub fn weak_ref_works_in_other_threads() {
     const ITERS_PER_THREAD: usize = 10_000;
 
-    let mut env = attach_current_thread();
+    let mut guard = unsafe { attach_current_thread() };
+    let env = guard.current_frame_env();
     let mut join_handlers = Vec::new();
 
     let atomic_integer_local = AutoLocal::new(
@@ -44,7 +45,8 @@ pub fn weak_ref_works_in_other_threads() {
             let atomic_integer = atomic_integer.clone();
 
             let jh = spawn(move || {
-                let mut env = attach_current_thread();
+                let mut guard = unsafe { attach_current_thread() };
+                let env = guard.current_frame_env();
                 barrier.wait();
                 for _ in 0..ITERS_PER_THREAD {
                     let atomic_integer = env.auto_local(
@@ -90,7 +92,8 @@ pub fn weak_ref_works_in_other_threads() {
 
 #[test]
 fn weak_ref_is_actually_weak() {
-    let mut env = attach_current_thread();
+    let mut guard = unsafe { attach_current_thread() };
+    let env = guard.current_frame_env();
 
     // This test uses `with_local_frame` to work around issue #109.
 
@@ -119,7 +122,7 @@ fn weak_ref_is_actually_weak() {
         let obj_weak2 =
             unwrap(obj_weak.clone_in_jvm(&env), &env).expect("weak ref should not be null");
 
-        run_gc(&mut env);
+        run_gc(env);
 
         for obj_weak in &[&obj_weak, &obj_weak2] {
             {
@@ -151,7 +154,7 @@ fn weak_ref_is_actually_weak() {
         assert!(obj_weak.is_weak_ref_to_same_object(&env, &obj_weak2));
 
         drop(obj_local);
-        run_gc(&mut env);
+        run_gc(env);
 
         for obj_weak in &[&obj_weak, &obj_weak2] {
             {

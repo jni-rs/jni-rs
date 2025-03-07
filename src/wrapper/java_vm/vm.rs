@@ -1,6 +1,5 @@
 use std::{
-    cell::RefCell,
-    ops::{Deref, DerefMut},
+    cell::{Cell, RefCell},
     ptr,
     sync::atomic::{AtomicUsize, Ordering},
     thread::{current, Thread},
@@ -8,7 +7,7 @@ use std::{
 
 use log::{debug, error};
 
-use crate::{errors::*, sys, JNIEnv, JNIVersion};
+use crate::{errors::*, objects::JObject, sys, JNIEnv, JNIVersion};
 
 #[cfg(feature = "invocation")]
 use {
@@ -16,6 +15,10 @@ use {
     std::os::raw::c_void,
     std::{ffi::OsStr, path::PathBuf},
 };
+
+/// The capacity of local frames, allocated for attached threads by default. Same as the default
+/// value Hotspot uses when calling native Java methods.
+pub const DEFAULT_LOCAL_FRAME_CAPACITY: usize = 32;
 
 /// The Java VM, providing [Invocation API][invocation-api] support.
 ///
@@ -25,17 +28,22 @@ use {
 /// ## Attaching Native Threads
 ///
 /// A native thread must «attach» itself to be able to call Java methods outside of a native Java
-/// method. This library provides two modes of attachment, each ensuring the thread is promptly
-/// detached:
-/// * A scoped attachment with [`attach_current_thread`][act].
-///   The thread will automatically detach itself once the returned guard is dropped.
-/// * A permanent attachment with [`attach_current_thread_permanently`][actp]
-///   The thread will automatically detach itself before it terminates.
+/// method.
 ///
-/// As attachment and detachment of a thread is an expensive operation, the scoped attachment
-/// shall be used if happens infrequently. If you have an undefined scope where you need
-/// to use `JNIEnv` and cannot keep the `AttachGuard`, consider attaching the thread
-/// permanently.
+/// The attachment of the current thread is always explicitly represented via an [`AttachGuard`]
+/// which blocks the thread from being detached and provides access to the [`JNIEnv`] API.
+///
+/// This library provides two modes of attachment, each ensuring the thread is automatically
+/// detached:
+/// * A permanent attachment with [`attach_current_thread`][actp]
+///   The thread will automatically detach itself before it terminates.
+/// * A scoped attachment with [`attach_current_thread_for_scope`][act].
+///   The thread will automatically detach itself once the returned guard is dropped.
+///
+/// Both APIs return an [`AttachGuard`] that only guarantees that the thread is attached
+/// until the guard is dropped, but [`Self::attach_current_thread()`] will request
+/// a permanent attachment which will increase the chance that future attachment
+/// calls will be cheap if the thread is already attached.
 ///
 /// ### Local Reference Management
 ///
@@ -43,17 +51,19 @@ use {
 /// properly, i.e., do not allocate an excessive number of references and release them promptly
 /// when they are no longer needed to enable the GC to collect them. A common approach is to use
 /// an appropriately-sized local frame for larger code fragments
-/// (see [`with_local_frame`](struct.JNIEnv.html#method.with_local_frame) and [Executor](#executor))
+/// (see [`with_local_frame`](struct.JNIEnv.html#method.with_local_frame) and [`AttachGuard::with_env`]
 /// and [auto locals](struct.JNIEnv.html#method.auto_local) in loops.
 ///
 /// See also the [JNI specification][spec-references] for details on referencing Java objects.
 ///
-/// ### Executor
+/// ### `AttachGuard::with_env`
 ///
-/// Jni-rs provides an [`Executor`](struct.Executor.html) — a helper struct that allows to
-/// execute a closure with `JNIEnv`. It combines the performance benefits of permanent attaches
-/// *and* automatic local reference management. Prefer it to manual permanent attaches if
-/// they happen in various parts of the code to reduce the burden of local reference management.
+/// The [`AttachGuard::with_env`] API is convenient way to access the [`JNIEnv`] API
+/// while also creating a new JNI stack frame so that any local references created while
+/// running the given closure will be automatically released after the closure returns.
+///
+/// Prefer it to [`AttachGuard::current_frame_env`] if you don't know when the current
+/// frame will unwind and don't know when references for the current frame will be released.
 ///
 /// ## Launching JVM from Rust
 ///
@@ -94,14 +104,16 @@ use {
 /// //
 /// // This method returns the guard that will detach the current thread when dropped,
 /// // also freeing any local references created in it
-/// let mut env = jvm.attach_current_thread()?;
+/// let mut guard = unsafe { jvm.attach_current_thread(JNIVersion::V1_4)? };
+/// guard.with_env(1, |env| -> errors::Result<()> {
+///     // Call Java Math#abs(-10)
+///     let x = JValue::from(-10);
+///     let val: jint = env.call_static_method("java/lang/Math", "abs", "(I)I", &[x])?
+///         .i()?;
 ///
-/// // Call Java Math#abs(-10)
-/// let x = JValue::from(-10);
-/// let val: jint = env.call_static_method("java/lang/Math", "abs", "(I)I", &[x])?
-///   .i()?;
-///
-/// assert_eq!(val, 10);
+///     assert_eq!(val, 10);
+///     Ok(())
+/// });
 ///
 /// # Ok(()) }
 /// #
@@ -267,110 +279,151 @@ impl JavaVM {
         self.0
     }
 
-    /// Attaches the current thread to the JVM. Calling this for a thread that is already attached
-    /// is a no-op.
+    /// Attaches the current thread to the Java VM and returns an
+    /// [`AttachGuard`] to access the [`JNIEnv`] API for the current thread,
+    /// (E.g. via [`AttachGuard::with_env()`]).
     ///
-    /// The thread will detach itself automatically when it exits.
+    /// If the thread was not already attached then a new attachment is made
+    /// which will be automatically detached when the current thread terminates.
     ///
-    /// Calls to [`JavaVM::destroy()`] will block until all attached threads are detached.
+    /// Calling this in a thread that is already attached is a cheap no-op that
+    /// will return an [`AttachGuard`] that does nothing when dropped.
     ///
-    pub fn attach_current_thread_permanently(&self) -> Result<JNIEnv> {
-        // Safety: NOT SAFE CURRENTLY: https://github.com/jni-rs/jni-rs/discussions/436#discussioncomment-5421738
-        unsafe {
-            match self.get_env(JNIVersion::V1_4) {
-                Ok(env) => Ok(env),
-                Err(_) => self.attach_current_thread_impl(),
-            }
-        }
-    }
-
-    /// Attaches the current thread to the Java VM. The returned [`AttachGuard`]
-    /// can be dereferenced to a [`JNIEnv`] and automatically detaches the
-    /// thread when dropped.
+    /// This API requests to permanently attach the current thread but since
+    /// pre-existing attachments aren't affected by this API, it should
+    /// therefore not be assumed that the thread will definitely remain attached
+    /// until it exits - that is only a request.
     ///
-    /// Calling this in a thread that is already attached is a no-op.
+    /// You can safely assume that the thread will remain attached for the
+    /// current scope, at least until the returned [`AttachGuard`] is dropped.
     ///
-    /// Calls to [`JavaVM::destroy()`] will block until all attached threads are
-    /// detached.
-    ///
-    /// Attaching and detaching a thread is an expensive operation, unless you
-    /// hit the no-op path because the thread was already attached. The
-    /// automatic detachment makes it more likely that your code will hit the
-    /// slower path in the future.
-    ///
-    /// In most cases it's probably better to use
-    /// [`Self::attach_current_thread_permanently`] and enable all JNI code to
-    /// amortize the cost of "attaching" to a thread.
-    pub fn attach_current_thread(&self) -> Result<AttachGuard> {
-        // Safety: NOT SAFE CURRENTLY: https://github.com/jni-rs/jni-rs/discussions/436#discussioncomment-5421738
-        unsafe {
-            match self.get_env(JNIVersion::V1_4) {
-                Ok(env) => Ok(AttachGuard::new_nested(env)),
-                Err(_) => {
-                    let env = self.attach_current_thread_impl()?;
-                    Ok(AttachGuard::new(env))
-                }
-            }
-        }
-    }
-
-    /// Explicitly detaches the current thread from the JVM.
-    ///
-    /// _**Note**: This operation is _rarely_ appropriate to use, because the
-    /// attachment methods [ensure](#attaching-native-threads) that the thread
-    /// is automatically detached._
-    ///
-    /// Detaching a non-attached thread is a no-op.
-    ///
-    /// This API will only detach threads that were attached via `jni-rs` APIs,
-    /// and since `jni-rs` doesn't directly support 'daemon' threads, you
-    /// can't rely on the `jni-rs` API to detach daemon threads.
-    ///
-    /// To support the use of `JavaVM::destroy()` it may be necessary to
-    /// explicitly detach daemon threads before `JavaVM::destroy()` is called because
-    /// `JavaVM::destroy()` does not synchronize and wait for daemon threads.
-    /// (since `jni-rs` doesn't directly support 'daemon' threads, you shouldn't
-    /// rely on the `jn-rs` API to detach daemon threads)
-    ///
-    /// Any daemon thread that is still "attached" after `JavaVM::destroy()` returns would
-    /// cause undefined behaviour if it then tries to make any JNI calls or tries
-    /// to detach itself.
-    ///
-    /// Normally `jni-rs` will automatically detach threads from the `JavaVM` by storing
-    /// a guard in thread-local-storage that will detach on `Drop` but this will cause
-    /// undefined behaviour if `JavaVM::destroy()` has been called.
-    ///
-    /// Calling this will clear the thread-local-storage guard and detach the thread
-    /// early to avoid any attempt to automatically detach when the thread exits.
+    /// If you're not sure whether to use [`Self::attach_current_thread`] or
+    /// [`Self::attach_current_thread_for_scope`], then you should probably use
+    /// this API because it increases the chance that future attachment calls
+    /// will be cheap.
     ///
     /// # Safety
     ///
-    /// __Any existing `JNIEnv`s and `AttachGuard`s created in the calling thread
-    /// will be invalidated after this method completes. It is the__ caller’s __responsibility
-    /// to ensure that no JNI calls are subsequently performed on these objects.__
-    /// Failure to do so will result in unspecified errors, possibly, the process crash.
+    /// You must consider the 'Safety' documentation for [`AttachGuard`].
     ///
-    /// Given some care is exercised, this method can be used to detach permanently attached
-    /// threads _before_ they exit (when automatic detachment occurs). However, it is
-    /// never appropriate to use it with the scoped attachment (`attach_current_thread`).
-    // This method is hidden because it is almost never needed and its use requires some
-    // extra care. Its status might be reconsidered if we learn of any use cases that require it.
-    pub unsafe fn detach_current_thread(&self) {
-        InternalAttachGuard::clear_tls();
+    /// In summary though:
+    ///
+    /// 1. This must not be used to materialize an [`AttachGuard`] if you
+    ///    already have a guard accessible to your current scope, or if you have
+    ///    a safe way to access a mutable [`JNIEnv`].
+    ///
+    /// 2. The returned guard must be kept on the stack (not boxed or given a
+    ///    `'static` lifetime in any way) and should generally be considered
+    ///    like an immovable type, to ensure that guards are always dropped in
+    ///    LIFO order.
+    pub unsafe fn attach_current_thread(&self, version: JNIVersion) -> Result<AttachGuard> {
+        // Safety: the caller must ensure that no other guard / JNIEnv in scope,
+        unsafe {
+            match self.get_env_attachment(version) {
+                Ok(guard) => Ok(guard),
+                Err(Error::JniCall(JniError::ThreadDetached)) => TLSAttachGuard::attach_current_thread(self.clone()),
+                Err(err) => Err(err),
+            }
+        }
+    }
+
+    /// Attaches the current thread to the Java VM and returns an
+    /// [`AttachGuard`] to access the [`JNIEnv`] API for the current thread,
+    /// (E.g. via [`AttachGuard::with_env()`]).
+    ///
+    /// If the thread was not already attached, the returned guard detaches the
+    /// thread when dropped.
+    ///
+    /// Calling this in a thread that is already attached is a cheap no-op that
+    /// will return an [`AttachGuard`] that does nothing when dropped.
+    ///
+    /// Attaching a thread is an expensive operation if it was not already
+    /// attached, so it's generally recommended that you should use
+    /// [`Self::attach_current_thread()`] (requesting to attach the thread
+    /// permanently) instead of using a scoped attachment. Using this API may
+    /// increase the chance that you incur the cost of repeatedly attaching and
+    /// detaching the same thread.
+    ///
+    /// # Safety
+    ///
+    /// You must consider the 'Safety' documentation for [`AttachGuard`].
+    ///
+    /// In summary though:
+    ///
+    /// 1. This must not be used to materialize an [`AttachGuard`] if you
+    ///    already have a guard accessible to your current scope, or if you have
+    ///    a safe way to access a mutable [`JNIEnv`].
+    ///
+    /// 2. The returned guard must be kept on the stack (not boxed or given a
+    ///    `'static` lifetime in any way) and should generally be considered
+    ///    like an immovable type, to ensure that guards are always dropped in
+    ///    LIFO order.
+    pub unsafe fn attach_current_thread_for_scope<'local>(&self, version: JNIVersion) -> Result<AttachGuard> {
+        // Safety: the caller must ensure that no other guard / JNIEnv in scope,
+        unsafe {
+            match self.get_env_attachment(version) {
+                Ok(guard) => Ok(guard),
+                Err(Error::JniCall(JniError::ThreadDetached)) => {
+                    let jni = sys_attach_current_thread(self, &current())?;
+                    Ok(AttachGuard::from_owned(jni))
+                },
+                Err(err) => Err(err),
+            }
+        }
+    }
+
+    /// Explicitly detaches the current thread from the JVM, **IFF** it was
+    /// previously attached using [`JavaVM::attach_current_thread`] **AND** if
+    /// there is no [`AttachGuard`] also keeping the current thread attached.
+    ///
+    /// This will always return an error if there are currently any active
+    /// [`AttachGuard`]s (detaching the thread in this case would effectively
+    /// turn guards into invalid, dangling pointers).
+    ///
+    /// Detaching a non-attached thread is a no-op that won't return an error
+    /// (assuming there's no active [`AttachGuard`] as noted above).
+    ///
+    /// This API has no effect on scoped attachments that were created via
+    /// [`JavaVM::attach_current_thread_for_scope`]. Or in other words it's not
+    /// applicable to scoped attachments because it's an error to call while
+    /// there are active [`AttachGuard`]s.
+    ///
+    /// _**Note**: This operation is _rarely_ necessary to use, because a
+    /// thread that is attached via [`JavaVM::attach_current_thread`] will
+    /// automatically detach when that thread terminates.
+    ///
+    /// Explicitly detaching the thread could lead to overheads later if the
+    /// same thread needs to get re-attached.
+    ///
+    /// If there is a need to detach a thread before it terminates, then it's
+    /// possible that a scoped attachment via
+    /// [`JavaVM::attach_current_thread_for_scope`] could be used so that the
+    /// detachment would happen automatically.
+    pub fn detach_current_thread(&self) -> Result<()> {
+        TLSAttachGuard::detach()
     }
 
     /// Returns the current number of threads attached to the JVM.
     ///
     /// This method is provided mostly for diagnostic purposes.
+    #[doc(hidden)]
     pub fn threads_attached(&self) -> usize {
         ATTACHED_THREADS.load(Ordering::SeqCst)
     }
 
-    /// Get the `JNIEnv` associated with the current thread, or
-    /// `ErrorKind::Detached`
-    /// if the current thread is not attached to the java VM.
+    /// Returns the current nesting level for [`AttachGuard`]s
     ///
-    /// You must specify what JNI `version`` you require, with a minimum of
+    /// This is only really public since it's useful for unit tests
+    #[doc(hidden)]
+    pub fn thread_attach_guard_level(&self) -> usize {
+        THREAD_GUARD_NEST_LEVEL.get()
+    }
+
+    /// Get an [`AttachGuard`] for the [`JNIEnv`] associated with the current
+    /// thread or, if JNI is not attached to the Java VM, this will return
+    /// [`Error::JniCall()`] with [`JniError::ThreadDetached`].
+    ///
+    /// You must specify what JNI `version` you require, with a minimum of
     /// [`JNIVersion::V1_4`]
     ///
     /// # Safety
@@ -382,40 +435,26 @@ impl JavaVM {
     /// `GetVersion` if exceptions might be pending since `GetVersion` is not
     /// documented as safe to call with pending exceptions)
     ///
-    /// You must not use this API to materialize a [`JNIEnv`] if there is
-    /// already another [`JNIEnv`] or local [`JObject`] reference in scope,
-    /// since this risks associating a mutable [`JNIEnv`] with a `'local` stack
-    /// frame lifetime that doesn't correspond to the top of the JNI stack for
-    /// local object references.
+    /// This must not be used to materialize a [`AttachGuard`] if there is
+    /// already another guard or mutable [`JNIEnv`] in scope (or anything that
+    /// could provide "safe" access to a mutable [`JNIEnv`]).
     ///
-    /// A [`JNIEnv`] has a lifetime parameter that ties it to a local JNI stack
-    /// frame (which holds local object references) and the safe [`JNIEnv`] API
-    /// will only allow it to remain mutable if its `'local` lifetime
-    /// corresponds to the top of the JNI stack. If you materialize a [`JNIEnv`]
-    /// with this API you will get a mutable [`JNIEnv`] and it's important you
-    /// don't inadvertantly associate the [`JNIEnv`] with a lifetime from a
-    /// pre-existing [`JObject`] that might belong to a lower stack frame.
-    ///
-    pub unsafe fn get_env(&self, version: JNIVersion) -> Result<JNIEnv> {
+    /// This is because a [`JNIEnv`] has a lifetime parameter that ties it to a
+    /// local JNI stack frame (which holds local object references) and an
+    /// existing, mutable [`JNIEnv`] could enable the creation of local
+    /// references that would be tied to the wrong JNI stack frame.
+    pub unsafe fn get_env_attachment(&self, version: JNIVersion) -> Result<AttachGuard> {
         let mut ptr = ptr::null_mut();
         if version < JNIVersion::V1_4 {
             return Err(Error::UnsupportedVersion);
         }
+
         unsafe {
             let res = java_vm_call_unchecked!(self, v1_2, GetEnv, &mut ptr, version.into());
             jni_error_code_to_result(res)?;
-            Ok(JNIEnv::from_raw_unchecked(ptr as *mut sys::JNIEnv))
+            let jni = ptr as *mut sys::JNIEnv;
+            Ok(AttachGuard::from_unowned(jni))
         }
-    }
-
-    /// Creates `InternalAttachGuard` and attaches current thread.
-    unsafe fn attach_current_thread_impl(&self) -> Result<JNIEnv> {
-        let guard = InternalAttachGuard::new(self.clone());
-        let env_ptr = unsafe { guard.attach_current_thread()? };
-
-        InternalAttachGuard::fill_tls(guard);
-
-        unsafe { JNIEnv::from_raw(env_ptr as *mut sys::JNIEnv) }
     }
 
     /// Unloads the JavaVM and frees all it's associated resources
@@ -506,64 +545,347 @@ impl JavaVM {
     }
 }
 
-thread_local! {
-    static THREAD_ATTACH_GUARD: RefCell<Option<InternalAttachGuard>> = const { RefCell::new(None) }
-}
-
 static ATTACHED_THREADS: AtomicUsize = AtomicUsize::new(0);
 
-/// A RAII implementation of scoped guard which detaches the current thread
-/// when dropped. The attached `JNIEnv` can be accessed through this guard
-/// via its `Deref` implementation.
-pub struct AttachGuard<'local> {
-    env: JNIEnv<'local>,
+unsafe fn sys_attach_current_thread(vm: &JavaVM, thread: &Thread) -> Result<*mut sys::JNIEnv> {
+    let mut env_ptr = ptr::null_mut();
+    let res = java_vm_call_unchecked!(vm, v1_1, AttachCurrentThread, &mut env_ptr, ptr::null_mut());
+    jni_error_code_to_result(res)?;
+
+    ATTACHED_THREADS.fetch_add(1, Ordering::SeqCst);
+
+    debug!(
+        "Attached thread {} ({:?}). {} threads attached",
+        thread.name().unwrap_or_default(),
+        thread.id(),
+        ATTACHED_THREADS.load(Ordering::SeqCst)
+    );
+
+    Ok(env_ptr as *mut sys::JNIEnv)
+}
+
+/// Detach a thread, asserting that we own the current attachment and have a valid `JNIEnv` pointer
+///
+/// Although `DetachCurrentThread` is part of the `JavaVM` "invocation" API and doesn't require a
+/// `JNIEnv` pointer, we want to constrain this code to only ever detach threads if we own the
+/// current attachment.
+unsafe fn sys_detach_current_thread(env_ptr: *mut jni_sys::JNIEnv, thread: &Thread) -> Result<()> {
+    unsafe {
+        fn get_vm(env_ptr: *mut jni_sys::JNIEnv) -> Result<JavaVM> {
+            let env = unsafe { JNIEnv::from_raw_unchecked(env_ptr) };
+            env.get_java_vm()
+        }
+        let mut vm = get_vm(env_ptr)?;
+
+        fn check_current_attachment_matches(vm: &mut JavaVM, env_ptr: *mut jni_sys::JNIEnv) -> Result<()> {
+            let mut guard = unsafe { vm.get_env_attachment(JNIVersion::V1_4)? };
+            let attached_env = guard.current_frame_env().get_raw();
+            if attached_env != env_ptr {
+                return Err(Error::JniCall(JniError::InvalidArguments))
+            }
+            Ok(())
+        }
+        check_current_attachment_matches(&mut vm, env_ptr)?;
+
+        java_vm_call_unchecked!(vm, v1_1, DetachCurrentThread);
+    }
+    ATTACHED_THREADS.fetch_sub(1, Ordering::SeqCst);
+
+    debug!(
+        "Detached thread {} ({:?}). {} threads remain attached",
+        thread.name().unwrap_or_default(),
+        thread.id(),
+        ATTACHED_THREADS.load(Ordering::SeqCst)
+    );
+
+    Ok(())
+}
+
+
+thread_local! {
+    static THREAD_GUARD_NEST_LEVEL: Cell<usize> = const { Cell::new(0) };
+}
+
+/// Represents a JNI attachment of the current thread to a Java VM, which is
+/// required before you can access the [`JNIEnv`] API.
+///
+/// If the [`AttachGuard`] "owns" the underlying JNI thread attachment, that
+/// means the guard will automatically detach the current thread from the Java
+/// VM when the guard is dropped.
+///
+/// See [`JavaVM::attach_current_thread()`],
+/// [`JavaVM::attach_current_thread_for_scope`] or
+/// [`AttachGuard::from_unowned()`] for creating thread attachment guards.
+///
+/// If you're implementing a JNI native method which is passed a raw
+/// [`crate::sys::JNIEnv`] pointer, then you can get a corresponding guard via
+/// [`AttachGuard::from_unowned`].
+///
+/// If you're implementing some JNI utility code that doesn't already have a raw
+/// [`crate::sys::JNIEnv`] pointer you should probably use
+/// [`JavaVM::attach_current_thread`] to get an attachment guard, and to also
+/// request that the thread remains permanently attached (avoiding any repeated
+/// overhead from attaching and detaching the current thread).
+///
+/// If you need an attachment guard in some case where you're concerned about
+/// having any side effects you can use
+/// [`JavaVM::attach_current_thread_for_scope`] to request an owned attachment
+/// guard that will detach the thread when dropped. Consider though that this
+/// may increase the chance that your code will be repeatedly attaching and
+/// detaching the same thread, which will incur more overhead than a permanent
+/// attachment would.
+///
+/// # Safety
+///
+/// Thread attachment is always considered to be an `unsafe` operation (and
+/// functions like [`JavaVM::attach_current_thread()`] that can return a guard
+/// are `unsafe`) because there some safety rules for managing `AttachGuard`s
+/// that can't be automatically guaranteed through the Rust type system alone...
+///
+/// 1. You must never materialise a thread attachment guard into any scope where
+///    you already have an accessible [`AttachGuard`] or where you have some
+///    safe way of accessing a mutable [`JNIEnv`].
+///
+///    It _is_ OK to create a redundant [`AttachGuard`] in case there may
+///    already be a guard for an attachment lower on the stack (owned by some
+///    function that has called you) but it's not safe if the code in your
+///    current scope can directly access a pre-existing guard or mutable
+///    [`JNIEnv`].
+///
+/// 2. You must treat a guard as an immovable type that needs to live on the
+///    stack and can't be given a `'static` lifetime (e.g. by boxing or moving
+///    into a `static` variable) or re-ordered relative to other guards on the
+///    stack.
+///
+///    When a guard is borrowed to access a [`JNIEnv`] reference, it would not
+///    be safe if you could give yourself access to a `'static` `JNIEnv`
+///    reference, because the lifetime associated with a `JNIEnv` is used to
+///    associate JNI local references with a JNI stack frame.
+///
+/// # Panics
+///
+///    The `Drop` implementation will `panic` if a guard is not dropped in the
+///    same order that it was created, relative to other guards (LIFO order).
+pub struct AttachGuard {
+    // Note: we cast away this 'static lifetime before exposing it publicly.
+    // We use `'static` because we don't want a lifetime parameter for
+    // `AttachGuard` which doesn't borrow anything. The lifetime we hand out
+    // will be the lifetime of the `&self` reference
+    //
+    // TODO: I think we may be able to remove the JNIEnv lifetime if we can
+    // instead assume a JNIEnv is always borrowed from an AttachGuard - since we
+    // can instead name the lifetime of the reference to associate with JNI
+    // local references.
+    env: JNIEnv<'static>,
     should_detach: bool,
+    level: usize
 }
 
-impl<'local> AttachGuard<'local> {
-    /// AttachGuard created with this method will detach current thread on drop
-    fn new(env: JNIEnv<'local>) -> Self {
+fn thread_guard_level_inc() -> usize {
+    THREAD_GUARD_NEST_LEVEL.with(|cell| {
+        let level = cell.get();
+        cell.set(level + 1);
+        level
+    })
+}
+
+fn thread_guard_level_dec() -> usize {
+    THREAD_GUARD_NEST_LEVEL.with(|cell| {
+        let level = cell.get();
+        assert_ne!(level, 0, "Spuriously dropped more AttachGuards than were known to exist");
+        cell.set(level - 1);
+        level - 1
+    })
+}
+
+impl AttachGuard {
+    /// Wrap a raw [`sys::JNIEnv`] pointer in an `AttachGuard` that will detach
+    /// the current thread on drop.
+    ///
+    /// # Safety
+    ///
+    /// The pointer must be non-null and correspond to a valid [`JNIEnv`]
+    /// pointer that is attached to the current thread.
+    ///
+    /// This must not be used to materialize a thread attachment guard while
+    /// another attach guard, or any other mutable `JNIEnv` is in scope.
+    ///
+    /// The guard should be treated as immovable and kept on the stack for the
+    /// current thread, and more-specifically it must not be moved to a new JNI
+    /// stack frame.
+    unsafe fn from_owned(env: *mut sys::JNIEnv) -> Self {
         Self {
-            env,
+            // TODO: make the JNIEnv non-transparent and read
+            // `jvm.thread_attach_guard_level()` for validating that only the
+            // environment at the top of the stack is ever usable for creating
+            // new local references (in addition to requiring a `&mut` reference)
+            env: JNIEnv::from_raw_unchecked(env),
             should_detach: true,
+            level: thread_guard_level_inc()
         }
     }
 
-    /// AttachGuard created with this method will not detach current thread on drop, which is
-    /// the case for nested attaches.
-    fn new_nested(env: JNIEnv<'local>) -> Self {
+    /// Wrap a raw [`sys::JNIEnv`] pointer in an `AttachGuard` that does not own
+    /// the underlying thread attachment and so it will **NOT** detach the
+    /// current thread on drop.
+    ///
+    /// This can be use when implementing native JNI methods (that are passed an
+    /// attached [`sys::JNIEnv`] pointer) as a way to access the [`JNIEnv`] API.
+    ///
+    /// # Safety
+    ///
+    /// The pointer must be non-null and correspond to a valid [`JNIEnv`]
+    /// pointer that is attached to the current thread.
+    ///
+    /// This must not be used to materialize a thread attachment guard while
+    /// another attach guard, or any other mutable `JNIEnv` is in scope.
+    ///
+    /// The guard should be treated as immovable and kept on the stack for the
+    /// current thread, and more-specifically it must not be moved to a new JNI
+    /// stack frame.
+    pub unsafe fn from_unowned(env: *mut sys::JNIEnv) -> Self {
         Self {
-            env,
+            env: JNIEnv::from_raw_unchecked(env),
             should_detach: false,
+            level: thread_guard_level_inc()
         }
     }
-}
 
-impl<'local> Deref for AttachGuard<'local> {
-    type Target = JNIEnv<'local>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.env
+    /// Returns true if the guard represents a scoped attachment that will also
+    /// detach the thread when it is dropped.
+    ///
+    /// Note that not all scoped guards from
+    /// [`JavaVM::attach_current_thread_for_scope`] will own the attachment,
+    /// since the scope may be nested under some other guard, lower on the stack
+    /// that has already attached the thread.
+    pub fn owns_attachment(&self) -> bool {
+        self.should_detach
     }
-}
 
-impl DerefMut for AttachGuard<'_> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.env
+    /// Borrows a mutable reference to a [`JNIEnv`] with a lifetime that will
+    /// associate local references with the current JNI stack frame.
+    ///
+    /// Beware of using this API without considering how you will ensure that
+    /// local references in the current JNI stack frame will eventually get
+    /// freed.
+    ///
+    /// If you're not sure, it may be best to use [`AttachGuard::with_env`]
+    /// which will create a new JNI stack frame for the given closure and then
+    /// all local references created within that closure will be freed before it
+    /// returns. This may avoid situations where you slowly leak a large number
+    /// of references if the current frame is not unwound for a long time.
+    pub fn current_frame_env<'local>(&'local mut self) -> &'local mut JNIEnv<'local> {
+        // Assuming that the application doesn't break the safety rules for
+        // keeping the `AttachGuard` on the stack, and not re-ordering them,
+        // we can assert that we will only ever borrow from the top-most
+        // guard on the stack
+        assert_eq!(THREAD_GUARD_NEST_LEVEL.get(), self.level + 1);
+        // Cast away the `'static` lifetime
+        unsafe { std::mem::transmute(&mut self.env) }
     }
-}
 
-impl Drop for AttachGuard<'_> {
-    fn drop(&mut self) {
+    /// Runs a closure with a borrowed [`JNIEnv`] associated with a new JNI stack
+    /// frame that will be unwound to release all local references created within
+    /// the given closure.
+    pub fn with_env<F, T, E>(&mut self,
+        capacity: usize,
+        f: F,
+    ) -> std::result::Result<T, E>
+    where
+        F: FnOnce(&mut JNIEnv) -> std::result::Result<T, E>,
+        E: From<Error>,
+    {
+        // Assuming that the application doesn't break the safety rules for
+        // keeping the `AttachGuard` on the stack, and not re-ordering them,
+        // we can assert that we will only ever borrow from the top-most
+        // guard on the stack
+        assert_eq!(THREAD_GUARD_NEST_LEVEL.get(), self.level + 1);
+        // Safety: the caller must ensure that no other mutable `JNIEnv` in scope,
+        self.current_frame_env().with_local_frame(capacity, |jni_env| f(jni_env))
+    }
+
+    /// Runs a closure with a borrowed [`JNIEnv`] associated with a new JNI stack
+    /// frame that will be unwound to release all local references created within
+    /// the given closure, except for a single return value reference.
+    pub fn with_env_returning_local<'local, F, T, E>(&'local mut self,
+        capacity: usize,
+        f: F,
+    ) -> std::result::Result<JObject<'local>, E>
+    where
+        F: for<'new_local> FnOnce(
+            &mut JNIEnv<'new_local>,
+        ) -> std::result::Result<JObject<'new_local>, E>,
+        E: From<Error>,
+    {
+        // Assuming that the application doesn't break the safety rules for
+        // keeping the `AttachGuard` on the stack, and not re-ordering them,
+        // we can assert that we will only ever borrow from the top-most
+        // guard on the stack
+        assert_eq!(THREAD_GUARD_NEST_LEVEL.get(), self.level + 1);
+        // Safety: the caller must ensure that no other mutable `JNIEnv` in scope,
+        self.current_frame_env().with_local_frame_returning_local(capacity, |jni_env| f(jni_env))
+    }
+
+    /// Handles detaching the current thread if the guards owns the attachment
+    ///
+    /// # Safety
+    ///
+    /// Since this is used as part of the `Drop` implementation then you must
+    /// not allow the `Drop` implementation to run if this is called explicitly
+    ///
+    /// Even though this only takes a reference, the implementation assumes that
+    /// the guard is going to be dropped.
+    unsafe fn detach_impl(&self) -> Result<()> {
+        let level = thread_guard_level_dec();
+        assert_eq!(level, self.level, "AttachGuard was dropped out-of-order with respect to other guards");
         if self.should_detach {
-            InternalAttachGuard::clear_tls();
+            assert_eq!(level, 0, "Spurious AttachGuard that owns its attachment but is nested under another guard");
+            unsafe { sys_detach_current_thread(self.env.get_raw(), &std::thread::current()) }
+        } else {
+            Ok(())
         }
     }
+
+    /// Drop a guard explicitly and detach the current thread if the guard owns
+    /// the current attachment.
+    ///
+    /// Unlike [`AttachGuard::Drop`] this returns a `Result` that can indicate
+    /// potential JNI errors from attempting to detach the thread.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if a guard is dropped out-of-order, with respect to other
+    /// guards. Each `AttachGuard` created may be nested with respected to other
+    /// guards and must be dropped or detached in LIFO order.
+    pub fn detach(self) -> Result<()> {
+        // Safety: we're going to 'forget' the guard afterwards to ensure the
+        // `Drop` implementation isn't run too.
+        let res = unsafe { self.detach_impl() };
+
+        // We've effectively dropped the guard manually (so we can also get a `Result`)
+        // but that means we shouldn't allow the `Drop` implementation to run too.
+        std::mem::forget(self);
+
+        res
+    }
+}
+
+impl Drop for AttachGuard {
+    fn drop(&mut self) {
+        if let Err(err) = unsafe { self.detach_impl() } {
+            // This probably means that something `unsafe` happened to detach the thread already
+            log::error!("Failed to detach current JNI thread: {err}");
+        }
+    }
+}
+
+thread_local! {
+    static THREAD_ATTACH_GUARD: RefCell<Option<TLSAttachGuard>> = const { RefCell::new(None) }
 }
 
 #[derive(Debug)]
-struct InternalAttachGuard {
-    java_vm: JavaVM,
+struct TLSAttachGuard {
+    env: *mut jni_sys::JNIEnv,
     /// A call std::thread::current() function can panic in case the local data has been destroyed
     /// before the thead local variables. The possibility of this happening depends on the platform
     /// implementation of the crate::sys_common::thread_local_dtor::register_dtor_fallback.
@@ -572,71 +894,53 @@ struct InternalAttachGuard {
     thread: Thread,
 }
 
-impl InternalAttachGuard {
-    fn new(java_vm: JavaVM) -> Self {
-        Self {
-            java_vm,
-            thread: current(),
+impl TLSAttachGuard {
+    /// Detach a thread before the thread terminates **IFF** it was previously attached via
+    /// [`JavaVM::attach_current_thread`] **AND** there is no active [`AttachGuard`] in use
+    /// for this thread.
+    fn detach() -> Result<()> {
+        if THREAD_GUARD_NEST_LEVEL.get() != 0 {
+            return Err(Error::ThreadAttachmentGuarded);
         }
-    }
 
-    /// Stores guard in thread local storage.
-    fn fill_tls(guard: InternalAttachGuard) {
         THREAD_ATTACH_GUARD.with(move |f| {
-            *f.borrow_mut() = Some(guard);
-        });
+            if let Some(guard) = f.borrow_mut().take() {
+                // Safety: we use `std::mem::forget` to ensure we don't also
+                // run the `Drop` implementation
+                let res = unsafe { guard.detach_impl() };
+                std::mem::forget(guard);
+                res
+            } else {
+                Ok(())
+            }
+        })
     }
 
-    /// Clears thread local storage, dropping the InternalAttachGuard and causing detach of
-    /// the current thread.
-    fn clear_tls() {
+    unsafe fn attach_current_thread(java_vm: JavaVM) -> Result<AttachGuard> {
+        let thread = current();
+        let env = sys_attach_current_thread(&java_vm, &thread)?;
         THREAD_ATTACH_GUARD.with(move |f| {
-            *f.borrow_mut() = None;
+            *f.borrow_mut() = Some(Self {
+                env,
+                thread: current(),
+            });
         });
+        Ok(unsafe { AttachGuard::from_unowned(env) })
     }
 
-    unsafe fn attach_current_thread(&self) -> Result<*mut sys::JNIEnv> {
-        let mut env_ptr = ptr::null_mut();
-        let res = java_vm_call_unchecked!(
-            self.java_vm,
-            v1_1,
-            AttachCurrentThread,
-            &mut env_ptr,
-            ptr::null_mut()
-        );
-        jni_error_code_to_result(res)?;
-
-        ATTACHED_THREADS.fetch_add(1, Ordering::SeqCst);
-
-        debug!(
-            "Attached thread {} ({:?}). {} threads attached",
-            self.thread.name().unwrap_or_default(),
-            self.thread.id(),
-            ATTACHED_THREADS.load(Ordering::SeqCst)
-        );
-
-        Ok(env_ptr as *mut sys::JNIEnv)
-    }
-
-    fn detach(&mut self) -> Result<()> {
-        unsafe {
-            java_vm_call_unchecked!(self.java_vm, v1_1, DetachCurrentThread);
-        }
-        ATTACHED_THREADS.fetch_sub(1, Ordering::SeqCst);
-        debug!(
-            "Detached thread {} ({:?}). {} threads remain attached",
-            self.thread.name().unwrap_or_default(),
-            self.thread.id(),
-            ATTACHED_THREADS.load(Ordering::SeqCst)
-        );
-
-        Ok(())
+    /// Detach the current thread after checking there are no active [`AttachGuard`]s
+    ///
+    /// # Safety
+    /// Since this is used in the implementation of `Drop` you must make sure
+    /// to not let `Drop` run if this is called explicitly.
+    unsafe fn detach_impl(&self) -> Result<()> {
+        sys_detach_current_thread(self.env, &self.thread)
     }
 }
 
-impl Drop for InternalAttachGuard {
+impl Drop for TLSAttachGuard {
     fn drop(&mut self) {
-        if let Err(e) = self.detach() {
+        if let Err(e) = unsafe { self.detach_impl() } {
             error!(
                 "Error detaching current thread: {:#?}\nThread {} id={:?}",
                 e,

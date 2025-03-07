@@ -1,7 +1,7 @@
 use std::sync::{Arc, Once};
 
 use jni::{
-    errors::Result, objects::JValue, sys::jint, AttachGuard, InitArgsBuilder, JNIEnv, JNIVersion,
+    errors::{Error, JniError, Result}, objects::JValue, sys::jint, AttachGuard, InitArgsBuilder, JNIEnv, JNIVersion,
     JavaVM,
 };
 
@@ -48,21 +48,47 @@ pub fn call_java_abs(env: &mut JNIEnv, value: i32) -> i32 {
 }
 
 #[allow(dead_code)]
-pub fn attach_current_thread() -> AttachGuard<'static> {
-    jvm()
-        .attach_current_thread()
-        .expect("failed to attach jvm thread")
+pub unsafe fn attach_current_thread_for_scope<'local>() -> AttachGuard {
+    // Safety: the caller must ensure that no other mutable `JNIEnv` in scope,
+    // so we aren't creating an opportunity for local references to be created
+    // in association with the wrong stack frame.
+    unsafe {
+        jvm()
+            .attach_current_thread_for_scope(JNIVersion::V1_4)
+            .expect("failed to attach jvm thread")
+    }
 }
 
 #[allow(dead_code)]
-pub fn attach_current_thread_permanently() -> JNIEnv<'static> {
-    jvm()
-        .attach_current_thread_permanently()
-        .expect("failed to attach jvm thread permanently")
+pub unsafe fn attach_current_thread<'local>() -> AttachGuard {
+    // Safety: the caller must ensure that no other mutable `JNIEnv` in scope,
+    // so we aren't creating an opportunity for local references to be created
+    // in association with the wrong stack frame.
+    unsafe {
+        jvm()
+            .attach_current_thread(JNIVersion::V1_4)
+            .expect("failed to attach jvm thread permanently")
+    }
 }
 
 #[allow(dead_code)]
-pub unsafe fn detach_current_thread() {
+pub fn is_thread_attached() -> bool {
+    // Safety:
+    // Assumes tests are only run against a JavaVM that implements JNI >= 1.4
+    //
+    // We aren't materialising an `AttachGuard` while we already have access to
+    // a guard or mutable `JNIEnv` in this scope.
+    unsafe { jvm().get_env_attachment(JNIVersion::V1_4) }
+        .map(|_| true)
+        .or_else(|jni_err| match jni_err {
+            Error::JniCall(JniError::ThreadDetached) => Ok(false),
+            _ => Err(jni_err),
+        })
+        .expect("An unexpected JNI error occurred")
+}
+
+#[allow(dead_code)]
+pub fn detach_current_thread() -> Result<()> {
     jvm().detach_current_thread()
 }
 

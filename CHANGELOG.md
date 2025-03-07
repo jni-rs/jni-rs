@@ -19,7 +19,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 - `jni-sys` dependency dumped to `0.4` ([#478](https://github.com/jni-rs/jni-rs/issues/478)
 - `JNIEnv::get_version` has been renamed to `JNIEnv::version` ([#478](https://github.com/jni-rs/jni-rs/issues/478)
-- `JNIEnv::from_raw` now explicitly checks that the JNI version is `>= 1.4` since the crate needs to be able to assume `>= 1.2` so it can check for exceptions and assume `>= 1.4` to avoid runtime checks for direct byte buffers ([#478](https://github.com/jni-rs/jni-rs/issues/478)
+- JNI version requirements are more explicit in the API and the crate now requires at least JNI `>= 1.4`. It needs `>= 1.2` so it can check for exceptions and needs `>= 1.4` to avoid runtime checks for direct byte buffers ([#478](https://github.com/jni-rs/jni-rs/issues/478)
+- All kinds of thread attachments (not just scoped attachments) are now consistently, explicitly represented by an `AttachGuard`.
+  - `JavaVM::attach_current_thread` requests a permanent thread attachment
+  - `JavaVM::attach_current_thread_for_scope` requests an RAII thread attachment
+  - `AttachGuard::from_unowned` explicitly represents the thread attachment that's implied for native Java method implementations.
+- JNI thread attachment is now always an `unsafe` operation
+  - It's not safe to create a thread `AttachGuard` if you already have access to another guard in scope.
+  - It's not safe to move a thread `AttachGuard` off the stack (e.g. boxing or moving to a static variable) or re-order how they are dropped when the stack unwinds.
+- `JNIEnv` is no longer a `#[transparent]` wrapper over the raw `JNIEnv` pointer and can only be accessed by borrowing from a thread attachment `AttachGuard`.
+- `JavaVM::get_env` is replaced by `JavaVM::get_env_attachment` which returns an `AttachGuard` if the current thread is attached.
 - The following functions are now infallible ([#478](https://github.com/jni-rs/jni-rs/issues/478):
   - `JNIEnv::version`
   - `JNIEnv::exception_check`
@@ -36,14 +45,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `JNIEnv::register_native_methods` is now marked `unsafe` since it requires all the given function pointers to be valid and match corresponding Java method signatures ([568](https://github.com/jni-rs/jni-rs/pull/568))
 - `JavaVM::get_java_vm_pointer` has been renamed `JavaVM::get_raw` for consistency.
 - `JavaVM::new` and `JavaVM::with_libjvm` now prevent libjvm from being unloaded. This isn't necessary for HotSpot, but other JVMs could crash if we don't do this. ([#554](https://github.com/jni-rs/jni-rs/pull/554))
-
-### Added
-- New functions for converting Rust `char` to and from Java `char` and `int` ([#427](https://github.com/jni-rs/jni-rs/issues/427) / [#434](https://github.com/jni-rs/jni-rs/pull/434))
-- `JNIEnv::call_nonvirtual_method` and `JNIEnv::call_nonvirtual_method_unchecked` to call non-virtual method. ([#454](https://github.com/jni-rs/jni-rs/issues/454))
-- `JavaStr`, `JNIStr`, and `JNIString` have several new methods and traits, most notably a `to_str` method that converts to a regular Rust string. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
-- Added dependency on `once_cell` version `1.19.0` for lazy initialization in `JNIEnv::get_string`.
-
-### Changed
 - `JValueGen` has been removed. `JValue` and `JValueOwned` are now separate, unrelated, non-generic types. ([#429](https://github.com/jni-rs/jni-rs/pull/429))
 - Make most `from_raw()`, `get_raw()` and `into_raw()` methods `const fn`. ([#453](https://github.com/jni-rs/jni-rs/pull/453))
 - `get_object_class` borrows the `JNIEnv` mutably because it creates a new local reference. ([#456](https://github.com/jni-rs/jni-rs/pull/456))
@@ -54,11 +55,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `JavaStr`, `JNIStr`, and `JNIString` no longer coerce to `CStr`, because using `CStr::to_str` will often have incorrect results. You can still get a `CStr`, but must use the new `as_cstr` method to do so. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
 - `JNIEnv::get_string` performance is improved by caching an expensive class lookup, and using a faster instanceof check.
 
-### Fixed
-- `JNIEnv::get_string` no longer leaks local references. ([#528](https://github.com/jni-rs/jni-rs/pull/528), [#557](https://github.com/jni-rs/jni-rs/pull/557))
-
 ### Removed
 - `JavaVM:attach_current_thread_as_daemon` (and general support for 'daemon' threads) has been removed, since their semantics are inherently poorly defined and unsafe (the distinction relates to the poorly defined limbo state after calling `JavaDestroyVM`, where it becomes undefined to touch the JVM)
+- The 'Executor' API has been removed (`AttachGuard::with_env` can be used instead) ([#TODO])
+- `JNIEnv::from_raw`, `JNIEnv::from_raw_unchecked` and `JNIEnv::unsafe_clone` have been removed, since the API no longer exposes the `JNIEnv` type by-value, it must always be borrowed from an `AttachGuard`.
+
+### Added
+- New functions for converting Rust `char` to and from Java `char` and `int` ([#427](https://github.com/jni-rs/jni-rs/issues/427) / [#434](https://github.com/jni-rs/jni-rs/pull/434))
+- `JNIEnv::call_nonvirtual_method` and `JNIEnv::call_nonvirtual_method_unchecked` to call non-virtual method. ([#454](https://github.com/jni-rs/jni-rs/issues/454))
+- `JavaStr`, `JNIStr`, and `JNIString` have several new methods and traits, most notably a `to_str` method that converts to a regular Rust string. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
+- Added dependency on `once_cell` version `1.19.0` for lazy initialization in `JNIEnv::get_string`.
+
+### Fixed
+- `JNIEnv::get_string` no longer leaks local references. ([#528](https://github.com/jni-rs/jni-rs/pull/528), [#557](https://github.com/jni-rs/jni-rs/pull/557))
 
 ## [0.21.1] — 2023-03-08
 

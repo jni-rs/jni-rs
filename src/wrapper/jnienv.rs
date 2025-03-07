@@ -194,7 +194,6 @@ use crate::{objects::AsJArrayRaw, signature::ReturnType};
 ///
 /// Calling unchecked methods with invalid arguments and/or invalid class and
 /// method descriptors may lead to segmentation fault.
-#[repr(transparent)]
 #[derive(Debug)]
 pub struct JNIEnv<'local> {
     /// A non-null JNIEnv pointer
@@ -216,33 +215,20 @@ impl<'local> JNIEnv<'local> {
 
     /// Create a JNIEnv from a raw pointer.
     ///
-    /// This does a null check, and checks that the JNI version is >= 1.4
-    ///
-    /// # Safety
-    ///
-    /// Expects a valid pointer retrieved from the `GetEnv` JNI function or [Self::get_raw] function.
-    pub unsafe fn from_raw(ptr: *mut sys::JNIEnv) -> Result<Self> {
-        let ptr = null_check!(ptr, "from_raw ptr argument")?;
-        let env = JNIEnv {
-            internal: ptr,
-            lifetime: PhantomData,
-        };
-        if env.version() < JNIVersion::V1_4 {
-            Err(Error::UnsupportedVersion)
-        } else {
-            Ok(env)
-        }
-    }
-
-    /// Create a JNIEnv from a raw pointer.
-    ///
     /// Doesn't check for `null` or check the JNI version
     ///
+    /// # Private
+    ///
+    /// Now that [`JNIEnv`] is no longer `#[transparent]` we don't want to
+    /// expose any public API for constructing a `JNIEnv` value, and we only
+    /// want to hand out temporary references that must always be borrowed from
+    /// an [`jni::AttachGuard`]
+    ///
     /// # Safety
     ///
-    /// Expects a valid, non-null pointer retrieved from the `GetEnv` JNI function or [`Self::get_raw`] function.
+    /// Expects a valid, non-null pointer retrieved from the `GetEnv` JNI function.
     /// Requires a JNI version >= 1.4
-    pub unsafe fn from_raw_unchecked(ptr: *mut sys::JNIEnv) -> Self {
+    pub(crate) unsafe fn from_raw_unchecked(ptr: *mut sys::JNIEnv) -> Self {
         JNIEnv {
             internal: ptr,
             lifetime: PhantomData,
@@ -986,7 +972,7 @@ impl<'local> JNIEnv<'local> {
     ///
     /// See also [`auto_local`](struct.JNIEnv.html#method.auto_local) method
     /// and `AutoLocal` type — that approach can be more convenient in loops.
-    pub fn push_local_frame(&self, capacity: i32) -> Result<()> {
+    unsafe fn push_local_frame(&self, capacity: i32) -> Result<()> {
         // Safety:
         // This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
         // We check for JNI > 1.2 in `from_raw`
@@ -1009,7 +995,7 @@ impl<'local> JNIEnv<'local> {
     /// Any local references created after the most recent call to
     /// [`JNIEnv::push_local_frame`] (or the underlying JNI function) must not
     /// be used after calling this method.
-    pub unsafe fn pop_local_frame(&self, result: &JObject) -> Result<JObject<'local>> {
+    unsafe fn pop_local_frame(&self, result: &JObject) -> Result<JObject<'local>> {
         // Safety:
         // This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
         // We check for JNI > 1.2 in `from_raw`
@@ -1031,11 +1017,15 @@ impl<'local> JNIEnv<'local> {
     /// Since local references created within this frame won't be accessible to the calling
     /// frame then if you need to pass an object back to the caller then you can do that via a
     /// [`GlobalRef`] / [`Self::make_global`].
-    pub fn with_local_frame<F, T, E>(&mut self, capacity: i32, f: F) -> std::result::Result<T, E>
+    pub fn with_local_frame<F, T, E>(&mut self, capacity: usize, f: F) -> std::result::Result<T, E>
     where
         F: FnOnce(&mut JNIEnv) -> std::result::Result<T, E>,
         E: From<Error>,
     {
+        let capacity: jni_sys::jint = capacity
+            .try_into()
+            .map_err(|_| Error::JniCall(JniError::InvalidArguments))?;
+
         unsafe {
             self.push_local_frame(capacity)?;
             let ret = catch_unwind(AssertUnwindSafe(|| f(self)));
@@ -1063,7 +1053,7 @@ impl<'local> JNIEnv<'local> {
     /// temporary [`GlobalRef`].
     pub fn with_local_frame_returning_local<F, E>(
         &mut self,
-        capacity: i32,
+        capacity: usize,
         f: F,
     ) -> std::result::Result<JObject<'local>, E>
     where
@@ -1072,6 +1062,10 @@ impl<'local> JNIEnv<'local> {
         ) -> std::result::Result<JObject<'new_local>, E>,
         E: From<Error>,
     {
+        let capacity: jni_sys::jint = capacity
+            .try_into()
+            .map_err(|_| Error::JniCall(JniError::InvalidArguments))?;
+
         unsafe {
             self.push_local_frame(capacity)?;
             let ret = catch_unwind(AssertUnwindSafe(|| f(self)));

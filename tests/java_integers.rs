@@ -7,7 +7,8 @@ use util::{attach_current_thread, print_exception};
 
 #[test]
 fn test_java_integers() {
-    let mut env = attach_current_thread();
+    let mut guard = unsafe { attach_current_thread() };
+    let env = guard.current_frame_env();
 
     let array_length = 50;
 

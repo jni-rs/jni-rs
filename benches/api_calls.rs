@@ -144,7 +144,7 @@ fn native_call_function(c: &mut Criterion) {
 }
 
 fn jni_call_static_abs_method_safe(c: &mut Criterion) {
-    let mut env = VM.attach_current_thread().unwrap();
+    let mut env = VM.attach_current_thread_for_scope().unwrap();
 
     c.bench_function("jni_call_static_abs_method_safe", |b| {
         b.iter(|| jni_abs_safe(&mut env, -3))
@@ -152,7 +152,7 @@ fn jni_call_static_abs_method_safe(c: &mut Criterion) {
 }
 
 fn jni_call_static_abs_method_unchecked_str(c: &mut Criterion) {
-    let mut env = VM.attach_current_thread().unwrap();
+    let mut env = VM.attach_current_thread_for_scope().unwrap();
     let class = CLASS_MATH;
     let method_id = env
         .get_static_method_id(class, METHOD_MATH_ABS, SIG_MATH_ABS)
@@ -164,7 +164,7 @@ fn jni_call_static_abs_method_unchecked_str(c: &mut Criterion) {
 }
 
 fn jni_call_static_abs_method_unchecked_jclass(c: &mut Criterion) {
-    let mut env = VM.attach_current_thread().unwrap();
+    let mut env = VM.attach_current_thread_for_scope().unwrap();
     let class = Desc::<JClass>::lookup(CLASS_MATH, &mut env).unwrap();
     let method_id = env
         .get_static_method_id(&class, METHOD_MATH_ABS, SIG_MATH_ABS)
@@ -176,7 +176,7 @@ fn jni_call_static_abs_method_unchecked_jclass(c: &mut Criterion) {
 }
 
 fn jni_call_static_date_time_method_safe(c: &mut Criterion) {
-    let mut env = VM.attach_current_thread().unwrap();
+    let mut env = VM.attach_current_thread_for_scope().unwrap();
     c.bench_function("jni_call_static_date_time_method_safe", |b| {
         b.iter(|| {
             let obj = jni_local_date_time_of_safe(&mut env, 1, 1, 1, 1, 1, 1, 1);
@@ -186,7 +186,7 @@ fn jni_call_static_date_time_method_safe(c: &mut Criterion) {
 }
 
 fn jni_call_static_date_time_method_unchecked_jclass(c: &mut Criterion) {
-    let mut env = VM.attach_current_thread().unwrap();
+    let mut env = VM.attach_current_thread_for_scope().unwrap();
     let class = Desc::<JClass>::lookup(CLASS_LOCAL_DATE_TIME, &mut env).unwrap();
     let method_id = env
         .get_static_method_id(&class, METHOD_LOCAL_DATE_TIME_OF, SIG_LOCAL_DATE_TIME_OF)
@@ -214,7 +214,7 @@ fn jni_call_static_date_time_method_unchecked_jclass(c: &mut Criterion) {
 }
 
 fn jni_call_object_hash_method_safe(c: &mut Criterion) {
-    let mut env = VM.attach_current_thread().unwrap();
+    let mut env = VM.attach_current_thread_for_scope().unwrap();
     let s = env.new_string("").unwrap();
     let obj = black_box(JObject::from(s));
 
@@ -224,7 +224,7 @@ fn jni_call_object_hash_method_safe(c: &mut Criterion) {
 }
 
 fn jni_call_object_hash_method_unchecked(c: &mut Criterion) {
-    let mut env = VM.attach_current_thread().unwrap();
+    let mut env = VM.attach_current_thread_for_scope().unwrap();
     let s = env.new_string("").unwrap();
     let obj = black_box(JObject::from(s));
     let obj_class = env.get_object_class(&obj).unwrap();
@@ -238,7 +238,7 @@ fn jni_call_object_hash_method_unchecked(c: &mut Criterion) {
 }
 
 fn jni_new_object_str(c: &mut Criterion) {
-    let mut env = VM.attach_current_thread().unwrap();
+    let mut env = VM.attach_current_thread_for_scope().unwrap();
     let class = CLASS_OBJECT;
 
     c.bench_function("jni_new_object_str", |b| {
@@ -250,7 +250,7 @@ fn jni_new_object_str(c: &mut Criterion) {
 }
 
 fn jni_new_object_by_id_str(c: &mut Criterion) {
-    let mut env = VM.attach_current_thread().unwrap();
+    let mut env = VM.attach_current_thread_for_scope().unwrap();
     let class = CLASS_OBJECT;
     let ctor_id = env
         .get_method_id(class, METHOD_CTOR, SIG_OBJECT_CTOR)
@@ -265,7 +265,7 @@ fn jni_new_object_by_id_str(c: &mut Criterion) {
 }
 
 fn jni_new_object_jclass(c: &mut Criterion) {
-    let mut env = VM.attach_current_thread().unwrap();
+    let mut env = VM.attach_current_thread_for_scope().unwrap();
     let class = Desc::<JClass>::lookup(CLASS_OBJECT, &mut env).unwrap();
 
     c.bench_function("jni_new_object_jclass", |b| {
@@ -277,7 +277,7 @@ fn jni_new_object_jclass(c: &mut Criterion) {
 }
 
 fn jni_new_object_by_id_jclass(c: &mut Criterion) {
-    let mut env = VM.attach_current_thread().unwrap();
+    let mut env = VM.attach_current_thread_for_scope().unwrap();
     let class = Desc::<JClass>::lookup(CLASS_OBJECT, &mut env).unwrap();
     let ctor_id = env
         .get_method_id(&class, METHOD_CTOR, SIG_OBJECT_CTOR)
@@ -292,7 +292,7 @@ fn jni_new_object_by_id_jclass(c: &mut Criterion) {
 }
 
 fn jni_new_global_ref(c: &mut Criterion) {
-    let mut env = VM.attach_current_thread().unwrap();
+    let mut env = VM.attach_current_thread_for_scope().unwrap();
     let class = CLASS_OBJECT;
     let obj = env.new_object(class, SIG_OBJECT_CTOR, &[]).unwrap();
     let global_ref = env.new_global_ref(&obj).unwrap();
@@ -310,13 +310,13 @@ fn jni_new_global_ref(c: &mut Criterion) {
 ///
 /// See also #58
 fn jni_check_exception(c: &mut Criterion) {
-    let env = VM.attach_current_thread().unwrap();
+    let env = VM.attach_current_thread_for_scope().unwrap();
 
     c.bench_function("jni_check_exception", |b| b.iter(|| env.exception_check()));
 }
 
 fn jni_get_java_vm(c: &mut Criterion) {
-    let env = VM.attach_current_thread().unwrap();
+    let env = VM.attach_current_thread_for_scope().unwrap();
 
     c.bench_function("jni_get_java_vm", |b| {
         b.iter(|| {
@@ -326,7 +326,7 @@ fn jni_get_java_vm(c: &mut Criterion) {
 }
 
 fn jni_get_string(c: &mut Criterion) {
-    let mut env = VM.attach_current_thread().unwrap();
+    let mut env = VM.attach_current_thread_for_scope().unwrap();
     let string = env.new_string(TEST_STRING_UNICODE).unwrap();
 
     c.bench_function("jni_get_string", |b| {
@@ -338,7 +338,7 @@ fn jni_get_string(c: &mut Criterion) {
 }
 
 fn jni_get_string_unchecked(c: &mut Criterion) {
-    let env = VM.attach_current_thread().unwrap();
+    let env = VM.attach_current_thread_for_scope().unwrap();
     let string = env.new_string(TEST_STRING_UNICODE).unwrap();
 
     c.bench_function("jni_get_string_unchecked", |b| {
@@ -358,7 +358,7 @@ fn jni_get_string_unchecked(c: &mut Criterion) {
 fn jni_noop_with_local_frame(c: &mut Criterion) {
     // Local frame size actually doesn't matter since JVM does not preallocate anything.
     const LOCAL_FRAME_SIZE: i32 = 32;
-    let mut env = VM.attach_current_thread().unwrap();
+    let mut env = VM.attach_current_thread_for_scope().unwrap();
     c.bench_function("jni_noop_with_local_frame", |b| {
         b.iter(|| {
             env.with_local_frame(LOCAL_FRAME_SIZE, |_| -> Result<_, jni::errors::Error> {
@@ -373,7 +373,7 @@ fn jni_noop_with_local_frame(c: &mut Criterion) {
 fn jni_with_local_frame_returning_local(c: &mut Criterion) {
     // Local frame size actually doesn't matter since JVM does not preallocate anything.
     const LOCAL_FRAME_SIZE: i32 = 32;
-    let mut env = VM.attach_current_thread().unwrap();
+    let mut env = VM.attach_current_thread_for_scope().unwrap();
 
     let class = env.find_class(CLASS_OBJECT).unwrap();
     c.bench_function("jni_with_local_frame_returning_local", |b| {
@@ -391,7 +391,7 @@ fn jni_with_local_frame_returning_local(c: &mut Criterion) {
 fn jni_with_local_frame_returning_global_to_local(c: &mut Criterion) {
     // Local frame size actually doesn't matter since JVM does not preallocate anything.
     const LOCAL_FRAME_SIZE: i32 = 32;
-    let mut env = VM.attach_current_thread().unwrap();
+    let mut env = VM.attach_current_thread_for_scope().unwrap();
 
     let class = env.find_class(CLASS_OBJECT).unwrap();
     c.bench_function("jni_with_local_frame_returning_global_to_local", |b| {
@@ -416,14 +416,14 @@ fn jni_with_local_frame_returning_global_to_local(c: &mut Criterion) {
 fn jvm_noop_attach_detach_native_thread(c: &mut Criterion) {
     c.bench_function("jvm_noop_attach_detach_native_thread", |b| {
         b.iter(|| {
-            let env = VM.attach_current_thread().unwrap();
+            let env = VM.attach_current_thread_for_scope().unwrap();
             black_box(&env);
         })
     });
 }
 
 fn native_arc(c: &mut Criterion) {
-    let mut env = VM.attach_current_thread().unwrap();
+    let mut env = VM.attach_current_thread_for_scope().unwrap();
     let class = CLASS_OBJECT;
     let obj = env.new_object(class, SIG_OBJECT_CTOR, &[]).unwrap();
     let global_ref = env.new_global_ref(&obj).unwrap();
@@ -438,7 +438,7 @@ fn native_arc(c: &mut Criterion) {
 }
 
 fn native_rc(c: &mut Criterion) {
-    let _env = VM.attach_current_thread().unwrap();
+    let _env = VM.attach_current_thread_for_scope().unwrap();
     let env = unsafe { VM.get_env(JNIVersion::V1_4).unwrap() };
     let rc = Rc::new(env);
 

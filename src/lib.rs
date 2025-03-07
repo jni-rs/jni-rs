@@ -96,6 +96,11 @@
 //! your crate's `src/lib.rs`:
 //!
 //! ```rust,no_run
+//! // Before we can access JNI we need to attach the current thread to the
+//! // JavaVM which is always explicitly represented by an AttachGuard, even
+//! // if the thread is implicitly attached within native methods.
+//! use jni::AttachGuard;
+//!
 //! // This is the interface to the JVM that we'll call the majority of our
 //! // methods on.
 //! use jni::JNIEnv;
@@ -113,13 +118,17 @@
 //! // This keeps Rust from "mangling" the name and making it unique for this
 //! // crate.
 //! #[no_mangle]
-//! pub extern "system" fn Java_HelloWorld_hello<'local>(mut env: JNIEnv<'local>,
+//! pub extern "system" fn Java_HelloWorld_hello<'local>(mut env: *mut jni::sys::JNIEnv,
 //! // This is the class that owns our static method. It's not going to be used,
 //! // but still must be present to match the expected signature of a static
 //! // native method.
 //!                                                      class: JClass<'local>,
 //!                                                      input: JString<'local>)
 //!                                                      -> jstring {
+//!     // Safety: we aren't materialising an attachment while we already have a guard or JNIEnv in scope
+//!     let mut guard = unsafe { AttachGuard::from_unowned(env) };
+//!     let env = guard.current_frame_env();
+//!
 //!     // First, we have to get the string out of Java. Check out the `strings`
 //!     // module for more info on how this works.
 //!     let input: String =
@@ -226,10 +235,6 @@ mod wrapper {
     /// Java VM interface.
     mod java_vm;
     pub use self::java_vm::*;
-
-    /// Optional thread attachment manager.
-    mod executor;
-    pub use self::executor::*;
 }
 
 pub use wrapper::*;

@@ -4,7 +4,7 @@
 
 use std::borrow::Cow;
 
-use jni::{objects::JString, InitArgsBuilder, JavaVM};
+use jni::{objects::JString, InitArgsBuilder, JNIVersion, JavaVM};
 
 #[test]
 fn invocation_character_encoding() {
@@ -22,10 +22,13 @@ fn invocation_character_encoding() {
 
     let jvm = JavaVM::new(jvm_args).unwrap_or_else(|e| panic!("{:#?}", e));
 
-    let mut env = jvm.attach_current_thread().unwrap();
+    let mut guard = unsafe { jvm.attach_current_thread_for_scope(JNIVersion::V1_4).unwrap() };
+    let env = guard.current_frame_env();
 
+    println!("creating new_string, env = {:?}", env.get_raw());
     let prop_name = env.new_string("nbsp").unwrap();
 
+    println!("calling getProperty");
     let prop_value: JString = env
         .call_static_method(
             "java/lang/System",

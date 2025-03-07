@@ -17,7 +17,8 @@ use util::{attach_current_thread, unwrap};
 pub fn global_ref_works_in_other_threads() {
     const ITERS_PER_THREAD: usize = 10_000;
 
-    let mut env = attach_current_thread();
+    let mut guard = unsafe { attach_current_thread() };
+    let env = guard.current_frame_env();
     let mut join_handlers = Vec::new();
 
     let atomic_integer = {
@@ -44,7 +45,8 @@ pub fn global_ref_works_in_other_threads() {
             let atomic_integer = atomic_integer.clone();
 
             let jh = spawn(move || {
-                let mut env = attach_current_thread();
+                let mut guard = unsafe { attach_current_thread() };
+                let env = guard.current_frame_env();
                 barrier.wait();
                 for _ in 0..ITERS_PER_THREAD {
                     unwrap(

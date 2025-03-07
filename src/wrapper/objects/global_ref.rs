@@ -7,7 +7,7 @@ use std::{
 
 use log::{debug, warn};
 
-use crate::{errors::Result, objects::JObject, sys, JNIEnv, JNIVersion, JavaVM};
+use crate::{errors::{Error, JniError, Result}, objects::JObject, sys, JNIEnv, JNIVersion, JavaVM};
 
 #[cfg(doc)]
 use crate::objects::WeakRef;
@@ -191,14 +191,21 @@ impl Drop for GlobalRefGuard {
 
         // Safety: we can assume we couldn't have created the global reference in the first place without
         // having already required the JavaVM to support JNI >= 1.4
-        let res = match unsafe { self.vm.get_env(JNIVersion::V1_4) } {
-            Ok(env) => drop_impl(&env),
-            Err(_) => {
+        // Safety: we aren't materialising an `AttachGuard` while we already have access to a `JNIEnv`
+        let res = match unsafe { self.vm.get_env_attachment(JNIVersion::V1_4) } {
+            Ok(mut guard) => drop_impl(guard.current_frame_env()),
+            Err(Error::JniCall(JniError::ThreadDetached)) => {
                 warn!("A JNI global reference was dropped on a thread that is not attached. This will cause a performance problem if it happens frequently. For more information, see the documentation for `jni::objects::GlobalRef`.");
-                self.vm
-                    .attach_current_thread()
-                    .and_then(|env| drop_impl(&env))
+                // Safety: there is no other mutable `JNIEnv` in scope, so we aren't
+                // creating an opportunity for local references to be created
+                // in association with the wrong stack frame.
+                unsafe {
+                    self.vm
+                        .attach_current_thread_for_scope(JNIVersion::V1_4)
+                        .and_then(|mut guard| drop_impl(guard.current_frame_env()))
+                }
             }
+            Err(err) => Err(err)
         };
 
         if let Err(err) = res {
