@@ -7,35 +7,36 @@ use util::{attach_current_thread, unwrap};
 
 #[test]
 pub fn jmap_push_and_iterate() {
-    let mut env = attach_current_thread();
+    let mut guard = unsafe { attach_current_thread() };
+    let env = guard.current_frame_env();
     let data = &["hello", "world", "from", "test"];
 
     // Create a new map. Use LinkedHashMap to have predictable iteration order
-    let map_object = unwrap(env.new_object("java/util/LinkedHashMap", "()V", &[]), &env);
-    let map = unwrap(JMap::from_env(&mut env, &map_object), &env);
+    let map_object = unwrap(env.new_object("java/util/LinkedHashMap", "()V", &[]), env);
+    let map = unwrap(JMap::from_env(env, &map_object), env);
 
     // Push all strings
     unwrap(
         data.iter().try_for_each(|s| {
             env.new_string(s)
                 .map(JObject::from)
-                .and_then(|s| map.put(&mut env, &s, &s).map(|_| ()))
+                .and_then(|s| map.put(env, &s, &s).map(|_| ()))
         }),
-        &env,
+        env,
     );
 
     // Collect the keys using the JMap iterator
     let mut collected = Vec::new();
     unwrap(
-        map.iter(&mut env).and_then(|mut iter| {
-            while let Some(e) = iter.next(&mut env)? {
+        map.iter(env).and_then(|mut iter| {
+            while let Some(e) = iter.next(env)? {
                 let s = JString::from(e.0);
                 let s = env.get_string(&s)?;
                 collected.push(String::from(s));
             }
             Ok(())
         }),
-        &env,
+        env,
     );
 
     let orig = data.to_vec();

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use log::{debug, warn};
 
 use crate::{
-    errors::Result,
+    errors::{Error, JniError, Result},
     objects::{GlobalRef, JObject},
     sys, JNIEnv, JNIVersion, JavaVM,
 };
@@ -213,14 +213,20 @@ impl Drop for WeakRefGuard {
 
         // Safety: we can assume we couldn't have created the weak reference in the first place without
         // having already required the JavaVM to support JNI >= 1.4
-        let res = match unsafe { self.vm.get_env(JNIVersion::V1_4) } {
-            Ok(env) => drop_impl(&env, self.raw),
-            Err(_) => {
+        let res = match unsafe { self.vm.get_env_attachment(JNIVersion::V1_4) } {
+            Ok(mut guard) => drop_impl(guard.current_frame_env(), self.raw),
+            Err(Error::JniCall(JniError::ThreadDetached)) => {
                 warn!("Dropping a WeakRef in a detached thread. Fix your code if this message appears frequently (see the WeakRef docs).");
-                self.vm
-                    .attach_current_thread()
-                    .and_then(|env| drop_impl(&env, self.raw))
+                // Safety: there is no other mutable `JNIEnv` in scope, so we aren't
+                // creating an opportunity for local references to be created
+                // in association with the wrong stack frame.
+                unsafe {
+                    self.vm
+                        .attach_current_thread_for_scope(JNIVersion::V1_4)
+                        .and_then(|mut guard| drop_impl(guard.current_frame_env(), self.raw))
+                }
             }
+            Err(err) => Err(err)
         };
 
         if let Err(err) = res {
