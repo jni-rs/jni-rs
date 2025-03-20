@@ -1033,7 +1033,7 @@ impl<'local> JNIEnv<'local> {
     /// [`GlobalRef`] / [`Self::make_global`].
     pub fn with_local_frame<F, T, E>(&mut self, capacity: i32, f: F) -> std::result::Result<T, E>
     where
-        F: FnOnce(&mut JNIEnv) -> std::result::Result<T, E>,
+        F: FnOnce(&mut JNIEnv<'local>) -> std::result::Result<T, E>,
         E: From<Error>,
     {
         unsafe {
