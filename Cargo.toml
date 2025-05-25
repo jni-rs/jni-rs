@@ -5,7 +5,7 @@ documentation = "https://docs.rs/jni"
 readme = "README.md"
 keywords = ["ffi", "jni", "java"]
 categories = ["api-bindings"]
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 name = "jni"
 repository = "https://github.com/jni-rs/jni-rs"
 # ¡When bumping version please also update it in examples and documentation!
