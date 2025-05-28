@@ -78,6 +78,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `JavaVM::singleton()` lets you acquire the `JavaVM` for the process when you know that the `JavaVM` singleton has been initialized
 - `GlobalRef::null()` and `WeakRef::null()` construct null references (equivalent to `Default::default()`).
 - `JNIEnvUnowned` is an FFI-safe type that can be used to capture a `jni_sys::JNIEnv` pointer given to native methods and give it a named lifetime (this can then be temporarily upgraded to a `&mut JNIEnv` reference via `JNIEnvUnowned::with_env`)
+- `JNIEnv::to_reflected_method` and `JNIEnv::to_reflected_static_method` for retrieving the Java reflection API instance for a method or constructor. ([#579](https://github.com/jni-rs/jni-rs/pull/579))
 
 ### Fixed
 - `JNIEnv::get_string` no longer leaks local references. ([#528](https://github.com/jni-rs/jni-rs/pull/528), [#557](https://github.com/jni-rs/jni-rs/pull/557))
