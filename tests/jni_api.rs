@@ -545,6 +545,82 @@ pub fn call_static_method_with_bad_args_errs() {
 }
 
 #[test]
+pub fn get_reflected_method_from_id() {
+    attach_current_thread(|env| {
+        let ctor_method_id = env
+            .get_method_id(INTEGER_CLASS, "<init>", "(Ljava/lang/String;)V")
+            .expect("constructor from string exists");
+        let ctor = env
+            .to_reflected_method(INTEGER_CLASS, ctor_method_id)
+            .unwrap();
+
+        let value = {
+            let jstr = env.new_string("55").unwrap();
+            let vargs = env
+                .new_object_array(1, "java/lang/Object", jstr)
+                .expect("can create array");
+
+            env.call_method(
+                ctor,
+                "newInstance",
+                "([Ljava/lang/Object;)Ljava/lang/Object;",
+                &[JValue::from(&vargs)],
+            )
+            .expect("can invoke Constructor.newInstance")
+            .l()
+            .expect("return value is an Integer")
+        };
+
+        let int_value = env
+            .call_method(value, "intValue", "()I", &[])
+            .unwrap()
+            .i()
+            .unwrap();
+        assert_eq!(int_value, 55);
+
+        Ok(())
+    })
+    .unwrap();
+}
+
+#[test]
+pub fn get_reflected_static_method_from_id() {
+    attach_current_thread(|env| {
+        let x = JValue::from(-10);
+        let math_class = env.find_class(MATH_CLASS).unwrap();
+        let abs_method_id = env
+            .get_static_method_id(&math_class, MATH_ABS_METHOD_NAME, MATH_ABS_SIGNATURE)
+            .unwrap();
+
+        let abs_method = env
+            .to_reflected_static_method(&math_class, abs_method_id)
+            .unwrap();
+
+        let arg = env.new_object(INTEGER_CLASS, "(I)V", &[x]).unwrap();
+        let vargs = env.new_object_array(1, "java/lang/Object", arg).unwrap();
+        let val = env
+            .call_method(
+                abs_method,
+                "invoke",
+                "(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;",
+                &[JValue::from(&JObject::null()), JValue::from(&vargs)],
+            )
+            .expect("can call Method.invoke")
+            .l()
+            .expect("return value is an int");
+        let val = env
+            .call_method(val, "intValue", "()I", &[])
+            .unwrap()
+            .i()
+            .unwrap();
+
+        assert_eq!(val, 10);
+        Ok(())
+    })
+    .unwrap();
+}
+
+#[test]
 pub fn java_byte_array_from_slice() {
     attach_current_thread(|env| {
         let buf: &[u8] = &[1, 2, 3];
