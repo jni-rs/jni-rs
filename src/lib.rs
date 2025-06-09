@@ -174,10 +174,9 @@
 //! That's it! Build your crate and try to run your Java class again.
 //!
 //! ... Same error as before you say? Well that's because JVM is looking for
-//! `mylib` in all the wrong places. This will differ by platform thanks to
-//! different linker/loader semantics, but on Linux, you can simply `export
-//! LD_LIBRARY_PATH=/path/to/mylib/target/debug`. Now, you should get the
-//! expected output `Hello, josh!` from your Java class.
+//! `mylib` in all the wrong places. To tell it where to look you can pass
+//! this argument to `java`: `-Djava.library.path=/path/to/mylib/target/debug`.
+//! Now, you should get the expected output `Hello, josh!` from your Java class.
 //!
 //! ## Launching JVM from Rust
 //!
