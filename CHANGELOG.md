@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [0.22.0] — 2026-02-17
+
 ### Added
 
 #### JavaVM / Thread Attachment APIs
@@ -528,7 +531,8 @@ to call if there is a pending exception (#124):
 ## [0.10.1]
 - No changes has been made to the Changelog until this release.
 
-[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.21.1...HEAD
+[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.22.0...HEAD
+[0.22.0]: https://github.com/jni-rs/jni-rs/compare/v0.21.1...v0.22.0
 [0.21.1]: https://github.com/jni-rs/jni-rs/compare/v0.21.0...v0.21.1
 [0.21.0]: https://github.com/jni-rs/jni-rs/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/jni-rs/jni-rs/compare/v0.19.0...v0.20.0

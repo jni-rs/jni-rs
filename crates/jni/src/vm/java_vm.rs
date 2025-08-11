@@ -115,7 +115,7 @@ static JAVA_VM_SINGLETON: std::sync::OnceLock<JavaVM> = std::sync::OnceLock::new
 /// Cargo.toml:
 ///
 /// ```toml
-/// jni = { version = "0.21.1", features = ["invocation"] }
+/// jni = { version = "0.22.1", features = ["invocation"] }
 /// ```
 ///
 /// The application will be able to use [`JavaVM::new`] which will dynamically load a `jvm` library
