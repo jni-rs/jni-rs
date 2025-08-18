@@ -320,7 +320,7 @@ fn jni_get_java_vm(c: &mut Criterion) {
 
     c.bench_function("jni_get_java_vm", |b| {
         b.iter(|| {
-            let _jvm = env.get_java_vm().unwrap();
+            let _jvm = env.get_java_vm();
         })
     });
 }

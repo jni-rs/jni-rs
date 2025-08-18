@@ -17,10 +17,24 @@ use {
     std::{ffi::OsStr, path::PathBuf},
 };
 
+/// The `jni-rs` crate makes the assumption that it's not possible to create more than one Java VM
+/// per-process, or even re-initialize a JavaVM that is "destroyed".
+///
+/// This allows us to save a global pointer for the JavaVM.
+///
+/// We also guarantee that if you currently have an [`AttachGuard`] thread attachment (or a `JNIEnv`
+/// reference), that implies that [`JavaVM::singleton()`] has been initialized and will return a
+/// valid [`JavaVM`].
+///
+/// For example, this guarantee is relied on internally to avoid redundantly saving JavaVM pointers
+/// if know we can assume that `JavaVM::singleton()` will return a `JavaVM` when needed.
+static JAVA_VM_SINGLETON: once_cell::sync::OnceCell<JavaVM> = once_cell::sync::OnceCell::new();
+
 /// The Java VM, providing [Invocation API][invocation-api] support.
 ///
-/// The JavaVM can be obtained either via [`JNIEnv#get_java_vm`][get-vm] in an already attached
-/// thread, or it can be [launched](#launching-jvm-from-rust) from Rust via `JavaVM#new`.
+/// An existing JavaVM can be obtained either via [`JavaVM::singleton`], or [`JNIEnv::get_java_vm`]
+/// in an already attached thread, or a new VM can be [launched](#launching-jvm-from-rust) via
+/// [`JavaVM::new`].
 ///
 /// ## Attaching Native Threads
 ///
@@ -167,6 +181,51 @@ impl JavaVM {
         })
     }
 
+    /// Get a [`JavaVM`] for the global Java VM
+    ///
+    /// If no [`JavaVM`] has been initialized, this will return [`Error::UninitializedJavaVM`].
+    ///
+    /// If a [`JavaVM`] has previously been created, either via [`JavaVM::new()`] or
+    /// [`JavaVM::from_raw`] then that [`JavaVM`] will be accessible as a global singleton.
+    ///
+    /// This is possible because JNI does not support fully destroying a Java VM and then
+    /// initializing a new one and so as soon as we have seen a Java VM pointer once, we know it's
+    /// the only VM that will ever exist and it will always be valid in safe code.
+    ///
+    /// If your code observes a [`JNIEnv`] reference or an [`AttachGuard`] (from this crate version)
+    /// then you can assume that [`JavaVM::singleton()`] has been initialized.
+    ///
+    /// Beware that the observation of reference types (such as [`crate::objects::JObject`]) only
+    /// imply that [`JavaVM::singleton()`] has been initialized if the references are non-null.
+    ///
+    /// One other caveat is that native methods may capture reference type arguments, such as
+    /// [`JObject`], where their lifetime is _not_ tied to a real `JNIEnv`. (And so at the start of
+    /// a native method, [`JavaVM::singleton()`] may not be initialized even though we can observe
+    /// reference types).
+    ///
+    /// In practice though, you can usually assume [`JavaVM::singleton()`] has been initialized
+    /// if you observe non-null reference types, based on the assumption that:
+    ///
+    /// - Before any other `jni-rs` API is used, a native method is expected to use
+    ///   [`env::JNIEnvUnowned::with_env`] to get a `JNIEnv` reference, which will initialize
+    ///   [`JavaVM::singleton()`].
+    /// - For any native method implementation to be safe, it must use `catch_unwind` (e.g. via
+    ///   [`env::JNIEnvUnowned::with_env`]) to ensure that panics can't unwind over an FFI boundary
+    ///   (at least rendering an early miss-use of `JavaVM::singleton()` "safe").
+    ///
+    /// Note: that other versions of `jni-rs` within the same application aren't able to share this
+    /// singleton state. So you should not make assumptions about this being initialized as a side
+    /// effect of other dependencies using `jni-rs` (unless you are using a re-exported version of
+    /// `jni-rs` from that dependency). For example the `android-activity` crate will initialize a
+    /// [JavaVM] before `android_main()` is called, but unless you are using the same version of
+    /// `jni-rs` as `android-activity` you can't immediately assume there is a [JavaVM] singleton.
+    pub fn singleton() -> Result<Self> {
+        JAVA_VM_SINGLETON
+            .get()
+            .cloned()
+            .ok_or(Error::UninitializedJavaVM)
+    }
+
     /// Launch a new JavaVM using the provided init args, loading it from the given shared library file if it's not already loaded.
     ///
     /// Unlike original JNI API, the main thread (the thread from which this method is called) will
@@ -184,46 +243,55 @@ impl JavaVM {
         args: InitArgs,
         libjvm_path: impl FnOnce() -> StartJvmResult<P>,
     ) -> StartJvmResult<Self> {
-        // Determine the path to the shared library.
-        let libjvm_path = libjvm_path()?;
-        let libjvm_path_string = libjvm_path.as_ref().to_string_lossy().into_owned();
+        // Don't use .get_or_try_init() around all this code because `Self::with_create_fn_ptr`
+        // will call `JavaVM::from_raw` which will also try and set JAVA_VM_SINGLETON and create
+        // a deadlock
+        if let Some(jvm) = JAVA_VM_SINGLETON.get() {
+            Ok(jvm.clone())
+        } else {
+            // Determine the path to the shared library.
+            let libjvm_path = libjvm_path()?;
+            let libjvm_path_string = libjvm_path.as_ref().to_string_lossy().into_owned();
 
-        // Try to load it.
-        let libjvm = match unsafe { libloading::Library::new(libjvm_path.as_ref()) } {
-            Ok(ok) => ok,
-            Err(error) => return Err(StartJvmError::LoadError(libjvm_path_string, error)),
-        };
+            // Try to load it.
+            let libjvm = match unsafe { libloading::Library::new(libjvm_path.as_ref()) } {
+                Ok(ok) => ok,
+                Err(error) => return Err(StartJvmError::LoadError(libjvm_path_string, error)),
+            };
 
-        let result = unsafe {
-            // Try to find the `JNI_CreateJavaVM` function in the loaded library.
-            let create_fn = libjvm
-                .get(b"JNI_CreateJavaVM\0")
-                .map_err(|error| StartJvmError::LoadError(libjvm_path_string.to_owned(), error))?;
+            let result = unsafe {
+                // Try to find the `JNI_CreateJavaVM` function in the loaded library.
+                let create_fn = libjvm.get(b"JNI_CreateJavaVM\0").map_err(|error| {
+                    StartJvmError::LoadError(libjvm_path_string.to_owned(), error)
+                })?;
 
-            // Create the JVM.
-            Self::with_create_fn_ptr(args, *create_fn).map_err(StartJvmError::Create)
-        };
+                // Create the JVM.
+                Self::with_create_fn_ptr(args, *create_fn).map_err(StartJvmError::Create)
+            };
 
-        // Prevent libjvm from being unloaded.
-        //
-        // If libjvm is unloaded while the JVM is running, the program will crash as soon as it
-        // tries to execute any JVM code, including the many threads that the JVM automatically
-        // creates.
-        //
-        // For reasons unknown, HotSpot seems to somehow prevent itself from being unloaded, so it
-        // will work even if this `forget` call isn't here, but there's no guarantee that other JVM
-        // implementations will also prevent themselves from being unloaded.
-        //
-        // Note: `jni-rs` makes the assumption that there can only ever be a single `JavaVM`
-        // per-process and it's never possible to full destroy and unload a JVM once it's been
-        // created. Calling `DestroyJavaVM` is only expected to release some resources and
-        // leave the JVM in a poorly-defined limbo state that doesn't allow unloading.
-        // Ref: https://github.com/jni-rs/jni-rs/issues/567
-        //
-        // See discussion at: https://github.com/jni-rs/jni-rs/issues/550
-        std::mem::forget(libjvm);
+            if result.is_ok() {
+                // Prevent libjvm from being unloaded.
+                //
+                // If libjvm is unloaded while the JVM is running, the program will crash as soon as it
+                // tries to execute any JVM code, including the many threads that the JVM automatically
+                // creates.
+                //
+                // For reasons unknown, HotSpot seems to somehow prevent itself from being unloaded, so it
+                // will work even if this `forget` call isn't here, but there's no guarantee that other JVM
+                // implementations will also prevent themselves from being unloaded.
+                //
+                // Note: `jni-rs` makes the assumption that there can only ever be a single `JavaVM`
+                // per-process and it's never possible to full destroy and unload a JVM once it's been
+                // created. Calling `DestroyJavaVM` is only expected to release some resources and
+                // leave the JVM in a poorly-defined limbo state that doesn't allow unloading.
+                // Ref: https://github.com/jni-rs/jni-rs/issues/567
+                //
+                // See discussion at: https://github.com/jni-rs/jni-rs/issues/550
+                std::mem::forget(libjvm);
+            }
 
-        result
+            result
+        }
     }
 
     #[cfg(feature = "invocation")]
@@ -244,7 +312,7 @@ impl JavaVM {
             args.inner_ptr(),
         ))?;
 
-        let vm = Self::from_raw(ptr)?;
+        let vm = Self::from_raw(ptr);
         java_vm_call_unchecked!(vm, v1_1, DetachCurrentThread);
 
         Ok(vm)
@@ -257,14 +325,36 @@ impl JavaVM {
     /// Expects a valid, non-null JavaVM pointer that supports JNI version >= 1.4.
     ///
     /// Only does a `null` check.
-    pub unsafe fn from_raw(ptr: *mut sys::JavaVM) -> Result<Self> {
-        let ptr = null_check!(ptr, "from_raw ptr argument")?;
-        Ok(JavaVM(ptr))
+    pub unsafe fn from_raw(ptr: *mut sys::JavaVM) -> Self {
+        assert!(!ptr.is_null());
+        JAVA_VM_SINGLETON.get_or_init(|| JavaVM(ptr)).clone()
     }
 
     /// Returns underlying `sys::JavaVM` interface.
     pub fn get_raw(&self) -> *mut sys::JavaVM {
         self.0
+    }
+
+    pub(crate) fn from_env(env: &JNIEnv) -> Self {
+        // Don't use `.get_or_init()` here because it would deadlock if calling `JavaVM::from_raw`
+        // which also uses `.get_or_init()`
+        if let Some(jvm) = JAVA_VM_SINGLETON.get() {
+            jvm.clone()
+        } else {
+            let mut raw = ptr::null_mut();
+            let res = unsafe { jni_call_unchecked!(env, v1_1, GetJavaVM, &mut raw) };
+            let res = jni_error_code_to_result(res);
+
+            // If we have a JNIEnv reference then we can assume we have a valid, non-null JNIEnv
+            // pointer and there should be no reason for GetJavaVM to fail.
+            //
+            // If it would fail, we assume that would be breaking fundamental invariants we
+            // rely on within jni-rs so we wouldn't consider it safe in any case.
+            res.expect("Spurious failure to get JavaVM from JNIEnv");
+
+            // Safety: The pointer from GetJavaVM should be valid
+            unsafe { JavaVM::from_raw(raw) }
+        }
     }
 
     /// Attaches the current thread to the JVM. Calling this for a thread that is already attached
