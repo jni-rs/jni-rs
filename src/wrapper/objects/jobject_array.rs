@@ -7,7 +7,7 @@ use super::AsJArrayRaw;
 
 /// Lifetime'd representation of a [`jobjectArray`] which wraps a [`JObject`] reference
 #[repr(transparent)]
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct JObjectArray<'local>(JObject<'local>);
 
 impl<'local> AsRef<JObjectArray<'local>> for JObjectArray<'local> {
@@ -48,12 +48,6 @@ impl<'local, 'obj_ref> From<&'obj_ref JObject<'local>> for &'obj_ref JObjectArra
     fn from(other: &'obj_ref JObject<'local>) -> Self {
         // Safety: `JObjectArray` is `repr(transparent)` around `JObject`.
         unsafe { &*(other as *const JObject<'local> as *const JObjectArray<'local>) }
-    }
-}
-
-impl std::default::Default for JObjectArray<'_> {
-    fn default() -> Self {
-        Self(JObject::null())
     }
 }
 

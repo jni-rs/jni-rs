@@ -6,7 +6,7 @@ use crate::{
 /// Lifetime'd representation of a `jclass`. Just a `JObject` wrapped in a new
 /// class.
 #[repr(transparent)]
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct JClass<'local>(JObject<'local>);
 
 impl<'local> AsRef<JClass<'local>> for JClass<'local> {
@@ -47,12 +47,6 @@ impl<'local, 'obj_ref> From<&'obj_ref JObject<'local>> for &'obj_ref JClass<'loc
     fn from(other: &'obj_ref JObject<'local>) -> Self {
         // Safety: `JClass` is `repr(transparent)` around `JObject`.
         unsafe { &*(other as *const JObject<'local> as *const JClass<'local>) }
-    }
-}
-
-impl std::default::Default for JClass<'_> {
-    fn default() -> Self {
-        Self(JObject::null())
     }
 }
 

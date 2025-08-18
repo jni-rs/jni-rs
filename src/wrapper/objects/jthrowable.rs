@@ -6,6 +6,7 @@ use crate::{
 /// Lifetime'd representation of a `jthrowable`. Just a `JObject` wrapped in a
 /// new class.
 #[repr(transparent)]
+#[derive(Default)]
 pub struct JThrowable<'local>(JObject<'local>);
 
 impl<'local> AsRef<JThrowable<'local>> for JThrowable<'local> {
@@ -44,12 +45,6 @@ impl<'local, 'obj_ref> From<&'obj_ref JObject<'local>> for &'obj_ref JThrowable<
     fn from(other: &'obj_ref JObject<'local>) -> Self {
         // Safety: `JThrowable` is `repr(transparent)` around `JObject`.
         unsafe { &*(other as *const JObject<'local> as *const JThrowable<'local>) }
-    }
-}
-
-impl std::default::Default for JThrowable<'_> {
-    fn default() -> Self {
-        Self(JObject::null())
     }
 }
 
