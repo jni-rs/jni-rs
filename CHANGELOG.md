@@ -42,6 +42,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `JNIEnv::call_nonvirtual_method` and `JNIEnv::call_nonvirtual_method_unchecked` to call non-virtual method. ([#454](https://github.com/jni-rs/jni-rs/issues/454))
 - `JavaStr`, `JNIStr`, and `JNIString` have several new methods and traits, most notably a `to_str` method that converts to a regular Rust string. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
 - Added dependency on `once_cell` version `1.19.0` for lazy initialization in `JNIEnv::get_string`.
+- `JavaVM::try_get_singleton()` lets you acquire the `JavaVM` for process, so long as the `JavaVM` has already been established for the crate.
+- `JavaVM::singleton()` lets you acquire the `JavaVM` for the process when you are certain that the `JavaVM` singleton has been initialized (will panic otherwise)
 
 ### Changed
 - `JValueGen` has been removed. `JValue` and `JValueOwned` are now separate, unrelated, non-generic types. ([#429](https://github.com/jni-rs/jni-rs/pull/429))

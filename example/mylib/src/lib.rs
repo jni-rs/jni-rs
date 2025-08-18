@@ -150,7 +150,7 @@ pub extern "system" fn Java_HelloWorld_asyncComputation(
     // `JNIEnv` cannot be sent across thread boundaries. To be able to use JNI
     // functions in other threads, we must first obtain the `JavaVM` interface
     // which, unlike `JNIEnv` is `Send`.
-    let jvm = env.get_java_vm().unwrap();
+    let jvm = env.get_java_vm();
 
     // We need to obtain global reference to the `callback` object before sending
     // it to the thread, to prevent it from being collected by the GC.
