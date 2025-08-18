@@ -279,7 +279,7 @@ impl JavaVM {
     ///
     /// [block]: https://docs.oracle.com/en/java/javase/12/docs/specs/jni/invocation.html#unloading-the-vm
     /// [attach-as-daemon]: struct.JavaVM.html#method.attach_current_thread_as_daemon
-    pub fn attach_current_thread_permanently(&self) -> Result<JNIEnv> {
+    pub fn attach_current_thread_permanently(&'_ self) -> Result<JNIEnv<'_>> {
         // Safety: NOT SAFE CURRENTLY: https://github.com/jni-rs/jni-rs/discussions/436#discussioncomment-5421738
         unsafe {
             match self.get_env(JNIVersion::V1_4) {
@@ -302,7 +302,7 @@ impl JavaVM {
     ///
     /// [block]: https://docs.oracle.com/en/java/javase/12/docs/specs/jni/invocation.html#unloading-the-vm
     /// [attach-as-daemon]: struct.JavaVM.html#method.attach_current_thread_as_daemon
-    pub fn attach_current_thread(&self) -> Result<AttachGuard> {
+    pub fn attach_current_thread(&'_ self) -> Result<AttachGuard<'_>> {
         // Safety: NOT SAFE CURRENTLY: https://github.com/jni-rs/jni-rs/discussions/436#discussioncomment-5421738
         unsafe {
             match self.get_env(JNIVersion::V1_4) {
@@ -369,7 +369,7 @@ impl JavaVM {
     /// This API is so unsafe to consider for its intended purpose that it will
     /// likely be removed from this crate, in favor of relegating the
     /// functionality to the `jni-sys` crate instead.
-    pub unsafe fn attach_current_thread_as_daemon(&self) -> Result<JNIEnv> {
+    pub unsafe fn attach_current_thread_as_daemon(&'_ self) -> Result<JNIEnv<'_>> {
         match self.get_env(JNIVersion::V1_4) {
             Ok(env) => Ok(env),
             Err(_) => self.attach_current_thread_impl(ThreadType::Daemon),
@@ -413,7 +413,7 @@ impl JavaVM {
     /// don't inadvertantly associate the [`JNIEnv`] with a lifetime from a
     /// pre-existing [`JObject`] that might belong to a lower stack frame.
     ///
-    pub unsafe fn get_env(&self, version: JNIVersion) -> Result<JNIEnv> {
+    pub unsafe fn get_env(&'_ self, version: JNIVersion) -> Result<JNIEnv<'_>> {
         let mut ptr = ptr::null_mut();
         if version < JNIVersion::V1_4 {
             return Err(Error::UnsupportedVersion);
@@ -426,7 +426,7 @@ impl JavaVM {
     }
 
     /// Creates `InternalAttachGuard` and attaches current thread.
-    unsafe fn attach_current_thread_impl(&self, thread_type: ThreadType) -> Result<JNIEnv> {
+    unsafe fn attach_current_thread_impl(&'_ self, thread_type: ThreadType) -> Result<JNIEnv<'_>> {
         let guard = InternalAttachGuard::new(self.clone());
         let env_ptr = unsafe {
             if thread_type == ThreadType::Daemon {

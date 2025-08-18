@@ -2852,10 +2852,10 @@ impl<'local> JNIEnv<'local> {
     /// lock on the given object so the field can be updated without racing
     /// with other Java threads
     fn lock_rust_field<'other_local, O, S>(
-        &self,
+        &'_ self,
         obj: O,
         field: S,
-    ) -> Result<(MonitorGuard, JFieldID)>
+    ) -> Result<(MonitorGuard<'_>, JFieldID)>
     where
         O: AsRef<JObject<'other_local>>,
         S: AsRef<str>,
@@ -2974,10 +2974,10 @@ impl<'local> JNIEnv<'local> {
     /// pointer that was set via `set_rust_field` and will lead to undefined
     /// behaviour if that is not true.
     pub unsafe fn get_rust_field<'other_local, O, S, T>(
-        &self,
+        &'_ self,
         obj: O,
         field: S,
-    ) -> Result<MutexGuard<T>>
+    ) -> Result<MutexGuard<'_, T>>
     where
         O: AsRef<JObject<'other_local>>,
         S: AsRef<str>,

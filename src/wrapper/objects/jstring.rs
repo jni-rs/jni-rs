@@ -6,6 +6,7 @@ use crate::{
 /// Lifetime'd representation of a `jstring`. Just a `JObject` wrapped in a new
 /// class.
 #[repr(transparent)]
+#[derive(Default)]
 pub struct JString<'local>(JObject<'local>);
 
 impl<'local> AsRef<JString<'local>> for JString<'local> {
@@ -44,12 +45,6 @@ impl<'local, 'obj_ref> From<&'obj_ref JObject<'local>> for &'obj_ref JString<'lo
     fn from(other: &'obj_ref JObject<'local>) -> Self {
         // Safety: `JString` is `repr(transparent)` around `JObject`.
         unsafe { &*(other as *const JObject<'local> as *const JString<'local>) }
-    }
-}
-
-impl std::default::Default for JString<'_> {
-    fn default() -> Self {
-        Self(JObject::null())
     }
 }
 
