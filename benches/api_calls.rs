@@ -397,11 +397,14 @@ fn jni_with_local_frame_returning_global_to_local(c: &mut Criterion) {
     c.bench_function("jni_with_local_frame_returning_global_to_local", |b| {
         b.iter(|| {
             let global = env
-                .with_local_frame::<_, GlobalRef, jni::errors::Error>(LOCAL_FRAME_SIZE, |env| {
-                    let local = env.new_object(&class, SIG_OBJECT_CTOR, &[])?;
-                    let global = env.new_global_ref(local)?;
-                    Ok(global)
-                })
+                .with_local_frame::<_, GlobalRef<JObject<'static>>, jni::errors::Error>(
+                    LOCAL_FRAME_SIZE,
+                    |env| {
+                        let local = env.new_object(&class, SIG_OBJECT_CTOR, &[])?;
+                        let global = env.new_global_ref(local)?;
+                        Ok(global)
+                    },
+                )
                 .unwrap();
             let _local = env.new_local_ref(global).unwrap();
         })

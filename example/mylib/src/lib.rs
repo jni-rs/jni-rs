@@ -86,11 +86,11 @@ pub extern "system" fn Java_HelloWorld_factAndCallMeBack(
 
 struct Counter {
     count: i32,
-    callback: GlobalRef,
+    callback: GlobalRef<JObject<'static>>,
 }
 
 impl Counter {
-    pub fn new(callback: GlobalRef) -> Counter {
+    pub fn new(callback: GlobalRef<JObject<'static>>) -> Counter {
         Counter {
             count: 0,
             callback: callback,

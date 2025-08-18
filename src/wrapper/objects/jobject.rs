@@ -3,7 +3,9 @@ use std::marker::PhantomData;
 use crate::sys::jobject;
 
 #[cfg(doc)]
-use crate::{objects::GlobalRef, JNIEnv};
+use crate::objects::GlobalRef;
+
+use super::JObjectRef;
 
 /// Wrapper around [`sys::jobject`] that adds a lifetime to ensure that
 /// the underlying JNI pointer won't be accessible to safe Rust code if the
@@ -64,12 +66,11 @@ impl JObject<'_> {
     ///
     /// # Safety
     ///
-    /// `raw` may be a null pointer. If `raw` is not a null pointer, then:
-    ///
-    /// * `raw` must be a valid raw JNI local reference.
-    /// * There must not be any other `JObject` representing the same local reference.
-    /// * The lifetime `'local` must not outlive the local reference frame that the local reference
-    ///   was created in.
+    /// * `raw` must be a valid raw JNI reference (or `null`).
+    /// * There must not be any other `JObject` representing the same reference.
+    /// * If `raw` represents a local reference then the `'local` lifetime must
+    ///   not outlive the JNI stack frame that the local reference was created in.
+    /// * Only global, weak global and `null` references may use a `'static` lifetime.
     pub const unsafe fn from_raw(raw: jobject) -> Self {
         Self {
             internal: raw,
@@ -99,5 +100,22 @@ impl JObject<'_> {
 impl std::default::Default for JObject<'_> {
     fn default() -> Self {
         Self::null()
+    }
+}
+
+impl JObjectRef for JObject<'_> {
+    type Kind<'env> = JObject<'env>;
+    type GlobalKind = JObject<'static>;
+
+    fn as_raw(&self) -> jobject {
+        self.as_raw()
+    }
+
+    unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+        JObject::from_raw(local_ref)
+    }
+
+    unsafe fn from_global_raw(global_ref: jobject) -> Self::GlobalKind {
+        JObject::from_raw(global_ref)
     }
 }
