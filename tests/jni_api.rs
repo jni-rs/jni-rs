@@ -8,7 +8,7 @@ use jni::{
     errors::{CharToJavaError, Error},
     objects::{
         AutoElements, AutoLocal, JByteBuffer, JList, JObject, JString, JThrowable, JValue,
-        ReleaseMode,
+        ReleaseMode, WeakRef,
     },
     signature::{JavaType, Primitive, ReturnType},
     strings::JNIString,
@@ -108,7 +108,7 @@ pub fn is_instance_of_null() {
 
 #[test]
 pub fn is_same_object_diff_references() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
     let string = env.new_string(TESTING_OBJECT_STR).unwrap();
     let ref_from_string = unwrap(env.new_local_ref(&string), &env);
     assert!(env.is_same_object(&string, &ref_from_string));
@@ -975,7 +975,7 @@ fn convert_byte_array() {
 
 #[test]
 fn local_ref_null() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
     let null_obj = JObject::null();
 
     let result = env.new_local_ref::<&JObject>(&null_obj);
@@ -999,8 +999,11 @@ fn new_global_ref_null() {
 fn new_weak_ref_null() {
     let env = attach_current_thread();
     let null_obj = JObject::null();
-    let result = unwrap(env.new_weak_ref(null_obj), &env);
-    assert!(result.is_none());
+    let result = env.new_weak_ref(null_obj);
+    assert!(matches!(result, Err(Error::ObjectFreed)));
+
+    let null_weak: WeakRef<JObject<'static>> = WeakRef::null();
+    assert!(null_weak.is_garbage_collected(&env));
 }
 
 #[test]
@@ -1138,7 +1141,7 @@ pub fn throw_defaults() {
 
 #[test]
 pub fn test_conversion() {
-    let env = attach_current_thread();
+    let mut env = attach_current_thread();
     let orig_obj: JObject = env.new_string("Hello, world!").unwrap().into();
 
     let obj: JObject = unwrap(env.new_local_ref(&orig_obj), &env);
@@ -1149,9 +1152,9 @@ pub fn test_conversion() {
     let global_ref = env.new_global_ref(&orig_obj).unwrap();
     assert!(env.is_same_object(&orig_obj, global_ref));
 
-    let weak_ref = unwrap(env.new_weak_ref(&orig_obj), &env).expect("weak ref should not be null");
+    let weak_ref = unwrap(env.new_weak_ref(&orig_obj), &env);
     let actual =
-        unwrap(weak_ref.upgrade_local(&env), &env).expect("weak ref should not have been GC'd");
+        unwrap(weak_ref.upgrade_local(&mut env), &env).expect("weak ref should not have been GC'd");
     assert!(env.is_same_object(&orig_obj, actual));
 
     let obj: JObject = unwrap(env.new_local_ref(&orig_obj), &env);

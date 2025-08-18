@@ -33,7 +33,9 @@ where
 // around `JObject`), but that may change in the future. Moreover, this
 // doesn't check if the global reference actually refers to a
 // `java.lang.Class` object.
-unsafe impl<'local, 'obj_ref> Desc<'local, JClass<'static>> for &'obj_ref GlobalRef {
+unsafe impl<'local, 'obj_ref> Desc<'local, JClass<'static>>
+    for &'obj_ref GlobalRef<JClass<'static>>
+{
     type Output = &'obj_ref JClass<'static>;
 
     fn lookup(self, _: &mut JNIEnv<'local>) -> Result<Self::Output> {

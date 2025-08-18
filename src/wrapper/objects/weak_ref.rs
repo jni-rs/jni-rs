@@ -1,12 +1,15 @@
-use std::sync::Arc;
+use std::ops::Deref;
 
+use jni_sys::jobject;
 use log::{debug, warn};
 
 use crate::{
-    errors::Result,
+    errors::{Error, Result},
     objects::{GlobalRef, JObject},
     sys, JNIEnv, JNIVersion, JavaVM,
 };
+
+use super::JObjectRef;
 
 // Note: `WeakRef` must not implement `Into<JObject>`! If it did, then it would be possible to
 // wrap it in `AutoLocal`, which would cause undefined behavior upon drop as a result of calling
@@ -43,15 +46,8 @@ use crate::{
 /// # Creating and Deleting
 ///
 /// To create a weak global reference, use the [`JNIEnv::new_weak_ref`] method.
-/// To delete it, simply drop the `WeakRef` (but be sure to do so on an
-/// attached thread if possible; see the warning below).
-///
-///
-/// # Clone and Drop Behavior
-///
-/// `WeakRef` implements [`Clone`] using [`Arc`], making it inexpensive and
-/// infallible. If a `WeakRef` is cloned, the underlying JNI weak global
-/// reference will only be deleted when the last of the clones is dropped.
+/// To delete it, simply drop the `WeakRef` (but be sure to do so on an attached
+/// thread if possible; see the warning below).
 ///
 /// It is also possible to create a new JNI weak global reference from an
 /// existing one. To do that, use the [`WeakRef::clone_in_jvm`] method.
@@ -62,89 +58,131 @@ use crate::{
 /// When a `WeakRef` is dropped, a JNI call is made to delete the global
 /// reference. If this frequently happens on a thread that is not already
 /// attached to the JVM, the thread will be temporarily attached using
-/// [`JavaVM::attach_current_thread`], causing a severe performance penalty.
+/// [`JavaVM::attach_current_thread_for_scope`], causing a severe performance
+/// penalty.
 ///
-/// To avoid this performance penalty, ensure that `WeakRef`s are only
-/// dropped on a thread that is already attached (or never dropped at all).
+/// To avoid this performance penalty, ensure that `WeakRef`s are only dropped
+/// on a thread that is already attached (or never dropped at all).
 ///
 /// In the event that a global reference is dropped on an unattached thread, a
 /// message is [logged][log] at [`log::Level::Warn`].
-
-#[derive(Clone)]
-pub struct WeakRef {
-    inner: Arc<WeakRefGuard>,
+#[repr(transparent)]
+#[derive(Debug)]
+pub struct WeakRef<T>
+where
+    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
+{
+    obj: T,
 }
 
-struct WeakRefGuard {
-    raw: sys::jweak,
-    vm: JavaVM,
+unsafe impl<T> Send for WeakRef<T> where
+    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync
+{
 }
 
-unsafe impl Send for WeakRefGuard {}
-unsafe impl Sync for WeakRefGuard {}
+unsafe impl<T> Sync for WeakRef<T> where
+    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync
+{
+}
 
-impl WeakRef {
-    /// Creates a new wrapper for a global reference.
+impl<T> Default for WeakRef<T>
+where
+    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
+{
+    fn default() -> Self {
+        Self::null()
+    }
+}
+
+impl<T, U> AsRef<U> for WeakRef<T>
+where
+    T: AsRef<U>
+        + Into<JObject<'static>>
+        + AsRef<JObject<'static>>
+        + Default
+        + JObjectRef
+        + Send
+        + Sync,
+{
+    fn as_ref(&self) -> &U {
+        self.obj.as_ref()
+    }
+}
+
+impl<T> Deref for WeakRef<T>
+where
+    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
+{
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.obj
+    }
+}
+
+impl<T> WeakRef<T>
+where
+    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
+{
+    /// Creates a new auto-delete wrapper for the `'static` weak global reference
+    ///
+    /// Note: It's more likely that you want to look at the [`JNIEnv::new_weak_ref`] API instead
+    /// of this, since you can't get `'static` reference types through safe APIs.
     ///
     /// # Safety
     ///
-    /// Expects a valid raw weak global reference that should be created with `NewWeakGlobalRef`
-    /// JNI function.
-    pub(crate) unsafe fn from_raw(vm: JavaVM, raw: sys::jweak) -> Self {
-        WeakRef {
-            inner: Arc::new(WeakRefGuard { raw, vm }),
-        }
+    /// If the given reference is non-null, it must represent a weak global JNI reference.
+    pub unsafe fn new(env: &JNIEnv, obj: T) -> Self {
+        // Guarantee that the `JavaVM::singleton()` is initialized for the `Drop` implementation
+        let _vm = env.get_java_vm();
+        Self { obj }
+    }
+
+    /// Creates a [`GlobalRef`] wrapper for a `null` reference
+    ///
+    /// This is equivalent [`WeakRef::default()`]
+    ///
+    /// A `null` [`WeakRef`] acts as-if the object has been garbage collected
+    /// ([`Self::is_garbage_collected()`] will return `true`).
+    pub fn null() -> Self {
+        Self { obj: T::default() }
     }
 
     /// Returns the raw JNI weak reference.
     pub fn as_raw(&self) -> sys::jweak {
-        self.inner.raw
+        self.obj.as_raw()
     }
 
     /// Creates a new local reference to this object.
     ///
-    /// This object may have already been garbage collected by the time this method is called. If
-    /// so, this method returns `Ok(None)`. Otherwise, it returns `Ok(Some(r))` where `r` is the
-    /// new local reference.
+    /// This returns `None` if the object has already been garbage collected, otherwise it returns
+    /// `Some(new_local_reference)`.
     ///
-    /// If this method returns `Ok(Some(r))`, it is guaranteed that the object will not be garbage
+    /// If this method returns `Some(r)`, it is guaranteed that the object will not be garbage
     /// collected at least until `r` is deleted or becomes invalid.
-    pub fn upgrade_local<'local>(&self, env: &JNIEnv<'local>) -> Result<Option<JObject<'local>>> {
-        // XXX: Don't use env.new_local_ref here because that will treat `null`
-        // return values (for non-null objects) as out-of-memory errors
-        let r = unsafe {
-            JObject::from_raw(jni_call_unchecked!(env, v1_2, NewLocalRef, self.as_raw()))
-        };
-
-        // Per JNI spec, `NewLocalRef` will return a null pointer if the object was GC'd.
-        //
-        // XXX: technically the `null` could also mean that the system is out of memory
-        // but we have no way of differentiating that here.
-        //
-        if r.is_null() {
-            Ok(None)
-        } else {
-            Ok(Some(r))
+    pub fn upgrade_local<'local>(
+        &self,
+        env: &mut JNIEnv<'local>,
+    ) -> Result<Option<T::Kind<'local>>> {
+        match env.new_local_ref(self) {
+            Ok(local_ref) => Ok(Some(local_ref)),
+            Err(Error::ObjectFreed) => Ok(None),
+            Err(err) => Err(err),
         }
     }
 
     /// Creates a new strong global reference to this object.
     ///
-    /// This object may have already been garbage collected by the time this method is called. If
-    /// so, this method returns `Ok(None)`. Otherwise, it returns `Ok(Some(r))` where `r` is the
-    /// new strong global reference.
+    /// This returns `None` if the object has already been garbage collected, otherwise it returns
+    /// `Some(new_local_reference)`.
     ///
-    /// If this method returns `Ok(Some(r))`, it is guaranteed that the object will not be garbage
-    /// collected at least until `r` is dropped.
-    pub fn upgrade_global(&self, env: &JNIEnv) -> Result<Option<GlobalRef>> {
-        let r = env.new_global_ref(unsafe { JObject::from_raw(self.as_raw()) })?;
-
-        // Unlike `NewLocalRef`, the JNI spec does *not* guarantee that `NewGlobalRef` will return a
-        // null pointer if the object was GC'd, so we'll have to check.
-        if env.is_same_object(&r, JObject::null()) {
-            Ok(None)
-        } else {
-            Ok(Some(r))
+    /// If this method returns `Some(r)`, it is guaranteed that the object will not be garbage
+    /// collected at least until `r` is deleted or becomes invalid.
+    pub fn upgrade_global(&self, env: &JNIEnv) -> Result<Option<GlobalRef<T::GlobalKind>>> {
+        match env.new_global_ref(self) {
+            Err(Error::ObjectFreed) => Ok(None),
+            Err(err) => Err(err),
+            Ok(global_ref) => Ok(Some(global_ref)),
         }
     }
 
@@ -157,13 +195,8 @@ impl WeakRef {
     /// This is equivalent to
     /// <code>self.[is_same_object][WeakRef::is_same_object](env, [JObject::null]\())</code>.
     pub fn is_garbage_collected(&self, env: &JNIEnv) -> bool {
-        self.is_same_object(env, JObject::null())
+        env.is_same_object(self, JObject::null())
     }
-
-    // The following methods are wrappers around those `JNIEnv` methods that make sense for a weak
-    // reference. These methods exist because they use `JObject::from_raw` on the raw pointer of a
-    // weak reference. Although this usage is sound, it is `unsafe`. It's also confusing because
-    // `JObject` normally represents a strong reference.
 
     /// Returns true if this weak reference refers to the given object. Otherwise returns false.
     ///
@@ -171,11 +204,12 @@ impl WeakRef {
     /// [`WeakRef::is_garbage_collected`]: it returns true if the object referred to by this
     /// `WeakRef` has been garbage collected, or false if the object has not yet been garbage
     /// collected.
+    #[deprecated = "Use JNIEnv::is_same_object"]
     pub fn is_same_object<'local, O>(&self, env: &JNIEnv<'local>, object: O) -> bool
     where
         O: AsRef<JObject<'local>>,
     {
-        env.is_same_object(unsafe { JObject::from_raw(self.as_raw()) }, object)
+        env.is_same_object(self, object)
     }
 
     /// Returns true if this weak reference refers to the same object as another weak reference.
@@ -183,60 +217,92 @@ impl WeakRef {
     ///
     /// This method will also return true if both weak references refer to an object that has been
     /// garbage collected.
-    pub fn is_weak_ref_to_same_object(&self, env: &JNIEnv, other: &WeakRef) -> bool {
-        self.is_same_object(env, unsafe { JObject::from_raw(other.as_raw()) })
+    #[deprecated = "Use JNIEnv::is_same_object"]
+    pub fn is_weak_ref_to_same_object(&self, env: &JNIEnv, other: &Self) -> bool {
+        env.is_same_object(self, other)
     }
 
     /// Creates a new weak reference to the same object that this one refers to.
     ///
-    /// `WeakRef` implements [`Clone`], which should normally be used whenever a new `WeakRef` to
-    /// the same object is needed. However, that only increments an internal reference count and
-    /// does not actually create a new weak reference in the JVM. If you specifically need to have
-    /// the JVM create a new weak reference, use this method instead of `Clone`.
-    ///
-    /// This method returns `Ok(None)` if the object has already been garbage collected.
-    pub fn clone_in_jvm(&self, env: &JNIEnv) -> Result<Option<WeakRef>> {
-        env.new_weak_ref(unsafe { JObject::from_raw(self.as_raw()) })
+    /// This method returns `None` if the object has already been garbage collected.
+    pub fn clone_in_jvm(&self, env: &mut JNIEnv<'_>) -> Result<Option<WeakRef<T::GlobalKind>>> {
+        match env.new_weak_ref(self) {
+            Err(Error::ObjectFreed) => Ok(None),
+            Err(err) => Err(err),
+            Ok(weak_ref) => Ok(Some(weak_ref)),
+        }
     }
 }
 
-impl Drop for WeakRefGuard {
+impl<T> Drop for WeakRef<T>
+where
+    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
+{
     fn drop(&mut self) {
-        fn drop_impl(env: &JNIEnv, raw: sys::jweak) -> Result<()> {
-            // Safety: This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
-            // jni-rs requires JNI_VERSION > 1.2
-            unsafe {
-                jni_call_unchecked!(env, v1_2, DeleteWeakGlobalRef, raw);
-            }
-            Ok(())
-        }
+        let obj = std::mem::take(&mut self.obj);
 
-        // Safety: we can assume we couldn't have created the weak reference in the first place without
-        // having already required the JavaVM to support JNI >= 1.4
-        let res = match unsafe { self.vm.get_env(JNIVersion::V1_4) } {
-            Ok(env) => drop_impl(&env, self.raw),
-            Err(_) => {
-                warn!("Dropping a WeakRef in a detached thread. Fix your code if this message appears frequently (see the WeakRef docs).");
-                self.vm
-                    .attach_current_thread()
-                    .and_then(|env| drop_impl(&env, self.raw))
+        // It's redundant to explicitly call DeleteWeakGlobalRef with a null pointer and we don't
+        // assume that a JavaVM has been initialized if we only wrap a 'static null pointer
+        if !obj.is_null() {
+            fn drop_impl(env: &JNIEnv, raw: sys::jweak) -> Result<()> {
+                // Safety: This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
+                // jni-rs requires JNI_VERSION > 1.2
+                unsafe {
+                    jni_call_unchecked!(env, v1_2, DeleteWeakGlobalRef, raw);
+                    Ok(())
+                }
             }
-        };
 
-        if let Err(err) = res {
-            debug!("error dropping weak ref: {:#?}", err);
+            // Panic: If we have a non-null reference, we know JavaVM::singleton() must have been
+            // initialized (and can't return an error) because ::new() takes a JNIEnv reference.
+            let vm = JavaVM::singleton().expect("JavaVM singleton uninitialized");
+
+            // Safety: we can assume we couldn't have created the weak reference in the first place without
+            // having already required the JavaVM to support JNI >= 1.4
+            let res = match unsafe { vm.get_env(JNIVersion::V1_4) } {
+                Ok(env) => drop_impl(&env, obj.as_raw()),
+                Err(_) => {
+                    warn!("Dropping a WeakRef in a detached thread. Fix your code if this message appears frequently (see the WeakRef docs).");
+                    vm.attach_current_thread()
+                        .and_then(|env| drop_impl(&env, obj.as_raw()))
+                }
+            };
+
+            if let Err(err) = res {
+                debug!("error dropping weak ref: {:#?}", err);
+            }
         }
+    }
+}
+
+impl<T> JObjectRef for WeakRef<T>
+where
+    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
+{
+    type Kind<'env> = T::Kind<'env>;
+    type GlobalKind = T::GlobalKind;
+
+    fn as_raw(&self) -> jobject {
+        self.obj.as_raw()
+    }
+
+    unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+        T::from_local_raw(local_ref)
+    }
+
+    unsafe fn from_global_raw(global_ref: jobject) -> Self::GlobalKind {
+        T::from_global_raw(global_ref)
     }
 }
 
 #[test]
 fn test_weak_ref_send() {
     fn assert_send<T: Send>() {}
-    assert_send::<WeakRef>();
+    assert_send::<WeakRef<JObject<'static>>>();
 }
 
 #[test]
 fn test_weak_ref_sync() {
     fn assert_sync<T: Sync>() {}
-    assert_sync::<WeakRef>();
+    assert_sync::<WeakRef<JObject<'static>>>();
 }
