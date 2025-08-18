@@ -15,6 +15,8 @@ use crate::objects::{char_from_java_int, char_to_java, char_to_java_int, JValue,
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum Error {
+    #[error("JavaVM singleton uninitialized")]
+    UninitializedJavaVM,
     #[error("Invalid JValue type cast: {0}. Actual type: {1}")]
     WrongJValueType(&'static str, &'static str),
     #[error("Invalid constructor return type (must be void)")]

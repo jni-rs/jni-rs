@@ -754,7 +754,7 @@ impl<'local> JNIEnv<'local> {
     where
         O: AsRef<JObject<'other_local>>,
     {
-        let jvm = self.get_java_vm()?;
+        let jvm = self.get_java_vm();
         unsafe {
             let new_ref = jni_call_unchecked!(self, v1_1, NewGlobalRef, obj.as_ref().as_raw());
             let global = GlobalRef::from_raw(jvm, new_ref);
@@ -777,7 +777,7 @@ impl<'local> JNIEnv<'local> {
         // We need the `JavaVM` in order to construct a `WeakRef` below. But because `get_java_vm`
         // is fallible, we need to call it before doing anything else, so that we don't leak
         // memory if it fails.
-        let vm = self.get_java_vm()?;
+        let vm = self.get_java_vm();
 
         let obj = obj.as_ref().as_raw();
 
@@ -3073,11 +3073,9 @@ impl<'local> JNIEnv<'local> {
     }
 
     /// Returns the Java VM interface.
-    pub fn get_java_vm(&self) -> Result<JavaVM> {
-        let mut raw = ptr::null_mut();
-        let res = unsafe { jni_call_unchecked!(self, v1_1, GetJavaVM, &mut raw) };
-        jni_error_code_to_result(res)?;
-        unsafe { JavaVM::from_raw(raw) }
+    pub fn get_java_vm(&self) -> JavaVM {
+        // This avoids calling JNI if we already know the VM pointer
+        JavaVM::from_env(self)
     }
 
     /// Ensures that at least a given number of local references can be created
