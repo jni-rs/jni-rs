@@ -55,6 +55,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `JavaStr::get_raw` has been renamed to `as_ptr`. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
 - `JavaStr`, `JNIStr`, and `JNIString` no longer coerce to `CStr`, because using `CStr::to_str` will often have incorrect results. You can still get a `CStr`, but must use the new `as_cstr` method to do so. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
 - `JNIEnv::get_string` performance is improved by caching an expensive class lookup, and using a faster instanceof check.
+- `GlobalRef` and `WeakRef` are parameterized, transparent wrappers over `'static` reference types like `GlobalRef<JClass<'static>>` (no longer an `Arc` holding a reference and VM pointer)
+  - `GlobalRef` and `WeakRef` no longer implement `Clone`, since JNI is required to create new reference (you'll need to explicitly use `env.new_global_ref`)
+  - `GlobalRef` and `WeakRef` both implement `Default`, which will represent `::null()` references (equivalent to `JObject::null()`)
 
 ### Fixed
 - `JNIEnv::get_string` no longer leaks local references. ([#528](https://github.com/jni-rs/jni-rs/pull/528), [#557](https://github.com/jni-rs/jni-rs/pull/557))

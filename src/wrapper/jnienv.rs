@@ -36,6 +36,8 @@ use crate::{
 };
 use crate::{objects::AsJArrayRaw, signature::ReturnType};
 
+use super::objects::JObjectRef;
+
 /// FFI-compatible JNIEnv struct. You can safely use this as the JNIEnv argument
 /// to exported methods that will be called by java. This is where most of the
 /// magic happens. All methods on this object are wrappers around JNI functions,
@@ -750,15 +752,48 @@ impl<'local> JNIEnv<'local> {
     /// Global references take more time to create or delete than ordinary
     /// local references do, but have several properties that make them useful
     /// in certain situations. See [`GlobalRef`] for more information.
-    pub fn new_global_ref<'other_local, O>(&self, obj: O) -> Result<GlobalRef>
+    ///
+    /// If you use this API to try and upgrade a [`WeakRef`] then it may return
+    /// [`Error::ObjectFreed`] if the object has been garbage collected.
+    pub fn new_global_ref<'any_local, O>(&self, obj: O) -> Result<GlobalRef<O::GlobalKind>>
     where
-        O: AsRef<JObject<'other_local>>,
+        O: JObjectRef + AsRef<JObject<'any_local>>,
     {
-        let jvm = self.get_java_vm();
-        unsafe {
-            let new_ref = jni_call_unchecked!(self, v1_1, NewGlobalRef, obj.as_ref().as_raw());
-            let global = GlobalRef::from_raw(jvm, new_ref);
-            Ok(global)
+        // Avoid passing null to `NewGlobalRef` so that we can recognise out-of-memory errors
+        if obj.is_null() {
+            return Ok(GlobalRef::null());
+        }
+
+        // Safety:
+        // - the minimum supported JNI version is 1.4
+        // - we can assume that `obj.raw()` is a valid reference
+        // - we know there's no other wrapper for the reference passed to from_global_raw
+        //   since we have just created it.
+        let global_ref = unsafe {
+            let global_ref =
+                O::from_global_raw(jni_call_unchecked!(self, v1_1, NewGlobalRef, obj.as_raw()));
+            GlobalRef::new(self, global_ref)
+        };
+
+        // Per JNI spec, `NewGlobalRef` will return a null pointer if the object was GC'd
+        // (which could happen if `obj` is a `WeakRef`):
+        //
+        //  > it is recommended that a (strong) local or global reference to the
+        //  > underlying object be acquired using one of the JNI functions
+        //  > NewLocalRef or NewGlobalRef. These functions will return NULL if
+        //  > the object has been freed.
+        //
+        if global_ref.is_null() {
+            // In this case it's ambiguous whether there has been an out-of-memory error or
+            // the object has been garbage collected and so we now _explicitly_ check
+            // whether the object has been garbage collected.
+            if self.is_same_object(obj, JObject::null()) {
+                Err(Error::ObjectFreed)
+            } else {
+                Err(Error::JniCall(JniError::NoMemory))
+            }
+        } else {
+            Ok(global_ref)
         }
     }
 
@@ -768,19 +803,16 @@ impl<'local> JNIEnv<'local> {
     /// doesn't prevent the Java object from being garbage collected. See
     /// [`WeakRef`] for more information.
     ///
-    /// If the provided object is null, this method returns `None`. Otherwise, it returns `Some`
-    /// containing the new weak global reference.
-    pub fn new_weak_ref<'other_local, O>(&self, obj: O) -> Result<Option<WeakRef>>
+    /// If you use this API to create a [`WeakRef`] from another [`WeakRef`]
+    /// then it may return [`Error::ObjectFreed`] if the object has been garbage
+    /// collected.
+    ///
+    /// Attempting to create a [`WeakRef`] for a `null` reference will return an
+    /// [`Error::ObjectFreed`] error.
+    pub fn new_weak_ref<O>(&self, obj: O) -> Result<WeakRef<O::GlobalKind>>
     where
-        O: AsRef<JObject<'other_local>>,
+        O: JObjectRef,
     {
-        // We need the `JavaVM` in order to construct a `WeakRef` below. But because `get_java_vm`
-        // is fallible, we need to call it before doing anything else, so that we don't leak
-        // memory if it fails.
-        let vm = self.get_java_vm();
-
-        let obj = obj.as_ref().as_raw();
-
         // Check if the pointer is null *before* calling `NewWeakGlobalRef`.
         //
         // This avoids a bug in some JVM implementations which, contrary to the JNI specification,
@@ -788,22 +820,34 @@ impl<'local> JNIEnv<'local> {
         // passed a null pointer. (The specification says it will return a null pointer in that
         // situation, not throw an exception.)
         if obj.is_null() {
-            return Ok(None);
+            return Err(Error::ObjectFreed);
         }
 
-        unsafe {
-            // Safety: jni-rs requires JNI_VERSION > 1.2
-            let weak: sys::jweak = jni_call_check_ex!(self, v1_2, NewWeakGlobalRef, obj)?;
+        // Safety:
+        // - the minimum supported JNI version is 1.4
+        // - we can assume that `obj.raw()` is a valid reference
+        // - we know there's no other wrapper for the reference passed to from_global_raw
+        //   since we have just created it.
+        let weak_ref = unsafe {
+            let weak = O::from_global_raw(jni_call_check_ex!(
+                self,
+                v1_2,
+                NewWeakGlobalRef,
+                obj.as_raw()
+            )?);
+            WeakRef::new(self, weak)
+        };
 
-            // Check if the pointer returned by `NewWeakGlobalRef` is null. This can happen if `obj` is
-            // itself a weak reference that was already garbage collected.
-            if weak.is_null() {
-                return Ok(None);
-            }
+        // Unlike for NewLocalRef and NewGlobalRef, the JNI spec doesn't seem to
+        // give the same guarantee that it will return null if the object has
+        // already been freed, but it seems reasonable to assume it can.
 
-            let weak = WeakRef::from_raw(vm, weak);
-
-            Ok(Some(weak))
+        if weak_ref.is_null() {
+            // Unlike for NewLocalRef and NewGlobalRef we can assume that NewWeakGlobalRef
+            // will throw an out-of-memory exception (that we catch) instead of returning null
+            Err(Error::ObjectFreed)
+        } else {
+            Ok(weak_ref)
         }
     }
 
@@ -853,7 +897,7 @@ impl<'local> JNIEnv<'local> {
     ///     ///
     ///     /// The enclosed `GlobalRef` points to a Java object of class `java.lang.Throwable`
     ///     /// (or one of its many subclasses).
-    ///     Exception(GlobalRef),
+    ///     Exception(GlobalRef<JObject<'static>>),
     ///
     ///     /// This variant represents an error in Rust code, not a Java exception.
     ///     Other(SomeOtherErrorType),
@@ -901,34 +945,45 @@ impl<'local> JNIEnv<'local> {
     /// ```
     ///
     /// [`NewLocalRef`]: https://docs.oracle.com/en/java/javase/11/docs/specs/jni/functions.html#newlocalref
-    pub fn new_local_ref<'other_local, O>(&self, obj: O) -> Result<JObject<'local>>
+    pub fn new_local_ref<'any_local, O>(&mut self, obj: O) -> Result<O::Kind<'local>>
     where
-        O: AsRef<JObject<'other_local>>,
+        O: JObjectRef + AsRef<JObject<'any_local>>,
     {
-        let obj = obj.as_ref();
-
         // By checking for `null` before calling `NewLocalRef` we can recognise
         // that a `null` returned from `NewLocalRef` is from being out of memory.
         if obj.is_null() {
-            return Ok(JObject::null());
+            return Ok(O::null());
         }
 
-        // Safety: we check the JNI version is > 1.2 in `from_raw`
+        // Safety:
+        // - the minimum supported JNI version is 1.4
+        // - we can assume that `obj.raw()` is a valid reference, or null
+        // - we know there's no other wrapper for the reference passed to from_local_raw
+        //   since we have just created it.
         let local = unsafe {
-            JObject::from_raw(jni_call_unchecked!(self, v1_2, NewLocalRef, obj.as_raw()))
+            O::from_local_raw(jni_call_unchecked!(self, v1_2, NewLocalRef, obj.as_raw()))
         };
 
-        // Since we know we didn't pass a `null` `obj` reference to `NewLocalRef` then
-        // a `null` implies an out-of-memory error.
+        // Per JNI spec, `NewLocalRef` will return a null pointer if the object was GC'd
+        // (which could happen if `obj` is a `WeakRef`):
         //
-        // (We assume it's not a `null` from failing to upgrade a weak reference because
-        //  that would be done via `WeakRef::upgrade_local`)
+        //  > it is recommended that a (strong) local or global reference to the
+        //  > underlying object be acquired using one of the JNI functions
+        //  > NewLocalRef or NewGlobalRef. These functions will return NULL if
+        //  > the object has been freed.
         //
         if local.is_null() {
-            return Err(Error::JniCall(JniError::NoMemory));
+            // In this case it's ambiguous whether there has been an out-of-memory error or
+            // the object has been garbage collected and so we now _explicitly_ check
+            // whether the object has been garbage collected.
+            if self.is_same_object(obj, JObject::null()) {
+                Err(Error::ObjectFreed)
+            } else {
+                Err(Error::JniCall(JniError::NoMemory))
+            }
+        } else {
+            Ok(local)
         }
-
-        Ok(local)
     }
 
     /// Creates a new auto-deleted local reference.
@@ -1919,7 +1974,7 @@ impl<'local> JNIEnv<'local> {
         &mut self,
         obj: &'obj_ref JString<'other_local>,
     ) -> Result<JavaStr<'local, 'other_local, 'obj_ref>> {
-        static STRING_CLASS: OnceCell<GlobalRef> = OnceCell::new();
+        static STRING_CLASS: OnceCell<GlobalRef<JClass<'static>>> = OnceCell::new();
         let string_class = STRING_CLASS.get_or_try_init(|| {
             let string_class_local = self.find_class("java/lang/String")?;
             self.new_global_ref(string_class_local)

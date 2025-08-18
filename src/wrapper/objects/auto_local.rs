@@ -4,7 +4,11 @@ use std::{
     ptr,
 };
 
+use jni_sys::jobject;
+
 use crate::{objects::JObject, JNIEnv};
+
+use super::JObjectRef;
 
 /// Auto-delete wrapper for local refs.
 ///
@@ -145,5 +149,25 @@ where
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.obj
+    }
+}
+
+impl<'local, T> JObjectRef for AutoLocal<'local, T>
+where
+    T: JObjectRef + Into<JObject<'local>>,
+{
+    type Kind<'env> = T::Kind<'env>;
+    type GlobalKind = T::GlobalKind;
+
+    fn as_raw(&self) -> jobject {
+        self.obj.as_raw()
+    }
+
+    unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+        T::from_local_raw(local_ref)
+    }
+
+    unsafe fn from_global_raw(global_ref: jobject) -> Self::GlobalKind {
+        T::from_global_raw(global_ref)
     }
 }
