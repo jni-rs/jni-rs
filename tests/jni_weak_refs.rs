@@ -1,12 +1,12 @@
 #![cfg(feature = "invocation")]
 
 use std::{
-    sync::{Arc, Barrier},
+    sync::{Arc, Barrier, OnceLock},
     thread::spawn,
 };
 
 use jni::{
-    objects::{AutoLocal, JValue},
+    objects::{AutoLocal, JObject, JValue, WeakRef},
     sys::jint,
     JNIEnv,
 };
@@ -32,8 +32,10 @@ pub fn weak_ref_works_in_other_threads() {
         ),
         &env,
     );
-    let atomic_integer =
-        unwrap(env.new_weak_ref(&atomic_integer_local), &env).expect("weak ref should not be null");
+    let atomic_integer_weak = unwrap(env.new_weak_ref(&atomic_integer_local), &env);
+
+    static ATOMIC_INT: OnceLock<WeakRef<JObject<'static>>> = OnceLock::new();
+    ATOMIC_INT.set(atomic_integer_weak).unwrap();
 
     // Test with a different number of threads (from 2 to 8)
     for thread_num in 2..9 {
@@ -41,16 +43,15 @@ pub fn weak_ref_works_in_other_threads() {
 
         for _ in 0..thread_num {
             let barrier = barrier.clone();
-            let atomic_integer = atomic_integer.clone();
+            let atomic_integer = ATOMIC_INT.get().unwrap();
 
             let jh = spawn(move || {
                 let mut env = attach_current_thread();
                 barrier.wait();
                 for _ in 0..ITERS_PER_THREAD {
-                    let atomic_integer = env.auto_local(
-                        unwrap(atomic_integer.upgrade_local(&env), &env)
-                            .expect("AtomicInteger shouldn't have been GC'd yet"),
-                    );
+                    let atomic_local = unwrap(atomic_integer.upgrade_local(&mut env), &env)
+                        .expect("AtomicInteger shouldn't have been GC'd yet");
+                    let atomic_integer = env.auto_local(atomic_local);
                     unwrap(
                         unwrap(
                             env.call_method(&atomic_integer, "incrementAndGet", "()I", &[]),
@@ -88,6 +89,7 @@ pub fn weak_ref_works_in_other_threads() {
     }
 }
 
+#[allow(deprecated)]
 #[test]
 fn weak_ref_is_actually_weak() {
     let mut env = attach_current_thread();
@@ -113,20 +115,18 @@ fn weak_ref_is_actually_weak() {
         );
         let obj_local = env.auto_local(obj_local);
 
-        let obj_weak =
-            unwrap(env.new_weak_ref(&obj_local), &env).expect("weak ref should not be null");
+        let obj_weak = unwrap(env.new_weak_ref(&obj_local), &env);
 
         let obj_weak2 =
-            unwrap(obj_weak.clone_in_jvm(&env), &env).expect("weak ref should not be null");
+            unwrap(obj_weak.clone_in_jvm(&mut env), &env).expect("weak ref should not be null");
 
         run_gc(&mut env);
 
         for obj_weak in &[&obj_weak, &obj_weak2] {
             {
-                let obj_local_from_weak = env.auto_local(
-                    unwrap(obj_weak.upgrade_local(&env), &env)
-                        .expect("object shouldn't have been GC'd yet"),
-                );
+                let obj_local_from_weak = unwrap(obj_weak.upgrade_local(&mut env), &env)
+                    .expect("object shouldn't have been GC'd yet");
+                let obj_local_from_weak = env.auto_local(obj_local_from_weak);
 
                 assert!(!obj_local_from_weak.is_null());
                 assert!(env.is_same_object(&obj_local_from_weak, &obj_local));
@@ -155,7 +155,7 @@ fn weak_ref_is_actually_weak() {
 
         for obj_weak in &[&obj_weak, &obj_weak2] {
             {
-                let obj_local_from_weak = unwrap(obj_weak.upgrade_local(&env), &env);
+                let obj_local_from_weak = unwrap(obj_weak.upgrade_local(&mut env), &env);
 
                 assert!(
                     obj_local_from_weak.is_none(),

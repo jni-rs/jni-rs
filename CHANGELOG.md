@@ -43,6 +43,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `JavaStr`, `JNIStr`, and `JNIString` have several new methods and traits, most notably a `to_str` method that converts to a regular Rust string. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
 - Added dependency on `once_cell` version `1.19.0` for lazy initialization in `JNIEnv::get_string`.
 - `JavaVM::singleton()` lets you acquire the `JavaVM` for the process when you know that the `JavaVM` singleton has been initialized
+- `GlobalRef::null()` and `WeakRef::null()` construct null references (equivalent to `Default::default()`).
 
 ### Changed
 - `JValueGen` has been removed. `JValue` and `JValueOwned` are now separate, unrelated, non-generic types. ([#429](https://github.com/jni-rs/jni-rs/pull/429))
@@ -54,6 +55,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `JavaStr::get_raw` has been renamed to `as_ptr`. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
 - `JavaStr`, `JNIStr`, and `JNIString` no longer coerce to `CStr`, because using `CStr::to_str` will often have incorrect results. You can still get a `CStr`, but must use the new `as_cstr` method to do so. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
 - `JNIEnv::get_string` performance is improved by caching an expensive class lookup, and using a faster instanceof check.
+- `GlobalRef` and `WeakRef` are parameterized, transparent wrappers over `'static` reference types like `GlobalRef<JClass<'static>>` (no longer an `Arc` holding a reference and VM pointer)
+  - `GlobalRef` and `WeakRef` no longer implement `Clone`, since JNI is required to create new reference (you'll need to explicitly use `env.new_global_ref`)
+  - `GlobalRef` and `WeakRef` both implement `Default`, which will represent `::null()` references (equivalent to `JObject::null()`)
+- `GlobalRef::into_raw` replaces `GlobalRef::try_into_raw` and is infallible
+- `JNIEnv::new_weak_ref` returns a `Result<WeakRef>` and `Error::ObjectFreed` if the reference is null or has already been freed (instead of `Result<Option<WeakRef>>`)
+- `JNIEnv::new_global_ref` and `::new_local_ref` may return `Error::ObjectFreed` in case a weak reference was given and the object has been freed.
 
 ### Fixed
 - `JNIEnv::get_string` no longer leaks local references. ([#528](https://github.com/jni-rs/jni-rs/pull/528), [#557](https://github.com/jni-rs/jni-rs/pull/557))

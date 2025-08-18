@@ -14,6 +14,9 @@ pub use self::jfieldid::*;
 mod jstaticfieldid;
 pub use self::jstaticfieldid::*;
 
+mod jobject_ref;
+pub use self::jobject_ref::*;
+
 mod jobject;
 pub use self::jobject::*;
 
