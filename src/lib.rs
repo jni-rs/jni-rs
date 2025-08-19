@@ -82,7 +82,7 @@
 //! ### The Rust side
 //!
 //! Create your crate with `cargo new mylib`. This will create a directory
-//! `mylib` that has everything needed to build an basic crate with `cargo`. We
+//! `mylib` that has everything needed to build a basic crate with `cargo`. We
 //! need to make a couple of changes to `Cargo.toml` before we do anything else.
 //!
 //! * Under `[dependencies]`, add `jni = "0.21.1"`
