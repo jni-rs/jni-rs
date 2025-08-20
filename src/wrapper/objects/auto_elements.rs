@@ -1,9 +1,10 @@
 use log::error;
+use std::marker::PhantomData;
 use std::ptr::NonNull;
 
 use crate::sys::{jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jshort};
 use crate::wrapper::objects::ReleaseMode;
-use crate::{errors::*, sys, JNIEnv};
+use crate::{env::JNIEnv, errors::*, sys, JavaVM};
 
 use super::JPrimitiveArray;
 
@@ -12,7 +13,7 @@ use super::JByteArray;
 
 mod type_array_sealed {
     use crate::sys::{jarray, jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jshort};
-    use crate::{errors::*, JNIEnv};
+    use crate::{env::JNIEnv, errors::*};
     use std::ptr::NonNull;
 
     /// Trait to define type array access/release
@@ -122,7 +123,7 @@ pub struct AutoElements<'local, 'other_local, 'array, T: TypeArray> {
     ptr: NonNull<T>,
     mode: ReleaseMode,
     is_copy: bool,
-    env: JNIEnv<'local>,
+    _lifetime: PhantomData<&'local ()>,
 }
 
 impl<'local, 'other_local, 'array, T: TypeArray> AutoElements<'local, 'other_local, 'array, T> {
@@ -135,20 +136,15 @@ impl<'local, 'other_local, 'array, T: TypeArray> AutoElements<'local, 'other_loc
         len: usize,
         mode: ReleaseMode,
     ) -> Result<Self> {
-        // Safety: The cloned `JNIEnv` will not be used to create any local references. It will be
-        // passed to the methods of the `TypeArray` implementation, but that trait is `unsafe` and
-        // implementations are required to uphold the invariants of `unsafe_clone`.
-        let mut env = unsafe { env.unsafe_clone() };
-
         let mut is_copy: jboolean = true;
-        let ptr = unsafe { T::get(&mut env, array.as_raw(), &mut is_copy) }?;
+        let ptr = unsafe { T::get(env, array.as_raw(), &mut is_copy) }?;
         Ok(AutoElements {
             array,
             len,
             ptr: NonNull::new(ptr).ok_or(Error::NullPtr("Non-null ptr expected"))?,
             mode,
             is_copy: is_copy == sys::JNI_TRUE,
-            env,
+            _lifetime: PhantomData,
         })
     }
 
@@ -180,7 +176,10 @@ impl<'local, 'other_local, 'array, T: TypeArray> AutoElements<'local, 'other_loc
     ///
     /// If `mode` is not [`sys::JNI_COMMIT`], then `self.ptr` must not have already been released.
     unsafe fn release_array_elements(&mut self, mode: i32) -> Result<()> {
-        T::release(&mut self.env, self.array.as_raw(), self.ptr, mode)
+        // Panic: Since we can't construct `AutoElements` without a valid `JNIEnv` reference
+        // we know we can call `JavaVM::singleton()` without a panic.
+        JavaVM::singleton()?
+            .with_env_current_frame(|env| T::release(env, self.array.as_raw(), self.ptr, mode))
     }
 
     /// Don't copy back the changes to the array on release (if it is a copy).

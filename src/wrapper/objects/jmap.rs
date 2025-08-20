@@ -1,8 +1,8 @@
 use crate::{
+    env::JNIEnv,
     errors::*,
-    objects::{AutoLocal, JClass, JMethodID, JObject, JValue},
+    objects::{AutoLocal, IntoAutoLocal as _, JClass, JMethodID, JObject, JValue},
     signature::{Primitive, ReturnType},
-    JNIEnv,
 };
 
 use std::marker::PhantomData;
@@ -44,7 +44,7 @@ impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> JMap<'local, 'other_local_1, 'o
         env: &mut JNIEnv<'local>,
         obj: &'obj_ref JObject<'other_local_1>,
     ) -> Result<JMap<'local, 'other_local_1, 'obj_ref>> {
-        let class = AutoLocal::new(env.find_class("java/util/Map")?, env);
+        let class = env.find_class("java/util/Map")?.auto();
 
         let get = env.get_method_id(&class, "get", "(Ljava/lang/Object;)Ljava/lang/Object;")?;
         let put = env.get_method_id(
@@ -157,14 +157,15 @@ impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> JMap<'local, 'other_local_1, 'o
     /// instead:
     ///
     /// ```rust,no_run
-    /// # use jni::{errors::Result, JNIEnv, objects::{AutoLocal, JMap, JObject}};
+    /// # use jni::{errors::Result, env::JNIEnv, objects::{IntoAutoLocal as _, JMap, JObject}};
     /// #
     /// # fn example(env: &mut JNIEnv, map: JMap) -> Result<()> {
     /// let mut iterator = map.iter(env)?;
     ///
     /// while let Some((key, value)) = iterator.next(env)? {
-    ///     let key: AutoLocal<JObject> = env.auto_local(key);
-    ///     let value: AutoLocal<JObject> = env.auto_local(value);
+    ///     // Wrap as AutoLocals to avoid leaking while iterating
+    ///     let key = key.auto();
+    ///     let value = value.auto();
     ///
     ///     // Do something with `key` and `value` here.
     /// }
@@ -183,13 +184,13 @@ impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> JMap<'local, 'other_local_1, 'o
         &'map self,
         env: &mut JNIEnv<'iter_local>,
     ) -> Result<JMapIter<'map, 'local, 'other_local_1, 'obj_ref, 'iter_local>> {
-        let iter_class = AutoLocal::new(env.find_class("java/util/Iterator")?, env);
+        let iter_class = env.find_class("java/util/Iterator")?.auto();
 
         let has_next = env.get_method_id(&iter_class, "hasNext", "()Z")?;
 
         let next = env.get_method_id(&iter_class, "next", "()Ljava/lang/Object;")?;
 
-        let entry_class = AutoLocal::new(env.find_class("java/util/Map$Entry")?, env);
+        let entry_class = env.find_class("java/util/Map$Entry")?.auto();
 
         let get_key = env.get_method_id(&entry_class, "getKey", "()Ljava/lang/Object;")?;
 
@@ -198,32 +199,28 @@ impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> JMap<'local, 'other_local_1, 'o
         // Get the iterator over Map entries.
 
         // SAFETY: We keep the class loaded, and fetched the method ID for this function. Arg list is known empty.
-        let entry_set = AutoLocal::new(
-            unsafe {
-                env.call_method_unchecked(
-                    self.internal,
-                    (&self.class, "entrySet", "()Ljava/util/Set;"),
-                    ReturnType::Object,
-                    &[],
-                )
-            }?
-            .l()?,
-            env,
-        );
+        let entry_set = unsafe {
+            env.call_method_unchecked(
+                self.internal,
+                (&self.class, "entrySet", "()Ljava/util/Set;"),
+                ReturnType::Object,
+                &[],
+            )
+        }?
+        .l()?
+        .auto();
 
         // SAFETY: We keep the class loaded, and fetched the method ID for this function. Arg list is known empty.
-        let iter = AutoLocal::new(
-            unsafe {
-                env.call_method_unchecked(
-                    entry_set,
-                    ("java/util/Set", "iterator", "()Ljava/util/Iterator;"),
-                    ReturnType::Object,
-                    &[],
-                )
-            }?
-            .l()?,
-            env,
-        );
+        let iter = unsafe {
+            env.call_method_unchecked(
+                entry_set,
+                ("java/util/Set", "iterator", "()Ljava/util/Iterator;"),
+                ReturnType::Object,
+                &[],
+            )
+        }?
+        .l()?
+        .auto();
 
         Ok(JMapIter {
             _phantom_map: PhantomData,
@@ -294,8 +291,8 @@ impl<'other_local_1: 'obj_ref, 'obj_ref> JMapIter<'_, '_, 'other_local_1, 'obj_r
         }
         let next =
             unsafe { env.call_method_unchecked(&self.iter, self.next, ReturnType::Object, &[]) }?
-                .l()?;
-        let next = env.auto_local(next);
+                .l()?
+                .auto();
 
         let key =
             unsafe { env.call_method_unchecked(&next, self.get_key, ReturnType::Object, &[]) }?

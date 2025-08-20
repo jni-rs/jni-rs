@@ -1,9 +1,9 @@
 use crate::{
+    env::JNIEnv,
     errors::*,
-    objects::{AutoLocal, JClass, JMethodID, JObject, JValue},
+    objects::{AutoLocal, IntoAutoLocal as _, JClass, JMethodID, JObject, JValue},
     signature::{Primitive, ReturnType},
     sys::jint,
-    JNIEnv,
 };
 
 use std::marker::PhantomData;
@@ -47,7 +47,7 @@ impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> JList<'local, 'other_local_1, '
         env: &mut JNIEnv<'local>,
         obj: &'obj_ref JObject<'other_local_1>,
     ) -> Result<JList<'local, 'other_local_1, 'obj_ref>> {
-        let class = AutoLocal::new(env.find_class("java/util/List")?, env);
+        let class = env.find_class("java/util/List")?.auto();
 
         let get = env.get_method_id(&class, "get", "(I)Ljava/lang/Object;")?;
         let add = env.get_method_id(&class, "add", "(Ljava/lang/Object;)Z")?;
@@ -209,13 +209,13 @@ impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> JList<'local, 'other_local_1, '
     /// instead:
     ///
     /// ```rust,no_run
-    /// # use jni::{errors::Result, JNIEnv, objects::{AutoLocal, JList, JObject}};
+    /// # use jni::{errors::Result, env::JNIEnv, objects::{IntoAutoLocal as _, JList, JObject}};
     /// #
     /// # fn example(env: &mut JNIEnv, list: JList) -> Result<()> {
     /// let mut iterator = list.iter(env)?;
     ///
     /// while let Some(obj) = iterator.next(env)? {
-    ///     let obj: AutoLocal<JObject> = env.auto_local(obj);
+    ///     let obj = obj.auto(); // Wrap as AutoLocal to avoid leaking while iterating
     ///
     ///     // Do something with `obj` here.
     /// }
