@@ -17,15 +17,25 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 ### Changed
-- `jni-sys` dependency dumped to `0.4` ([#478](https://github.com/jni-rs/jni-rs/issues/478)
-- `JNIEnv::get_version` has been renamed to `JNIEnv::version` ([#478](https://github.com/jni-rs/jni-rs/issues/478)
-- `JNIEnv::from_raw` now explicitly checks that the JNI version is `>= 1.4` since the crate needs to be able to assume `>= 1.2` so it can check for exceptions and assume `>= 1.4` to avoid runtime checks for direct byte buffers ([#478](https://github.com/jni-rs/jni-rs/issues/478)
-- The following functions are now infallible ([#478](https://github.com/jni-rs/jni-rs/issues/478):
+- `jni-sys` dependency dumped to `0.4` ([#478](https://github.com/jni-rs/jni-rs/issues/478))
+- `JNIEnv::get_version` has been renamed to `JNIEnv::version` ([#478](https://github.com/jni-rs/jni-rs/issues/478))
+- JNI version requirements are more explicit in the API and the crate now requires at least JNI `>= 1.4`. It needs `>= 1.2` so it can check for exceptions and needs `>= 1.4` to avoid runtime checks for direct byte buffers ([#478](https://github.com/jni-rs/jni-rs/issues/478))
+- At a low-level (unsafe), all thread attachments (not just scoped attachments) are now represented by an owned or unowned `AttachGuard`
+- `AttachGuard` usage is now considered `unsafe` since the type must be pinned to the stack (but that can't be guaranteed by the Rust type system alone).
+- To allow safe thread attachments (that ensure their `AttachGuard` is pinned to the stack), attachment APIs take a `FnOnce` whose `&mut JNIEnv` arg borrows from a hidden `AttachGuard`
+  - `JavaVM::attach_current_thread` requests a permanent thread attachment (reducing cost of future `attach_current_thread()` calls)
+  - `JavaVM::attach_current_thread_for_scope` requests a thread attachment that's detached after the given closure returns.
+- `JNIEnv` is no longer a `#[transparent]` wrapper over the raw `JNIEnv` pointer and can only be accessed by borrowing from a thread attachment `AttachGuard`.
+- `JNIEnv` implements runtime borrow checking to ensure new local references may only be associated with the top JNI stack frame
+- `JNIEnv` has been moved to `jni::env::JNIEnv` so `jni::JNIEnv` can emit a verbose deprecation warning, explaining the need to use `JNIEnvUnowned` within native methods.
+- `JavaVM::get_env` is replaced by `JavaVM::get_env_attachment` which returns an `AttachGuard` if the current thread is attached.
+- The following functions are now infallible ([#478](https://github.com/jni-rs/jni-rs/issues/478)):
   - `JNIEnv::version`
+  - `JNIEnv::get_java_vm`
   - `JNIEnv::exception_check`
   - `JNIEnv::exception_clear`
   - `JNIEnv::exception_describe`
-  - `JNIEnv::exception_occurred` ([#517](https://github.com/jni-rs/jni-rs/issues/517)
+  - `JNIEnv::exception_occurred` ([#517](https://github.com/jni-rs/jni-rs/issues/517))
   - `JNIEnv::is_same_object`
   - `JNIEnv::delete_local_ref`
   - `WeakRef::is_same_object`
@@ -36,37 +46,43 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `JNIEnv::register_native_methods` is now marked `unsafe` since it requires all the given function pointers to be valid and match corresponding Java method signatures ([568](https://github.com/jni-rs/jni-rs/pull/568))
 - `JavaVM::get_java_vm_pointer` has been renamed `JavaVM::get_raw` for consistency.
 - `JavaVM::new` and `JavaVM::with_libjvm` now prevent libjvm from being unloaded. This isn't necessary for HotSpot, but other JVMs could crash if we don't do this. ([#554](https://github.com/jni-rs/jni-rs/pull/554))
+- `JValueGen` has been removed. `JValue` and `JValueOwned` are now separate, unrelated, non-generic types. ([#429](https://github.com/jni-rs/jni-rs/pull/429))
+- Make most `from_raw()`, `get_raw()` and `into_raw()` methods `const fn`. ([#453](https://github.com/jni-rs/jni-rs/pull/453))
+- `get_object_class` borrows the `JNIEnv` mutably because it creates a new local reference. ([#456](https://github.com/jni-rs/jni-rs/pull/456))
+- `get/set_field_unchecked` have been marked as unsafe since they can lead to undefined behaviour if the given types don't match the field type ([#457](https://github.com/jni-rs/jni-rs/pull/457))
+- `JNIEnv::get/set/take_rust_field` no longer require a mutable `JNIEnv` reference since they don't return any new local references to the caller ([#455](https://github.com/jni-rs/jni-rs/issues/455))
+- `JNIEnv::is_assignable_from` and `is_instance_of` no longer requires a mutable `JNIEnv` reference, since they doesn't return an new local references to the caller
+- `JavaStr::from_env` has been removed because it was unsound (it could cause undefined behavior and was not marked `unsafe`). Use `JNIEnv::get_string` or `JNIEnv::get_string_unchecked` instead. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
+- `JavaStr::get_raw` has been renamed to `as_ptr`. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
+- `JavaStr`, `JNIStr`, and `JNIString` no longer coerce to `CStr`, because using `CStr::to_str` will often have incorrect results. You can still get a `CStr`, but must use the new `as_cstr` method to do so. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
+- `JNIEnv::get_string` performance is improved by caching an expensive class lookup, and using a faster instanceof check.
+- `GlobalRef` and `WeakRef` are parameterized, transparent wrappers over `'static` reference types like `GlobalRef<JClass<'static>>` (no longer an `Arc` holding a reference and VM pointer) ([#596](https://github.com/jni-rs/jni-rs/pull/596))
+  - `GlobalRef` and `WeakRef` no longer implement `Clone`, since JNI is required to create new reference (you'll need to explicitly use `env.new_global_ref`)
+  - `GlobalRef` and `WeakRef` both implement `Default`, which will represent `::null()` references (equivalent to `JObject::null()`)
+- `GlobalRef::into_raw` replaces `GlobalRef::try_into_raw` and is infallible ([#596](https://github.com/jni-rs/jni-rs/pull/596))
+- `JNIEnv::new_weak_ref` returns a `Result<WeakRef>` and `Error::ObjectFreed` if the reference is null or has already been freed (instead of `Result<Option<WeakRef>>`) ([#596](https://github.com/jni-rs/jni-rs/pull/596))
+- `JNIEnv::new_global_ref` and `::new_local_ref` may return `Error::ObjectFreed` in case a weak reference was given and the object has been freed. ([#596](https://github.com/jni-rs/jni-rs/pull/596))
+
+### Removed
+- `JavaVM::attach_current_thread_as_daemon` (and general support for 'daemon' threads) has been removed, since their semantics are inherently poorly defined and unsafe (the distinction relates to the poorly defined limbo state after calling `JavaDestroyVM`, where it becomes undefined to touch the JVM) ([#593](https://github.com/jni-rs/jni-rs/pull/593))
+- The 'Executor' API has been removed (`AttachGuard::with_env` can be used instead) ([#570](https://github.com/jni-rs/jni-rs/pull/570))
+- `JNIEnv::from_raw`, `JNIEnv::from_raw_unchecked` and `JNIEnv::unsafe_clone` have been removed, since the API no longer exposes the `JNIEnv` type by-value, it must always be borrowed from an `AttachGuard`. ([#570](https://github.com/jni-rs/jni-rs/pull/570))
 
 ### Added
 - New functions for converting Rust `char` to and from Java `char` and `int` ([#427](https://github.com/jni-rs/jni-rs/issues/427) / [#434](https://github.com/jni-rs/jni-rs/pull/434))
 - `JNIEnv::call_nonvirtual_method` and `JNIEnv::call_nonvirtual_method_unchecked` to call non-virtual method. ([#454](https://github.com/jni-rs/jni-rs/issues/454))
 - `JavaStr`, `JNIStr`, and `JNIString` have several new methods and traits, most notably a `to_str` method that converts to a regular Rust string. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
 - Added dependency on `once_cell` version `1.19.0` for lazy initialization in `JNIEnv::get_string`.
-- `JavaVM::singleton()` lets you acquire the `JavaVM` for the process when you know that the `JavaVM` singleton has been initialized
-- `GlobalRef::null()` and `WeakRef::null()` construct null references (equivalent to `Default::default()`).
-
-### Changed
-- `JValueGen` has been removed. `JValue` and `JValueOwned` are now separate, unrelated, non-generic types. ([#429](https://github.com/jni-rs/jni-rs/pull/429))
-- Make most `from_raw()`, `get_raw()` and `into_raw()` methods `const fn`. ([#453](https://github.com/jni-rs/jni-rs/pull/453))
-- `get_object_class` borrows the `JNIEnv` mutably because it creates a new local reference. ([#456](https://github.com/jni-rs/jni-rs/pull/456))
-- `get/set_field_unchecked` have been marked as unsafe since they can lead to undefined behaviour if the given types don't match the field type ([#457](https://github.com/jni-rs/jni-rs/pull/457))
-- `get/set/take_rust_field` no longer require a mutable `JNIEnv` reference since they don't return any new local references to the caller ([#455](https://github.com/jni-rs/jni-rs/issues/455))
-- `JavaStr::from_env` has been removed because it was unsound (it could cause undefined behavior and was not marked `unsafe`). Use `JNIEnv::get_string` or `JNIEnv::get_string_unchecked` instead. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
-- `JavaStr::get_raw` has been renamed to `as_ptr`. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
-- `JavaStr`, `JNIStr`, and `JNIString` no longer coerce to `CStr`, because using `CStr::to_str` will often have incorrect results. You can still get a `CStr`, but must use the new `as_cstr` method to do so. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
-- `JNIEnv::get_string` performance is improved by caching an expensive class lookup, and using a faster instanceof check.
-- `GlobalRef` and `WeakRef` are parameterized, transparent wrappers over `'static` reference types like `GlobalRef<JClass<'static>>` (no longer an `Arc` holding a reference and VM pointer)
-  - `GlobalRef` and `WeakRef` no longer implement `Clone`, since JNI is required to create new reference (you'll need to explicitly use `env.new_global_ref`)
-  - `GlobalRef` and `WeakRef` both implement `Default`, which will represent `::null()` references (equivalent to `JObject::null()`)
-- `GlobalRef::into_raw` replaces `GlobalRef::try_into_raw` and is infallible
-- `JNIEnv::new_weak_ref` returns a `Result<WeakRef>` and `Error::ObjectFreed` if the reference is null or has already been freed (instead of `Result<Option<WeakRef>>`)
-- `JNIEnv::new_global_ref` and `::new_local_ref` may return `Error::ObjectFreed` in case a weak reference was given and the object has been freed.
+- `JavaVM::singleton()` lets you acquire the `JavaVM` for the process when you know that the `JavaVM` singleton has been initialized ([#595](https://github.com/jni-rs/jni-rs/pull/595))
+- `GlobalRef::null()` and `WeakRef::null()` construct null references (equivalent to `Default::default()`). ([#596](https://github.com/jni-rs/jni-rs/pull/596))
+- `JavaVM::is_thread_attached` can query whether the current thread is attached to the Java VM ([#570](https://github.com/jni-rs/jni-rs/pull/570))
+- `JNIEnvUnowned` is an FFI-safe type that can be used to capture a `jni_sys::JNIEnv` pointer given to native methods and give it a named lifetime (this can then be temporarily upgraded to a `&mut JNIEnv` reference via `JNIEnvUnowned::with_env`) ([#570](https://github.com/jni-rs/jni-rs/pull/570))
+- `AttachGuard::from_unowned` added as a low-level (unsafe) way to represent a thread attachment with a raw `jni_sys::JNIEnv` pointer ([#570](https://github.com/jni-rs/jni-rs/pull/570))
+- `JavaVM::with_env` and `JavaVM::with_env_with_capacity` added as methods to borrow a `JNIEnv` that is already attached to the current thread, after pushing a new JNI stack frame ([#570](https://github.com/jni-rs/jni-rs/pull/570))
+- `JavaVM::with_env_current_frame` added to borrow a `JNIEnv` for the top JNI stack frame (i.e. without pushing a new JNI stack frame) ([#570](https://github.com/jni-rs/jni-rs/pull/570))
 
 ### Fixed
 - `JNIEnv::get_string` no longer leaks local references. ([#528](https://github.com/jni-rs/jni-rs/pull/528), [#557](https://github.com/jni-rs/jni-rs/pull/557))
-
-### Removed
-- `JavaVM:attach_current_thread_as_daemon` (and general support for 'daemon' threads) has been removed, since their semantics are inherently poorly defined and unsafe (the distinction relates to the poorly defined limbo state after calling `JavaDestroyVM`, where it becomes undefined to touch the JVM)
 
 ## [0.21.1] — 2023-03-08
 

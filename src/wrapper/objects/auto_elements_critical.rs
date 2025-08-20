@@ -3,7 +3,7 @@ use std::ptr::NonNull;
 
 use crate::sys::jboolean;
 use crate::wrapper::objects::ReleaseMode;
-use crate::{errors::*, sys, JNIEnv};
+use crate::{env::JNIEnv, errors::*, sys};
 
 use super::{JPrimitiveArray, TypeArray};
 

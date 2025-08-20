@@ -1,9 +1,9 @@
 use crate::{
     descriptors::Desc,
+    env::JNIEnv,
     errors::*,
-    objects::{AutoLocal, GlobalRef, JClass, JObject},
+    objects::{AutoLocal, GlobalRef, IntoAutoLocal as _, JClass, JObject},
     strings::JNIString,
-    JNIEnv,
 };
 
 unsafe impl<'local, T> Desc<'local, JClass<'local>> for T
@@ -13,7 +13,7 @@ where
     type Output = AutoLocal<'local, JClass<'local>>;
 
     fn lookup(self, env: &mut JNIEnv<'local>) -> Result<Self::Output> {
-        Ok(AutoLocal::new(env.find_class(self)?, env))
+        Ok(env.find_class(self)?.auto())
     }
 }
 

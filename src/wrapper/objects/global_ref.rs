@@ -3,7 +3,7 @@ use std::ops::Deref;
 use jni_sys::jobject;
 use log::{debug, warn};
 
-use crate::{errors::Result, objects::JObject, sys, JNIEnv, JNIVersion, JavaVM};
+use crate::{env::JNIEnv, errors::Result, objects::JObject, sys, JavaVM};
 
 #[cfg(doc)]
 use crate::objects::WeakRef;
@@ -176,16 +176,14 @@ where
     /// Note: It's more likely that you want to look at the [`JNIEnv::new_global_ref`] API instead
     /// of this, since you can't get `'static` reference types through safe APIs.
     ///
-    /// The [`JNIEnv`] reference here serves as proof that the current thread is attached, and
-    /// lets us ensure that [`JavaVM::singleton()`] is initialized, which is required by the `Drop`
+    /// The [`JNIEnv`] reference here serves as proof that the current thread is attached, which
+    /// implies [`JavaVM::singleton()`] is initialized, which is required by the `Drop`
     /// implementation.
     ///
     /// # Safety
     ///
     /// If the given reference is non-null, it must represent a global JNI reference.
-    pub unsafe fn new(env: &JNIEnv, obj: T) -> Self {
-        // Guarantee that the `JavaVM::singleton()` is initialized for the `Drop` implementation
-        let _vm = env.get_java_vm();
+    pub unsafe fn new(_env: &JNIEnv, obj: T) -> Self {
         Self { obj }
     }
 
@@ -266,28 +264,23 @@ where
         // It's redundant to explicitly call DeleteGlobalRef with a null pointer and we don't
         // assume that a JavaVM has been initialized if we only wrap a 'static null pointer
         if !obj.is_null() {
-            let drop_impl = |env: &JNIEnv, raw: sys::jobject| -> Result<()> {
-                // Safety: This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
-                unsafe {
-                    jni_call_unchecked!(env, v1_1, DeleteGlobalRef, raw);
-                }
-                Ok(())
-            };
-
             // Panic: If we have a non-null reference, we know JavaVM::singleton() must have been
             // initialized (and can't return an error) because ::new() takes a JNIEnv reference.
             let vm = JavaVM::singleton().expect("JavaVM singleton uninitialized");
-
-            // Safety: we can assume we couldn't have created the global reference in the first place without
-            // having already required the JavaVM to support JNI >= 1.4
-            let res = match unsafe { vm.get_env(JNIVersion::V1_4) } {
-                Ok(env) => drop_impl(&env, obj.as_raw()),
-                Err(_) => {
-                    warn!("A JNI global reference was dropped on a thread that is not attached. This will cause a performance problem if it happens frequently. For more information, see the documentation for `jni::objects::GlobalRef`.");
-                    vm.attach_current_thread()
-                        .and_then(|env| drop_impl(&env, obj.as_raw()))
-                }
-            };
+            let res = vm.attach_current_thread_for_scope(
+                |env| -> Result<()> {
+                    // If the JNIEnv is borrowing from an AttachGuard that owns the current thread
+                    // attachment that means the thread was not already attached
+                    if env.guard().owns_attachment() {
+                        warn!("A JNI global reference was dropped on a thread that is not attached. This will cause a performance problem if it happens frequently. For more information, see the documentation for `jni::objects::GlobalRef`.");
+                    }
+                    // Safety: This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
+                    unsafe {
+                        jni_call_unchecked!(env, v1_1, DeleteGlobalRef, obj.as_raw());
+                    }
+                    Ok(())
+                },
+            );
 
             if let Err(err) = res {
                 debug!("error dropping global ref: {:#?}", err);

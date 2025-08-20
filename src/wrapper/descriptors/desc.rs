@@ -1,7 +1,7 @@
 use crate::{
+    env::JNIEnv,
     errors::*,
     objects::{AutoLocal, JObject},
-    JNIEnv,
 };
 
 #[cfg(doc)]
@@ -31,7 +31,7 @@ pub unsafe trait Desc<'local, T> {
     /// necessary to use turbofish syntax when calling this method:
     ///
     /// ```rust,no_run
-    /// # use jni::{descriptors::Desc, errors::Result, JNIEnv, objects::JClass};
+    /// # use jni::{descriptors::Desc, errors::Result, env::JNIEnv, objects::JClass};
     /// #
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
     /// // The value returned by `lookup` is not exactly `JClass`.
@@ -53,7 +53,7 @@ pub unsafe trait Desc<'local, T> {
     /// For example, don't do this:
     ///
     /// ```rust,no_run
-    /// # use jni::{descriptors::Desc, errors::Result, JNIEnv, objects::JClass};
+    /// # use jni::{descriptors::Desc, errors::Result, env::JNIEnv, objects::JClass};
     /// #
     /// # fn some_function<T>(ptr: *mut T) {}
     /// #
@@ -68,7 +68,7 @@ pub unsafe trait Desc<'local, T> {
     /// Instead, do this:
     ///
     /// ```rust,no_run
-    /// # use jni::{descriptors::Desc, errors::Result, JNIEnv, objects::JClass};
+    /// # use jni::{descriptors::Desc, errors::Result, env::JNIEnv, objects::JClass};
     /// #
     /// # fn some_function<T>(ptr: *mut T) {}
     /// #
