@@ -6,7 +6,7 @@ use jni::{
     errors::*,
     objects::{GlobalRef, JObject, JValue},
     sys::jint,
-    Executor, JNIEnv, JavaVM,
+    JavaVM, DEFAULT_LOCAL_FRAME_CAPACITY,
 };
 
 /// A test example of a native-to-JNI proxy
@@ -28,33 +28,33 @@ pub struct AtomicIntegerProxyInner {
 
 impl AtomicIntegerProxy {
     /// Creates a new instance of `AtomicIntegerProxy`
-    pub fn new(exec: Executor, init_value: jint) -> Result<Self> {
-        let obj = exec.with_attached(|env: &mut JNIEnv| {
-            let i = env.new_object(
-                "java/util/concurrent/atomic/AtomicInteger",
-                "(I)V",
-                &[JValue::from(init_value)],
-            )?;
-            env.new_global_ref(i)
-        })?;
-        Ok(AtomicIntegerProxy {
-            inner: Arc::new(AtomicIntegerProxyInner { obj }),
+    pub fn new(vm: Arc<JavaVM>, init_value: jint) -> Result<Self> {
+        vm.attach_current_thread(|env| -> Result<Self> {
+            let obj = env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
+                let i = env.new_object(
+                    "java/util/concurrent/atomic/AtomicInteger",
+                    "(I)V",
+                    &[JValue::from(init_value)],
+                )?;
+                env.new_global_ref(i)
+            })?;
+            Ok(AtomicIntegerProxy {
+                inner: Arc::new(AtomicIntegerProxyInner { obj }),
+            })
         })
     }
 
     /// Gets a current value from java object
     pub fn get(&mut self) -> Result<jint> {
         let vm = JavaVM::singleton()?;
-        let mut env = vm.attach_current_thread()?;
-        env.with_local_frame(10, |env| env.call_method(&self.obj, "get", "()I", &[])?.i())
+        vm.attach_current_thread(|env| env.call_method(&*self.obj, "get", "()I", &[])?.i())
     }
 
     /// Increments a value of java object and then gets it
     pub fn increment_and_get(&mut self) -> Result<jint> {
         let vm = JavaVM::singleton()?;
-        let mut env = vm.attach_current_thread()?;
-        env.with_local_frame(10, |env| {
-            env.call_method(&self.obj, "incrementAndGet", "()I", &[])?
+        vm.attach_current_thread(|env| {
+            env.call_method(&*self.obj, "incrementAndGet", "()I", &[])?
                 .i()
         })
     }
@@ -62,10 +62,9 @@ impl AtomicIntegerProxy {
     /// Adds some value to the value of java object and then gets a resulting value
     pub fn add_and_get(&mut self, delta: jint) -> Result<jint> {
         let vm = JavaVM::singleton()?;
-        let mut env = vm.attach_current_thread()?;
-        env.with_local_frame(10, |env| {
+        vm.attach_current_thread(|env| {
             let delta = JValue::from(delta);
-            env.call_method(&self.obj, "addAndGet", "(I)I", &[delta])?
+            env.call_method(&*self.obj, "addAndGet", "(I)I", &[delta])?
                 .i()
         })
     }

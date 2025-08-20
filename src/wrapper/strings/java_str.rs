@@ -1,9 +1,9 @@
 use jni_sys::{jboolean, JNI_TRUE};
-use std::{borrow::Cow, os::raw::c_char};
+use std::{borrow::Cow, marker::PhantomData, os::raw::c_char};
 
 use log::warn;
 
-use crate::{errors::*, objects::JString, strings::JNIStr, JNIEnv};
+use crate::{env::JNIEnv, errors::*, objects::JString, strings::JNIStr, JavaVM};
 
 #[cfg(doc)]
 use crate::strings::JNIString;
@@ -33,7 +33,7 @@ use crate::strings::JNIString;
 pub struct JavaStr<'local, 'other_local: 'obj_ref, 'obj_ref> {
     internal: *const c_char,
     obj: &'obj_ref JString<'other_local>,
-    env: JNIEnv<'local>,
+    _lifetime: PhantomData<&'local ()>,
 }
 
 impl<'local, 'other_local: 'obj_ref, 'obj_ref> JavaStr<'local, 'other_local, 'obj_ref> {
@@ -88,16 +88,20 @@ impl<'local, 'other_local: 'obj_ref, 'obj_ref> JavaStr<'local, 'other_local, 'ob
     /// The caller must guarantee that [Self::internal] was constructed from a valid pointer obtained from [Self::get_string_utf_chars]
     unsafe fn release_string_utf_chars(&mut self) -> Result<()> {
         let obj = null_check!(self.obj, "release_string_utf_chars obj argument")?;
-        // This method is safe to call in case of pending exceptions (see the chapter 2 of the spec)
-        jni_call_unchecked!(
-            self.env,
-            v1_1,
-            ReleaseStringUTFChars,
-            obj.as_raw(),
-            self.internal
-        );
+        // Panic: Since we can't construct a `JavaStr` without a valid `JNIEnv` reference we know
+        // `JavaVM::singleton()` must be initialized and won't panic.
+        JavaVM::singleton()?.with_env_current_frame(|env| {
+            // This method is safe to call in case of pending exceptions (see the chapter 2 of the spec)
+            jni_call_unchecked!(
+                env,
+                v1_1,
+                ReleaseStringUTFChars,
+                obj.as_raw(),
+                self.internal
+            );
 
-        Ok(())
+            Ok(())
+        })
     }
 
     pub(crate) unsafe fn from_env_totally_unchecked(
@@ -130,18 +134,7 @@ impl<'local, 'other_local: 'obj_ref, 'obj_ref> JavaStr<'local, 'other_local, 'ob
     /// [`JavaStr::from_raw`] and then dropping it, or by passing the pointer
     /// to the JNI function `ReleaseStringUTFChars`.
     pub fn into_raw(self) -> *const c_char {
-        let mut _dont_call_drop = std::mem::ManuallyDrop::new(self);
-
-        // Drop the `JNIEnv` in place. As of this writing, that's a no-op, but if `JNIEnv`
-        // gains any drop code in the future, this will run it.
-        //
-        // Safety: The `&mut` proves that `self.env` is valid and not aliased. It is not
-        // accessed again after this point. Because `self` has been moved into `ManuallyDrop`,
-        // the `JNIEnv` will not be dropped twice.
-        unsafe {
-            std::ptr::drop_in_place(&mut _dont_call_drop.env);
-        }
-
+        let _dont_call_drop = std::mem::ManuallyDrop::new(self);
         _dont_call_drop.internal
     }
 
@@ -164,7 +157,7 @@ impl<'local, 'other_local: 'obj_ref, 'obj_ref> JavaStr<'local, 'other_local, 'ob
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{errors::Result, JNIEnv, strings::JavaStr};
+    /// # use jni::{errors::Result, env::JNIEnv, strings::JavaStr};
     /// #
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
     /// let jstring = env.new_string("foo")?;
@@ -177,17 +170,14 @@ impl<'local, 'other_local: 'obj_ref, 'obj_ref> JavaStr<'local, 'other_local, 'ob
     /// # }
     /// ```
     pub unsafe fn from_raw(
-        env: &JNIEnv<'local>,
+        _env: &JNIEnv<'local>,
         obj: &'obj_ref JString<'other_local>,
         ptr: *const c_char,
     ) -> Self {
         Self {
             internal: ptr,
             obj,
-
-            // Safety: The cloned `JNIEnv` will not be used to create any local references, only to
-            // release `ptr`.
-            env: env.unsafe_clone(),
+            _lifetime: PhantomData,
         }
     }
 }

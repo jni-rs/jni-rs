@@ -1,7 +1,9 @@
 use crate::{
-    objects::{JObject, JObjectRef},
+    objects::JObject,
     sys::{jclass, jobject},
 };
+
+use super::JObjectRef;
 
 /// Lifetime'd representation of a `jclass`. Just a `JObject` wrapped in a new
 /// class.
