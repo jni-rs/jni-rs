@@ -6,7 +6,7 @@ use std::{
 };
 
 use jni::{
-    objects::{AutoLocal, JObject, JValue, WeakRef},
+    objects::{IntoAutoLocal as _, JObject, JValue, WeakRef},
     sys::jint,
     JNIEnv,
 };
@@ -21,17 +21,15 @@ pub fn weak_ref_works_in_other_threads() {
     let mut env = attach_current_thread();
     let mut join_handlers = Vec::new();
 
-    let atomic_integer_local = AutoLocal::new(
-        unwrap(
-            env.new_object(
-                "java/util/concurrent/atomic/AtomicInteger",
-                "(I)V",
-                &[JValue::from(0)],
-            ),
-            &env,
+    let atomic_integer_local = unwrap(
+        env.new_object(
+            "java/util/concurrent/atomic/AtomicInteger",
+            "(I)V",
+            &[JValue::from(0)],
         ),
         &env,
-    );
+    )
+    .auto();
     let atomic_integer_weak = unwrap(env.new_weak_ref(&atomic_integer_local), &env);
 
     static ATOMIC_INT: OnceLock<WeakRef<JObject<'static>>> = OnceLock::new();
@@ -49,9 +47,9 @@ pub fn weak_ref_works_in_other_threads() {
                 let mut env = attach_current_thread();
                 barrier.wait();
                 for _ in 0..ITERS_PER_THREAD {
-                    let atomic_local = unwrap(atomic_integer.upgrade_local(&mut env), &env)
-                        .expect("AtomicInteger shouldn't have been GC'd yet");
-                    let atomic_integer = env.auto_local(atomic_local);
+                    let atomic_integer = unwrap(atomic_integer.upgrade_local(&mut env), &env)
+                        .expect("AtomicInteger shouldn't have been GC'd yet")
+                        .auto();
                     unwrap(
                         unwrap(
                             env.call_method(&atomic_integer, "incrementAndGet", "()I", &[]),

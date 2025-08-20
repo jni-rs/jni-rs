@@ -9,7 +9,7 @@ use std::{
     time::Duration,
 };
 
-use jni::{objects::AutoLocal, sys::jint, Executor};
+use jni::{objects::IntoAutoLocal as _, sys::jint, Executor};
 
 use rusty_fork::rusty_fork_test;
 
@@ -113,7 +113,7 @@ fn test_destroy() {
 
             println!("use before destroy...");
             // Make some token JNI call
-            let _class = AutoLocal::new(env.find_class(MATH_CLASS).unwrap(), &env);
+            let _class = env.find_class(MATH_CLASS).unwrap().auto();
 
             atomic.fetch_add(1, Ordering::SeqCst);
 
@@ -157,7 +157,7 @@ fn test_destroy() {
 
                 println!("daemon JVM use before destroy...");
 
-                let _class = AutoLocal::new(env.find_class(MATH_CLASS).unwrap(), &env);
+                let _class = env.find_class(MATH_CLASS).unwrap().auto();
             }
 
             // For it to be safe to call `JavaVM::destroy()` we need to ensure that

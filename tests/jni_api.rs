@@ -7,7 +7,7 @@ use jni::{
     descriptors::Desc,
     errors::{CharToJavaError, Error},
     objects::{
-        AutoElements, AutoLocal, JByteBuffer, JList, JObject, JString, JThrowable, JValue,
+        AutoElements, IntoAutoLocal as _, JByteBuffer, JList, JObject, JString, JThrowable, JValue,
         ReleaseMode, WeakRef,
     },
     signature::{JavaType, Primitive, ReturnType},
@@ -37,16 +37,13 @@ static TESTING_OBJECT_STR: &str = "TESTING OBJECT";
 pub fn call_method_returning_null() {
     let mut env = attach_current_thread();
     // Create an Exception with no message
-    let obj = AutoLocal::new(
-        unwrap(env.new_object(EXCEPTION_CLASS, "()V", &[]), &env),
-        &env,
-    );
+    let obj = unwrap(env.new_object(EXCEPTION_CLASS, "()V", &[]), &env).auto();
     // Call Throwable#getMessage must return null
     let message = unwrap(
         env.call_method(&obj, "getMessage", "()Ljava/lang/String;", &[]),
         &env,
     );
-    let message_ref = env.auto_local(unwrap(message.l(), &env));
+    let message_ref = unwrap(message.l(), &env).auto();
 
     assert!(message_ref.is_null());
 }
@@ -54,30 +51,21 @@ pub fn call_method_returning_null() {
 #[test]
 pub fn is_instance_of_same_class() {
     let mut env = attach_current_thread();
-    let obj = AutoLocal::new(
-        unwrap(env.new_object(EXCEPTION_CLASS, "()V", &[]), &env),
-        &env,
-    );
+    let obj = unwrap(env.new_object(EXCEPTION_CLASS, "()V", &[]), &env).auto();
     assert!(unwrap(env.is_instance_of(&obj, EXCEPTION_CLASS), &env));
 }
 
 #[test]
 pub fn is_instance_of_superclass() {
     let mut env = attach_current_thread();
-    let obj = AutoLocal::new(
-        unwrap(env.new_object(ARITHMETIC_EXCEPTION_CLASS, "()V", &[]), &env),
-        &env,
-    );
+    let obj = unwrap(env.new_object(ARITHMETIC_EXCEPTION_CLASS, "()V", &[]), &env).auto();
     assert!(unwrap(env.is_instance_of(&obj, EXCEPTION_CLASS), &env));
 }
 
 #[test]
 pub fn is_instance_of_subclass() {
     let mut env = attach_current_thread();
-    let obj = AutoLocal::new(
-        unwrap(env.new_object(EXCEPTION_CLASS, "()V", &[]), &env),
-        &env,
-    );
+    let obj = unwrap(env.new_object(EXCEPTION_CLASS, "()V", &[]), &env).auto();
     assert!(!unwrap(
         env.is_instance_of(&obj, ARITHMETIC_EXCEPTION_CLASS),
         &env,
@@ -87,10 +75,7 @@ pub fn is_instance_of_subclass() {
 #[test]
 pub fn is_instance_of_not_superclass() {
     let mut env = attach_current_thread();
-    let obj = AutoLocal::new(
-        unwrap(env.new_object(ARITHMETIC_EXCEPTION_CLASS, "()V", &[]), &env),
-        &env,
-    );
+    let obj = unwrap(env.new_object(ARITHMETIC_EXCEPTION_CLASS, "()V", &[]), &env).auto();
     assert!(!unwrap(env.is_instance_of(&obj, ARRAYLIST_CLASS), &env));
 }
 
@@ -477,11 +462,10 @@ pub fn call_static_method_with_bad_args_errs() {
 pub fn java_byte_array_from_slice() {
     let env = attach_current_thread();
     let buf: &[u8] = &[1, 2, 3];
-    let java_array = AutoLocal::new(
-        env.byte_array_from_slice(buf)
-            .expect("JNIEnv#byte_array_from_slice must create a java array from slice"),
-        &env,
-    );
+    let java_array = env
+        .byte_array_from_slice(buf)
+        .expect("JNIEnv#byte_array_from_slice must create a java array from slice")
+        .auto();
 
     assert!(!java_array.is_null());
     let mut res: [i8; 3] = [0; 3];
@@ -1008,10 +992,9 @@ fn new_weak_ref_null() {
 
 #[test]
 fn auto_local_null() {
-    let env = attach_current_thread();
     let null_obj = JObject::null();
     {
-        let auto_ref = AutoLocal::new(null_obj, &env);
+        let auto_ref = null_obj.auto();
         assert!(auto_ref.is_null());
     }
 }
@@ -1157,8 +1140,7 @@ pub fn test_conversion() {
         unwrap(weak_ref.upgrade_local(&mut env), &env).expect("weak ref should not have been GC'd");
     assert!(env.is_same_object(&orig_obj, actual));
 
-    let obj: JObject = unwrap(env.new_local_ref(&orig_obj), &env);
-    let auto_local = env.auto_local(obj);
+    let auto_local = unwrap(env.new_local_ref(&orig_obj), &env).auto();
     assert!(env.is_same_object(&orig_obj, auto_local));
 }
 
@@ -1175,8 +1157,7 @@ pub fn test_invalid_list_get_string() {
     let mut env = attach_current_thread();
 
     let class = env.find_class("java/util/List").unwrap();
-    let class = JString::from(JObject::from(class));
-    let class = env.auto_local(class);
+    let class = JString::from(JObject::from(class)).auto();
 
     let ret = env.get_string(&class);
     assert!(ret.is_err());

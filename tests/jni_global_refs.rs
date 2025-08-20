@@ -6,7 +6,7 @@ use std::{
 };
 
 use jni::{
-    objects::{AutoLocal, GlobalRef, JObject, JValue},
+    objects::{GlobalRef, IntoAutoLocal as _, JObject, JValue},
     sys::jint,
 };
 
@@ -21,17 +21,15 @@ pub fn global_ref_works_in_other_threads() {
     let mut join_handlers = Vec::new();
 
     let atomic_integer = {
-        let local_ref = AutoLocal::new(
-            unwrap(
-                env.new_object(
-                    "java/util/concurrent/atomic/AtomicInteger",
-                    "(I)V",
-                    &[JValue::from(0)],
-                ),
-                &env,
+        let local_ref = unwrap(
+            env.new_object(
+                "java/util/concurrent/atomic/AtomicInteger",
+                "(I)V",
+                &[JValue::from(0)],
             ),
             &env,
-        );
+        )
+        .auto();
         unwrap(env.new_global_ref(&local_ref), &env)
     };
 

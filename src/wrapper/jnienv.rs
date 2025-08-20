@@ -15,9 +15,9 @@ use crate::{
     descriptors::Desc,
     errors::*,
     objects::{
-        AutoElements, AutoElementsCritical, AutoLocal, GlobalRef, JByteBuffer, JClass, JFieldID,
-        JList, JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID, JString, JThrowable,
-        JValue, JValueOwned, ReleaseMode, TypeArray, WeakRef,
+        AutoElements, AutoElementsCritical, AutoLocal, GlobalRef, IntoAutoLocal as _, JByteBuffer,
+        JClass, JFieldID, JList, JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID,
+        JString, JThrowable, JValue, JValueOwned, ReleaseMode, TypeArray, WeakRef,
     },
     signature::{JavaType, Primitive, TypeSignature},
     strings::{JNIStr, JNIString, JavaStr},
@@ -992,11 +992,12 @@ impl<'local> JNIEnv<'local> {
     /// can be more convenient when you create a _bounded_ number of local references
     /// but cannot rely on automatic de-allocation (e.g., in case of recursion, deep call stacks,
     /// [permanently-attached](struct.JavaVM.html#attaching-native-threads) native threads, etc.).
+    #[deprecated = "Use '.auto()' from IntoAutoLocal trait"]
     pub fn auto_local<O>(&self, obj: O) -> AutoLocal<'local, O>
     where
         O: Into<JObject<'local>>,
     {
-        AutoLocal::new(obj, self)
+        AutoLocal::new(obj)
     }
 
     /// Deletes the local reference.
@@ -1665,8 +1666,7 @@ impl<'local> JNIEnv<'local> {
             return Err(Error::InvalidArgList(parsed));
         }
 
-        let class = self.get_object_class(obj)?;
-        let class = self.auto_local(class);
+        let class = self.get_object_class(obj)?.auto();
 
         let args: Vec<jvalue> = args.iter().map(|v| v.as_jni()).collect();
 
@@ -2720,8 +2720,7 @@ impl<'local> JNIEnv<'local> {
         T: Into<JNIString> + AsRef<str>,
     {
         let obj = obj.as_ref();
-        let class = self.get_object_class(obj)?;
-        let class = self.auto_local(class);
+        let class = self.get_object_class(obj)?.auto();
 
         let parsed = ReturnType::from_str(ty.as_ref())?;
 
@@ -2761,8 +2760,7 @@ impl<'local> JNIEnv<'local> {
                 "cannot set field with method type",
             )),
             _ => {
-                let class = self.get_object_class(obj)?;
-                let class = self.auto_local(class);
+                let class = self.get_object_class(obj)?.auto();
 
                 // Safety: We have explicitly checked that the field type matches
                 // the value type
@@ -2925,8 +2923,7 @@ impl<'local> JNIEnv<'local> {
         // other local reference for the class.
         let mut env = unsafe { self.unsafe_clone() };
         let obj = obj.as_ref();
-        let class = env.get_object_class(obj)?;
-        let class = self.auto_local(class);
+        let class = env.get_object_class(obj)?.auto();
         let field_id: JFieldID = Desc::<JFieldID>::lookup((&class, &field, "J"), &mut env)?;
         let guard = self.lock_obj(obj)?;
         Ok((guard, field_id))
