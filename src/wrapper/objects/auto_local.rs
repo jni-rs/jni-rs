@@ -193,6 +193,15 @@ pub trait IntoAutoLocal<'local>: Sized + Into<JObject<'local>> {
 
 impl<'local, T> IntoAutoLocal<'local> for T where T: Into<JObject<'local>> {}
 
+impl<'local, T> From<T> for AutoLocal<'local, T>
+where
+    T: Into<JObject<'local>>,
+{
+    fn from(value: T) -> Self {
+        AutoLocal::new(value)
+    }
+}
+
 impl<'local, T> JObjectRef for AutoLocal<'local, T>
 where
     T: JObjectRef + Into<JObject<'local>>,
