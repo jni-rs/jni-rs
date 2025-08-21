@@ -35,12 +35,8 @@ pub enum Error {
     JNIEnvMethodNotFound(&'static str),
     #[error("Null pointer in {0}")]
     NullPtr(&'static str),
-    #[error("Null pointer deref in {0}")]
-    NullDeref(&'static str),
     #[error("Mutex already locked")]
     TryLock,
-    #[error("JavaVM null method pointer for {0}")]
-    JavaVMMethodNotFound(&'static str),
     #[error("Field already set: {0}")]
     FieldAlreadySet(String),
     #[error("Throw failed with error code {0}")]
