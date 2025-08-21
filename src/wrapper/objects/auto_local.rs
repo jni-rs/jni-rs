@@ -1,9 +1,4 @@
-use std::{
-    marker::PhantomData,
-    mem::ManuallyDrop,
-    ops::{Deref, DerefMut},
-    ptr,
-};
+use std::{marker::PhantomData, mem::ManuallyDrop, ops::Deref, ptr};
 
 use jni_sys::jobject;
 
@@ -176,16 +171,6 @@ where
     }
 }
 
-// XXX: why do we implement AsMut for auto locals?
-impl<'local, T, U> AsMut<U> for AutoLocal<'local, T>
-where
-    T: AsMut<U> + Into<JObject<'local>>,
-{
-    fn as_mut(&mut self) -> &mut U {
-        self.obj.as_mut()
-    }
-}
-
 impl<'local, T> Deref for AutoLocal<'local, T>
 where
     T: Into<JObject<'local>>,
@@ -194,16 +179,6 @@ where
 
     fn deref(&self) -> &Self::Target {
         &self.obj
-    }
-}
-
-// XXX: why do we implement DerefMut for auto locals?
-impl<'local, T> DerefMut for AutoLocal<'local, T>
-where
-    T: Into<JObject<'local>>,
-{
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.obj
     }
 }
 
