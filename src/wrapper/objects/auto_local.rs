@@ -147,20 +147,34 @@ where
         // and since they can also have a `'static` lifetime then we can't assume
         // the current thread is attached when dropping null references.
         if !obj.is_null() {
+            let Ok(vm) = JavaVM::singleton() else {
+                // Since we wrap a non-null reference with a lifetime associated with a JNI stack
+                // frame we can (mostly) assume that JavaVM::singleton() must have been initialized
+                // in order to get a JNIEnv reference.
+                //
+                // The only (remote) exception to this is that the reference came from a native
+                // method argument and for some reason an AutoLocal wrapper was created before an
+                // AttachGuard was created to access a JNIEnv reference (which would initialize the
+                // JavaVM singleton).
+                //
+                // This would be a redundant thing to try, but just to err on the side of caution we
+                // avoid panicking here and only log an error.
+                log::error!("Failed to drop AutoLocal: No JavaVM initialized");
+                // In this unlikely case it should be fine to return early, since it would be
+                // redundant to explicitly delete the local reference of a native method argument.
+                return;
+            };
+
             // Panic:
             //
-            // Since we can't construct `AutoLocal` without a valid `JNIEnv` reference we know we
-            // can call `JavaVM::singleton()` without a panic.
-            //
-            // Since we have a non-null local reference associated with a JNIEnv lifetime we also
-            // know that the thread is attached and so `with_env_current_frame` can't return a
-            // `ThreadDetached` error.
-            JavaVM::singleton()
-                .with_env_current_frame(|env| -> errors::Result<()> {
-                    env.delete_local_ref(obj);
-                    Ok(())
-                })
-                .expect("Infallible"); // The closure is infallible
+            // Since we have a non-null local reference associated with a JNI stack frame lifetime
+            // we also know that the thread is attached and so `with_env_current_frame` can't return
+            // a `ThreadDetached` error.
+            vm.with_env_current_frame(|env| -> errors::Result<()> {
+                env.delete_local_ref(obj);
+                Ok(())
+            })
+            .expect("Infallible"); // The closure is infallible
         }
     }
 }

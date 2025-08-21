@@ -90,7 +90,7 @@ impl<'local, 'other_local: 'obj_ref, 'obj_ref> JavaStr<'local, 'other_local, 'ob
         let obj = null_check!(self.obj, "release_string_utf_chars obj argument")?;
         // Panic: Since we can't construct a `JavaStr` without a valid `JNIEnv` reference we know
         // `JavaVM::singleton()` must be initialized and won't panic.
-        JavaVM::singleton().with_env_current_frame(|env| {
+        JavaVM::singleton()?.with_env_current_frame(|env| {
             // This method is safe to call in case of pending exceptions (see the chapter 2 of the spec)
             jni_call_unchecked!(
                 env,

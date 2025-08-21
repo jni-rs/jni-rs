@@ -178,7 +178,7 @@ impl<'local, 'other_local, 'array, T: TypeArray> AutoElements<'local, 'other_loc
     unsafe fn release_array_elements(&mut self, mode: i32) -> Result<()> {
         // Panic: Since we can't construct `AutoElements` without a valid `JNIEnv` reference
         // we know we can call `JavaVM::singleton()` without a panic.
-        JavaVM::singleton()
+        JavaVM::singleton()?
             .with_env_current_frame(|env| T::release(env, self.array.as_raw(), self.ptr, mode))
     }
 

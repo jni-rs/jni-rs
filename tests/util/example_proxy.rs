@@ -46,13 +46,13 @@ impl AtomicIntegerProxy {
 
     /// Gets a current value from java object
     pub fn get(&mut self) -> Result<jint> {
-        let vm = JavaVM::singleton();
+        let vm = JavaVM::singleton()?;
         vm.attach_current_thread(|env| env.call_method(&*self.obj, "get", "()I", &[])?.i())
     }
 
     /// Increments a value of java object and then gets it
     pub fn increment_and_get(&mut self) -> Result<jint> {
-        let vm = JavaVM::singleton();
+        let vm = JavaVM::singleton()?;
         vm.attach_current_thread(|env| {
             env.call_method(&*self.obj, "incrementAndGet", "()I", &[])?
                 .i()
@@ -61,7 +61,7 @@ impl AtomicIntegerProxy {
 
     /// Adds some value to the value of java object and then gets a resulting value
     pub fn add_and_get(&mut self, delta: jint) -> Result<jint> {
-        let vm = JavaVM::singleton();
+        let vm = JavaVM::singleton()?;
         vm.attach_current_thread(|env| {
             let delta = JValue::from(delta);
             env.call_method(&*self.obj, "addAndGet", "(I)I", &[delta])?

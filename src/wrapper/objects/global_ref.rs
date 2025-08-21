@@ -265,9 +265,10 @@ where
         // assume that a JavaVM has been initialized if we only wrap a 'static null pointer
         if !obj.is_null() {
             // Panic:
-            // JavaVM::singleton() is OK because we know that a JavaVM must have been initialized
-            // to create a (non-null) GlobalRef.
-            let res = JavaVM::singleton().attach_current_thread_for_scope(
+            // JavaVM::singleton() can't return an error because we know that a JavaVM must have
+            // been initialized to create a (non-null) GlobalRef (GlobalRef::new takes a JNIEnv
+            // reference).
+            let res = JavaVM::singleton().expect("JavaVM singleton uninitialized").attach_current_thread_for_scope(
                 |env| -> Result<()> {
                     // If the JNIEnv is borrowing from an AttachGuard that owns the current thread
                     // attachment that means the thread was not already attached

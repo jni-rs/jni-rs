@@ -205,6 +205,8 @@ impl JavaVM {
 
     /// Get a [`JavaVM`] for the global Java VM
     ///
+    /// If no [`JavaVM`] has been initialized, this will return [`Error::UninitializedJavaVM`].
+    ///
     /// If a [`JavaVM`] has previously been created, either via [`JavaVM::new()`] or
     /// [`JavaVM::from_raw`] then that [`JavaVM`] will be accessible as a global singleton.
     ///
@@ -233,35 +235,17 @@ impl JavaVM {
     ///   [`env::JNIEnvUnowned::with_env`]) to ensure that panics can't unwind over an FFI boundary
     ///   (at least rendering an early miss-use of `JavaVM::singleton()` "safe").
     ///
-    /// # Panic
-    ///
-    /// This API will `panic` if a [`JavaVM`] has not already been initialized.
-    ///
-    /// You can assume this won't panic if you only use this API after you have seen a [JNIEnv]
-    /// reference. This doesn't mean you need to have a [JNIEnv] reference at the time you call this
-    /// API, but if you have some resource that couldn't have been created without a [JNIEnv] then
-    /// you can infer that a [JavaVM] must have been initialized.
-    ///
-    /// In code that can't assume a [JavaVM] has already been initialized, see
-    /// [JavaVM::try_get_singleton].
-    ///
     /// Note: that other versions of `jni-rs` within the same application aren't able to share this
     /// singleton state. So you should not make assumptions about this being initialized as a side
     /// effect of other dependencies using `jni-rs` (unless you are using a re-exported version of
     /// `jni-rs` from that dependency). For example the `android-activity` crate will initialize a
     /// [JavaVM] before `android_main()` is called, but unless you are using the same version of
     /// `jni-rs` as `android-activity` you can't immediately assume there is a [JavaVM] singleton.
-    pub fn singleton() -> Self {
-        JavaVM::try_get_singleton().expect("No JavaVM found")
-    }
-
-    /// Try and get a [`JavaVM`] for the global Java VM
-    ///
-    /// In case you can't assume that a [JavaVM] has previously been initialized (and call
-    /// [JavaVM::singleton]) then this API lets you get to avoid the risk of a `panic` and query for
-    /// an existing [JavaVM].
-    pub fn try_get_singleton() -> Option<Self> {
-        JAVA_VM_SINGLETON.get().cloned()
+    pub fn singleton() -> Result<Self> {
+        JAVA_VM_SINGLETON
+            .get()
+            .cloned()
+            .ok_or(Error::UninitializedJavaVM)
     }
 
     /// Launch a new JavaVM using the provided init args, loading it from the given shared library file if it's not already loaded.
@@ -740,11 +724,8 @@ impl JavaVM {
         E: From<Error>,
     {
         unsafe {
-            if let Some(mut guard) = Self::tls_get_env_attachment() {
-                guard.with_env_current_frame(f)
-            } else {
-                Err(Error::JniCall(JniError::ThreadDetached))?
-            }
+            let mut guard = self.get_env_attachment()?;
+            guard.with_env_current_frame(f)
         }
     }
 

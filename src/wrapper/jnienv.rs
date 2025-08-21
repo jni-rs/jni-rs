@@ -3096,7 +3096,7 @@ impl<'local> JNIEnv<'local> {
 
         // Panic: The `&self` reference is enough to prove that `JavaVM::singleton` must have been
         // initialized and won't panic.
-        JavaVM::singleton().with_env(|env| {
+        JavaVM::singleton()?.with_env(|env| {
             let obj = obj.as_ref();
             let class = env.get_object_class(obj)?;
             let field_id: JFieldID = Desc::<JFieldID>::lookup((&class, &field, "J"), env)?;
@@ -3164,7 +3164,7 @@ impl<'local> JNIEnv<'local> {
 
         // Panic: The `&self` reference is enough to prove that `JavaVM::singleton` must have been
         // initialized and won't panic.
-        JavaVM::singleton().with_env_current_frame(|env| {
+        JavaVM::singleton()?.with_env_current_frame(|env| {
             // Safety: the requirement that the given field must be a `long` is
             // documented in the 'Safety' section of this function
             unsafe {
@@ -3223,7 +3223,7 @@ impl<'local> JNIEnv<'local> {
 
         // Panic: The `&self` reference is enough to prove that `JavaVM::singleton` must have been
         // initialized and won't panic.
-        JavaVM::singleton().with_env_current_frame(|env| {
+        JavaVM::singleton()?.with_env_current_frame(|env| {
             // Safety: the requirement that the given field must be a `long` is
             // documented in the 'Safety' section of this function
             unsafe {
@@ -3267,7 +3267,7 @@ impl<'local> JNIEnv<'local> {
 
         // Panic: The `&self` reference is enough to prove that `JavaVM::singleton` must have been
         // initialized and won't panic.
-        JavaVM::singleton().with_env_current_frame(|env| {
+        JavaVM::singleton()?.with_env_current_frame(|env| {
             // Safety: the requirement that the given field must be a `long` is
             // documented in the 'Safety' section of this function
             let mbox = unsafe {
@@ -3769,13 +3769,15 @@ impl Drop for MonitorGuard<'_> {
     fn drop(&mut self) {
         // Panics:
         //
-        // The `&self` reference is enough to prove that `JavaVM::singleton` must have been
-        // initialized and won't panic.
+        // The first `.expect()` is OK because the `&self` reference is enough to prove that
+        // `JavaVM::singleton` must have been initialized and won't panic. (A MonitorGuard can only
+        // be created with a JNIEnv reference)
         //
-        // The `.expect()` below is OK because the guard is associated with a JNIEnv lifetime, so it
-        // logically shouldn't be possible for the thread to become detached before the monitor is
-        // dropped.
+        // The second `.expect()` is OK because the guard is associated with a JNIEnv lifetime, so
+        // it logically shouldn't be possible for the thread to become detached before the monitor
+        // is dropped.
         JavaVM::singleton()
+            .expect("JavaVM singleton must be initialized")
             .with_env_current_frame(|env| -> crate::errors::Result<()> {
                 // Safety:
                 //
