@@ -1753,9 +1753,6 @@ impl<'local> JNIEnv<'local> {
             .all(|(exp, act)| match exp {
                 JavaType::Primitive(p) => act.primitive_type() == Some(*p),
                 JavaType::Object(_) | JavaType::Array(_) => act.primitive_type().is_none(),
-                JavaType::Method(_) => {
-                    unreachable!("JavaType::Method(_) should not come from parsing a method sig")
-                }
             });
         if !base_types_match {
             return Err(Error::InvalidArgList(parsed));
@@ -1811,9 +1808,6 @@ impl<'local> JNIEnv<'local> {
             .all(|(exp, act)| match exp {
                 JavaType::Primitive(p) => act.primitive_type() == Some(*p),
                 JavaType::Object(_) | JavaType::Array(_) => act.primitive_type().is_none(),
-                JavaType::Method(_) => {
-                    unreachable!("JavaType::Method(_) should not come from parsing a method sig")
-                }
             });
         if !base_types_match {
             return Err(Error::InvalidArgList(parsed));
@@ -1876,9 +1870,6 @@ impl<'local> JNIEnv<'local> {
             .all(|(exp, act)| match exp {
                 JavaType::Primitive(p) => act.primitive_type() == Some(*p),
                 JavaType::Object(_) | JavaType::Array(_) => act.primitive_type().is_none(),
-                JavaType::Method(_) => {
-                    unreachable!("JavaType::Method(_) should not come from parsing a method sig")
-                }
             });
         if !base_types_match {
             return Err(Error::InvalidArgList(parsed));
@@ -1930,9 +1921,6 @@ impl<'local> JNIEnv<'local> {
                 .all(|(exp, act)| match exp {
                     JavaType::Primitive(p) => act.primitive_type() == Some(*p),
                     JavaType::Object(_) | JavaType::Array(_) => act.primitive_type().is_none(),
-                    JavaType::Method(_) => {
-                        unreachable!("JavaType::Method(_) should not come from parsing a ctor sig")
-                    }
                 });
         if !base_types_match {
             return Err(Error::InvalidArgList(parsed));
@@ -2916,10 +2904,6 @@ impl<'local> JNIEnv<'local> {
             JavaType::Object(_) | JavaType::Array(_) if val_primitive.is_some() => wrong_type,
             JavaType::Primitive(p) if val_primitive != Some(p) => wrong_type,
             JavaType::Primitive(_) if val_primitive.is_none() => wrong_type,
-            JavaType::Method(_) => Err(Error::WrongJValueType(
-                val.type_name(),
-                "cannot set field with method type",
-            )),
             _ => {
                 let class = self.get_object_class(obj)?.auto();
 
@@ -2948,7 +2932,7 @@ impl<'local> JNIEnv<'local> {
         use super::signature::Primitive::{
             Boolean, Byte, Char, Double, Float, Int, Long, Short, Void,
         };
-        use JavaType::{Array, Method, Object, Primitive};
+        use JavaType::{Array, Object, Primitive};
 
         let class = class.lookup(self)?;
         let field = field.lookup(self)?;
@@ -2969,7 +2953,6 @@ impl<'local> JNIEnv<'local> {
 
         let ret = match ty {
             Primitive(Void) => Err(Error::WrongJValueType("void", "see java field")),
-            Method(_) => Err(Error::WrongJValueType("Method", "see java field")),
             Object(_) | Array(_) => {
                 let obj = field!(GetStaticObjectField);
                 let obj = unsafe { JObject::from_raw(obj) };
