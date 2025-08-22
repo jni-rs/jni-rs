@@ -68,6 +68,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - The 'Executor' API has been removed (`AttachGuard::with_env` can be used instead) ([#570](https://github.com/jni-rs/jni-rs/pull/570))
 - `JNIEnv::from_raw`, `JNIEnv::from_raw_unchecked` and `JNIEnv::unsafe_clone` have been removed, since the API no longer exposes the `JNIEnv` type by-value, it must always be borrowed from an `AttachGuard`. ([#570](https://github.com/jni-rs/jni-rs/pull/570))
 - `Error::NullDeref` and `Error::JavaVMMethodNotFound` have been removed since they were unused.
+- `JavaType::Method` was removed since a method signature isn't a type, and all usage was being matched as unreachable or an error.
 
 ### Added
 - New functions for converting Rust `char` to and from Java `char` and `int` ([#427](https://github.com/jni-rs/jni-rs/issues/427) / [#434](https://github.com/jni-rs/jni-rs/pull/434))
