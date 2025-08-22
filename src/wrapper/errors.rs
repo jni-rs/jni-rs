@@ -43,8 +43,8 @@ pub enum Error {
     FieldAlreadySet(String),
     #[error("Throw failed with error code {0}")]
     ThrowFailed(i32),
-    #[error("Parse failed for input: {1}")]
-    ParseFailed(#[source] combine::error::StringStreamError, String),
+    #[error("Parse failed for input: {0}")]
+    ParseFailed(String),
     #[error("JNI call failed")]
     JniCall(#[source] JniError),
 
