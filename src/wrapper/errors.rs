@@ -73,6 +73,12 @@ pub enum Error {
 
     #[error("This Java virtual machine is too old; at least Java 1.4 is required")]
     UnsupportedVersion,
+
+    #[error("The thread can't be detached while AttachGuards exist")]
+    ThreadAttachmentGuarded,
+
+    #[error("Panic caught in JNI code: {0}")]
+    PanicCaught(String),
 }
 
 #[derive(Debug, Error)]
