@@ -1,16 +1,14 @@
-use std::{
-    mem::{self, ManuallyDrop},
-    ops::Deref,
-    ptr,
-    sync::Arc,
-};
+use std::ops::Deref;
 
+use jni_sys::jobject;
 use log::{debug, warn};
 
 use crate::{errors::Result, objects::JObject, sys, JNIEnv, JNIVersion, JavaVM};
 
 #[cfg(doc)]
 use crate::objects::WeakRef;
+
+use super::JObjectRef;
 
 // Note: `GlobalRef` must not implement `Into<JObject>`! If it did, then it would be possible to
 // wrap it in `AutoLocal`, which would cause undefined behavior upon drop as a result of calling
@@ -32,8 +30,7 @@ use crate::objects::WeakRef;
 /// * It takes more time to create or delete a global reference than to create
 ///   or delete a local reference.
 ///
-/// These properties make global references useful in a few specific
-/// situations:
+/// These properties make global references useful in a few specific situations:
 ///
 /// * When you need to keep a reference to the same Java object across multiple
 ///   invocations of a native method, especially if you need a guarantee that
@@ -56,35 +53,15 @@ use crate::objects::WeakRef;
 ///
 /// # Creating and Deleting
 ///
-/// To create a global reference, use the [`JNIEnv::new_global_ref`] method.
-/// To delete it, simply drop the `GlobalRef` (but be sure to do so on an
-/// attached thread if possible; see the warning below).
+/// To create a global reference, use the [`JNIEnv::new_global_ref`] method. To
+/// delete it, simply drop the `GlobalRef` (but be sure to do so on an attached
+/// thread if possible; see the warning below).
 ///
-/// Note that, because global references take more time to create or delete
-/// than local references do, they should only be used when their benefits
-/// outweigh this drawback. Also note that this performance penalty does not
-/// apply to *using* a global reference (such as calling methods on the
-/// underlying Java object), only to creation and deletion of the reference.
-///
-///
-/// # Clone and Drop Behavior
-///
-/// `GlobalRef` implements [`Clone`] using [`Arc`], making it inexpensive and
-/// infallible. If a `GlobalRef` is cloned, the underlying JNI global
-/// reference will only be deleted when the last of the clones is dropped.
-///
-/// It is also possible to create a new JNI global reference from an existing
-/// one. Assuming you have a `JNIEnv` named `env` and a `GlobalRef` named `x`,
-/// use [`JNIEnv::new_global_ref`] like this:
-///
-/// ```no_run
-/// # use jni::{JNIEnv, objects::GlobalRef};
-/// # let mut env: JNIEnv = unimplemented!();
-/// # let x: GlobalRef = unimplemented!();
-/// # let _ =
-/// env.new_global_ref(&x)
-/// # ;
-/// ```
+/// Note that, because global references take more time to create or delete than
+/// local references do, they should only be used when their benefits outweigh
+/// this drawback. Also note that this performance penalty does not apply to
+/// *using* a global reference (such as calling methods on the underlying Java
+/// object), only to creation and deletion of the reference.
 ///
 ///
 /// # Warning: Drop On an Attached Thread If Possible
@@ -92,66 +69,173 @@ use crate::objects::WeakRef;
 /// When a `GlobalRef` is dropped, a JNI call is made to delete the global
 /// reference. If this frequently happens on a thread that is not already
 /// attached to the JVM, the thread will be temporarily attached using
-/// [`JavaVM::attach_current_thread`], causing a severe performance penalty.
+/// [`JavaVM::attach_current_thread_for_scope`], causing a severe performance
+/// penalty.
 ///
-/// To avoid this performance penalty, ensure that `GlobalRef`s are only
-/// dropped on a thread that is already attached (or never dropped at all).
+/// To avoid this performance penalty, ensure that `GlobalRef`s are only dropped
+/// on a thread that is already attached (or never dropped at all).
 ///
 /// In the event that a global reference is dropped on an unattached thread, a
 /// message is [logged][log] at [`log::Level::Warn`].
-
-#[derive(Clone, Debug)]
-pub struct GlobalRef {
-    inner: Arc<GlobalRefGuard>,
-}
-
+#[repr(transparent)]
 #[derive(Debug)]
-struct GlobalRefGuard {
-    obj: JObject<'static>,
-    vm: JavaVM,
+pub struct GlobalRef<T>
+where
+    T: Into<JObject<'static>>
+        + AsRef<JObject<'static>>
+        + Default
+        + JObjectRef
+        + Send
+        + Sync
+        + 'static,
+{
+    obj: T,
 }
 
-impl AsRef<GlobalRef> for GlobalRef {
-    fn as_ref(&self) -> &GlobalRef {
-        self
+unsafe impl<T> Send for GlobalRef<T> where
+    T: Into<JObject<'static>>
+        + AsRef<JObject<'static>>
+        + Default
+        + JObjectRef
+        + Send
+        + Sync
+        + 'static
+{
+}
+
+unsafe impl<T> Sync for GlobalRef<T> where
+    T: Into<JObject<'static>>
+        + AsRef<JObject<'static>>
+        + Default
+        + JObjectRef
+        + Send
+        + Sync
+        + 'static
+{
+}
+
+impl<T> Default for GlobalRef<T>
+where
+    T: Into<JObject<'static>>
+        + AsRef<JObject<'static>>
+        + Default
+        + JObjectRef
+        + Send
+        + Sync
+        + 'static,
+{
+    fn default() -> Self {
+        Self::null()
     }
 }
 
-impl AsRef<JObject<'static>> for GlobalRef {
-    fn as_ref(&self) -> &JObject<'static> {
-        self
+impl<T, U> AsRef<U> for GlobalRef<T>
+where
+    T: AsRef<U>
+        + Into<JObject<'static>>
+        + AsRef<JObject<'static>>
+        + Default
+        + JObjectRef
+        + Send
+        + Sync,
+{
+    fn as_ref(&self) -> &U {
+        self.obj.as_ref()
     }
 }
 
-impl Deref for GlobalRef {
-    type Target = JObject<'static>;
+impl<T> Deref for GlobalRef<T>
+where
+    T: Into<JObject<'static>>
+        + AsRef<JObject<'static>>
+        + Default
+        + JObjectRef
+        + Send
+        + Sync
+        + 'static,
+{
+    type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        &self.inner.obj
+        &self.obj
     }
 }
 
-impl GlobalRef {
-    /// Creates a new wrapper for a global reference.
+impl<T> GlobalRef<T>
+where
+    T: Into<JObject<'static>>
+        + AsRef<JObject<'static>>
+        + Default
+        + JObjectRef
+        + Send
+        + Sync
+        + 'static,
+{
+    /// Creates a new auto-delete wrapper for the `'static` global reference
+    ///
+    /// Note: It's more likely that you want to look at the [`JNIEnv::new_global_ref`] API instead
+    /// of this, since you can't get `'static` reference types through safe APIs.
+    ///
+    /// The [`JNIEnv`] reference here serves as proof that the current thread is attached, and
+    /// lets us ensure that [`JavaVM::singleton()`] is initialized, which is required by the `Drop`
+    /// implementation.
     ///
     /// # Safety
     ///
-    /// Expects a valid raw global reference that should be created with `NewGlobalRef` JNI function.
-    pub(crate) unsafe fn from_raw(vm: JavaVM, raw_global_ref: sys::jobject) -> Self {
-        GlobalRef {
-            inner: Arc::new(GlobalRefGuard::from_raw(vm, raw_global_ref)),
-        }
+    /// If the given reference is non-null, it must represent a global JNI reference.
+    pub unsafe fn new(env: &JNIEnv, obj: T) -> Self {
+        // Guarantee that the `JavaVM::singleton()` is initialized for the `Drop` implementation
+        let _vm = env.get_java_vm();
+        Self { obj }
     }
 
-    /// Unwrap to the internal jni type.
-    /// This will return `None` if more than a single clone of the `GlobalRef` exists.
-    /// This is useful when you manage the lifetime of the `GlobalRef` yourself.
-    pub fn try_into_raw(self) -> std::result::Result<sys::jobject, Arc<Self>> {
-        let inner = Arc::try_unwrap(self.inner).map_err(|inner| Self { inner })?;
-        let no_drop = ManuallyDrop::new(inner);
-        let ptr = unsafe { ptr::read(&no_drop.obj) };
-        let _vm = unsafe { ptr::read(&no_drop.vm) };
-        Ok(ptr.into_raw())
+    /// Creates a [`GlobalRef`] wrapper for a `null` reference
+    ///
+    /// This is equivalent [`GlobalRef::default()`]
+    pub fn null() -> Self {
+        Self { obj: T::default() }
+    }
+
+    /// Unwrap the RAII, auto-delete wrapper, returning the original global
+    /// reference.
+    ///
+    /// This prevents the global reference from being automatically deleted when
+    /// this guard is dropped.
+    ///
+    /// # Leaking References
+    ///
+    /// When unwrapping a [`GlobalRef`] you should consider how else you will
+    /// ensure that the reference will get deleted.
+    ///
+    /// The global reference may end leaking unless a new [`GlobalRef`] wrapper
+    /// is create later, or you find some way to call the JNI `DeleteGlobalRef`
+    /// API on the raw reference.
+    ///
+    /// # Safety
+    ///
+    /// The unwrapped reference type must not be treated like a local reference
+    /// which may be difficult to guarantee since Rust doesn't support negative
+    /// lifetime bounds for trait implementations.
+    ///
+    /// For example the returned type will implement `Into<JObject>` which means
+    /// it could be wrapped by `AutoLocal`, which would lead to undefined behavior.
+    ///
+    /// Reference types with a `'static` lifetime are an unsafe liability that
+    /// should not be exposed by-value in the public API because they will implement
+    /// `Into<JObject>` and may be treated like local references.
+    pub(crate) unsafe fn unwrap(mut self) -> T {
+        let obj = std::mem::take(&mut self.obj); // Leave a `Default/null`` reference in self.obj that doesn't need to be deleted
+        std::mem::forget(self); // Skip redundant Drop for `Default/null` reference
+        obj
+    }
+
+    /// Unwrap to the internal global reference
+    pub fn into_raw(self) -> sys::jobject {
+        // Safety: there's no chance ot treating `obj` as a local reference
+        // since it's also immediately unwrapped
+        let obj = unsafe { self.unwrap() };
+        let obj: JObject = obj.into();
+        obj.into_raw()
     }
 
     /// Borrows a `JObject` referring to the same Java object as this
@@ -166,43 +250,80 @@ impl GlobalRef {
     }
 }
 
-impl GlobalRefGuard {
-    /// Creates a new global reference guard. This assumes that `NewGlobalRef`
-    /// has already been called.
-    const unsafe fn from_raw(vm: JavaVM, obj: sys::jobject) -> Self {
-        GlobalRefGuard {
-            obj: JObject::from_raw(obj),
-            vm,
+impl<T> Drop for GlobalRef<T>
+where
+    T: Into<JObject<'static>>
+        + AsRef<JObject<'static>>
+        + Default
+        + JObjectRef
+        + Send
+        + Sync
+        + 'static,
+{
+    fn drop(&mut self) {
+        let obj = std::mem::take(&mut self.obj);
+
+        // It's redundant to explicitly call DeleteGlobalRef with a null pointer and we don't
+        // assume that a JavaVM has been initialized if we only wrap a 'static null pointer
+        if !obj.is_null() {
+            let drop_impl = |env: &JNIEnv, raw: sys::jobject| -> Result<()> {
+                // Safety: This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
+                unsafe {
+                    jni_call_unchecked!(env, v1_1, DeleteGlobalRef, raw);
+                }
+                Ok(())
+            };
+
+            // Panic: If we have a non-null reference, we know JavaVM::singleton() must have been
+            // initialized (and can't return an error) because ::new() takes a JNIEnv reference.
+            let vm = JavaVM::singleton().expect("JavaVM singleton uninitialized");
+
+            // Safety: we can assume we couldn't have created the global reference in the first place without
+            // having already required the JavaVM to support JNI >= 1.4
+            let res = match unsafe { vm.get_env(JNIVersion::V1_4) } {
+                Ok(env) => drop_impl(&env, obj.as_raw()),
+                Err(_) => {
+                    warn!("A JNI global reference was dropped on a thread that is not attached. This will cause a performance problem if it happens frequently. For more information, see the documentation for `jni::objects::GlobalRef`.");
+                    vm.attach_current_thread()
+                        .and_then(|env| drop_impl(&env, obj.as_raw()))
+                }
+            };
+
+            if let Err(err) = res {
+                debug!("error dropping global ref: {:#?}", err);
+            }
         }
     }
 }
 
-impl Drop for GlobalRefGuard {
-    fn drop(&mut self) {
-        let raw: sys::jobject = mem::take(&mut self.obj).into_raw();
+impl<T> JObjectRef for GlobalRef<T>
+where
+    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
+{
+    type Kind<'env> = T::Kind<'env>;
+    type GlobalKind = T::GlobalKind;
 
-        let drop_impl = |env: &JNIEnv| -> Result<()> {
-            // Safety: This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
-            unsafe {
-                jni_call_unchecked!(env, v1_1, DeleteGlobalRef, raw);
-            }
-            Ok(())
-        };
-
-        // Safety: we can assume we couldn't have created the global reference in the first place without
-        // having already required the JavaVM to support JNI >= 1.4
-        let res = match unsafe { self.vm.get_env(JNIVersion::V1_4) } {
-            Ok(env) => drop_impl(&env),
-            Err(_) => {
-                warn!("A JNI global reference was dropped on a thread that is not attached. This will cause a performance problem if it happens frequently. For more information, see the documentation for `jni::objects::GlobalRef`.");
-                self.vm
-                    .attach_current_thread()
-                    .and_then(|env| drop_impl(&env))
-            }
-        };
-
-        if let Err(err) = res {
-            debug!("error dropping global ref: {:#?}", err);
-        }
+    fn as_raw(&self) -> jobject {
+        self.obj.as_raw()
     }
+
+    unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+        T::from_local_raw::<'env>(local_ref)
+    }
+
+    unsafe fn from_global_raw(global_ref: jobject) -> Self::GlobalKind {
+        T::from_global_raw(global_ref)
+    }
+}
+
+#[test]
+fn test_global_ref_send() {
+    fn assert_send<T: Send>() {}
+    assert_send::<GlobalRef<JObject<'static>>>();
+}
+
+#[test]
+fn test_global_ref_sync() {
+    fn assert_sync<T: Sync>() {}
+    assert_sync::<GlobalRef<JObject<'static>>>();
 }
