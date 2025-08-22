@@ -46,7 +46,6 @@ pub enum JavaType {
     Primitive(Primitive),
     Object(String),
     Array(Box<JavaType>),
-    Method(Box<TypeSignature>),
 }
 
 impl FromStr for JavaType {
@@ -74,7 +73,6 @@ impl fmt::Display for JavaType {
             JavaType::Primitive(ref ty) => ty.fmt(f),
             JavaType::Object(ref name) => write!(f, "L{name};"),
             JavaType::Array(ref ty) => write!(f, "[{ty}"),
-            JavaType::Method(ref m) => m.fmt(f),
         }
     }
 }
