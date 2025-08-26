@@ -2772,7 +2772,8 @@ impl<'local> JNIEnv<'local> {
         class: impl Desc<'local, JClass<'other_local>>,
         method_id: impl Desc<'local, JMethodID>,
     ) -> Result<JObject<'local>> {
-        self.to_reflected_method_base(class, method_id, JMethodID::into_raw, false)
+        // Safety: Rust type safety ensures that method_id is a JMethodID, while is_static is false
+        unsafe { self.to_reflected_method_base(class, method_id, JMethodID::into_raw, false) }
     }
 
     /// Convert a [`JStaticMethodID`] into a [`JObject`] with the corresponding
@@ -2782,10 +2783,23 @@ impl<'local> JNIEnv<'local> {
         class: impl Desc<'local, JClass<'other_local>>,
         method_id: impl Desc<'local, JStaticMethodID>,
     ) -> Result<JObject<'local>> {
-        self.to_reflected_method_base(class, method_id, JStaticMethodID::into_raw, true)
+        // Safety: Rust type safety ensures that method_id is a JStaticMethodID, while is_static is true
+        unsafe { self.to_reflected_method_base(class, method_id, JStaticMethodID::into_raw, true) }
     }
 
-    fn to_reflected_method_base<'other_local, M>(
+    /// Convert a [`JMethodID`] or [`JStaticMethodID`] into a [`JObject`] with the
+    /// corresponding `java.lang.reflect.Method` or `java.lang.reflect.Constructor`
+    /// instance.
+    ///
+    /// The `to_jmethodid` function is used to convert the method ID type into
+    /// a raw [`sys::jmethodID`].
+    ///
+    /// # Safety
+    ///
+    /// `is_static` must correctly indicate whether the method ID is for a static method. (The JNI
+    /// spec does not define what happens if this is incorrect.)
+    #[allow(clippy::wrong_self_convention)]
+    unsafe fn to_reflected_method_base<'other_local, M>(
         &mut self,
         class: impl Desc<'local, JClass<'other_local>>,
         method_id: impl Desc<'local, M>,
@@ -2795,6 +2809,9 @@ impl<'local> JNIEnv<'local> {
     where
         M: Copy,
     {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let class = class.lookup(self)?;
 
         let method_id = to_jmethodid(*method_id.lookup(self)?.as_ref());
