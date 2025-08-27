@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::{
-    objects::JObject,
+    objects::{JObject, JObjectRef},
     sys::{jarray, jobject},
 };
 
@@ -18,7 +18,7 @@ use crate::JNIEnv;
 #[derive(Debug)]
 pub struct JPrimitiveArray<'local, T: TypeArray> {
     obj: JObject<'local>,
-    lifetime: PhantomData<&'local T>,
+    lifetime: PhantomData<(&'local (), T)>,
 }
 
 impl<'local, T: TypeArray> AsRef<JPrimitiveArray<'local, T>> for JPrimitiveArray<'local, T> {
@@ -142,3 +142,20 @@ pub unsafe trait AsJArrayRaw<'local>: AsRef<JObject<'local>> {
 }
 
 unsafe impl<'local, T: TypeArray> AsJArrayRaw<'local> for JPrimitiveArray<'local, T> {}
+
+impl<T: TypeArray> JObjectRef for JPrimitiveArray<'_, T> {
+    type Kind<'env> = JPrimitiveArray<'env, T>;
+    type GlobalKind = JPrimitiveArray<'static, T>;
+
+    fn as_raw(&self) -> jobject {
+        self.obj.as_raw()
+    }
+
+    unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+        JPrimitiveArray::from_raw(local_ref)
+    }
+
+    unsafe fn from_global_raw(global_ref: jobject) -> Self::GlobalKind {
+        JPrimitiveArray::from_raw(global_ref)
+    }
+}
