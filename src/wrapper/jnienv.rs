@@ -279,36 +279,21 @@ impl<'local> JNIEnv<'local> {
         JNIVersion::from(unsafe { jni_call_unchecked!(self, v1_1, GetVersion) })
     }
 
-    /// Load a class from a buffer of raw class data. The name of the class must match the name
-    /// encoded within the class file data.
-    pub fn define_class<S>(
-        &mut self,
-        name: S,
-        loader: &JObject,
-        buf: &[u8],
-    ) -> Result<JClass<'local>>
-    where
-        S: Into<JNIString>,
-    {
-        let name = name.into();
-        self.define_class_impl(name.as_ptr(), loader, buf)
-    }
-
-    /// Load a class from a buffer of raw class data. The name of the class is inferred from the
-    /// buffer.
-    pub fn define_unnamed_class(&mut self, loader: &JObject, buf: &[u8]) -> Result<JClass<'local>> {
-        // Runtime check that the 'local reference lifetime will be tied to
-        // JNIEnv lifetime for the top JNI stack frame
-        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
-        self.define_class_impl(ptr::null(), loader, buf)
-    }
-
-    // Note: This requires `&mut` because it might invoke a method on a user-defined `ClassLoader`.
-    fn define_class_impl(
+    /// Load a class from a buffer of raw class data.
+    ///
+    /// If `name` is null, the name of the class is inferred from the buffer.
+    ///
+    /// Note: This requires `&mut` because it returns a new local reference to a class.
+    ///
+    /// # Safety
+    ///
+    /// The `buf` pointer must be valid for `buf_len` bytes.
+    unsafe fn define_class_impl(
         &mut self,
         name: *const c_char,
         loader: &JObject,
-        buf: &[u8],
+        buf: *const jbyte,
+        buf_len: usize,
     ) -> Result<JClass<'local>> {
         // Runtime check that the 'local reference lifetime will be tied to
         // JNIEnv lifetime for the top JNI stack frame
@@ -324,44 +309,54 @@ impl<'local> JNIEnv<'local> {
                 DefineClass,
                 name,
                 loader.as_raw(),
-                buf.as_ptr() as *const jbyte,
-                buf.len() as jsize
+                buf,
+                buf_len as jsize
             )
             .map(|class| JClass::from_raw(class))
         }
     }
 
-    /// Load a class from a buffer of raw class data. The name of the class must match the name
-    /// encoded within the class file data.
-    pub fn define_class_bytearray<S>(
+    /// Load a class from a buffer of raw class data.
+    ///
+    /// If `name` is `None` then the name of the loaded class will be inferred, otherwise the given
+    /// `name` must match the name encoded within the class file data.
+    ///
+    /// Alternatively, call `define_class_jbyte()` if your data comes from a [`JByteArray`] or
+    /// `&[jbyte]`.
+    pub fn define_class<S>(
         &mut self,
-        name: S,
+        name: Option<S>,
         loader: &JObject,
-        buf: &AutoElements<'_, '_, '_, jbyte>,
+        buf: &[u8],
     ) -> Result<JClass<'local>>
     where
         S: Into<JNIString>,
     {
-        // Runtime check that the 'local reference lifetime will be tied to
-        // JNIEnv lifetime for the top JNI stack frame
-        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
-        let name = name.into();
-        // Safety:
-        // DefineClass is 1.1 API that must be valid
-        // It is valid to potentially pass a `null` `name` to `DefineClass`, since the
-        // name can bre read from the bytecode.
-        unsafe {
-            jni_call_check_ex_and_null_ret!(
-                self,
-                v1_1,
-                DefineClass,
-                name.as_ptr(),
-                loader.as_raw(),
-                buf.as_ptr(),
-                buf.len() as _
-            )
-            .map(|class| JClass::from_raw(class))
-        }
+        let name: Option<JNIString> = name.map(|n| n.into());
+        let name = name.as_ref().map_or(ptr::null(), |n| n.as_ptr());
+        // Safety: we know the pointer for the u8 slice is valid for buf.len() bytes
+        unsafe { self.define_class_impl(name, loader, buf.as_ptr() as *const jbyte, buf.len()) }
+    }
+
+    /// Load a class from a buffer of raw class data.
+    ///
+    /// If `name` is `None` then the name of the loaded class will be inferred, otherwise the given
+    /// `name` must match the name encoded within the class file data.
+    ///
+    /// This is the same as `define_class` but takes a `&[jbyte]` instead of `&[u8]`.
+    pub fn define_class_jbyte<S>(
+        &mut self,
+        name: Option<S>,
+        loader: &JObject,
+        buf: &[jbyte],
+    ) -> Result<JClass<'local>>
+    where
+        S: Into<JNIString>,
+    {
+        let name: Option<JNIString> = name.map(|n| n.into());
+        let name = name.as_ref().map_or(ptr::null(), |n| n.as_ptr());
+        // Safety: we know the pointer for the u8 slice is valid for buf.len() bytes
+        unsafe { self.define_class_impl(name, loader, buf.as_ptr() as *const jbyte, buf.len()) }
     }
 
     /// Look up a class by name.

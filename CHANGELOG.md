@@ -62,6 +62,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `GlobalRef::into_raw` replaces `GlobalRef::try_into_raw` and is infallible ([#596](https://github.com/jni-rs/jni-rs/pull/596))
 - `JNIEnv::new_weak_ref` returns a `Result<WeakRef>` and `Error::ObjectFreed` if the reference is null or has already been freed (instead of `Result<Option<WeakRef>>`) ([#596](https://github.com/jni-rs/jni-rs/pull/596))
 - `JNIEnv::new_global_ref` and `::new_local_ref` may return `Error::ObjectFreed` in case a weak reference was given and the object has been freed. ([#596](https://github.com/jni-rs/jni-rs/pull/596))
+- `JNIEnv::define_class` takes a `name: Option<>` instead of having a separate `define_unnamed_class` API.
+- `JNIEnv::define_class_bytearray` was renamed to `JNIEnv::define_class_jbyte` and is identical to `define_classe` except for taking a `&[jbyte]` slice instead of `&[u8]`, which is a convenience if you have a `JByteArray` or `AutoElements<JByteArray>`.
 
 ### Removed
 - `JavaVM::attach_current_thread_as_daemon` (and general support for 'daemon' threads) has been removed, since their semantics are inherently poorly defined and unsafe (the distinction relates to the poorly defined limbo state after calling `JavaDestroyVM`, where it becomes undefined to touch the JVM) ([#593](https://github.com/jni-rs/jni-rs/pull/593))
@@ -69,6 +71,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `JNIEnv::from_raw`, `JNIEnv::from_raw_unchecked` and `JNIEnv::unsafe_clone` have been removed, since the API no longer exposes the `JNIEnv` type by-value, it must always be borrowed from an `AttachGuard`. ([#570](https://github.com/jni-rs/jni-rs/pull/570))
 - `Error::NullDeref` and `Error::JavaVMMethodNotFound` have been removed since they were unused.
 - `JavaType::Method` was removed since a method signature isn't a type, and all usage was being matched as unreachable or an error.
+- `JNIEnv::define_unnamed_class` was removed in favor of having the `define_class[_jbyte]` APIs take a `name: Option` instead.
 
 ### Added
 - New functions for converting Rust `char` to and from Java `char` and `int` ([#427](https://github.com/jni-rs/jni-rs/issues/427) / [#434](https://github.com/jni-rs/jni-rs/pull/434))
