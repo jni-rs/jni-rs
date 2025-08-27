@@ -657,10 +657,17 @@ macro_rules! test_auto_array_read_write {
 
                 // Use a scope to test Drop
                 {
-                    // Get byte array elements auto wrapper
-                    let mut auto_ptr: AutoElements<$jni_type> = unsafe {
-                        env.get_array_elements(&java_array, ReleaseMode::CopyBack).unwrap()
-                    };
+                    // Redundantly push a new JNI stack frame to verify that AutoElements is not
+                    // tied to the lifetime of the `env` that it's got from (env.get_array_elements()
+                    // doesn't involve creating a new reference, it associates a pointer with
+                    // an existing array reference)
+                    let mut auto_ptr = env.with_local_frame(10, |env| -> jni::errors::Result<_> {
+                        // Get byte array elements auto wrapper
+                        let auto_ptr: AutoElements<$jni_type, _> = unsafe {
+                            env.get_array_elements(&java_array, ReleaseMode::CopyBack).unwrap()
+                        };
+                        Ok(auto_ptr)
+                    }).unwrap();
 
                     // Check array size
                     assert_eq!(auto_ptr.len(), 2);

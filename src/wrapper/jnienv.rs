@@ -3517,15 +3517,15 @@ impl<'local> JNIEnv<'local> {
     /// [`get_array_elements_critical`](Self::get_array_elements_critical) which
     /// imposes additional restrictions that make it less likely to incur the
     /// cost of copying the array elements.
-    pub unsafe fn get_array_elements<'other_local, 'array, T: TypeArray>(
-        &mut self,
-        array: &'array JPrimitiveArray<'other_local, T>,
+    pub unsafe fn get_array_elements<'array_local, T, TArrayRef>(
+        &self,
+        array: TArrayRef,
         mode: ReleaseMode,
-    ) -> Result<AutoElements<'local, 'other_local, 'array, T>> {
-        // Runtime check that the 'local reference lifetime will be tied to
-        // JNIEnv lifetime for the top JNI stack frame
-        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
-        let array = null_check!(array, "get_array_elements array argument")?;
+    ) -> Result<AutoElements<'array_local, T, TArrayRef>>
+    where
+        T: TypeArray,
+        TArrayRef: AsRef<JPrimitiveArray<'array_local, T>> + JObjectRef,
+    {
         AutoElements::new(self, array, mode)
     }
 

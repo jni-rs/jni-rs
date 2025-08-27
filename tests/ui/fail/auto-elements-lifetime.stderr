@@ -1,0 +1,10 @@
+error: lifetime may not live long enough
+  --> tests/ui/fail/auto-elements-lifetime.rs:26:17
+   |
+10 |             .with_local_frame(10, |env1| -> jni::errors::Result<_> {
+   |                                    ----     ---------------------- return type of closure is std::result::Result<AutoElements<'2, i32, JPrimitiveArray<'_, i32>>, jni::errors::Error>
+   |                                    |
+   |                                    has type `&mut JNIEnv<'1>`
+...
+26 |                 Ok(elems1)
+   |                 ^^^^^^^^^^ returning this value requires that `'1` must outlive `'2`

@@ -2,6 +2,7 @@ use log::error;
 use std::marker::PhantomData;
 use std::ptr::NonNull;
 
+use crate::objects::JObjectRef;
 use crate::sys::{jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jshort};
 use crate::wrapper::objects::ReleaseMode;
 use crate::{env::JNIEnv, errors::*, sys, JavaVM};
@@ -35,8 +36,7 @@ mod type_array_sealed {
         ///
         /// The caller is responsible for passing the returned pointer to [`release`], along
         /// with the same `env` and `array` reference (which needs to still be valid)
-        unsafe fn get(env: &mut JNIEnv, array: jarray, is_copy: &mut jboolean)
-            -> Result<*mut Self>;
+        unsafe fn get(env: &JNIEnv, array: jarray, is_copy: &mut jboolean) -> Result<*mut Self>;
 
         /// releaser
         ///
@@ -46,12 +46,8 @@ mod type_array_sealed {
         ///
         /// If `mode` is not [`sys::JNI_COMMIT`], `ptr` must not be used again after calling this
         /// function.
-        unsafe fn release(
-            env: &mut JNIEnv,
-            array: jarray,
-            ptr: NonNull<Self>,
-            mode: i32,
-        ) -> Result<()>;
+        unsafe fn release(env: &JNIEnv, array: jarray, ptr: NonNull<Self>, mode: i32)
+            -> Result<()>;
     }
 
     // TypeArray builder
@@ -61,7 +57,7 @@ mod type_array_sealed {
             unsafe impl TypeArraySealed for $jni_type {
                 /// Get Java $jni_type array
                 unsafe fn get(
-                    env: &mut JNIEnv,
+                    env: &JNIEnv,
                     array: jarray,
                     is_copy: &mut jboolean,
                 ) -> Result<*mut Self> {
@@ -73,7 +69,7 @@ mod type_array_sealed {
 
                 /// Release Java $jni_type array
                 unsafe fn release(
-                    env: &mut JNIEnv,
+                    env: &JNIEnv,
                     array: jarray,
                     ptr: NonNull<Self>,
                     mode: i32,
@@ -117,27 +113,42 @@ impl TypeArray for jdouble {}
 ///
 /// This type is used to wrap pointers returned by `Get<Type>ArrayElements`
 /// and ensure the pointer is released via `Release<Type>ArrayElements` when dropped.
-pub struct AutoElements<'local, 'other_local, 'array, T: TypeArray> {
-    array: &'array JPrimitiveArray<'other_local, T>,
+///
+/// The wrapper is tied to the lifetime of the array reference that becomes
+/// owned by the struct (the reference needs to be retained in order to call
+/// `Release<Type>ArrayElements` later).
+pub struct AutoElements<'array_local, T, TArrayRef>
+where
+    T: TypeArray + 'array_local,
+    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>> + JObjectRef,
+{
+    array: TArrayRef,
     len: usize,
     ptr: NonNull<T>,
     mode: ReleaseMode,
     is_copy: bool,
-    _lifetime: PhantomData<&'local ()>,
+    _lifetime: PhantomData<&'array_local ()>,
 }
 
-impl<'local, 'other_local, 'array, T: TypeArray> AutoElements<'local, 'other_local, 'array, T> {
+// Note: since we require a JNIEnv reference to construct AutoElements, that
+// means we can assume JavaVM::singleton() is initialized later when we need to
+// release the array (so we don't need to somehow save a JNIEnv reference).
+impl<'array_local, T, TArrayRef> AutoElements<'array_local, T, TArrayRef>
+where
+    T: TypeArray + 'array_local,
+    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>> + JObjectRef,
+{
     /// # Safety
     ///
     /// `len` must be the correct length (number of elements) of the given `array`
-    pub(crate) unsafe fn new_with_len(
-        env: &mut JNIEnv<'local>,
-        array: &'array JPrimitiveArray<'other_local, T>,
+    unsafe fn new_with_len(
+        env: &JNIEnv<'_>,
+        array: TArrayRef,
         len: usize,
         mode: ReleaseMode,
     ) -> Result<Self> {
         let mut is_copy: jboolean = true;
-        let ptr = unsafe { T::get(env, array.as_raw(), &mut is_copy) }?;
+        let ptr = unsafe { T::get(env, array.as_ref().as_raw(), &mut is_copy) }?;
         Ok(AutoElements {
             array,
             len,
@@ -148,12 +159,9 @@ impl<'local, 'other_local, 'array, T: TypeArray> AutoElements<'local, 'other_loc
         })
     }
 
-    pub(crate) fn new(
-        env: &mut JNIEnv<'local>,
-        array: &'array JPrimitiveArray<'other_local, T>,
-        mode: ReleaseMode,
-    ) -> Result<Self> {
-        let len = env.get_array_length(array)? as usize;
+    pub(crate) fn new(env: &JNIEnv<'_>, array: TArrayRef, mode: ReleaseMode) -> Result<Self> {
+        let array = null_check!(array, "get_array_elements array argument")?;
+        let len = env.get_array_length(array.as_ref())? as usize;
         unsafe { Self::new_with_len(env, array, len, mode) }
     }
 
@@ -175,7 +183,7 @@ impl<'local, 'other_local, 'array, T: TypeArray> AutoElements<'local, 'other_loc
     /// parameter.
     ///
     /// If `mode` is not [`sys::JNI_COMMIT`], then `self.ptr` must not have already been released.
-    unsafe fn release_array_elements(&mut self, mode: i32) -> Result<()> {
+    unsafe fn release_array_elements(&self, mode: i32) -> Result<()> {
         // Panic: Since we can't construct `AutoElements` without a valid `JNIEnv` reference
         // we know we can call `JavaVM::singleton()` without a panic.
         JavaVM::singleton()?
@@ -208,16 +216,22 @@ impl<'local, 'other_local, 'array, T: TypeArray> AutoElements<'local, 'other_loc
     }
 }
 
-impl<'local, 'other_local, 'array, T: TypeArray>
-    AsRef<AutoElements<'local, 'other_local, 'array, T>>
-    for AutoElements<'local, 'other_local, 'array, T>
+impl<'array_local, T, TArrayRef> AsRef<AutoElements<'array_local, T, TArrayRef>>
+    for AutoElements<'array_local, T, TArrayRef>
+where
+    T: TypeArray + 'array_local,
+    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>> + JObjectRef,
 {
-    fn as_ref(&self) -> &AutoElements<'local, 'other_local, 'array, T> {
+    fn as_ref(&self) -> &AutoElements<'array_local, T, TArrayRef> {
         self
     }
 }
 
-impl<T: TypeArray> Drop for AutoElements<'_, '_, '_, T> {
+impl<'array_local, T, TArrayRef> Drop for AutoElements<'array_local, T, TArrayRef>
+where
+    T: TypeArray,
+    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>> + JObjectRef,
+{
     fn drop(&mut self) {
         // Safety: `self.mode` is valid and the array has not yet been released.
         let res = unsafe { self.release_array_elements(self.mode as i32) };
@@ -229,13 +243,21 @@ impl<T: TypeArray> Drop for AutoElements<'_, '_, '_, T> {
     }
 }
 
-impl<T: TypeArray> From<&AutoElements<'_, '_, '_, T>> for *mut T {
-    fn from(other: &AutoElements<T>) -> *mut T {
+impl<'array_local, T, TArrayRef> From<&AutoElements<'array_local, T, TArrayRef>> for *mut T
+where
+    T: TypeArray,
+    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>> + JObjectRef,
+{
+    fn from(other: &AutoElements<'array_local, T, TArrayRef>) -> *mut T {
         other.as_ptr()
     }
 }
 
-impl<T: TypeArray> std::ops::Deref for AutoElements<'_, '_, '_, T> {
+impl<'array_local, T, TArrayRef> std::ops::Deref for AutoElements<'array_local, T, TArrayRef>
+where
+    T: TypeArray,
+    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>> + JObjectRef,
+{
     type Target = [T];
 
     fn deref(&self) -> &Self::Target {
@@ -243,7 +265,11 @@ impl<T: TypeArray> std::ops::Deref for AutoElements<'_, '_, '_, T> {
     }
 }
 
-impl<T: TypeArray> std::ops::DerefMut for AutoElements<'_, '_, '_, T> {
+impl<'array_local, T, TArrayRef> std::ops::DerefMut for AutoElements<'array_local, T, TArrayRef>
+where
+    T: TypeArray,
+    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>> + JObjectRef,
+{
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { std::slice::from_raw_parts_mut(self.ptr.as_mut(), self.len) }
     }

@@ -63,7 +63,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `JNIEnv::new_weak_ref` returns a `Result<WeakRef>` and `Error::ObjectFreed` if the reference is null or has already been freed (instead of `Result<Option<WeakRef>>`) ([#596](https://github.com/jni-rs/jni-rs/pull/596))
 - `JNIEnv::new_global_ref` and `::new_local_ref` may return `Error::ObjectFreed` in case a weak reference was given and the object has been freed. ([#596](https://github.com/jni-rs/jni-rs/pull/596))
 - `JNIEnv::define_class` takes a `name: Option<>` instead of having a separate `define_unnamed_class` API.
-- `JNIEnv::define_class_bytearray` was renamed to `JNIEnv::define_class_jbyte` and is identical to `define_classe` except for taking a `&[jbyte]` slice instead of `&[u8]`, which is a convenience if you have a `JByteArray` or `AutoElements<JByteArray>`.
+- `JNIEnv::define_class_bytearray` was renamed to `JNIEnv::define_class_jbyte` and is identical to `define_class` except for taking a `&[jbyte]` slice instead of `&[u8]`, which is a convenience if you have a `JByteArray` or `AutoElements<JByteArray>`.
+- `AutoElements` was simplified to only be parameterized by one lifetime for the array reference, and accepts any `AsRef<JPrimitiveArray<T>>` as a reference. ([#508](https://github.com/jni-rs/jni-rs/pull/508))
 
 ### Removed
 - `JavaVM::attach_current_thread_as_daemon` (and general support for 'daemon' threads) has been removed, since their semantics are inherently poorly defined and unsafe (the distinction relates to the poorly defined limbo state after calling `JavaDestroyVM`, where it becomes undefined to touch the JVM) ([#593](https://github.com/jni-rs/jni-rs/pull/593))

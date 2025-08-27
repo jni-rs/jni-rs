@@ -45,6 +45,7 @@ criterion = { version = "0.5", features = ["html_reports"] }
 assert_matches = "1.5.0"
 lazy_static = "1"
 rusty-fork = "0.3.0"
+trybuild = "1.0.0"
 
 [target.'cfg(windows)'.dev-dependencies]
 bytemuck = "1.13.0"
