@@ -658,7 +658,7 @@ macro_rules! test_auto_array_read_write {
                 // Use a scope to test Drop
                 {
                     // Get byte array elements auto wrapper
-                    let mut auto_ptr: AutoElements<$jni_type> = unsafe {
+                    let mut auto_ptr: AutoElements<$jni_type, _> = unsafe {
                         env.get_array_elements(&java_array, ReleaseMode::CopyBack).unwrap()
                     };
 
