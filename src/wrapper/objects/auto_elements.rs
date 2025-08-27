@@ -100,7 +100,7 @@ mod type_array_sealed {
 }
 
 /// A sealed trait to define type array access/release for primitive JNI types
-pub trait TypeArray: type_array_sealed::TypeArraySealed {}
+pub trait TypeArray: type_array_sealed::TypeArraySealed + Send + Sync {}
 
 impl TypeArray for jint {}
 impl TypeArray for jlong {}
