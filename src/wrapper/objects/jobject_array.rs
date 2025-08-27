@@ -1,5 +1,5 @@
 use crate::{
-    objects::JObject,
+    objects::{JObject, JObjectRef},
     sys::{jobject, jobjectArray},
 };
 
@@ -71,5 +71,22 @@ impl JObjectArray<'_> {
     /// Unwrap to the raw jni type.
     pub const fn into_raw(self) -> jobjectArray {
         self.0.into_raw() as jobjectArray
+    }
+}
+
+impl JObjectRef for JObjectArray<'_> {
+    type Kind<'env> = JObjectArray<'env>;
+    type GlobalKind = JObjectArray<'static>;
+
+    fn as_raw(&self) -> jobject {
+        self.0.as_raw()
+    }
+
+    unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+        JObjectArray::from_raw(local_ref)
+    }
+
+    unsafe fn from_global_raw(global_ref: jobject) -> Self::GlobalKind {
+        JObjectArray::from_raw(global_ref)
     }
 }
