@@ -41,7 +41,7 @@ thiserror = "2"
 walkdir = "2"
 
 [dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.7", features = ["html_reports"] }
 assert_matches = "1.5.0"
 lazy_static = "1"
 rusty-fork = "0.3.0"
