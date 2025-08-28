@@ -9,7 +9,10 @@ use std::{
     time::Duration,
 };
 
-use jni::{objects::AutoLocal, sys::jint, Executor};
+use jni::{
+    errors, objects::IntoAutoLocal as _, sys::jint, AttachGuard, JavaVM,
+    DEFAULT_LOCAL_FRAME_CAPACITY,
+};
 
 use rusty_fork::rusty_fork_test;
 
@@ -18,33 +21,30 @@ use util::{jvm, AtomicIntegerProxy};
 
 #[test]
 fn single_thread() {
-    let executor = Executor::new(jvm().clone());
-    test_single_thread(executor);
+    test_single_thread(jvm().clone());
 }
 
 #[test]
 fn serialized_threads() {
-    let executor = Executor::new(jvm().clone());
-    test_serialized_threads(executor);
+    test_serialized_threads(jvm().clone());
 }
 
 #[test]
 fn concurrent_threads() {
-    let executor = Executor::new(jvm().clone());
     const THREAD_NUM: usize = 8;
-    test_concurrent_threads(executor, THREAD_NUM)
+    test_concurrent_threads(jvm().clone(), THREAD_NUM)
 }
 
-fn test_single_thread(executor: Executor) {
-    let mut atomic = AtomicIntegerProxy::new(executor, 0).unwrap();
+fn test_single_thread(vm: Arc<JavaVM>) {
+    let mut atomic = AtomicIntegerProxy::new(vm, 0).unwrap();
     assert_eq!(0, atomic.get().unwrap());
     assert_eq!(1, atomic.increment_and_get().unwrap());
     assert_eq!(3, atomic.add_and_get(2).unwrap());
     assert_eq!(3, atomic.get().unwrap());
 }
 
-fn test_serialized_threads(executor: Executor) {
-    let mut atomic = AtomicIntegerProxy::new(executor, 0).unwrap();
+fn test_serialized_threads(vm: Arc<JavaVM>) {
+    let mut atomic = AtomicIntegerProxy::new(vm, 0).unwrap();
     assert_eq!(0, atomic.get().unwrap());
     let jh = spawn(move || {
         assert_eq!(1, atomic.increment_and_get().unwrap());
@@ -55,10 +55,10 @@ fn test_serialized_threads(executor: Executor) {
     assert_eq!(3, atomic.get().unwrap());
 }
 
-fn test_concurrent_threads(executor: Executor, thread_num: usize) {
+fn test_concurrent_threads(vm: Arc<JavaVM>, thread_num: usize) {
     const ITERS_PER_THREAD: usize = 10_000;
 
-    let mut atomic = AtomicIntegerProxy::new(executor, 0).unwrap();
+    let mut atomic = AtomicIntegerProxy::new(vm, 0).unwrap();
     let barrier = Arc::new(Barrier::new(thread_num));
     let mut threads = Vec::new();
 
@@ -105,21 +105,43 @@ fn test_destroy() {
         let jvm = jvm.clone();
         let atomic = atomic.clone();
         let jh = spawn(move || {
-            let mut env = jvm.attach_current_thread().unwrap();
-            println!("java thread attach");
-            attach_barrier.wait();
-            println!("java thread run");
-            std::thread::sleep(Duration::from_millis(250));
+            // Safety: there is no other mutable `JNIEnv` in scope, so we aren't
+            // creating an opportunity for local references to be created
+            // in association with the wrong stack frame.
+            jvm.attach_current_thread(|env| -> jni::errors::Result<()> {
+                println!("java thread attach");
+                attach_barrier.wait();
+                println!("java thread run");
+                std::thread::sleep(Duration::from_millis(250));
 
-            println!("use before destroy...");
-            // Make some token JNI call
-            let _class = AutoLocal::new(env.find_class(MATH_CLASS).unwrap(), &env);
+                println!("use before destroy...");
+                // Make some token JNI call
+                let _class = env.find_class(MATH_CLASS).unwrap().auto();
 
-            atomic.fetch_add(1, Ordering::SeqCst);
+                atomic.fetch_add(1, Ordering::SeqCst);
+                Ok(())
+            }).unwrap();
 
             println!("java thread finished");
         });
         threads.push(jh);
+    }
+
+    unsafe fn attach_current_thread_as_daemon(vm: &jni::JavaVM) -> jni::errors::Result<AttachGuard> {
+        let mut env_ptr = std::ptr::null_mut();
+        let jvm: *mut jni_sys::JavaVM = vm.get_raw();
+        let res = ((*(*jvm)).v1_4.AttachCurrentThreadAsDaemon)(
+            jvm,
+            &mut env_ptr,
+            std::ptr::null_mut(),
+        );
+        jni::errors::jni_error_code_to_result(res)?;
+        Ok(AttachGuard::from_unowned(env_ptr as *mut jni::sys::JNIEnv))
+    }
+
+    unsafe fn detach_current_thread(vm: &jni::JavaVM) {
+        let jvm: *mut jni_sys::JavaVM = vm.get_raw();
+        ((*(*jvm)).v1_4.DetachCurrentThread)(jvm);
     }
 
     for _ in 0..DAEMON_THREAD_NUM {
@@ -132,14 +154,21 @@ fn test_destroy() {
             // JavaVM before it gets destroyed, including dropping the AutoLocal
             // for the `MATH_CLASS`
             {
-                let mut env = unsafe { jvm.attach_current_thread_as_daemon().unwrap() };
-                println!("daemon thread attach");
-                attach_barrier.wait();
-                println!("daemon thread run");
+                // Safety: there is no other mutable `JNIEnv` in scope, so we aren't
+                // creating an opportunity for local references to be created
+                // in association with the wrong stack frame.
+                let mut guard = unsafe { attach_current_thread_as_daemon(&jvm).unwrap() };
+                guard.with_env(DEFAULT_LOCAL_FRAME_CAPACITY, |env|-> errors::Result<()> {
+                    println!("daemon thread attach");
+                    attach_barrier.wait();
+                    println!("daemon thread run");
 
-                println!("daemon JVM use before destroy...");
+                    println!("daemon JVM use before destroy...");
 
-                let _class = AutoLocal::new(env.find_class(MATH_CLASS).unwrap(), &env);
+                    let _class = env.find_class(MATH_CLASS).unwrap().auto();
+
+                    Ok(())
+                }).unwrap();
             }
 
             // For it to be safe to call `JavaVM::destroy()` we need to ensure that
@@ -152,7 +181,9 @@ fn test_destroy() {
             // We won't be accessing any (invalid) `JNIEnv` once we have detached this
             // thread
             unsafe {
-                jvm.detach_current_thread();
+                // Note: jni-rs doesn't directly support 'daemon' threads so we're
+                // manually detaching them with the `jni-sys` API.
+                detach_current_thread(&jvm);
             }
 
             daemons_detached_barrier.wait();

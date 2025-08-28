@@ -1,8 +1,7 @@
 use std::sync::{Arc, Once};
 
 use jni::{
-    errors::Result, objects::JValue, sys::jint, AttachGuard, InitArgsBuilder, JNIEnv, JNIVersion,
-    JavaVM,
+    env::JNIEnv, errors::Result, objects::JValue, sys::jint, InitArgsBuilder, JNIVersion, JavaVM,
 };
 
 mod example_proxy;
@@ -48,28 +47,30 @@ pub fn call_java_abs(env: &mut JNIEnv, value: i32) -> i32 {
 }
 
 #[allow(dead_code)]
-pub fn attach_current_thread() -> AttachGuard<'static> {
-    jvm()
-        .attach_current_thread()
-        .expect("failed to attach jvm thread")
+pub fn attach_current_thread<F, T>(callback: F) -> jni::errors::Result<T>
+where
+    F: FnOnce(&mut JNIEnv) -> jni::errors::Result<T>,
+{
+    jvm().attach_current_thread(|env| callback(env))
 }
 
 #[allow(dead_code)]
-pub unsafe fn attach_current_thread_as_daemon() -> JNIEnv<'static> {
-    jvm()
-        .attach_current_thread_as_daemon()
-        .expect("failed to attach jvm daemon thread")
+pub fn attach_current_thread_for_scope<F, T>(callback: F) -> jni::errors::Result<T>
+where
+    F: FnOnce(&mut JNIEnv) -> jni::errors::Result<T>,
+{
+    jvm().attach_current_thread_for_scope(|env| callback(env))
 }
 
 #[allow(dead_code)]
-pub fn attach_current_thread_permanently() -> JNIEnv<'static> {
+pub fn is_thread_attached() -> bool {
     jvm()
-        .attach_current_thread_permanently()
-        .expect("failed to attach jvm thread permanently")
+        .is_thread_attached()
+        .expect("An unexpected JNI error occurred")
 }
 
 #[allow(dead_code)]
-pub unsafe fn detach_current_thread() {
+pub fn detach_current_thread() -> Result<()> {
     jvm().detach_current_thread()
 }
 

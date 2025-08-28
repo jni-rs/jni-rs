@@ -1,7 +1,8 @@
 use std::{fmt, str::FromStr};
 
 use combine::{
-    between, many, many1, parser, satisfy, token, ParseError, Parser, StdParseResult, Stream,
+    between, many, parser, parser::range::recognize, satisfy, skip_many, skip_many1, token,
+    ParseError, Parser, RangeStream, StdParseResult, Stream,
 };
 
 use crate::errors::*;
@@ -45,7 +46,6 @@ pub enum JavaType {
     Primitive(Primitive),
     Object(String),
     Array(Box<JavaType>),
-    Method(Box<TypeSignature>),
 }
 
 impl FromStr for JavaType {
@@ -54,8 +54,16 @@ impl FromStr for JavaType {
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         parser(parse_type)
             .parse(s)
-            .map(|res| res.0)
-            .map_err(|e| Error::ParseFailed(e, s.to_owned()))
+            .map_err(|e| Error::ParseFailed(format!("Failed to parse '{s}': {e}")))
+            .map(|(res, tail)| {
+                if tail.is_empty() {
+                    Ok(res)
+                } else {
+                    Err(Error::ParseFailed(format!(
+                        "Trailing input: '{tail}' while parsing '{s}'"
+                    )))
+                }
+            })?
     }
 }
 
@@ -65,7 +73,6 @@ impl fmt::Display for JavaType {
             JavaType::Primitive(ref ty) => ty.fmt(f),
             JavaType::Object(ref name) => write!(f, "L{name};"),
             JavaType::Array(ref ty) => write!(f, "[{ty}"),
-            JavaType::Method(ref m) => m.fmt(f),
         }
     }
 }
@@ -89,8 +96,16 @@ impl FromStr for ReturnType {
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         parser(parse_return)
             .parse(s)
-            .map(|res| res.0)
-            .map_err(|e| Error::ParseFailed(e, s.to_owned()))
+            .map_err(|e| Error::ParseFailed(format!("Failed to parse '{s}': {e}")))
+            .map(|(res, tail)| {
+                if tail.is_empty() {
+                    Ok(res)
+                } else {
+                    Err(Error::ParseFailed(format!(
+                        "Trailing input: '{tail}' while parsing '{s}'"
+                    )))
+                }
+            })?
     }
 }
 
@@ -119,11 +134,27 @@ impl TypeSignature {
     // Clippy suggests implementing `FromStr` or renaming it which is not possible in our case.
     #[allow(clippy::should_implement_trait)]
     pub fn from_str<S: AsRef<str>>(s: S) -> Result<TypeSignature> {
-        Ok(match parser(parse_sig).parse(s.as_ref()).map(|res| res.0) {
-            Ok(JavaType::Method(sig)) => *sig,
-            Err(e) => return Err(Error::ParseFailed(e, s.as_ref().to_owned())),
-            _ => unreachable!(),
-        })
+        parser(parse_sig)
+            .parse(s.as_ref())
+            .map_err(|e| Error::ParseFailed(format!("Failed to parse '{}': {e}", s.as_ref())))
+            .map(|(sig, tail)| {
+                if tail.is_empty() {
+                    Ok(sig)
+                } else {
+                    Err(Error::ParseFailed(format!(
+                        "Trailing input: '{tail}' while parsing '{}'",
+                        s.as_ref()
+                    )))
+                }
+            })?
+    }
+}
+
+impl FromStr for TypeSignature {
+    type Err = Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        TypeSignature::from_str(s)
     }
 }
 
@@ -166,8 +197,9 @@ where
     .into()
 }
 
-fn parse_array<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<JavaType, S>
+fn parse_array<'a, S>(input: &mut S) -> StdParseResult<JavaType, S>
 where
+    S: RangeStream<Token = char, Range = &'a str>,
     S::Error: ParseError<char, S::Range, S::Position>,
 {
     let marker = token('[');
@@ -177,32 +209,48 @@ where
         .into()
 }
 
-fn parse_object<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<JavaType, S>
+fn parse_object<'a, S>(input: &mut S) -> StdParseResult<JavaType, S>
 where
-    S::Error: ParseError<char, S::Range, S::Position>,
+    S: RangeStream<Token = char, Range = &'a str>,
+    S::Error: ParseError<char, &'a str, S::Position>,
 {
-    let marker = token('L');
-    let end = token(';');
-    let obj = between(marker, end, many1(satisfy(|c| c != ';')));
+    fn is_unqualified(c: char) -> bool {
+        // JVMS §4.2.2: '.', ';', '[' and '/' are disallowed in an unqualified name
+        !matches!(c, '.' | ';' | '[' | '/')
+    }
 
-    obj.map(JavaType::Object).parse_stream(input).into()
+    // One or more segments separated by '/', never starting or ending with '/'
+    let class_body = recognize((
+        skip_many1(satisfy(is_unqualified)),
+        skip_many(token('/').with(skip_many1(satisfy(is_unqualified)))),
+    ));
+
+    (
+        token('L'),
+        class_body.map(|s: &'a str| s.to_owned()),
+        token(';'),
+    )
+        .map(|(_, name, _)| JavaType::Object(name))
+        .parse_stream(input)
+        .into()
 }
 
-fn parse_type<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<JavaType, S>
+fn parse_type<'a, S>(input: &mut S) -> StdParseResult<JavaType, S>
 where
-    S::Error: ParseError<char, S::Range, S::Position>,
+    S: RangeStream<Token = char, Range = &'a str>,
+    S::Error: ParseError<char, &'a str, S::Position>,
 {
     parser(parse_primitive)
         .map(JavaType::Primitive)
         .or(parser(parse_array))
         .or(parser(parse_object))
-        .or(parser(parse_sig))
         .parse_stream(input)
         .into()
 }
 
-fn parse_return<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<ReturnType, S>
+fn parse_return<'a, S>(input: &mut S) -> StdParseResult<ReturnType, S>
 where
+    S: RangeStream<Token = char, Range = &'a str>,
     S::Error: ParseError<char, S::Range, S::Position>,
 {
     parser(parse_primitive)
@@ -213,8 +261,9 @@ where
         .into()
 }
 
-fn parse_args<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<Vec<JavaType>, S>
+fn parse_args<'a, S>(input: &mut S) -> StdParseResult<Vec<JavaType>, S>
 where
+    S: RangeStream<Token = char, Range = &'a str>,
     S::Error: ParseError<char, S::Range, S::Position>,
 {
     between(token('('), token(')'), many(parser(parse_type)))
@@ -222,13 +271,13 @@ where
         .into()
 }
 
-fn parse_sig<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<JavaType, S>
+fn parse_sig<'a, S>(input: &mut S) -> StdParseResult<TypeSignature, S>
 where
+    S: RangeStream<Token = char, Range = &'a str>,
     S::Error: ParseError<char, S::Range, S::Position>,
 {
     (parser(parse_args), parser(parse_return))
         .map(|(a, r)| TypeSignature { args: a, ret: r })
-        .map(|sig| JavaType::Method(Box::new(sig)))
         .parse_stream(input)
         .into()
 }
@@ -236,39 +285,133 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
+    use assert_matches::assert_matches;
 
     #[test]
-    fn test_parser() {
-        let inputs = [
-            "(Ljava/lang/String;I)V",
-            "[Lherp;",
-            // fails because the return type does not contain the class name: "(IBVZ)L;"
-            // "(IBVZ)Ljava/lang/String;",
-        ];
+    fn test_parser_types() {
+        assert_eq!(
+            "Z".parse::<JavaType>().unwrap(),
+            JavaType::Primitive(Primitive::Boolean)
+        );
+        assert_eq!(
+            "B".parse::<JavaType>().unwrap(),
+            JavaType::Primitive(Primitive::Byte)
+        );
+        assert_eq!(
+            "C".parse::<JavaType>().unwrap(),
+            JavaType::Primitive(Primitive::Char)
+        );
+        assert_eq!(
+            "S".parse::<JavaType>().unwrap(),
+            JavaType::Primitive(Primitive::Short)
+        );
+        assert_eq!(
+            "I".parse::<JavaType>().unwrap(),
+            JavaType::Primitive(Primitive::Int)
+        );
+        assert_eq!(
+            "J".parse::<JavaType>().unwrap(),
+            JavaType::Primitive(Primitive::Long)
+        );
+        assert_eq!(
+            "F".parse::<JavaType>().unwrap(),
+            JavaType::Primitive(Primitive::Float)
+        );
+        assert_eq!(
+            "D".parse::<JavaType>().unwrap(),
+            JavaType::Primitive(Primitive::Double)
+        );
+        assert_eq!(
+            "Ljava/lang/String;".parse::<JavaType>().unwrap(),
+            JavaType::Object("java/lang/String".into())
+        );
+        assert_eq!(
+            "[I".parse::<JavaType>().unwrap(),
+            JavaType::Array(Box::new(JavaType::Primitive(Primitive::Int)))
+        );
+        assert_eq!(
+            "[Ljava/lang/String;".parse::<JavaType>().unwrap(),
+            JavaType::Array(Box::new(JavaType::Object("java/lang/String".into())))
+        );
 
-        for each in inputs.iter() {
-            let res = JavaType::from_str(each).unwrap();
-            println!("{res:#?}");
-            let s = format!("{res}");
-            assert_eq!(s, *each);
-            let res2 = JavaType::from_str(each).unwrap();
-            println!("{res2:#?}");
-            assert_eq!(res2, res);
-        }
+        assert_matches!("".parse::<JavaType>(), Err(_));
+        assert_matches!("A".parse::<JavaType>(), Err(_));
+        // The parser should return an error if the entire input is not consumed (#598)
+        assert_matches!("Invalid".parse::<JavaType>(), Err(_));
+        assert_matches!("II".parse::<JavaType>(), Err(_));
+        assert_matches!("java/lang/String".parse::<JavaType>(), Err(_));
+        assert_matches!("Ljava/lang/String".parse::<JavaType>(), Err(_));
+        assert_matches!("java/lang/String;".parse::<JavaType>(), Err(_));
+        // Don't allow leading '/' in class names (#212)
+        assert_matches!("L/java/lang/String;".parse::<JavaType>(), Err(_));
+        assert_matches!("L/;".parse::<JavaType>(), Err(_));
+        assert_matches!("L;".parse::<JavaType>(), Err(_));
     }
 
     #[test]
-    fn test_parser_invalid_signature() {
-        let signature = "()Ljava/lang/List"; // no semicolon
-        let res = JavaType::from_str(signature);
+    fn test_parser_signatures() {
+        assert_eq!(
+            "()V".parse::<TypeSignature>().unwrap(),
+            TypeSignature {
+                args: vec![],
+                ret: ReturnType::Primitive(Primitive::Void)
+            }
+        );
+        assert_eq!(
+            "(I)V".parse::<TypeSignature>().unwrap(),
+            TypeSignature {
+                args: vec![JavaType::Primitive(Primitive::Int)],
+                ret: ReturnType::Primitive(Primitive::Void)
+            }
+        );
+        assert_eq!(
+            "(Ljava/lang/String;)I".parse::<TypeSignature>().unwrap(),
+            TypeSignature {
+                args: vec![JavaType::Object("java/lang/String".into())],
+                ret: ReturnType::Primitive(Primitive::Int)
+            }
+        );
+        assert_eq!(
+            "([I)I".parse::<TypeSignature>().unwrap(),
+            TypeSignature {
+                args: vec![JavaType::Array(Box::new(JavaType::Primitive(
+                    Primitive::Int
+                )))],
+                ret: ReturnType::Primitive(Primitive::Int)
+            }
+        );
+        assert_eq!(
+            "([Ljava/lang/String;)I".parse::<TypeSignature>().unwrap(),
+            TypeSignature {
+                args: vec![JavaType::Array(Box::new(JavaType::Object(
+                    "java/lang/String".into()
+                )))],
+                ret: ReturnType::Primitive(Primitive::Int)
+            }
+        );
+        assert_eq!(
+            "(I[Ljava/lang/String;Z)I".parse::<TypeSignature>().unwrap(),
+            TypeSignature {
+                args: vec![
+                    JavaType::Primitive(Primitive::Int),
+                    JavaType::Array(Box::new(JavaType::Object("java/lang/String".into()))),
+                    JavaType::Primitive(Primitive::Boolean),
+                ],
+                ret: ReturnType::Primitive(Primitive::Int)
+            }
+        );
 
-        match res {
-            Ok(any) => {
-                panic!("Unexpected result: {}", any);
-            }
-            Err(err) => {
-                assert!(err.to_string().contains("input: ()Ljava/lang/List"));
-            }
-        }
+        assert_matches!("".parse::<TypeSignature>(), Err(_));
+        assert_matches!("()".parse::<TypeSignature>(), Err(_));
+        assert_matches!("V".parse::<TypeSignature>(), Err(_));
+        assert_matches!("(I".parse::<TypeSignature>(), Err(_));
+        assert_matches!("I)I".parse::<TypeSignature>(), Err(_));
+        assert_matches!("(I)".parse::<TypeSignature>(), Err(_));
+        assert_matches!("(Invalid)I".parse::<TypeSignature>(), Err(_));
+        // We shouldn't recursively allow method signatures as method argument types (#597)
+        assert_matches!("((()I)I)I".parse::<TypeSignature>(), Err(_));
+        assert_matches!("(I)V ".parse::<TypeSignature>(), Err(_));
+        assert_matches!("()java/lang/List".parse::<TypeSignature>(), Err(_));
+        assert_matches!("(L/java/lang/String)V".parse::<TypeSignature>(), Err(_));
     }
 }

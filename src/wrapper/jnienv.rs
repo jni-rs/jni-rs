@@ -15,9 +15,9 @@ use crate::{
     descriptors::Desc,
     errors::*,
     objects::{
-        AutoElements, AutoElementsCritical, AutoLocal, GlobalRef, JByteBuffer, JClass, JFieldID,
-        JList, JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID, JString, JThrowable,
-        JValue, JValueOwned, ReleaseMode, TypeArray, WeakRef,
+        AutoElements, AutoElementsCritical, AutoLocal, GlobalRef, IntoAutoLocal as _, JByteBuffer,
+        JClass, JFieldID, JList, JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID,
+        JString, JThrowable, JValue, JValueOwned, ReleaseMode, TypeArray, WeakRef,
     },
     signature::{JavaType, Primitive, TypeSignature},
     strings::{JNIStr, JNIString, JavaStr},
@@ -35,6 +35,8 @@ use crate::{
     },
 };
 use crate::{objects::AsJArrayRaw, signature::ReturnType};
+
+use super::{objects::JObjectRef, AttachGuard};
 
 /// FFI-compatible JNIEnv struct. You can safely use this as the JNIEnv argument
 /// to exported methods that will be called by java. This is where most of the
@@ -123,7 +125,7 @@ use crate::{objects::AsJArrayRaw, signature::ReturnType};
 /// returned by a `JNIEnv` method (like [`JObject`]), then calls to that function may not compile:
 ///
 /// ```rust,compile_fail
-/// # use jni::{errors::Result, JNIEnv, objects::*};
+/// # use jni::{errors::Result, env::JNIEnv, objects::*};
 /// #
 /// # fn f(env: &mut JNIEnv) -> Result<()> {
 /// fn example_function(
@@ -149,7 +151,7 @@ use crate::{objects::AsJArrayRaw, signature::ReturnType};
 /// To fix this, the `JNIEnv` parameter needs to come *last*:
 ///
 /// ```rust,no_run
-/// # use jni::{errors::Result, JNIEnv, objects::*};
+/// # use jni::{errors::Result, env::JNIEnv, objects::*};
 /// #
 /// # fn f(env: &mut JNIEnv) -> Result<()> {
 /// fn example_function(
@@ -194,12 +196,22 @@ use crate::{objects::AsJArrayRaw, signature::ReturnType};
 ///
 /// Calling unchecked methods with invalid arguments and/or invalid class and
 /// method descriptors may lead to segmentation fault.
-#[repr(transparent)]
 #[derive(Debug)]
 pub struct JNIEnv<'local> {
     /// A non-null JNIEnv pointer
     internal: *mut sys::JNIEnv,
-    lifetime: PhantomData<&'local ()>,
+    /// The current [`jni::AttachGuard`] nesting level, which we assert matches
+    /// the top/current nesting level whenever some API will return a new local
+    /// reference
+    level: usize,
+    guard: &'local AttachGuard,
+}
+
+impl Drop for JNIEnv<'_> {
+    fn drop(&mut self) {
+        // NOOP - we just implement Drop so that the compiler won't consider
+        // JNIEnv to be FFI safe.
+    }
 }
 
 impl<'local> JNIEnv<'local> {
@@ -214,64 +226,51 @@ impl<'local> JNIEnv<'local> {
         }
     }
 
-    /// Create a JNIEnv from a raw pointer.
+    /// Create a JNIEnv that borrows from an [`AttachGuard`] holding a raw
+    /// JNIEnv pointer.
     ///
-    /// This does a null check, and checks that the JNI version is >= 1.4
+    /// You almost certainly should not use this API in most applications
+    /// because there are no safe APIs to create [`AttachGuard`]s, which are
+    /// usually an implementation detail for APIs like [`JavaVM::with_env`].
+    ///
+    /// See the documentation for [JavaVM] and [JNIEnv] for pointers for how to
+    /// access the [JNIEnv] API.
+    ///
+    /// In special circumstances, an [AttachGuard] can be created from a raw
+    /// `jni_sys` pointer using [AttachGuard::from_unowned] and then this API
+    /// could be used to borrow from the returned guard. See the 'Safety'
+    /// documentation for [AttachGuard] before considering this.
     ///
     /// # Safety
     ///
-    /// Expects a valid pointer retrieved from the `GetEnv` JNI function or [Self::get_raw] function.
-    pub unsafe fn from_raw(ptr: *mut sys::JNIEnv) -> Result<Self> {
-        let ptr = null_check!(ptr, "from_raw ptr argument")?;
-        let env = JNIEnv {
-            internal: ptr,
-            lifetime: PhantomData,
-        };
-        if env.version() < JNIVersion::V1_4 {
-            Err(Error::UnsupportedVersion)
-        } else {
-            Ok(env)
+    /// This will only be safe to use if the [AttachGuard] is being maintained
+    /// according to its documented 'Safety' rules. In particular the
+    /// [AttachGuard] should represent an immovable value on the stack for the
+    /// current thread that can act as a marker for the current JNI stack frame.
+    ///
+    /// This must never be given a `&'static mut AttachGuard` reference that
+    /// results in a `JNIEnv<'static>`.
+    pub unsafe fn new(attach_guard: &'local mut AttachGuard) -> Self {
+        // Assuming that the application doesn't break the safety rules for
+        // keeping the `AttachGuard` on the stack, and not re-ordering them,
+        // we can assert that we will only ever borrow from the top-most
+        // guard on the stack
+        assert_eq!(JavaVM::thread_attach_guard_level(), attach_guard.level + 1);
+        JNIEnv {
+            internal: attach_guard.env,
+            level: attach_guard.level + 1,
+            guard: attach_guard,
         }
     }
 
-    /// Create a JNIEnv from a raw pointer.
-    ///
-    /// Doesn't check for `null` or check the JNI version
-    ///
-    /// # Safety
-    ///
-    /// Expects a valid, non-null pointer retrieved from the `GetEnv` JNI function or [`Self::get_raw`] function.
-    /// Requires a JNI version >= 1.4
-    pub unsafe fn from_raw_unchecked(ptr: *mut sys::JNIEnv) -> Self {
-        JNIEnv {
-            internal: ptr,
-            lifetime: PhantomData,
-        }
+    /// Get the [`AttachGuard`] that the [`JNIEnv`] is borrowed from
+    pub fn guard(&self) -> &AttachGuard {
+        self.guard
     }
 
     /// Get the raw JNIEnv pointer
     pub fn get_raw(&self) -> *mut sys::JNIEnv {
         self.internal
-    }
-
-    /// Duplicates this `JNIEnv`.
-    ///
-    /// # Safety
-    ///
-    /// The duplicate `JNIEnv` must not be used to create any local references, unless they are
-    /// discarded before the current [local reference frame] is exited. Otherwise, they may have a
-    /// lifetime longer than they are actually valid for, resulting in a use-after-free bug and
-    /// undefined behavior.
-    ///
-    /// See [issue #392] for background.
-    ///
-    /// [local reference frame]: JNIEnv::with_local_frame
-    /// [issue #392]: https://github.com/jni-rs/jni-rs/issues/392
-    pub unsafe fn unsafe_clone(&self) -> Self {
-        Self {
-            internal: self.internal,
-            lifetime: self.lifetime,
-        }
     }
 
     /// Get the JNI version that this [`JNIEnv`] supports.
@@ -298,6 +297,9 @@ impl<'local> JNIEnv<'local> {
     /// Load a class from a buffer of raw class data. The name of the class is inferred from the
     /// buffer.
     pub fn define_unnamed_class(&mut self, loader: &JObject, buf: &[u8]) -> Result<JClass<'local>> {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         self.define_class_impl(ptr::null(), loader, buf)
     }
 
@@ -308,6 +310,9 @@ impl<'local> JNIEnv<'local> {
         loader: &JObject,
         buf: &[u8],
     ) -> Result<JClass<'local>> {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         // Safety:
         // DefineClass is 1.1 API that must be valid
         // It is valid to potentially pass a `null` `name` to `DefineClass`, since the
@@ -337,6 +342,9 @@ impl<'local> JNIEnv<'local> {
     where
         S: Into<JNIString>,
     {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let name = name.into();
         // Safety:
         // DefineClass is 1.1 API that must be valid
@@ -360,7 +368,7 @@ impl<'local> JNIEnv<'local> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{errors::Result, JNIEnv, objects::JClass};
+    /// # use jni::{errors::Result, env::JNIEnv, objects::JClass};
     /// #
     /// # fn example<'local>(env: &mut JNIEnv<'local>) -> Result<()> {
     /// let class: JClass<'local> = env.find_class("java/lang/String")?;
@@ -371,6 +379,9 @@ impl<'local> JNIEnv<'local> {
     where
         S: Into<JNIString>,
     {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let name = name.into();
         // Safety:
         // FindClass is 1.1 API that must be valid
@@ -391,6 +402,9 @@ impl<'local> JNIEnv<'local> {
     where
         T: Desc<'local, JClass<'other_local>>,
     {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let class = class.lookup(self)?;
         let superclass = unsafe {
             JClass::from_raw(jni_call_unchecked!(
@@ -404,6 +418,9 @@ impl<'local> JNIEnv<'local> {
         Ok((!superclass.is_null()).then_some(superclass))
     }
 
+    // FIXME: this API shouldn't need a `&mut self` reference since it doesn't return a local reference
+    // (currently it just needs the `&mut self` for the sake of `Desc<JClass>::lookup`)
+    //
     /// Tests whether class1 is assignable from class2.
     pub fn is_assignable_from<'other_local_1, 'other_local_2, T, U>(
         &mut self,
@@ -433,6 +450,9 @@ impl<'local> JNIEnv<'local> {
         }
     }
 
+    // FIXME: this API shouldn't need a `&mut self` reference since it doesn't return a local reference
+    // (currently it just needs the `&mut self` for the sake of `Desc<JClass>::lookup`)
+    //
     /// Returns true if the object reference can be cast to the given type.
     ///
     /// _NB: Unlike the operator `instanceof`, function `IsInstanceOf` *returns `true`*
@@ -487,12 +507,15 @@ impl<'local> JNIEnv<'local> {
         }
     }
 
+    // FIXME: this API shouldn't need a `&mut self` reference since it doesn't return a local reference
+    // (currently it just needs the `&mut self` for the sake of `Desc<JThrowable>::lookup`)
+    //
     /// Raise an exception from an existing object. This will continue being
     /// thrown in java unless `exception_clear` is called.
     ///
     /// # Examples
     /// ```rust,no_run
-    /// # use jni::{errors::Result, JNIEnv};
+    /// # use jni::{errors::Result, env::JNIEnv};
     /// #
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
     /// env.throw(("java/lang/Exception", "something bad happened"))?;
@@ -503,7 +526,7 @@ impl<'local> JNIEnv<'local> {
     /// Defaulting to "java/lang/Exception":
     ///
     /// ```rust,no_run
-    /// # use jni::{errors::Result, JNIEnv};
+    /// # use jni::{errors::Result, env::JNIEnv};
     /// #
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
     /// env.throw("something bad happened")?;
@@ -534,12 +557,15 @@ impl<'local> JNIEnv<'local> {
         }
     }
 
+    // FIXME: this API shouldn't need a `&mut self` reference since it doesn't return a local reference
+    // (currently it just needs the `&mut self` for the sake of `Desc<JClass>::lookup`)
+    //
     /// Create and throw a new exception from a class descriptor and an error
     /// message.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{errors::Result, JNIEnv};
+    /// # use jni::{errors::Result, env::JNIEnv};
     /// #
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
     /// env.throw_new("java/lang/Exception", "something bad happened")?;
@@ -589,6 +615,9 @@ impl<'local> JNIEnv<'local> {
     /// An exception is in this state from the time it gets thrown and
     /// not caught in a java function until `exception_clear` is called.
     pub fn exception_occurred(&mut self) -> Option<JThrowable<'local>> {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let throwable = unsafe { jni_call_unchecked!(self, v1_1, ExceptionOccurred) };
         if throwable.is_null() {
             None
@@ -625,7 +654,7 @@ impl<'local> JNIEnv<'local> {
     /// [`JNIString`], like so:
     ///
     /// ```no_run
-    /// # use jni::{JNIEnv, strings::JNIString};
+    /// # use jni::{env::JNIEnv, strings::JNIString};
     /// # let env: JNIEnv = unimplemented!();
     /// env.fatal_error(&JNIString::from("Game over, man! Game over!"))
     /// ```
@@ -635,7 +664,7 @@ impl<'local> JNIEnv<'local> {
     /// `unsafe`:
     ///
     /// ```no_run
-    /// # use jni::{JNIEnv, strings::JNIStr};
+    /// # use jni::{env::JNIEnv, strings::JNIStr};
     /// # use std::ffi::CStr;
     /// const MESSAGE: &JNIStr = unsafe {
     ///     JNIStr::from_cstr_unchecked(
@@ -669,7 +698,7 @@ impl<'local> JNIEnv<'local> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{errors::Result, JNIEnv};
+    /// # use jni::{errors::Result, env::JNIEnv};
     /// #
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
     /// let buf = vec![0; 1024 * 1024];
@@ -694,6 +723,9 @@ impl<'local> JNIEnv<'local> {
         data: *mut u8,
         len: usize,
     ) -> Result<JByteBuffer<'local>> {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let data = null_check!(data, "new_direct_byte_buffer data argument")?;
         // Safety: jni-rs requires JNI >= 1.4 and this is checked in `from_raw`
         let obj = jni_call_check_ex_and_null_ret!(
@@ -750,15 +782,48 @@ impl<'local> JNIEnv<'local> {
     /// Global references take more time to create or delete than ordinary
     /// local references do, but have several properties that make them useful
     /// in certain situations. See [`GlobalRef`] for more information.
-    pub fn new_global_ref<'other_local, O>(&self, obj: O) -> Result<GlobalRef>
+    ///
+    /// If you use this API to try and upgrade a [`WeakRef`] then it may return
+    /// [`Error::ObjectFreed`] if the object has been garbage collected.
+    pub fn new_global_ref<'any_local, O>(&self, obj: O) -> Result<GlobalRef<O::GlobalKind>>
     where
-        O: AsRef<JObject<'other_local>>,
+        O: JObjectRef + AsRef<JObject<'any_local>>,
     {
-        let jvm = self.get_java_vm()?;
-        unsafe {
-            let new_ref = jni_call_unchecked!(self, v1_1, NewGlobalRef, obj.as_ref().as_raw());
-            let global = GlobalRef::from_raw(jvm, new_ref);
-            Ok(global)
+        // Avoid passing null to `NewGlobalRef` so that we can recognise out-of-memory errors
+        if obj.is_null() {
+            return Ok(GlobalRef::null());
+        }
+
+        // Safety:
+        // - the minimum supported JNI version is 1.4
+        // - we can assume that `obj.raw()` is a valid reference
+        // - we know there's no other wrapper for the reference passed to from_global_raw
+        //   since we have just created it.
+        let global_ref = unsafe {
+            let global_ref =
+                O::from_global_raw(jni_call_unchecked!(self, v1_1, NewGlobalRef, obj.as_raw()));
+            GlobalRef::new(self, global_ref)
+        };
+
+        // Per JNI spec, `NewGlobalRef` will return a null pointer if the object was GC'd
+        // (which could happen if `obj` is a `WeakRef`):
+        //
+        //  > it is recommended that a (strong) local or global reference to the
+        //  > underlying object be acquired using one of the JNI functions
+        //  > NewLocalRef or NewGlobalRef. These functions will return NULL if
+        //  > the object has been freed.
+        //
+        if global_ref.is_null() {
+            // In this case it's ambiguous whether there has been an out-of-memory error or
+            // the object has been garbage collected and so we now _explicitly_ check
+            // whether the object has been garbage collected.
+            if self.is_same_object(obj, JObject::null()) {
+                Err(Error::ObjectFreed)
+            } else {
+                Err(Error::JniCall(JniError::NoMemory))
+            }
+        } else {
+            Ok(global_ref)
         }
     }
 
@@ -768,19 +833,16 @@ impl<'local> JNIEnv<'local> {
     /// doesn't prevent the Java object from being garbage collected. See
     /// [`WeakRef`] for more information.
     ///
-    /// If the provided object is null, this method returns `None`. Otherwise, it returns `Some`
-    /// containing the new weak global reference.
-    pub fn new_weak_ref<'other_local, O>(&self, obj: O) -> Result<Option<WeakRef>>
+    /// If you use this API to create a [`WeakRef`] from another [`WeakRef`]
+    /// then it may return [`Error::ObjectFreed`] if the object has been garbage
+    /// collected.
+    ///
+    /// Attempting to create a [`WeakRef`] for a `null` reference will return an
+    /// [`Error::ObjectFreed`] error.
+    pub fn new_weak_ref<O>(&self, obj: O) -> Result<WeakRef<O::GlobalKind>>
     where
-        O: AsRef<JObject<'other_local>>,
+        O: JObjectRef,
     {
-        // We need the `JavaVM` in order to construct a `WeakRef` below. But because `get_java_vm`
-        // is fallible, we need to call it before doing anything else, so that we don't leak
-        // memory if it fails.
-        let vm = self.get_java_vm()?;
-
-        let obj = obj.as_ref().as_raw();
-
         // Check if the pointer is null *before* calling `NewWeakGlobalRef`.
         //
         // This avoids a bug in some JVM implementations which, contrary to the JNI specification,
@@ -788,22 +850,34 @@ impl<'local> JNIEnv<'local> {
         // passed a null pointer. (The specification says it will return a null pointer in that
         // situation, not throw an exception.)
         if obj.is_null() {
-            return Ok(None);
+            return Err(Error::ObjectFreed);
         }
 
-        unsafe {
-            // Safety: jni-rs requires JNI_VERSION > 1.2
-            let weak: sys::jweak = jni_call_check_ex!(self, v1_2, NewWeakGlobalRef, obj)?;
+        // Safety:
+        // - the minimum supported JNI version is 1.4
+        // - we can assume that `obj.raw()` is a valid reference
+        // - we know there's no other wrapper for the reference passed to from_global_raw
+        //   since we have just created it.
+        let weak_ref = unsafe {
+            let weak = O::from_global_raw(jni_call_check_ex!(
+                self,
+                v1_2,
+                NewWeakGlobalRef,
+                obj.as_raw()
+            )?);
+            WeakRef::new(self, weak)
+        };
 
-            // Check if the pointer returned by `NewWeakGlobalRef` is null. This can happen if `obj` is
-            // itself a weak reference that was already garbage collected.
-            if weak.is_null() {
-                return Ok(None);
-            }
+        // Unlike for NewLocalRef and NewGlobalRef, the JNI spec doesn't seem to
+        // give the same guarantee that it will return null if the object has
+        // already been freed, but it seems reasonable to assume it can.
 
-            let weak = WeakRef::from_raw(vm, weak);
-
-            Ok(Some(weak))
+        if weak_ref.is_null() {
+            // Unlike for NewLocalRef and NewGlobalRef we can assume that NewWeakGlobalRef
+            // will throw an out-of-memory exception (that we catch) instead of returning null
+            Err(Error::ObjectFreed)
+        } else {
+            Ok(weak_ref)
         }
     }
 
@@ -841,7 +915,7 @@ impl<'local> JNIEnv<'local> {
     /// reference:
     ///
     /// ```no_run
-    /// # use jni::{JNIEnv, objects::*};
+    /// # use jni::{env::JNIEnv, objects::*};
     /// # use std::fmt::Display;
     /// #
     /// # type SomeOtherErrorType = Box<dyn Display>;
@@ -853,7 +927,7 @@ impl<'local> JNIEnv<'local> {
     ///     ///
     ///     /// The enclosed `GlobalRef` points to a Java object of class `java.lang.Throwable`
     ///     /// (or one of its many subclasses).
-    ///     Exception(GlobalRef),
+    ///     Exception(GlobalRef<JObject<'static>>),
     ///
     ///     /// This variant represents an error in Rust code, not a Java exception.
     ///     Other(SomeOtherErrorType),
@@ -901,34 +975,51 @@ impl<'local> JNIEnv<'local> {
     /// ```
     ///
     /// [`NewLocalRef`]: https://docs.oracle.com/en/java/javase/11/docs/specs/jni/functions.html#newlocalref
-    pub fn new_local_ref<'other_local, O>(&self, obj: O) -> Result<JObject<'local>>
+    pub fn new_local_ref<'any_local, O>(&mut self, obj: O) -> Result<O::Kind<'local>>
     where
-        O: AsRef<JObject<'other_local>>,
+        O: JObjectRef + AsRef<JObject<'any_local>>,
     {
-        let obj = obj.as_ref();
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
+
+        //let obj = obj.as_ref();
 
         // By checking for `null` before calling `NewLocalRef` we can recognise
         // that a `null` returned from `NewLocalRef` is from being out of memory.
         if obj.is_null() {
-            return Ok(JObject::null());
+            return Ok(O::null());
         }
 
-        // Safety: we check the JNI version is > 1.2 in `from_raw`
+        // Safety:
+        // - the minimum supported JNI version is 1.4
+        // - we can assume that `obj.raw()` is a valid reference, or null
+        // - we know there's no other wrapper for the reference passed to from_local_raw
+        //   since we have just created it.
         let local = unsafe {
-            JObject::from_raw(jni_call_unchecked!(self, v1_2, NewLocalRef, obj.as_raw()))
+            O::from_local_raw(jni_call_unchecked!(self, v1_2, NewLocalRef, obj.as_raw()))
         };
 
-        // Since we know we didn't pass a `null` `obj` reference to `NewLocalRef` then
-        // a `null` implies an out-of-memory error.
+        // Per JNI spec, `NewLocalRef` will return a null pointer if the object was GC'd
+        // (which could happen if `obj` is a `WeakRef`):
         //
-        // (We assume it's not a `null` from failing to upgrade a weak reference because
-        //  that would be done via `WeakRef::upgrade_local`)
+        //  > it is recommended that a (strong) local or global reference to the
+        //  > underlying object be acquired using one of the JNI functions
+        //  > NewLocalRef or NewGlobalRef. These functions will return NULL if
+        //  > the object has been freed.
         //
         if local.is_null() {
-            return Err(Error::JniCall(JniError::NoMemory));
+            // In this case it's ambiguous whether there has been an out-of-memory error or
+            // the object has been garbage collected and so we now _explicitly_ check
+            // whether the object has been garbage collected.
+            if self.is_same_object(obj, JObject::null()) {
+                Err(Error::ObjectFreed)
+            } else {
+                Err(Error::JniCall(JniError::NoMemory))
+            }
+        } else {
+            Ok(local)
         }
-
-        Ok(local)
     }
 
     /// Creates a new auto-deleted local reference.
@@ -937,11 +1028,12 @@ impl<'local> JNIEnv<'local> {
     /// can be more convenient when you create a _bounded_ number of local references
     /// but cannot rely on automatic de-allocation (e.g., in case of recursion, deep call stacks,
     /// [permanently-attached](struct.JavaVM.html#attaching-native-threads) native threads, etc.).
+    #[deprecated = "Use '.auto()' from IntoAutoLocal trait"]
     pub fn auto_local<O>(&self, obj: O) -> AutoLocal<'local, O>
     where
         O: Into<JObject<'local>>,
     {
-        AutoLocal::new(obj, self)
+        AutoLocal::new(obj)
     }
 
     /// Deletes the local reference.
@@ -986,7 +1078,17 @@ impl<'local> JNIEnv<'local> {
     ///
     /// See also [`auto_local`](struct.JNIEnv.html#method.auto_local) method
     /// and `AutoLocal` type — that approach can be more convenient in loops.
-    pub fn push_local_frame(&self, capacity: i32) -> Result<()> {
+    ///
+    /// # Safety
+    ///
+    /// The caller must guarantee that there will be a corresponding call to
+    /// `pop_local_frame`
+    ///
+    /// The caller must ensure that a new `AttachGuard` is created before
+    /// creating a new local frame and the the local frame may only access
+    /// a `JNIEnv` that is borrowed from this new guard (so that local
+    /// references will be tied to lifetime of the new guard)
+    unsafe fn push_local_frame(&self, capacity: i32) -> Result<()> {
         // Safety:
         // This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
         // We check for JNI > 1.2 in `from_raw`
@@ -1009,7 +1111,10 @@ impl<'local> JNIEnv<'local> {
     /// Any local references created after the most recent call to
     /// [`JNIEnv::push_local_frame`] (or the underlying JNI function) must not
     /// be used after calling this method.
-    pub unsafe fn pop_local_frame(&self, result: &JObject) -> Result<JObject<'local>> {
+    ///
+    /// The `AttachGuard` created before calling `push_local_frame` must be
+    /// dropped after calling `pop_local_frame`.
+    unsafe fn pop_local_frame(&self, result: &JObject) -> Result<JObject<'local>> {
         // Safety:
         // This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
         // We check for JNI > 1.2 in `from_raw`
@@ -1031,15 +1136,29 @@ impl<'local> JNIEnv<'local> {
     /// Since local references created within this frame won't be accessible to the calling
     /// frame then if you need to pass an object back to the caller then you can do that via a
     /// [`GlobalRef`] / [`Self::make_global`].
-    pub fn with_local_frame<F, T, E>(&mut self, capacity: i32, f: F) -> std::result::Result<T, E>
+    pub fn with_local_frame<F, T, E>(&mut self, capacity: usize, f: F) -> std::result::Result<T, E>
     where
         F: FnOnce(&mut JNIEnv) -> std::result::Result<T, E>,
         E: From<Error>,
     {
+        // Runtime check that the new local frame is being pushed on top of the
+        // the current top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
+
+        let capacity: jni_sys::jint = capacity
+            .try_into()
+            .map_err(|_| Error::JniCall(JniError::InvalidArguments))?;
+
         unsafe {
+            // Safety: by creating a new AttachGuard we ensure that the attach guard level
+            // will be incremented in sync with the creation of a new JNI stack frame
+            let mut guard = AttachGuard::from_unowned(self.get_raw());
+            let mut env = JNIEnv::new(&mut guard);
             self.push_local_frame(capacity)?;
-            let ret = catch_unwind(AssertUnwindSafe(|| f(self)));
+            let ret = catch_unwind(AssertUnwindSafe(|| f(&mut env)));
             self.pop_local_frame(&JObject::null())?;
+            drop(env);
+            drop(guard);
 
             match ret {
                 Ok(ret) => ret,
@@ -1063,7 +1182,7 @@ impl<'local> JNIEnv<'local> {
     /// temporary [`GlobalRef`].
     pub fn with_local_frame_returning_local<F, E>(
         &mut self,
-        capacity: i32,
+        capacity: usize,
         f: F,
     ) -> std::result::Result<JObject<'local>, E>
     where
@@ -1072,22 +1191,40 @@ impl<'local> JNIEnv<'local> {
         ) -> std::result::Result<JObject<'new_local>, E>,
         E: From<Error>,
     {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
+
+        let capacity: jni_sys::jint = capacity
+            .try_into()
+            .map_err(|_| Error::JniCall(JniError::InvalidArguments))?;
+
         unsafe {
+            // Safety: by creating a new AttachGuard we ensure that the attach guard level
+            // will be incremented in sync with the creation of a new JNI stack frame
+            let mut guard = AttachGuard::from_unowned(self.get_raw());
+            let mut env = JNIEnv::new(&mut guard);
             self.push_local_frame(capacity)?;
-            let ret = catch_unwind(AssertUnwindSafe(|| f(self)));
+            let ret = catch_unwind(AssertUnwindSafe(|| f(&mut env)));
             match ret {
                 Ok(ret) => match ret {
                     Ok(obj) => {
                         let obj = self.pop_local_frame(&obj)?;
+                        drop(env);
+                        drop(guard);
                         Ok(obj)
                     }
                     Err(err) => {
                         self.pop_local_frame(&JObject::null())?;
+                        drop(env);
+                        drop(guard);
                         Err(err)
                     }
                 },
                 Err(payload) => {
                     self.pop_local_frame(&JObject::null())?;
+                    drop(env);
+                    drop(guard);
                     resume_unwind(payload);
                 }
             }
@@ -1100,6 +1237,9 @@ impl<'local> JNIEnv<'local> {
     where
         T: Desc<'local, JClass<'other_local>>,
     {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let class = class.lookup(self)?;
         let obj = unsafe {
             jni_call_check_ex_and_null_ret!(self, v1_1, AllocObject, class.as_ref().as_raw())?
@@ -1111,6 +1251,9 @@ impl<'local> JNIEnv<'local> {
         Ok(unsafe { JObject::from_raw(obj) })
     }
 
+    // FIXME: this API shouldn't need a `&mut self` reference since it doesn't return a local reference
+    // (currently it just needs the `&mut self` for the sake of `Desc<JClass>::lookup`)
+    //
     /// Common functionality for finding methods.
     #[allow(clippy::redundant_closure_call)]
     fn get_method_id_base<'other_local_1, T, U, V, C, R>(
@@ -1150,12 +1293,15 @@ impl<'local> JNIEnv<'local> {
         }
     }
 
+    // FIXME: this API shouldn't need a `&mut self` reference since it doesn't return a local reference
+    // (currently it just needs the `&mut self` for the sake of `Desc<JClass>::lookup`)
+    //
     /// Look up a method by class descriptor, name, and
     /// signature.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{errors::Result, JNIEnv, objects::JMethodID};
+    /// # use jni::{errors::Result, env::JNIEnv, objects::JMethodID};
     /// #
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
     /// let method_id: JMethodID =
@@ -1187,12 +1333,15 @@ impl<'local> JNIEnv<'local> {
         })
     }
 
+    // FIXME: this API shouldn't need a `&mut self` reference since it doesn't return a local reference
+    // (currently it just needs the `&mut self` for the sake of `Desc<JClass>::lookup`)
+    //
     /// Look up a static method by class descriptor, name, and
     /// signature.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{errors::Result, JNIEnv, objects::JStaticMethodID};
+    /// # use jni::{errors::Result, env::JNIEnv, objects::JStaticMethodID};
     /// #
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
     /// let method_id: JStaticMethodID =
@@ -1224,11 +1373,14 @@ impl<'local> JNIEnv<'local> {
         })
     }
 
+    // FIXME: this API shouldn't need a `&mut self` reference since it doesn't return a local reference
+    // (currently it just needs the `&mut self` for the sake of `Desc<JClass>::lookup`)
+    //
     /// Look up the field ID for a class/name/type combination.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{errors::Result, JNIEnv, objects::JFieldID};
+    /// # use jni::{errors::Result, env::JNIEnv, objects::JFieldID};
     /// #
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
     /// let field_id: JFieldID = env.get_field_id("com/my/Class", "intField", "I")?;
@@ -1275,11 +1427,14 @@ impl<'local> JNIEnv<'local> {
         }
     }
 
+    // FIXME: this API shouldn't need a `&mut self` reference since it doesn't return a local reference
+    // (currently it just needs the `&mut self` for the sake of `Desc<JClass>::lookup`)
+    //
     /// Look up the static field ID for a class/name/type combination.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{errors::Result, JNIEnv, objects::JStaticFieldID};
+    /// # use jni::{errors::Result, env::JNIEnv, objects::JStaticFieldID};
     /// #
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
     /// let field_id: JStaticFieldID = env.get_static_field_id("com/my/Class", "intField", "I")?;
@@ -1334,6 +1489,9 @@ impl<'local> JNIEnv<'local> {
     where
         O: AsRef<JObject<'other_local>>,
     {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let obj = obj.as_ref();
         let obj = null_check!(obj, "get_object_class")?;
         unsafe {
@@ -1368,6 +1526,9 @@ impl<'local> JNIEnv<'local> {
         T: Desc<'local, JClass<'other_local>>,
         U: Desc<'local, JStaticMethodID>,
     {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         use super::signature::Primitive::{
             Boolean, Byte, Char, Double, Float, Int, Long, Short, Void,
         };
@@ -1443,6 +1604,9 @@ impl<'local> JNIEnv<'local> {
         O: AsRef<JObject<'other_local>>,
         T: Desc<'local, JMethodID>,
     {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         use super::signature::Primitive::{
             Boolean, Byte, Char, Double, Float, Int, Long, Short, Void,
         };
@@ -1508,6 +1672,9 @@ impl<'local> JNIEnv<'local> {
         T: Desc<'local, JClass<'other_local>>,
         U: Desc<'local, JMethodID>,
     {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         use super::signature::Primitive::{
             Boolean, Byte, Char, Double, Float, Int, Long, Short, Void,
         };
@@ -1585,6 +1752,9 @@ impl<'local> JNIEnv<'local> {
         S: Into<JNIString>,
         T: Into<JNIString> + AsRef<str>,
     {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let obj = obj.as_ref();
         let obj = null_check!(obj, "call_method obj argument")?;
 
@@ -1602,16 +1772,12 @@ impl<'local> JNIEnv<'local> {
             .all(|(exp, act)| match exp {
                 JavaType::Primitive(p) => act.primitive_type() == Some(*p),
                 JavaType::Object(_) | JavaType::Array(_) => act.primitive_type().is_none(),
-                JavaType::Method(_) => {
-                    unreachable!("JavaType::Method(_) should not come from parsing a method sig")
-                }
             });
         if !base_types_match {
             return Err(Error::InvalidArgList(parsed));
         }
 
-        let class = self.get_object_class(obj)?;
-        let class = self.auto_local(class);
+        let class = self.get_object_class(obj)?.auto();
 
         let args: Vec<jvalue> = args.iter().map(|v| v.as_jni()).collect();
 
@@ -1645,6 +1811,9 @@ impl<'local> JNIEnv<'local> {
         U: Into<JNIString>,
         V: Into<JNIString> + AsRef<str>,
     {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let parsed = TypeSignature::from_str(&sig)?;
         if parsed.args.len() != args.len() {
             return Err(Error::InvalidArgList(parsed));
@@ -1658,9 +1827,6 @@ impl<'local> JNIEnv<'local> {
             .all(|(exp, act)| match exp {
                 JavaType::Primitive(p) => act.primitive_type() == Some(*p),
                 JavaType::Object(_) | JavaType::Array(_) => act.primitive_type().is_none(),
-                JavaType::Method(_) => {
-                    unreachable!("JavaType::Method(_) should not come from parsing a method sig")
-                }
             });
         if !base_types_match {
             return Err(Error::InvalidArgList(parsed));
@@ -1704,6 +1870,9 @@ impl<'local> JNIEnv<'local> {
         U: Into<JNIString>,
         V: Into<JNIString> + AsRef<str>,
     {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let obj = obj.as_ref();
         let obj = null_check!(obj, "call_method obj argument")?;
 
@@ -1720,9 +1889,6 @@ impl<'local> JNIEnv<'local> {
             .all(|(exp, act)| match exp {
                 JavaType::Primitive(p) => act.primitive_type() == Some(*p),
                 JavaType::Object(_) | JavaType::Array(_) => act.primitive_type().is_none(),
-                JavaType::Method(_) => {
-                    unreachable!("JavaType::Method(_) should not come from parsing a method sig")
-                }
             });
         if !base_types_match {
             return Err(Error::InvalidArgList(parsed));
@@ -1754,6 +1920,9 @@ impl<'local> JNIEnv<'local> {
         T: Desc<'local, JClass<'other_local>>,
         U: Into<JNIString> + AsRef<str>,
     {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         // parse the signature
         let parsed = TypeSignature::from_str(&ctor_sig)?;
 
@@ -1771,9 +1940,6 @@ impl<'local> JNIEnv<'local> {
                 .all(|(exp, act)| match exp {
                     JavaType::Primitive(p) => act.primitive_type() == Some(*p),
                     JavaType::Object(_) | JavaType::Array(_) => act.primitive_type().is_none(),
-                    JavaType::Method(_) => {
-                        unreachable!("JavaType::Method(_) should not come from parsing a ctor sig")
-                    }
                 });
         if !base_types_match {
             return Err(Error::InvalidArgList(parsed));
@@ -1814,6 +1980,9 @@ impl<'local> JNIEnv<'local> {
     where
         T: Desc<'local, JClass<'other_local>>,
     {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let class = class.lookup(self)?;
 
         let jni_args = ctor_args.as_ptr();
@@ -1846,6 +2015,9 @@ impl<'local> JNIEnv<'local> {
     where
         'other_local_1: 'obj_ref,
     {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let obj = null_check!(obj, "get_list obj argument")?;
         JList::from_env(self, obj)
     }
@@ -1860,6 +2032,9 @@ impl<'local> JNIEnv<'local> {
     where
         'other_local_1: 'obj_ref,
     {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let obj = null_check!(obj, "get_map obj argument")?;
         JMap::from_env(self, obj)
     }
@@ -1889,6 +2064,9 @@ impl<'local> JNIEnv<'local> {
         &self,
         obj: &'obj_ref JString<'other_local>,
     ) -> Result<JavaStr<'local, 'other_local, 'obj_ref>> {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let obj = null_check!(obj, "get_string obj argument")?;
         JavaStr::from_env_totally_unchecked(self, obj)
     }
@@ -1919,7 +2097,10 @@ impl<'local> JNIEnv<'local> {
         &mut self,
         obj: &'obj_ref JString<'other_local>,
     ) -> Result<JavaStr<'local, 'other_local, 'obj_ref>> {
-        static STRING_CLASS: OnceCell<GlobalRef> = OnceCell::new();
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
+        static STRING_CLASS: OnceCell<GlobalRef<JClass<'static>>> = OnceCell::new();
         let string_class = STRING_CLASS.get_or_try_init(|| {
             let string_class_local = self.find_class("java/lang/String")?;
             self.new_global_ref(string_class_local)
@@ -1936,7 +2117,10 @@ impl<'local> JNIEnv<'local> {
     /// Create a new java string object from a rust string. This requires a
     /// re-encoding of rusts *real* UTF-8 strings to java's modified UTF-8
     /// format.
-    pub fn new_string<S: Into<JNIString>>(&self, from: S) -> Result<JString<'local>> {
+    pub fn new_string<S: Into<JNIString>>(&mut self, from: S) -> Result<JString<'local>> {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let ffi_str = from.into();
         unsafe {
             jni_call_check_ex_and_null_ret!(self, v1_1, NewStringUTF, ffi_str.as_ptr())
@@ -1972,6 +2156,9 @@ impl<'local> JNIEnv<'local> {
         T: Desc<'local, JClass<'other_local_2>>,
         U: AsRef<JObject<'other_local_1>>,
     {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let class = element_class.lookup(self)?;
 
         let array = unsafe {
@@ -1998,6 +2185,9 @@ impl<'local> JNIEnv<'local> {
         array: impl AsRef<JObjectArray<'other_local>>,
         index: jsize,
     ) -> Result<JObject<'local>> {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let array = null_check!(array.as_ref(), "get_object_array_element array argument")?;
         unsafe {
             jni_call_check_ex!(self, v1_1, GetObjectArrayElement, array.as_raw(), index)
@@ -2028,6 +2218,9 @@ impl<'local> JNIEnv<'local> {
 
     /// Create a new java byte array from a rust byte slice.
     pub fn byte_array_from_slice(&self, buf: &[u8]) -> Result<JByteArray<'local>> {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let length = buf.len() as i32;
         let bytes = self.new_byte_array(length)?;
         unsafe {
@@ -2069,6 +2262,9 @@ impl<'local> JNIEnv<'local> {
 
     /// Create a new java boolean array of supplied length.
     pub fn new_boolean_array(&self, length: jsize) -> Result<JBooleanArray<'local>> {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let array = unsafe {
             jni_call_check_ex_and_null_ret!(self, v1_1, NewBooleanArray, length)
                 .map(|array| JBooleanArray::from_raw(array))?
@@ -2078,6 +2274,9 @@ impl<'local> JNIEnv<'local> {
 
     /// Create a new java byte array of supplied length.
     pub fn new_byte_array(&self, length: jsize) -> Result<JByteArray<'local>> {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let array = unsafe {
             jni_call_check_ex_and_null_ret!(self, v1_1, NewByteArray, length)
                 .map(|array| JByteArray::from_raw(array))?
@@ -2087,6 +2286,9 @@ impl<'local> JNIEnv<'local> {
 
     /// Create a new java char array of supplied length.
     pub fn new_char_array(&self, length: jsize) -> Result<JCharArray<'local>> {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let array = unsafe {
             jni_call_check_ex_and_null_ret!(self, v1_1, NewCharArray, length)
                 .map(|array| JCharArray::from_raw(array))?
@@ -2096,6 +2298,9 @@ impl<'local> JNIEnv<'local> {
 
     /// Create a new java short array of supplied length.
     pub fn new_short_array(&self, length: jsize) -> Result<JShortArray<'local>> {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let array = unsafe {
             jni_call_check_ex_and_null_ret!(self, v1_1, NewShortArray, length)
                 .map(|array| JShortArray::from_raw(array))?
@@ -2105,6 +2310,9 @@ impl<'local> JNIEnv<'local> {
 
     /// Create a new java int array of supplied length.
     pub fn new_int_array(&self, length: jsize) -> Result<JIntArray<'local>> {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let array = unsafe {
             jni_call_check_ex_and_null_ret!(self, v1_1, NewIntArray, length)
                 .map(|array| JIntArray::from_raw(array))?
@@ -2114,6 +2322,9 @@ impl<'local> JNIEnv<'local> {
 
     /// Create a new java long array of supplied length.
     pub fn new_long_array(&self, length: jsize) -> Result<JLongArray<'local>> {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let array = unsafe {
             jni_call_check_ex_and_null_ret!(self, v1_1, NewLongArray, length)
                 .map(|array| JLongArray::from_raw(array))?
@@ -2123,6 +2334,9 @@ impl<'local> JNIEnv<'local> {
 
     /// Create a new java float array of supplied length.
     pub fn new_float_array(&self, length: jsize) -> Result<JFloatArray<'local>> {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let array = unsafe {
             jni_call_check_ex_and_null_ret!(self, v1_1, NewFloatArray, length)
                 .map(|array| JFloatArray::from_raw(array))?
@@ -2132,6 +2346,9 @@ impl<'local> JNIEnv<'local> {
 
     /// Create a new java double array of supplied length.
     pub fn new_double_array(&self, length: jsize) -> Result<JDoubleArray<'local>> {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let array = unsafe {
             jni_call_check_ex_and_null_ret!(self, v1_1, NewDoubleArray, length)
                 .map(|array| JDoubleArray::from_raw(array))?
@@ -2548,6 +2765,70 @@ impl<'local> JNIEnv<'local> {
         }
     }
 
+    /// Convert a [`JMethodID`] into a [`JObject`] with the corresponding
+    /// `java.lang.reflect.Method` or `java.lang.reflect.Constructor` instance.
+    pub fn to_reflected_method<'other_local>(
+        &mut self,
+        class: impl Desc<'local, JClass<'other_local>>,
+        method_id: impl Desc<'local, JMethodID>,
+    ) -> Result<JObject<'local>> {
+        // Safety: Rust type safety ensures that method_id is a JMethodID, while is_static is false
+        unsafe { self.to_reflected_method_base(class, method_id, JMethodID::into_raw, false) }
+    }
+
+    /// Convert a [`JStaticMethodID`] into a [`JObject`] with the corresponding
+    /// `java.lang.reflect.Method` instance.
+    pub fn to_reflected_static_method<'other_local>(
+        &mut self,
+        class: impl Desc<'local, JClass<'other_local>>,
+        method_id: impl Desc<'local, JStaticMethodID>,
+    ) -> Result<JObject<'local>> {
+        // Safety: Rust type safety ensures that method_id is a JStaticMethodID, while is_static is true
+        unsafe { self.to_reflected_method_base(class, method_id, JStaticMethodID::into_raw, true) }
+    }
+
+    /// Convert a [`JMethodID`] or [`JStaticMethodID`] into a [`JObject`] with the
+    /// corresponding `java.lang.reflect.Method` or `java.lang.reflect.Constructor`
+    /// instance.
+    ///
+    /// The `to_jmethodid` function is used to convert the method ID type into
+    /// a raw [`sys::jmethodID`].
+    ///
+    /// # Safety
+    ///
+    /// `is_static` must correctly indicate whether the method ID is for a static method. (The JNI
+    /// spec does not define what happens if this is incorrect.)
+    #[allow(clippy::wrong_self_convention)]
+    unsafe fn to_reflected_method_base<'other_local, M>(
+        &mut self,
+        class: impl Desc<'local, JClass<'other_local>>,
+        method_id: impl Desc<'local, M>,
+        to_jmethodid: impl FnOnce(M) -> crate::sys::jmethodID,
+        is_static: bool,
+    ) -> Result<JObject<'local>>
+    where
+        M: Copy,
+    {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
+        let class = class.lookup(self)?;
+
+        let method_id = to_jmethodid(*method_id.lookup(self)?.as_ref());
+
+        unsafe {
+            jni_call_check_ex_and_null_ret!(
+                self,
+                v1_2,
+                ToReflectedMethod,
+                class.as_ref().as_raw(),
+                method_id,
+                is_static
+            )
+            .map(|jobject| JObject::from_raw(jobject))
+        }
+    }
+
     /// Get a field without checking the provided type against the actual field.
     ///
     /// # Safety
@@ -2563,6 +2844,9 @@ impl<'local> JNIEnv<'local> {
         O: AsRef<JObject<'other_local>>,
         T: Desc<'local, JFieldID>,
     {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         use super::signature::Primitive::{
             Boolean, Byte, Char, Double, Float, Int, Long, Short, Void,
         };
@@ -2664,9 +2948,11 @@ impl<'local> JNIEnv<'local> {
         S: Into<JNIString>,
         T: Into<JNIString> + AsRef<str>,
     {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let obj = obj.as_ref();
-        let class = self.get_object_class(obj)?;
-        let class = self.auto_local(class);
+        let class = self.get_object_class(obj)?.auto();
 
         let parsed = ReturnType::from_str(ty.as_ref())?;
 
@@ -2701,13 +2987,8 @@ impl<'local> JNIEnv<'local> {
             JavaType::Object(_) | JavaType::Array(_) if val_primitive.is_some() => wrong_type,
             JavaType::Primitive(p) if val_primitive != Some(p) => wrong_type,
             JavaType::Primitive(_) if val_primitive.is_none() => wrong_type,
-            JavaType::Method(_) => Err(Error::WrongJValueType(
-                val.type_name(),
-                "cannot set field with method type",
-            )),
             _ => {
-                let class = self.get_object_class(obj)?;
-                let class = self.auto_local(class);
+                let class = self.get_object_class(obj)?.auto();
 
                 // Safety: We have explicitly checked that the field type matches
                 // the value type
@@ -2728,10 +3009,13 @@ impl<'local> JNIEnv<'local> {
         T: Desc<'local, JClass<'other_local>>,
         U: Desc<'local, JStaticFieldID>,
     {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         use super::signature::Primitive::{
             Boolean, Byte, Char, Double, Float, Int, Long, Short, Void,
         };
-        use JavaType::{Array, Method, Object, Primitive};
+        use JavaType::{Array, Object, Primitive};
 
         let class = class.lookup(self)?;
         let field = field.lookup(self)?;
@@ -2752,7 +3036,6 @@ impl<'local> JNIEnv<'local> {
 
         let ret = match ty {
             Primitive(Void) => Err(Error::WrongJValueType("void", "see java field")),
-            Method(_) => Err(Error::WrongJValueType("Method", "see java field")),
             Object(_) | Array(_) => {
                 let obj = field!(GetStaticObjectField);
                 let obj = unsafe { JObject::from_raw(obj) };
@@ -2787,6 +3070,9 @@ impl<'local> JNIEnv<'local> {
         U: Into<JNIString>,
         V: Into<JNIString> + AsRef<str>,
     {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let ty = JavaType::from_str(sig.as_ref())?;
 
         // go ahead and look up the class sincewe'll need that for the next
@@ -2852,29 +3138,35 @@ impl<'local> JNIEnv<'local> {
     /// lock on the given object so the field can be updated without racing
     /// with other Java threads
     fn lock_rust_field<'other_local, O, S>(
-        &self,
+        &'_ self,
         obj: O,
         field: S,
-    ) -> Result<(MonitorGuard, JFieldID)>
+    ) -> Result<(MonitorGuard<'_>, JFieldID)>
     where
         O: AsRef<JObject<'other_local>>,
         S: AsRef<str>,
     {
-        // Safety: although we get a local reference from get_object_class, we wrap
-        // that in an AutoLocal to make sure that it is deleted before returning
-        // to the caller.
-        //
-        // `Desc::<JFieldID>::lookup` is not allowed to leak references and in
-        // this case since we explicitly lookup the object class then the
-        // `lookup` just needs to call `GetFieldID` without creating any
-        // other local reference for the class.
-        let mut env = unsafe { self.unsafe_clone() };
-        let obj = obj.as_ref();
-        let class = env.get_object_class(obj)?;
-        let class = self.auto_local(class);
-        let field_id: JFieldID = Desc::<JFieldID>::lookup((&class, &field, "J"), &mut env)?;
-        let guard = self.lock_obj(obj)?;
-        Ok((guard, field_id))
+        // Note: although the returned Monitor is associated with a lifetime, this API doesn't need
+        // a `&mut self` reference because we don't need to create and return a new local reference
+        // (Monitors aren't JNI types that are owned by a JNI stack frame).
+
+        // We also don't assert that `self.level == JavaVM::thread_attach_guard_level()` since the
+        // returned monitor is associated with the current thread and there's no reason you can't
+        // lock with a reference that's not from the top stack frame.
+
+        // Since `Desc::lookup` may need to create a temporary local reference for the object class
+        // (which we don't want to leak), we push a new stack frame that we can get a mutable
+        // reference for.
+
+        // Panic: The `&self` reference is enough to prove that `JavaVM::singleton` must have been
+        // initialized and won't panic.
+        JavaVM::singleton()?.with_env(|env| {
+            let obj = obj.as_ref();
+            let class = env.get_object_class(obj)?;
+            let field_id: JFieldID = Desc::<JFieldID>::lookup((&class, &field, "J"), env)?;
+            let guard = self.lock_obj(obj)?;
+            Ok((guard, field_id))
+        })
     }
 
     /// Surrenders ownership of a Rust value to Java.
@@ -2930,29 +3222,31 @@ impl<'local> JNIEnv<'local> {
     {
         let (_guard, field_id) = self.lock_rust_field(&obj, &field)?;
 
-        // Safety: Since we know we are dealing with a `jlong` field and since
-        // we have already looked up the field ID then we also know that
-        // get_field_unchecked and set_field_unchecked don't need to create any
-        // local references.
-        let mut env = unsafe { self.unsafe_clone() };
+        // It's OK that we don't push a new stack frame here since we know we are dealing with a
+        // `jlong` field and since we have already looked up the field ID then we also know that
+        // get_field_unchecked and set_field_unchecked don't need to create any local references.
 
-        // Safety: the requirement that the given field must be a `long` is
-        // documented in the 'Safety' section of this function
-        unsafe {
-            let field_ptr = env
-                .get_field_unchecked(&obj, field_id, ReturnType::Primitive(Primitive::Long))?
-                .j()? as *mut Mutex<T>;
-            if !field_ptr.is_null() {
-                return Err(Error::FieldAlreadySet(field.as_ref().to_owned()));
+        // Panic: The `&self` reference is enough to prove that `JavaVM::singleton` must have been
+        // initialized and won't panic.
+        JavaVM::singleton()?.with_env_current_frame(|env| {
+            // Safety: the requirement that the given field must be a `long` is
+            // documented in the 'Safety' section of this function
+            unsafe {
+                let field_ptr = env
+                    .get_field_unchecked(&obj, field_id, ReturnType::Primitive(Primitive::Long))?
+                    .j()? as *mut Mutex<T>;
+                if !field_ptr.is_null() {
+                    return Err(Error::FieldAlreadySet(field.as_ref().to_owned()));
+                }
             }
-        }
 
-        let mbox = Box::new(::std::sync::Mutex::new(rust_object));
-        let ptr: *mut Mutex<T> = Box::into_raw(mbox);
+            let mbox = Box::new(::std::sync::Mutex::new(rust_object));
+            let ptr: *mut Mutex<T> = Box::into_raw(mbox);
 
-        // Safety: the requirement that the given field must be a `long` is
-        // documented in the 'Safety' section of this function
-        unsafe { env.set_field_unchecked(obj, field_id, (ptr as crate::sys::jlong).into()) }
+            // Safety: the requirement that the given field must be a `long` is
+            // documented in the 'Safety' section of this function
+            unsafe { env.set_field_unchecked(obj, field_id, (ptr as crate::sys::jlong).into()) }
+        })
     }
 
     /// Gets a lock on a Rust value that's been given to a Java object.
@@ -2974,10 +3268,10 @@ impl<'local> JNIEnv<'local> {
     /// pointer that was set via `set_rust_field` and will lead to undefined
     /// behaviour if that is not true.
     pub unsafe fn get_rust_field<'other_local, O, S, T>(
-        &self,
+        &'_ self,
         obj: O,
         field: S,
-    ) -> Result<MutexGuard<T>>
+    ) -> Result<MutexGuard<'_, T>>
     where
         O: AsRef<JObject<'other_local>>,
         S: AsRef<str>,
@@ -2985,21 +3279,26 @@ impl<'local> JNIEnv<'local> {
     {
         let (_guard, field_id) = self.lock_rust_field(&obj, &field)?;
 
-        // Safety: Since we know we are dealing with a `jlong` field and since
-        // we have already looked up the field ID then we also know that
+        // Reference Leaks:
+        //
+        // It's ok that we don't push a new stack frame here since we know we are dealing with a
+        // `jlong` field and since we have already looked up the field ID then we also know that
         // get_field_unchecked doesn't need to create any local references.
-        let mut env = self.unsafe_clone();
 
-        // Safety: the requirement that the given field must be a `long` is
-        // documented in the 'Safety' section of this function
-        unsafe {
-            let field_ptr = env
-                .get_field_unchecked(obj, field_id, ReturnType::Primitive(Primitive::Long))?
-                .j()? as *mut Mutex<T>;
-            null_check!(field_ptr, "rust value from Java")?;
-            // dereferencing is safe, because we checked it for null
-            Ok((*field_ptr).lock().unwrap())
-        }
+        // Panic: The `&self` reference is enough to prove that `JavaVM::singleton` must have been
+        // initialized and won't panic.
+        JavaVM::singleton()?.with_env_current_frame(|env| {
+            // Safety: the requirement that the given field must be a `long` is
+            // documented in the 'Safety' section of this function
+            unsafe {
+                let field_ptr = env
+                    .get_field_unchecked(obj, field_id, ReturnType::Primitive(Primitive::Long))?
+                    .j()? as *mut Mutex<T>;
+                null_check!(field_ptr, "rust value from Java")?;
+                // dereferencing is safe, because we checked it for null
+                Ok((*field_ptr).lock().unwrap())
+            }
+        })
     }
 
     /// Take a Rust field back from Java.
@@ -3024,35 +3323,39 @@ impl<'local> JNIEnv<'local> {
     {
         let (_guard, field_id) = self.lock_rust_field(&obj, &field)?;
 
-        // Safety: Since we know we are dealing with a `jlong` field and since
-        // we have already looked up the field ID then we also know that
-        // get_field_unchecked and set_field_unchecked don't need to create any
-        // local references.
-        let mut env = self.unsafe_clone();
+        // Reference Leaks:
+        //
+        // It's ok that we don't push a new stack frame here since we know we are dealing with a
+        // `jlong` field and since we have already looked up the field ID then we also know that
+        // get_field_unchecked doesn't need to create any local references.
 
-        // Safety: the requirement that the given field must be a `long` is
-        // documented in the 'Safety' section of this function
-        let mbox = unsafe {
-            let ptr = env
-                .get_field_unchecked(&obj, field_id, ReturnType::Primitive(Primitive::Long))?
-                .j()? as *mut Mutex<T>;
+        // Panic: The `&self` reference is enough to prove that `JavaVM::singleton` must have been
+        // initialized and won't panic.
+        JavaVM::singleton()?.with_env_current_frame(|env| {
+            // Safety: the requirement that the given field must be a `long` is
+            // documented in the 'Safety' section of this function
+            let mbox = unsafe {
+                let ptr = env
+                    .get_field_unchecked(&obj, field_id, ReturnType::Primitive(Primitive::Long))?
+                    .j()? as *mut Mutex<T>;
 
-            null_check!(ptr, "rust value from Java")?;
-            Box::from_raw(ptr)
-        };
+                null_check!(ptr, "rust value from Java")?;
+                Box::from_raw(ptr)
+            };
 
-        // attempt to acquire the lock. This prevents us from consuming the
-        // mutex if there's an outstanding lock. No one else will be able to
-        // get a new one as long as we're in the guarded scope.
-        drop(mbox.try_lock()?);
+            // attempt to acquire the lock. This prevents us from consuming the
+            // mutex if there's an outstanding lock. No one else will be able to
+            // get a new one as long as we're in the guarded scope.
+            drop(mbox.try_lock()?);
 
-        // Safety: the requirement that the given field must be a `long` is
-        // documented in the 'Safety' section of this function
-        unsafe {
-            env.set_field_unchecked(obj, field_id, (0 as sys::jlong).into())?;
-        }
+            // Safety: the requirement that the given field must be a `long` is
+            // documented in the 'Safety' section of this function
+            unsafe {
+                env.set_field_unchecked(obj, field_id, (0 as sys::jlong).into())?;
+            }
 
-        Ok(mbox.into_inner().unwrap())
+            Ok(mbox.into_inner().unwrap())
+        })
     }
 
     /// Lock a Java object. The MonitorGuard that this returns is responsible
@@ -3061,23 +3364,26 @@ impl<'local> JNIEnv<'local> {
     where
         O: AsRef<JObject<'other_local>>,
     {
+        // Note: although the returned Monitor is associated with a lifetime, we
+        // don't need a `&mut self` reference and we don't assert that
+        // `self.level == JavaVM::thread_attach_guard_level()` since the
+        // returned monitor is associated with the current thread and is not a
+        // local reference.
+
         let inner = obj.as_ref().as_raw();
         let res = unsafe { jni_call_unchecked!(self, v1_1, MonitorEnter, inner) };
         jni_error_code_to_result(res)?;
 
         Ok(MonitorGuard {
             obj: inner,
-            env: self.internal,
             life: Default::default(),
         })
     }
 
     /// Returns the Java VM interface.
-    pub fn get_java_vm(&self) -> Result<JavaVM> {
-        let mut raw = ptr::null_mut();
-        let res = unsafe { jni_call_unchecked!(self, v1_1, GetJavaVM, &mut raw) };
-        jni_error_code_to_result(res)?;
-        unsafe { JavaVM::from_raw(raw) }
+    pub fn get_java_vm(&self) -> JavaVM {
+        // This avoids calling JNI if we already know the VM pointer
+        JavaVM::from_env(self)
     }
 
     /// Ensures that at least a given number of local references can be created
@@ -3095,6 +3401,9 @@ impl<'local> JNIEnv<'local> {
         Ok(())
     }
 
+    // FIXME: this API shouldn't need a `&mut self` reference since it doesn't return a local reference
+    // (currently it just needs the `&mut self` for the sake of `Desc<JClass>::lookup`)
+    //
     /// Bind function pointers to native methods of class according to method
     /// name and signature.
     ///
@@ -3218,6 +3527,9 @@ impl<'local> JNIEnv<'local> {
         array: &'array JPrimitiveArray<'other_local, T>,
         mode: ReleaseMode,
     ) -> Result<AutoElements<'local, 'other_local, 'array, T>> {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let array = null_check!(array, "get_array_elements array argument")?;
         AutoElements::new(self, array, mode)
     }
@@ -3318,8 +3630,191 @@ impl<'local> JNIEnv<'local> {
         array: &'array JPrimitiveArray<'other_local, T>,
         mode: ReleaseMode,
     ) -> Result<AutoElementsCritical<'local, 'other_local, 'array, 'env, T>> {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let array = null_check!(array, "get_primitive_array_critical array argument")?;
         AutoElementsCritical::new(self, array, mode)
+    }
+}
+
+/// Represents an external (unowned) JNI stack frame and thread attachment that
+/// was passed to a native method call.
+///
+/// This is an FFI safe wrapper around a [`crate::sys::JNIEnv`] pointer that has
+/// been passed as the first argument to a native method call, and represents
+/// an implicit JNI thread attachment.
+///
+/// For example, you can use it with a native method implementation like this:
+/// ```rust,no_run
+/// #[no_mangle]
+/// pub extern "system" fn Java_com_example_MyClass_myNativeMethod<'caller>(
+///     mut unowned_env: jni::env::JNIEnvUnowned<'caller>,
+///     _this: jni::objects::JObject<'caller>,
+///     arg: jni::sys::jint,
+/// ) -> jni::sys::jboolean {
+///     unowned_env.with_env(|env| -> jni::errors::Result<bool> {
+///         // Use `env` to call Java methods or access fields.
+///         Ok(true)
+///     }).unwrap_or_else(|e| {
+///         // Handle any errors that occurred while using the JNIEnv.
+///         eprintln!("Error: {:?}", e);
+///         false
+///     })
+/// }
+/// ```
+#[repr(transparent)]
+pub struct JNIEnvUnowned<'unowned_frame> {
+    ptr: *mut jni_sys::JNIEnv,
+    _lifetime: std::marker::PhantomData<&'unowned_frame ()>,
+}
+
+impl<'unowned_frame> JNIEnvUnowned<'unowned_frame> {
+    /// Runs a closure with a [`JNIEnv`] based on an unowned JNI thread attachment
+    /// associated with an external JNI stack frame.
+    ///
+    /// This API is specifically intended to be used within native/foreign Java
+    /// method implementations in cases where you have named the lifetime for
+    /// the caller's JNI stack frame.
+    ///
+    /// Since it would lead to undefined behaviour to allow Rust code to unwind
+    /// across a native method call boundary, this API wraps the closure
+    /// in a [`catch_unwind`] to catch any panics and return an [`Error::PanicCaught`]
+    /// if a panic occurs.
+    ///
+    /// Note: This API does not create a new JNI stack frame, which is normally
+    /// what you want when implementing a native method, since the JVM will
+    /// clean up the JNI stack frame when the native method returns.
+    pub fn with_env<F, T, E>(&mut self, f: F) -> std::result::Result<T, E>
+    where
+        F: FnOnce(&mut JNIEnv<'unowned_frame>) -> std::result::Result<T, E>,
+        E: From<Error>,
+    {
+        // Safety: we trust that self.ptr a valid, non-null pointer
+        let mut guard = unsafe { AttachGuard::from_unowned(self.ptr) };
+        guard.with_env_current_frame(|env| {
+            // ☠☠☠☠☠☠☠☠☠☠☠☠☠☠  !WARNING!  ☠☠☠☠☠☠☠☠☠☠☠☠☠☠
+            //
+            // We are casting the JNIEnv<'lifetime> here so the closure will
+            // be able to create local references that are associated with the
+            // lifetime of the external JNI stack frame (owned by the
+            // JVM which has called our native method).
+            //
+            // Note: that the reference itself still has the same lifetime (and
+            // so the `env` can't be moved out of the closure).
+            //
+            // Note: Any local reference types (like `JObject<'local>`) created
+            // with this lifetime will be safely movable out of the closure,
+            // so they can be returned from the native method.
+            let unowned_env: &mut JNIEnv<'unowned_frame> = unsafe { std::mem::transmute(env) };
+
+            let ret = catch_unwind(AssertUnwindSafe(|| f(unowned_env)));
+
+            // Since we want to keep `Error` compatible with `anyhow` we want to
+            // keep all variants Send + Sync + 'static and so we convert the panic
+            // payload to a string.
+            fn panic_payload_to_string(payload: Box<dyn std::any::Any + Send>) -> String {
+                match payload.downcast::<String>() {
+                    Ok(s) => *s,
+                    Err(payload) => match payload.downcast::<&'static str>() {
+                        Ok(s) => (*s).to_string(),
+                        Err(payload) => {
+                            // Since it's possible that dropping a panic payload may itself panic,
+                            // we catch any panic and fallback to forgetting/leaking the payload.
+                            if let Err(drop_panic) =
+                                catch_unwind(AssertUnwindSafe(|| drop(payload)))
+                            {
+                                log::error!("Panic while dropping panic payload: {:?}", drop_panic);
+                                std::mem::forget(drop_panic);
+                            }
+                            "non-string panic payload".to_string()
+                        }
+                    },
+                }
+            }
+            match ret {
+                Ok(ret) => ret,
+                Err(payload) => Err(Error::PanicCaught(panic_payload_to_string(payload)).into()),
+            }
+        })
+    }
+
+    /// Runs a closure with a [`JNIEnv`] based on an unowned JNI thread attachment
+    /// associated with an external JNI stack frame.
+    ///
+    /// This API is specifically intended to be used within native/foreign Java
+    /// method implementations in cases where you have named the lifetime for
+    /// the caller's JNI stack frame.
+    ///
+    /// Since it would lead to undefined behaviour to allow Rust code to unwind
+    /// across a native method call boundary, you probably want to use
+    /// [`JNIEnvUnowned::with_env`] instead, which will wrap the closure
+    /// in a `catch_unwind` to catch any panics.
+    ///
+    /// Note: This API does not create a new JNI stack frame, which is normally
+    /// what you want when implementing a native method, since the JVM will
+    /// clean up the JNI stack frame when the native method returns.
+    pub fn with_env_no_catch<F, T, E>(&mut self, f: F) -> std::result::Result<T, E>
+    where
+        F: FnOnce(&mut JNIEnv<'unowned_frame>) -> std::result::Result<T, E>,
+        E: From<Error>,
+    {
+        // Safety: we trust that self.ptr a valid, non-null pointer
+        let mut guard = unsafe { AttachGuard::from_unowned(self.ptr) };
+        guard.with_env_current_frame(|env| {
+            // ☠☠☠☠☠☠☠☠☠☠☠☠☠☠  !WARNING!  ☠☠☠☠☠☠☠☠☠☠☠☠☠☠
+            //
+            // We are casting the JNIEnv<'lifetime> here so the closure will
+            // be able to create local references that are associated with the
+            // lifetime of the external JNI stack frame (owned by the
+            // JVM which has called our native method).
+            //
+            // Note: that the reference itself still has the same lifetime (and
+            // so the `env` can't be moved out of the closure).
+            //
+            // Note: Any local reference types (like `JObject<'local>`) created
+            // with this lifetime will be safely movable out of the closure,
+            // so they can be returned from the native method.
+            let unowned_env: &mut JNIEnv<'unowned_frame> = unsafe { std::mem::transmute(env) };
+            f(unowned_env)
+        })
+    }
+
+    /// Creates a new `JNIEnvUnowned` from a raw [`crate::sys::JNIEnv`] pointer.
+    ///
+    /// It should be very uncommon to use this method directly, but could be
+    /// useful if you are given a raw [`crate::sys::JNIEnv`] pointer that you
+    /// know represents a valid JNI attachment for the current thread.
+    ///
+    /// If you are implementing a native method in Rust though, you should
+    /// prefer to use the `JNIEnvUnowned` type as the first argument to your
+    /// native method and avoid the need to use a raw pointer.
+    ///
+    /// If you have a raw [`crate::sys::JNIEnv`] pointer, this API should be
+    /// marginally safer than using [`crate::AttachGuard`] manually
+    /// since since the attach guard management will be hidden within the
+    /// [`Self::with_env`] and [`Self::with_env_no_catch`] methods.
+    ///
+    /// Beware that [`Self::with_env`] and [`Self::with_env_no_catch`] will not
+    /// create a new JNI stack frame, so if you are not implementing a native
+    /// method with a JNI stack frame that will be cleaned up on return, you may
+    /// need to consider the risk of leaking local references into the current
+    /// stack frame (JNI references are only cleaned up when the stack frame is
+    /// popped)
+    ///
+    /// # Safety
+    ///
+    /// The pointer must be a valid, non-null pointer to a `jni_sys::JNIEnv`
+    /// that represents an attachment of the current thread to a Java VM.
+    ///
+    /// The assigned lifetime must not outlive the JNI stack frame that owns the
+    /// `JNIEnv` pointer. For example it would _never_ be safe to use `'static`.
+    pub unsafe fn from_raw(ptr: *mut jni_sys::JNIEnv) -> Self {
+        assert!(!ptr.is_null(), "JNIEnvUnowned pointer must not be null");
+        Self {
+            ptr,
+            _lifetime: std::marker::PhantomData,
+        }
     }
 }
 
@@ -3341,7 +3836,6 @@ pub struct NativeMethod {
 /// method.
 pub struct MonitorGuard<'local> {
     obj: sys::jobject,
-    env: *mut sys::JNIEnv,
     life: PhantomData<&'local ()>,
 }
 
@@ -3349,28 +3843,34 @@ static_assertions::assert_not_impl_any!(MonitorGuard: Send);
 
 impl Drop for MonitorGuard<'_> {
     fn drop(&mut self) {
-        // Safety:
+        // Panics:
         //
-        // Calling JNIEnv::from_raw_unchecked is safe since we know self.env is
-        // non-null and valid, and implements JNI > 1.2
+        // The first `.expect()` is OK because the `&self` reference is enough to prove that
+        // `JavaVM::singleton` must have been initialized and won't panic. (A MonitorGuard can only
+        // be created with a JNIEnv reference)
         //
-        // This relies on `MonitorGuard` not being `Send` to maintain the
-        // invariant that "The current thread must be the owner of the monitor
-        // associated with the underlying Java object referred to by obj"
-        //
-        // This also means we can assume the `IllegalMonitorStateException`
-        // exception can't be thrown due to the current thread not owning
-        // the monitor.
-        let res = unsafe {
-            jni_call_unchecked!(
-                &JNIEnv::from_raw_unchecked(self.env),
-                v1_1,
-                MonitorExit,
-                self.obj
-            )
-        };
-        if let Err(err) = jni_error_code_to_result(res) {
-            log::error!("error releasing java monitor: {err}");
-        }
+        // The second `.expect()` is OK because the guard is associated with a JNIEnv lifetime, so
+        // it logically shouldn't be possible for the thread to become detached before the monitor
+        // is dropped.
+        JavaVM::singleton()
+            .expect("JavaVM singleton must be initialized")
+            .with_env_current_frame(|env| -> crate::errors::Result<()> {
+                // Safety:
+                //
+                // This relies on `MonitorGuard` not being `Send` to maintain the
+                // invariant that "The current thread must be the owner of the monitor
+                // associated with the underlying Java object referred to by obj"
+                //
+                // This also means we can assume the `IllegalMonitorStateException`
+                // exception can't be thrown due to the current thread not owning
+                // the monitor.
+                let res = unsafe { jni_call_unchecked!(env, v1_1, MonitorExit, self.obj) };
+                if let Err(err) = jni_error_code_to_result(res) {
+                    log::error!("error releasing java monitor: {err}");
+                }
+
+                Ok(())
+            })
+            .expect("MonitorGuard dropped on detached thread");
     }
 }

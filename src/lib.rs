@@ -82,7 +82,7 @@
 //! ### The Rust side
 //!
 //! Create your crate with `cargo new mylib`. This will create a directory
-//! `mylib` that has everything needed to build an basic crate with `cargo`. We
+//! `mylib` that has everything needed to build a basic crate with `cargo`. We
 //! need to make a couple of changes to `Cargo.toml` before we do anything else.
 //!
 //! * Under `[dependencies]`, add `jni = "0.21.1"`
@@ -96,42 +96,60 @@
 //! your crate's `src/lib.rs`:
 //!
 //! ```rust,no_run
+//! // As we are going to implement a native method in Rust, the JVM is going
+//! // to pass us a [`jni::sys::JNIEnv`] pointer that implicitly represents
+//! // an attachment of the current thread to the Java VM.
+//! //
+//! // This is an FFI-safe type that lets us capture the pointer and also
+//! // associate it with the caller's JNI stack frame with a lifetime.
+//! use jni::env::JNIEnvUnowned;
+//!
 //! // This is the interface to the JVM that we'll call the majority of our
 //! // methods on.
-//! use jni::JNIEnv;
+//! use jni::env::JNIEnv;
 //!
 //! // These objects are what you should use as arguments to your native
 //! // function. They carry extra lifetime information to prevent them escaping
 //! // this context and getting used after being GC'd.
 //! use jni::objects::{JClass, JString};
 //!
-//! // This is just a pointer. We'll be returning it from our function. We
-//! // can't return one of the objects with lifetime information because the
-//! // lifetime checker won't let us.
-//! use jni::sys::jstring;
-//!
 //! // This keeps Rust from "mangling" the name and making it unique for this
 //! // crate.
 //! #[no_mangle]
-//! pub extern "system" fn Java_HelloWorld_hello<'local>(mut env: JNIEnv<'local>,
+//! pub extern "system" fn Java_HelloWorld_hello<'caller>(mut unowned_env: JNIEnvUnowned<'caller>,
 //! // This is the class that owns our static method. It's not going to be used,
 //! // but still must be present to match the expected signature of a static
 //! // native method.
-//!                                                      class: JClass<'local>,
-//!                                                      input: JString<'local>)
-//!                                                      -> jstring {
-//!     // First, we have to get the string out of Java. Check out the `strings`
-//!     // module for more info on how this works.
-//!     let input: String =
-//!         env.get_string(&input).expect("Couldn't get java string!").into();
-//!
-//!     // Then we have to create a new Java string to return. Again, more info
-//!     // in the `strings` module.
-//!     let output = env.new_string(format!("Hello, {}!", input))
-//!         .expect("Couldn't create java string!");
-//!
-//!     // Finally, extract the raw pointer to return.
-//!     output.into_raw()
+//!                                                      class: JClass<'caller>,
+//!                                                      input: JString<'caller>)
+//!                                                      -> JString<'caller> {
+//!     // Before we can access JNI, jni-rs needs to know that the thread is
+//!     // attached to the Java VM.
+//!     //
+//!     // Within a native method we we can assume the JVM attaches the thread
+//!     // before calling our implementation, and this is represented
+//!     // by the JNIEnvUnowned type.
+//!     //
+//!     // We upgrade the JNIEnvUnowned to a JNIEnv, which gives us access to
+//!     // the full JNI API.
+//!     //
+//!     // Internally this creates a hidden AttachGuard to track the thread attachment
+//!     // explicitly and this will also wrap the given closure with `catch_unwind`
+//!     // to ensure that your code can't panic and unwind across FFI boundaries.
+//!     unowned_env.with_env(|env| -> Result<_, jni::errors::Error> {
+//!         // First, we have to get the string out of Java. Check out the `strings`
+//!         // module for more info on how this works.
+//!         let input: String =
+//!             env.get_string(&input).expect("Couldn't get java string!").into();
+//!         // Then we have to create a new Java string to return. Again, more info
+//!         // in the `strings` module.
+//!         let output = env.new_string(format!("Hello, {}!", input))
+//!             .expect("Couldn't create java string!");
+//!         Ok(output)
+//!     }).unwrap_or_else(|err| {
+//!         eprintln!("Error occurred: {}", err);
+//!         Default::default()
+//!     })
 //! }
 //! ```
 //!
@@ -219,17 +237,48 @@ mod wrapper {
     /// [modified UTF-8]: https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
     pub mod strings;
 
-    /// Actual communication with the JVM.
     mod jnienv;
-    pub use self::jnienv::*;
+    pub use self::jnienv::{MonitorGuard, NativeMethod};
+
+    // Note: we stopped exporting `jni::JNIEnv` directly due to a breaking change
+    // that was introduced in 0.22 that meant it was no longer safe to directly
+    // use with native methods. Since there's no way to make it a compiler error
+    // to use an existing Rust type with FFI (can just generate a warning) the
+    // safest option was to move the export so existing code won't compile
+    // without some manual changes.
+
+    /// Bindings for the `JNIEnv` APIs
+    pub mod env {
+        pub use super::jnienv::{JNIEnv, JNIEnvUnowned};
+    }
+
+    mod compat {
+        #[deprecated(
+            since = "0.22.0",
+            note = r#"Since 0.22, `JNIEnv` is not an FFI safe pointer wrapper any more.
+
+For safety, `jni::JNIEnv` is now an alias for `JNIEnvUnowned` (which is FFI safe).
+
+The real `JNIEnv` is now exported as `jni::env::JNIEnv` _BUT_ it's rare that you should need to refer to it directly.
+
+Use `JNIEnvUnowned` to capture a `JNIEnv` pointer in native methods, like:
+    `pub extern "system" fn Java_HelloWorld_hello<'frame>(unowned_env: JNIEnvUnowned<'frame>, ...)`
+Then use `unowned_env.with_env()` to upgrade it to a `JNIEnv` reference.
+
+Most of the time you should temporarily acquire a `JNIEnv` reference using:
+  - `JavaVM::attach_current_thread` (preferred) or `JavaVM::attach_current_thread_for_scope`
+  - `JavaVM::with_env` (if certain that the thread is already attached)
+"#
+        )]
+        /// An FFI safe alias for `JNIEnvUnowned` for (safer) compatibility with existing code.
+        pub type JNIEnv<'frame> = super::env::JNIEnvUnowned<'frame>;
+    }
+    #[allow(deprecated)]
+    pub use compat::JNIEnv;
 
     /// Java VM interface.
     mod java_vm;
     pub use self::java_vm::*;
-
-    /// Optional thread attachment manager.
-    mod executor;
-    pub use self::executor::*;
 }
 
 pub use wrapper::*;
