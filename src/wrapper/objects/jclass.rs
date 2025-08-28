@@ -3,10 +3,12 @@ use crate::{
     sys::{jclass, jobject},
 };
 
+use super::JObjectRef;
+
 /// Lifetime'd representation of a `jclass`. Just a `JObject` wrapped in a new
 /// class.
 #[repr(transparent)]
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct JClass<'local>(JObject<'local>);
 
 impl<'local> AsRef<JClass<'local>> for JClass<'local> {
@@ -50,12 +52,6 @@ impl<'local, 'obj_ref> From<&'obj_ref JObject<'local>> for &'obj_ref JClass<'loc
     }
 }
 
-impl std::default::Default for JClass<'_> {
-    fn default() -> Self {
-        Self(JObject::null())
-    }
-}
-
 impl JClass<'_> {
     /// Creates a [`JClass`] that wraps the given `raw` [`jclass`]
     ///
@@ -79,5 +75,22 @@ impl JClass<'_> {
     /// Unwrap to the raw jni type.
     pub const fn into_raw(self) -> jclass {
         self.0.into_raw() as jclass
+    }
+}
+
+impl JObjectRef for JClass<'_> {
+    type Kind<'env> = JClass<'env>;
+    type GlobalKind = JClass<'static>;
+
+    fn as_raw(&self) -> jobject {
+        self.0.as_raw()
+    }
+
+    unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+        JClass::from_raw(local_ref)
+    }
+
+    unsafe fn from_global_raw(global_ref: jobject) -> Self::GlobalKind {
+        JClass::from_raw(global_ref)
     }
 }

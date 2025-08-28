@@ -3,7 +3,7 @@ use crate::{objects::JObject, sys::jobject};
 /// Lifetime'd representation of a `jobject` that is an instance of the
 /// ByteBuffer Java class. Just a `JObject` wrapped in a new class.
 #[repr(transparent)]
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct JByteBuffer<'local>(JObject<'local>);
 
 impl<'local> AsRef<JByteBuffer<'local>> for JByteBuffer<'local> {
@@ -42,12 +42,6 @@ impl<'local, 'obj_ref> From<&'obj_ref JObject<'local>> for &'obj_ref JByteBuffer
     fn from(other: &'obj_ref JObject<'local>) -> Self {
         // Safety: `JByteBuffer` is `repr(transparent)` around `JObject`.
         unsafe { &*(other as *const JObject<'local> as *const JByteBuffer<'local>) }
-    }
-}
-
-impl std::default::Default for JByteBuffer<'_> {
-    fn default() -> Self {
-        Self(JObject::null())
     }
 }
 

@@ -3,9 +3,12 @@ use crate::{
     sys::{jobject, jthrowable},
 };
 
+use super::JObjectRef;
+
 /// Lifetime'd representation of a `jthrowable`. Just a `JObject` wrapped in a
 /// new class.
 #[repr(transparent)]
+#[derive(Default)]
 pub struct JThrowable<'local>(JObject<'local>);
 
 impl<'local> AsRef<JThrowable<'local>> for JThrowable<'local> {
@@ -47,12 +50,6 @@ impl<'local, 'obj_ref> From<&'obj_ref JObject<'local>> for &'obj_ref JThrowable<
     }
 }
 
-impl std::default::Default for JThrowable<'_> {
-    fn default() -> Self {
-        Self(JObject::null())
-    }
-}
-
 impl JThrowable<'_> {
     /// Creates a [`JThrowable`] that wraps the given `raw` [`jthrowable`]
     ///
@@ -71,5 +68,22 @@ impl JThrowable<'_> {
     /// Unwrap to the raw jni type.
     pub const fn into_raw(self) -> jthrowable {
         self.0.into_raw() as jthrowable
+    }
+}
+
+impl JObjectRef for JThrowable<'_> {
+    type Kind<'env> = JThrowable<'env>;
+    type GlobalKind = JThrowable<'static>;
+
+    fn as_raw(&self) -> jobject {
+        self.0.as_raw()
+    }
+
+    unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+        JThrowable::from_raw(local_ref)
+    }
+
+    unsafe fn from_global_raw(global_ref: jobject) -> Self::GlobalKind {
+        JThrowable::from_raw(global_ref)
     }
 }

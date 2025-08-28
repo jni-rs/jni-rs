@@ -3,9 +3,12 @@ use crate::{
     sys::{jobject, jstring},
 };
 
+use super::JObjectRef;
+
 /// Lifetime'd representation of a `jstring`. Just a `JObject` wrapped in a new
 /// class.
 #[repr(transparent)]
+#[derive(Default)]
 pub struct JString<'local>(JObject<'local>);
 
 impl<'local> AsRef<JString<'local>> for JString<'local> {
@@ -47,12 +50,6 @@ impl<'local, 'obj_ref> From<&'obj_ref JObject<'local>> for &'obj_ref JString<'lo
     }
 }
 
-impl std::default::Default for JString<'_> {
-    fn default() -> Self {
-        Self(JObject::null())
-    }
-}
-
 impl JString<'_> {
     /// Creates a [`JString`] that wraps the given `raw` [`jstring`]
     ///
@@ -71,5 +68,22 @@ impl JString<'_> {
     /// Unwrap to the raw jni type.
     pub const fn into_raw(self) -> jstring {
         self.0.into_raw() as jstring
+    }
+}
+
+impl JObjectRef for JString<'_> {
+    type Kind<'env> = JString<'env>;
+    type GlobalKind = JString<'static>;
+
+    fn as_raw(&self) -> jobject {
+        self.0.as_raw()
+    }
+
+    unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+        JString::from_raw(local_ref)
+    }
+
+    unsafe fn from_global_raw(global_ref: jobject) -> Self::GlobalKind {
+        JString::from_raw(global_ref)
     }
 }

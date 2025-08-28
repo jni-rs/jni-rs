@@ -1,9 +1,9 @@
 use crate::{
     descriptors::Desc,
+    env::JNIEnv,
     errors::*,
-    objects::{AutoLocal, GlobalRef, JClass, JObject},
+    objects::{AutoLocal, GlobalRef, IntoAutoLocal as _, JClass, JObject},
     strings::JNIString,
-    JNIEnv,
 };
 
 unsafe impl<'local, T> Desc<'local, JClass<'local>> for T
@@ -13,7 +13,7 @@ where
     type Output = AutoLocal<'local, JClass<'local>>;
 
     fn lookup(self, env: &mut JNIEnv<'local>) -> Result<Self::Output> {
-        Ok(AutoLocal::new(env.find_class(self)?, env))
+        Ok(env.find_class(self)?.auto())
     }
 }
 
@@ -33,7 +33,9 @@ where
 // around `JObject`), but that may change in the future. Moreover, this
 // doesn't check if the global reference actually refers to a
 // `java.lang.Class` object.
-unsafe impl<'local, 'obj_ref> Desc<'local, JClass<'static>> for &'obj_ref GlobalRef {
+unsafe impl<'local, 'obj_ref> Desc<'local, JClass<'static>>
+    for &'obj_ref GlobalRef<JClass<'static>>
+{
     type Output = &'obj_ref JClass<'static>;
 
     fn lookup(self, _: &mut JNIEnv<'local>) -> Result<Self::Output> {

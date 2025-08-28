@@ -161,7 +161,7 @@ impl<'local> JValueOwned<'local> {
     ///
     /// If the value is a primitive type, it is copied. If the value is an
     /// object reference, it is borrowed.
-    pub fn borrow(&self) -> JValue {
+    pub fn borrow(&'_ self) -> JValue<'_> {
         match self {
             Self::Object(o) => JValue::Object(o),
             Self::Byte(v) => JValue::Byte(*v),

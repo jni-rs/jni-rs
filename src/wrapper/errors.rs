@@ -15,12 +15,16 @@ use crate::objects::{char_from_java_int, char_to_java, char_to_java_int, JValue,
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum Error {
+    #[error("JavaVM singleton uninitialized")]
+    UninitializedJavaVM,
     #[error("Invalid JValue type cast: {0}. Actual type: {1}")]
     WrongJValueType(&'static str, &'static str),
     #[error("Invalid constructor return type (must be void)")]
     InvalidCtorReturn,
     #[error("Invalid number or type of arguments passed to java method: {0}")]
     InvalidArgList(TypeSignature),
+    #[error("Object behind weak reference freed")]
+    ObjectFreed,
     #[error("Method not found: {name} {sig}")]
     MethodNotFound { name: String, sig: String },
     #[error("Field not found: {name} {sig}")]
@@ -31,18 +35,14 @@ pub enum Error {
     JNIEnvMethodNotFound(&'static str),
     #[error("Null pointer in {0}")]
     NullPtr(&'static str),
-    #[error("Null pointer deref in {0}")]
-    NullDeref(&'static str),
     #[error("Mutex already locked")]
     TryLock,
-    #[error("JavaVM null method pointer for {0}")]
-    JavaVMMethodNotFound(&'static str),
     #[error("Field already set: {0}")]
     FieldAlreadySet(String),
     #[error("Throw failed with error code {0}")]
     ThrowFailed(i32),
-    #[error("Parse failed for input: {1}")]
-    ParseFailed(#[source] combine::error::StringStreamError, String),
+    #[error("Parse failed for input: {0}")]
+    ParseFailed(String),
     #[error("JNI call failed")]
     JniCall(#[source] JniError),
 
@@ -69,6 +69,12 @@ pub enum Error {
 
     #[error("This Java virtual machine is too old; at least Java 1.4 is required")]
     UnsupportedVersion,
+
+    #[error("The thread can't be detached while AttachGuards exist")]
+    ThreadAttachmentGuarded,
+
+    #[error("Panic caught in JNI code: {0}")]
+    PanicCaught(String),
 }
 
 #[derive(Debug, Error)]

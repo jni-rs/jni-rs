@@ -251,7 +251,7 @@ impl JNIStr {
     /// which has the same effect as this method.
     ///
     /// [modified UTF-8]: https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
-    pub fn to_str(&self) -> Cow<str> {
+    pub fn to_str(&'_ self) -> Cow<'_, str> {
         self.into()
     }
 }
