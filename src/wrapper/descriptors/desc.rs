@@ -1,7 +1,7 @@
 use crate::{
     env::JNIEnv,
     errors::*,
-    objects::{AutoLocal, JObject},
+    objects::{AutoLocal, GlobalRef, JObject, JObjectRef},
 };
 
 #[cfg(doc)]
@@ -129,5 +129,23 @@ where
 
     fn lookup(self, _: &mut JNIEnv<'local>) -> Result<Self::Output> {
         Ok(self)
+    }
+}
+
+unsafe impl<'local, 'obj_ref, T> Desc<'local, T> for &'obj_ref GlobalRef<T>
+where
+    T: JObjectRef
+        + AsRef<T>
+        + AsRef<JObject<'static>>
+        + Into<JObject<'static>>
+        + Default
+        + Send
+        + Sync
+        + 'static,
+{
+    type Output = &'obj_ref T;
+
+    fn lookup(self, _: &mut JNIEnv<'local>) -> Result<Self::Output> {
+        Ok(self.as_ref())
     }
 }
