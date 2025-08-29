@@ -86,6 +86,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `AttachGuard::from_unowned` added as a low-level (unsafe) way to represent a thread attachment with a raw `jni_sys::JNIEnv` pointer ([#570](https://github.com/jni-rs/jni-rs/pull/570))
 - `AttachConfig` exposes fine-grained control over thread attachment including `Thread` name, `ThreadGroup` and whether scoped or permanent. ([#606](https://github.com/jni-rs/jni-rs/pull/606))
 - `JavaVM::attach_current_thread_guard` is a low-level (unsafe) building block for attaching threads that exposes the `AttachGuard` and `AttachConfig` control. ([#606](https://github.com/jni-rs/jni-rs/pull/606))
+- `JavaVM::attach_current_thread_with_config` is a safe building block for attaching threads that hides the `AttachGuard` but exposes `AttachConfig` control. ([#606](https://github.com/jni-rs/jni-rs/pull/606))
 - `JavaVM::with_env` and `JavaVM::with_env_with_capacity` added as methods to borrow a `JNIEnv` that is already attached to the current thread, after pushing a new JNI stack frame ([#570](https://github.com/jni-rs/jni-rs/pull/570))
 - `JavaVM::with_env_current_frame` added to borrow a `JNIEnv` for the top JNI stack frame (i.e. without pushing a new JNI stack frame) ([#570](https://github.com/jni-rs/jni-rs/pull/570))
 - `JNIEnv::to_reflected_method` and `JNIEnv::to_reflected_static_method` for retrieving the Java reflection API instance for a method or constructor. ([#579](https://github.com/jni-rs/jni-rs/pull/579))
