@@ -445,10 +445,11 @@ impl JavaVM {
         F: FnOnce(&mut JNIEnv) -> std::result::Result<T, E>,
         E: From<Error>,
     {
-        // Safety: The guard will remain fixed on the stack by keeping the guard
-        // private to this function.
-        let mut guard = unsafe { self.attach_current_thread_guard(AttachConfig::default)? };
-        guard.with_env(DEFAULT_LOCAL_FRAME_CAPACITY, callback)
+        self.attach_current_thread_with_config(
+            AttachConfig::default,
+            Some(DEFAULT_LOCAL_FRAME_CAPACITY),
+            callback,
+        )
     }
 
     /// Attaches the current thread to the Java VM and calls the provided callback with a mutable
@@ -474,19 +475,77 @@ impl JavaVM {
         F: FnOnce(&mut JNIEnv) -> std::result::Result<T, E>,
         E: From<Error>,
     {
+        self.attach_current_thread_with_config(
+            || AttachConfig::new().scoped(true),
+            Some(DEFAULT_LOCAL_FRAME_CAPACITY),
+            callback,
+        )
+    }
+
+    /// Attaches the current thread to the Java VM and calls the provided callback with a mutable
+    /// [`JNIEnv`] reference.
+    ///
+    /// This function allows you to customize the attachment process and choose whether to create
+    /// a new local frame (with a given capacity) or use the current one.
+    ///
+    /// Most of the time you should prefer to use [`Self::attach_current_thread()`] or
+    /// [`Self::attach_current_thread_for_scope()`] instead of this function.
+    ///
+    /// The semantics of [`Self::attach_current_thread`] are equivalent to:
+    /// ```rust
+    /// # use jni::{JavaVM, AttachConfig, DEFAULT_LOCAL_FRAME_CAPACITY};
+    /// # fn jni_example(vm: &JavaVM) -> jni::errors::Result<()> {
+    ///      vm.attach_current_thread_with_config(AttachConfig::default, Some(DEFAULT_LOCAL_FRAME_CAPACITY), |env| {
+    ///          // Use the JNIEnv reference
+    ///          Ok(())
+    ///      })
+    /// # }
+    /// ```
+    ///
+    /// The semantics of [`Self::attach_current_thread_for_scope`] are equivalent to:
+    /// ```rust
+    /// # use jni::{JavaVM, AttachConfig, DEFAULT_LOCAL_FRAME_CAPACITY};
+    /// # fn jni_example(vm: &JavaVM) -> jni::errors::Result<()> {
+    ///      vm.attach_current_thread_with_config(|| AttachConfig::default().scoped(true), Some(DEFAULT_LOCAL_FRAME_CAPACITY), |env| {
+    ///          // Use the JNIEnv reference
+    ///          Ok(())
+    ///      })
+    /// # }
+    /// ```
+    ///
+    /// See [`Self::attach_current_thread`], [`Self::attach_current_thread_for_scope`] and [`AttachConfig`] for more details.
+    ///
+    /// # One mutable JNIEnv per scope rule
+    ///
+    /// See [`JavaVM::attach_current_thread`](#one-mutable-jnienv-per-scope-rule) for details.
+    pub fn attach_current_thread_with_config<'config, F, C, T, E>(
+        &self,
+        config: C,
+        capacity: Option<usize>,
+        callback: F,
+    ) -> std::result::Result<T, E>
+    where
+        F: FnOnce(&mut JNIEnv) -> std::result::Result<T, E>,
+        E: From<Error>,
+        C: FnOnce() -> AttachConfig<'config>,
+    {
         // Safety: The guard will remain fixed on the stack by keeping the guard
         // private to this function.
-        let mut guard =
-            unsafe { self.attach_current_thread_guard(|| AttachConfig::new().scoped(true))? };
-        guard.with_env(DEFAULT_LOCAL_FRAME_CAPACITY, callback)
+        let mut guard = unsafe { self.attach_current_thread_guard(config)? };
+        if let Some(capacity) = capacity {
+            guard.with_env(capacity, callback)
+        } else {
+            guard.with_env_current_frame(callback)
+        }
     }
 
     /// Attaches the current thread to the Java VM and returns an [`AttachGuard`] for the
     /// attachment.
     ///
-    /// This is a low-level (unsafe) building block for [`Self::attach_current_thread`] and
-    /// [`Self::attach_current_thread_for_scope`] that allows for more fine-grained control over the
-    /// attachment process and how you borrow an `JNIEnv` reference from the guard.
+    /// This is a low-level (unsafe) building block for [`Self::attach_current_thread`],
+    /// [`Self::attach_current_thread_for_scope`] and [`Self::attach_current_thread_with_config`]
+    /// that allows for more fine-grained control over the attachment process and how you borrow an
+    /// `JNIEnv` reference from the guard.
     ///
     /// The given `config` callback is only lazily called if the thread was not already attached and
     /// returns a [`AttachConfig`] that you can use to customize the attachment.
@@ -516,8 +575,11 @@ impl JavaVM {
     ///     }
     /// }
     /// ```
+    ///
     /// See [`Self::attach_current_thread`], [`Self::attach_current_thread_for_scope`],
     /// [`AttachConfig`] and [`AttachGuard`] for more details.
+    ///
+    /// Consider using [`Self::attach_current_thread_with_config`] before resorting to this (unsafe) API.
     ///
     /// # Safety
     ///
