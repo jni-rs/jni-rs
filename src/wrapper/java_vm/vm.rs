@@ -7,7 +7,13 @@ use std::{
 
 use log::{debug, error};
 
-use crate::{env::JNIEnv, errors::*, objects::JObject, sys, JNIVersion};
+use crate::{
+    env::JNIEnv,
+    errors::*,
+    objects::{GlobalRef, JObject},
+    strings::JNIString,
+    sys, JNIVersion,
+};
 
 #[cfg(feature = "invocation")]
 use {
@@ -439,24 +445,9 @@ impl JavaVM {
         F: FnOnce(&mut JNIEnv) -> std::result::Result<T, E>,
         E: From<Error>,
     {
-        // Safety:
-        // - The minimum supported JNI version is >= 1.4
-        // - The guard will remain fixed on the stack by keeping the guard
-        //   private to this function.
-        let mut guard = unsafe {
-            if let Some(guard) = Self::tls_get_env_attachment() {
-                guard
-            } else {
-                match self.sys_get_env_attachment() {
-                    Ok(guard) => guard,
-                    Err(Error::JniCall(JniError::ThreadDetached)) => {
-                        TLSAttachGuard::attach_current_thread(self.clone())?
-                    }
-                    Err(err) => Err(err)?,
-                }
-            }
-        };
-
+        // Safety: The guard will remain fixed on the stack by keeping the guard
+        // private to this function.
+        let mut guard = unsafe { self.attach_current_thread_guard(AttachConfig::default)? };
         guard.with_env(DEFAULT_LOCAL_FRAME_CAPACITY, callback)
     }
 
@@ -483,26 +474,87 @@ impl JavaVM {
         F: FnOnce(&mut JNIEnv) -> std::result::Result<T, E>,
         E: From<Error>,
     {
+        // Safety: The guard will remain fixed on the stack by keeping the guard
+        // private to this function.
+        let mut guard =
+            unsafe { self.attach_current_thread_guard(|| AttachConfig::new().scoped(true))? };
+        guard.with_env(DEFAULT_LOCAL_FRAME_CAPACITY, callback)
+    }
+
+    /// Attaches the current thread to the Java VM and returns an [`AttachGuard`] for the
+    /// attachment.
+    ///
+    /// This is a low-level (unsafe) building block for [`Self::attach_current_thread`] and
+    /// [`Self::attach_current_thread_for_scope`] that allows for more fine-grained control over the
+    /// attachment process and how you borrow an `JNIEnv` reference from the guard.
+    ///
+    /// The given `config` callback is only lazily called if the thread was not already attached and
+    /// returns a [`AttachConfig`] that you can use to customize the attachment.
+    ///
+    /// For example, this can be used to implement your own equivalent to
+    /// [`Self::attach_current_thread`] like:
+    ///
+    /// ```rust
+    /// # use jni::{JavaVM, AttachConfig, DEFAULT_LOCAL_FRAME_CAPACITY};
+    /// struct Executor {
+    ///     vm: JavaVM,
+    /// }
+    /// impl Executor {
+    ///     fn new(vm: JavaVM) -> Self {
+    ///         Self { vm }
+    ///     }
+    ///
+    ///     pub fn my_attach_current_thread<F, T, E>(&self, callback: F) -> std::result::Result<T, E>
+    ///     where
+    ///         F: FnOnce(&mut jni::env::JNIEnv) -> std::result::Result<T, E>,
+    ///         E: From<jni::errors::Error>,
+    ///     {
+    ///         // Safety: The guard will remain fixed on the stack by keeping the guard
+    ///         // private to this function.
+    ///         let mut guard = unsafe { self.vm.attach_current_thread_guard(AttachConfig::default)? };
+    ///         guard.with_env(DEFAULT_LOCAL_FRAME_CAPACITY, callback)
+    ///     }
+    /// }
+    /// ```
+    /// See [`Self::attach_current_thread`], [`Self::attach_current_thread_for_scope`],
+    /// [`AttachConfig`] and [`AttachGuard`] for more details.
+    ///
+    /// # Safety
+    ///
+    /// See the 'Safety' rules for [`AttachGuard`]
+    ///
+    /// The main concern is that you must keep the [`AttachGuard`] on the stack and it must not
+    /// move. This can be achieved by hiding it from safe code, only exposing a temporary [`JNIEnv`]
+    /// reference that borrows from the guard (as in the example above).
+    ///
+    pub unsafe fn attach_current_thread_guard<'config, F>(&self, config: F) -> Result<AttachGuard>
+    where
+        F: FnOnce() -> AttachConfig<'config>,
+    {
         // Safety:
         // - The minimum supported JNI version is >= 1.4
-        // - The guard will remain fixed on the stack by keeping the guard
-        //   private to this function.
-        let mut guard = unsafe {
+        // - The caller is responsible for managing the returned guard safely
+        let guard = unsafe {
             if let Some(guard) = Self::tls_get_env_attachment() {
                 guard
             } else {
                 match self.sys_get_env_attachment() {
                     Ok(guard) => guard,
                     Err(Error::JniCall(JniError::ThreadDetached)) => {
-                        let jni = sys_attach_current_thread(self, &current())?;
-                        AttachGuard::from_owned(jni)
+                        let config = config();
+                        if config.scoped {
+                            let jni = sys_attach_current_thread(self, &config, &current())?;
+                            AttachGuard::from_owned(jni)
+                        } else {
+                            TLSAttachGuard::attach_current_thread(self, &config)?
+                        }
                     }
                     Err(err) => Err(err)?,
                 }
             }
         };
 
-        guard.with_env(DEFAULT_LOCAL_FRAME_CAPACITY, callback)
+        Ok(guard)
     }
 
     /// Explicitly detaches the current thread from the JVM, **IFF** it was previously attached
@@ -817,11 +869,75 @@ impl JavaVM {
     }
 }
 
+/// Configuration options for attaching the current thread to a Java VM.
+#[derive(Default)]
+pub struct AttachConfig<'a> {
+    scoped: bool,
+    name: Option<JNIString>,
+    group: Option<&'a GlobalRef<JObject<'static>>>,
+}
+
+impl<'a> AttachConfig<'a> {
+    /// Creates a new `AttachConfig` with default values.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets whether the attachment should be owned by the current scope, such
+    /// that the thread will be automatically detached when the attachment guard
+    /// is dropped.
+    ///
+    /// The default is `false`, so the thread will be attached permanently.
+    ///
+    /// It is normally best to attach permanently because it can reduce the cost
+    /// of repeatedly attaching and detaching threads.
+    pub fn scoped(mut self, scoped: bool) -> Self {
+        self.scoped = scoped;
+        self
+    }
+
+    /// Sets the name of the thread as seen by the JVM and operating system.
+    pub fn name<S: AsRef<str>>(mut self, name: S) -> Self {
+        self.name = Some(JNIString::from(name.as_ref()));
+        self
+    }
+
+    /// Specifies a global reference to a `ThreadGroup` that the thread should
+    /// be associated with.
+    pub fn group(mut self, group: &'a GlobalRef<JObject<'static>>) -> Self {
+        self.group = Some(group);
+        self
+    }
+}
+
 static ATTACHED_THREADS: AtomicUsize = AtomicUsize::new(0);
 
-unsafe fn sys_attach_current_thread(vm: &JavaVM, thread: &Thread) -> Result<*mut sys::JNIEnv> {
+unsafe fn sys_attach_current_thread(
+    vm: &JavaVM,
+    config: &AttachConfig,
+    thread: &Thread,
+) -> Result<*mut sys::JNIEnv> {
     let mut env_ptr = ptr::null_mut();
-    let res = java_vm_call_unchecked!(vm, v1_1, AttachCurrentThread, &mut env_ptr, ptr::null_mut());
+    let mut args = sys::JavaVMAttachArgs {
+        version: JNIVersion::V1_4.into(),
+        name: config
+            .name
+            .as_ref()
+            .map(|s| s.as_ptr() as *mut i8)
+            .unwrap_or(ptr::null_mut()),
+        group: config
+            .group
+            .as_ref()
+            .map(|g| g.as_raw())
+            .unwrap_or(ptr::null_mut()),
+    };
+    let res = java_vm_call_unchecked!(
+        vm,
+        v1_1,
+        AttachCurrentThread,
+        &mut env_ptr,
+        &mut args as *mut sys::JavaVMAttachArgs as *mut core::ffi::c_void
+    );
     jni_error_code_to_result(res)?;
 
     ATTACHED_THREADS.fetch_add(1, Ordering::SeqCst);
@@ -1243,9 +1359,12 @@ impl TLSAttachGuard {
         })
     }
 
-    unsafe fn attach_current_thread(java_vm: JavaVM) -> Result<AttachGuard> {
+    unsafe fn attach_current_thread(
+        java_vm: &JavaVM,
+        config: &AttachConfig,
+    ) -> Result<AttachGuard> {
         let thread = current();
-        let env = sys_attach_current_thread(&java_vm, &thread)?;
+        let env = sys_attach_current_thread(java_vm, config, &thread)?;
         THREAD_ATTACH_GUARD.with(move |f| {
             *f.borrow_mut() = Some(Self {
                 env,
