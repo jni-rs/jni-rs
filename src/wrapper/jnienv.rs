@@ -1527,7 +1527,7 @@ impl<'local> JNIEnv<'local> {
         use super::signature::Primitive::{
             Boolean, Byte, Char, Double, Float, Int, Long, Short, Void,
         };
-        use ReturnType::{Array, Object, Primitive};
+        use JavaType::{Array, Object, Primitive};
 
         let class = class.lookup(self)?;
 
@@ -1605,7 +1605,7 @@ impl<'local> JNIEnv<'local> {
         use super::signature::Primitive::{
             Boolean, Byte, Char, Double, Float, Int, Long, Short, Void,
         };
-        use ReturnType::{Array, Object, Primitive};
+        use JavaType::{Array, Object, Primitive};
 
         let method_id = method_id.lookup(self)?.as_ref().into_raw();
 
@@ -1673,7 +1673,7 @@ impl<'local> JNIEnv<'local> {
         use super::signature::Primitive::{
             Boolean, Byte, Char, Double, Float, Int, Long, Short, Void,
         };
-        use ReturnType::{Array, Object, Primitive};
+        use JavaType::{Array, Object, Primitive};
 
         let method_id = method_id.lookup(self)?.as_ref().into_raw();
         let class = class.lookup(self)?;
@@ -1766,7 +1766,7 @@ impl<'local> JNIEnv<'local> {
             .zip(args.iter())
             .all(|(exp, act)| match exp {
                 JavaType::Primitive(p) => act.primitive_type() == Some(*p),
-                JavaType::Object(_) | JavaType::Array(_) => act.primitive_type().is_none(),
+                JavaType::Object | JavaType::Array => act.primitive_type().is_none(),
             });
         if !base_types_match {
             return Err(Error::InvalidArgList(parsed));
@@ -1821,7 +1821,7 @@ impl<'local> JNIEnv<'local> {
             .zip(args.iter())
             .all(|(exp, act)| match exp {
                 JavaType::Primitive(p) => act.primitive_type() == Some(*p),
-                JavaType::Object(_) | JavaType::Array(_) => act.primitive_type().is_none(),
+                JavaType::Object | JavaType::Array => act.primitive_type().is_none(),
             });
         if !base_types_match {
             return Err(Error::InvalidArgList(parsed));
@@ -1883,7 +1883,7 @@ impl<'local> JNIEnv<'local> {
             .zip(args.iter())
             .all(|(exp, act)| match exp {
                 JavaType::Primitive(p) => act.primitive_type() == Some(*p),
-                JavaType::Object(_) | JavaType::Array(_) => act.primitive_type().is_none(),
+                JavaType::Object | JavaType::Array => act.primitive_type().is_none(),
             });
         if !base_types_match {
             return Err(Error::InvalidArgList(parsed));
@@ -1934,7 +1934,7 @@ impl<'local> JNIEnv<'local> {
                 .zip(ctor_args.iter())
                 .all(|(exp, act)| match exp {
                     JavaType::Primitive(p) => act.primitive_type() == Some(*p),
-                    JavaType::Object(_) | JavaType::Array(_) => act.primitive_type().is_none(),
+                    JavaType::Object | JavaType::Array => act.primitive_type().is_none(),
                 });
         if !base_types_match {
             return Err(Error::InvalidArgList(parsed));
@@ -2845,7 +2845,7 @@ impl<'local> JNIEnv<'local> {
         use super::signature::Primitive::{
             Boolean, Byte, Char, Double, Float, Int, Long, Short, Void,
         };
-        use ReturnType::{Array, Object, Primitive};
+        use JavaType::{Array, Object, Primitive};
 
         let obj = obj.as_ref();
         let obj = null_check!(obj, "get_field_typed obj argument")?;
@@ -2979,7 +2979,7 @@ impl<'local> JNIEnv<'local> {
         let wrong_type = Err(Error::WrongJValueType(val.type_name(), "see java field"));
 
         match field_ty {
-            JavaType::Object(_) | JavaType::Array(_) if val_primitive.is_some() => wrong_type,
+            JavaType::Object | JavaType::Array if val_primitive.is_some() => wrong_type,
             JavaType::Primitive(p) if val_primitive != Some(p) => wrong_type,
             JavaType::Primitive(_) if val_primitive.is_none() => wrong_type,
             _ => {
@@ -3031,7 +3031,7 @@ impl<'local> JNIEnv<'local> {
 
         let ret = match ty {
             Primitive(Void) => Err(Error::WrongJValueType("void", "see java field")),
-            Object(_) | Array(_) => {
+            Object | Array => {
                 let obj = field!(GetStaticObjectField);
                 let obj = unsafe { JObject::from_raw(obj) };
                 Ok(JValueOwned::from(obj))
