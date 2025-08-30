@@ -39,13 +39,21 @@ impl fmt::Display for Primitive {
     }
 }
 
-/// Enum representing any java type in addition to method signatures.
+/// Enum representing any java type
+///
+/// This intentionally does not keep track of the object class names or details of array elements
+/// since there would be a cost to tracking those strings and handling variable array dimensions
+/// while JNI generally only needs to differentiate between primitive types and reference types.
+///
+/// In the past this did use to track object names and array details, but it proved to have a
+/// significant hidden cost that was redundant while those details were never used (at least
+/// internally).
 #[allow(missing_docs)]
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum JavaType {
     Primitive(Primitive),
-    Object(String),
-    Array(Box<JavaType>),
+    Object,
+    Array,
 }
 
 impl FromStr for JavaType {
@@ -71,53 +79,14 @@ impl fmt::Display for JavaType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             JavaType::Primitive(ref ty) => ty.fmt(f),
-            JavaType::Object(ref name) => write!(f, "L{name};"),
-            JavaType::Array(ref ty) => write!(f, "[{ty}"),
+            JavaType::Object => write!(f, "L;"),
+            JavaType::Array => write!(f, "["),
         }
     }
 }
 
 /// Enum representing any java type that may be used as a return value
-///
-/// This type intentionally avoids capturing any heap allocated types (to avoid
-/// allocations while making JNI method calls) and so it doesn't fully qualify
-/// the object or array types with a String like `JavaType::Object` does.
-#[allow(missing_docs)]
-#[derive(Eq, PartialEq, Debug, Clone)]
-pub enum ReturnType {
-    Primitive(Primitive),
-    Object,
-    Array,
-}
-
-impl FromStr for ReturnType {
-    type Err = Error;
-
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        parser(parse_return)
-            .parse(s)
-            .map_err(|e| Error::ParseFailed(format!("Failed to parse '{s}': {e}")))
-            .map(|(res, tail)| {
-                if tail.is_empty() {
-                    Ok(res)
-                } else {
-                    Err(Error::ParseFailed(format!(
-                        "Trailing input: '{tail}' while parsing '{s}'"
-                    )))
-                }
-            })?
-    }
-}
-
-impl fmt::Display for ReturnType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            ReturnType::Primitive(ref ty) => ty.fmt(f),
-            ReturnType::Object => write!(f, "L;"),
-            ReturnType::Array => write!(f, "["),
-        }
-    }
-}
+pub type ReturnType = JavaType;
 
 /// A method type signature. This is the structure representation of something
 /// like `(Ljava/lang/String;)Z`. Used by the `call_(object|static)_method`
@@ -204,7 +173,7 @@ where
 {
     let marker = token('[');
     (marker, parser(parse_type))
-        .map(|(_, ty)| JavaType::Array(Box::new(ty)))
+        .map(|(_, _ty)| JavaType::Array)
         .parse_stream(input)
         .into()
 }
@@ -230,7 +199,7 @@ where
         class_body.map(|s: &'a str| s.to_owned()),
         token(';'),
     )
-        .map(|(_, name, _)| JavaType::Object(name))
+        .map(|(_, _name, _)| JavaType::Object)
         .parse_stream(input)
         .into()
 }
@@ -244,19 +213,6 @@ where
         .map(JavaType::Primitive)
         .or(parser(parse_array))
         .or(parser(parse_object))
-        .parse_stream(input)
-        .into()
-}
-
-fn parse_return<'a, S>(input: &mut S) -> StdParseResult<ReturnType, S>
-where
-    S: RangeStream<Token = char, Range = &'a str>,
-    S::Error: ParseError<char, S::Range, S::Position>,
-{
-    parser(parse_primitive)
-        .map(ReturnType::Primitive)
-        .or(parser(parse_array).map(|_| ReturnType::Array))
-        .or(parser(parse_object).map(|_| ReturnType::Object))
         .parse_stream(input)
         .into()
 }
@@ -276,7 +232,7 @@ where
     S: RangeStream<Token = char, Range = &'a str>,
     S::Error: ParseError<char, S::Range, S::Position>,
 {
-    (parser(parse_args), parser(parse_return))
+    (parser(parse_args), parser(parse_type))
         .map(|(a, r)| TypeSignature { args: a, ret: r })
         .parse_stream(input)
         .into()
@@ -323,15 +279,12 @@ mod test {
         );
         assert_eq!(
             "Ljava/lang/String;".parse::<JavaType>().unwrap(),
-            JavaType::Object("java/lang/String".into())
+            JavaType::Object
         );
-        assert_eq!(
-            "[I".parse::<JavaType>().unwrap(),
-            JavaType::Array(Box::new(JavaType::Primitive(Primitive::Int)))
-        );
+        assert_eq!("[I".parse::<JavaType>().unwrap(), JavaType::Array);
         assert_eq!(
             "[Ljava/lang/String;".parse::<JavaType>().unwrap(),
-            JavaType::Array(Box::new(JavaType::Object("java/lang/String".into())))
+            JavaType::Array
         );
 
         assert_matches!("".parse::<JavaType>(), Err(_));
@@ -367,25 +320,21 @@ mod test {
         assert_eq!(
             "(Ljava/lang/String;)I".parse::<TypeSignature>().unwrap(),
             TypeSignature {
-                args: vec![JavaType::Object("java/lang/String".into())],
+                args: vec![JavaType::Object],
                 ret: ReturnType::Primitive(Primitive::Int)
             }
         );
         assert_eq!(
             "([I)I".parse::<TypeSignature>().unwrap(),
             TypeSignature {
-                args: vec![JavaType::Array(Box::new(JavaType::Primitive(
-                    Primitive::Int
-                )))],
+                args: vec![JavaType::Array],
                 ret: ReturnType::Primitive(Primitive::Int)
             }
         );
         assert_eq!(
             "([Ljava/lang/String;)I".parse::<TypeSignature>().unwrap(),
             TypeSignature {
-                args: vec![JavaType::Array(Box::new(JavaType::Object(
-                    "java/lang/String".into()
-                )))],
+                args: vec![JavaType::Array],
                 ret: ReturnType::Primitive(Primitive::Int)
             }
         );
@@ -394,7 +343,7 @@ mod test {
             TypeSignature {
                 args: vec![
                     JavaType::Primitive(Primitive::Int),
-                    JavaType::Array(Box::new(JavaType::Object("java/lang/String".into()))),
+                    JavaType::Array,
                     JavaType::Primitive(Primitive::Boolean),
                 ],
                 ret: ReturnType::Primitive(Primitive::Int)
