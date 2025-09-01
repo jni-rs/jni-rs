@@ -16,7 +16,7 @@ or a pull request. This document describes how to work with this project:
 
 You need to install the following dependencies:
 
-* [JDK 1.8+](http://jdk.java.net/10/).
+* [JDK 1.8+](https://jdk.java.net/10/).
 * [Rust (latest stable)](https://www.rust-lang.org/).
 
 ### Building
@@ -115,8 +115,8 @@ pick the right one for your application.
 
 ## The Code Style
 
-Rust code follows the [Rust style guide](https://github.com/rust-lang-nursery/fmt-rfcs/blob/master/guide/guide.md).
-[`rustfmt`](https://github.com/rust-lang-nursery/rustfmt) enforces the code style.
+Rust code follows the [Rust style guide](https://doc.rust-lang.org/stable/style-guide/index.html).
+[`rustfmt`](https://github.com/rust-lang/rustfmt) enforces the code style.
 
 After installation, you can run it with
 
@@ -153,8 +153,8 @@ It’s fine to open a PR as soon as you need any feedback — ask any questions 
 
 Licensed under either of
 
-* Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-* MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+* Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or https://www.apache.org/licenses/LICENSE-2.0)
+* MIT license ([LICENSE-MIT](LICENSE-MIT) or https://opensource.org/license/mit)
 
 at your option.
 
