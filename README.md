@@ -1,4 +1,4 @@
-[![Build Status](https://github.com/jni-rs/jni-rs/workflows/CI/badge.svg)](https://github.com/jni-rs/jni-rs/actions)
+[![Build Status](https://github.com/jni-rs/jni-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/jni-rs/jni-rs/actions)
 [![Docs](https://docs.rs/jni/badge.svg)](https://docs.rs/jni)
 [![Crates.io](https://img.shields.io/crates/v/jni.svg)](https://crates.io/crates/jni)
 
@@ -29,7 +29,7 @@ See the [Contribution Guide](CONTRIBUTING.md) for details.
 
 Licensed under either of
 
-* Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-* MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+* Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or https://www.apache.org/licenses/LICENSE-2.0)
+* MIT license ([LICENSE-MIT](LICENSE-MIT) or https://opensource.org/license/mit)
 
 at your option.
