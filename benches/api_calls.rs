@@ -425,7 +425,7 @@ fn jni_with_local_frame_returning_local(c: &mut Criterion) {
         let class = env.find_class(CLASS_OBJECT).unwrap();
         c.bench_function("jni_with_local_frame_returning_local", |b| {
             b.iter(|| {
-                env.with_local_frame_returning_local(LOCAL_FRAME_SIZE, |env| {
+                env.with_local_frame_returning_local::<_, JObject, _>(LOCAL_FRAME_SIZE, |env| {
                     env.new_object(&class, SIG_OBJECT_CTOR, &[])
                 })
             })
