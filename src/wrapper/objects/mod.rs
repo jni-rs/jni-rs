@@ -26,6 +26,9 @@ pub use self::jthrowable::*;
 mod jclass;
 pub use self::jclass::*;
 
+mod jclass_loader;
+pub use self::jclass_loader::*;
+
 mod jstring;
 pub use self::jstring::*;
 
@@ -37,6 +40,9 @@ pub use self::jlist::*;
 
 mod jbytebuffer;
 pub use self::jbytebuffer::*;
+
+mod jthread;
+pub use self::jthread::*;
 
 // For storing a reference to a java object
 mod global_ref;

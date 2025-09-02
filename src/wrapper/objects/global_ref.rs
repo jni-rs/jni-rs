@@ -3,7 +3,12 @@ use std::ops::Deref;
 use jni_sys::jobject;
 use log::{debug, warn};
 
-use crate::{env::JNIEnv, errors::Result, objects::JObject, sys, JavaVM};
+use crate::{
+    env::JNIEnv,
+    errors::Result,
+    objects::{JClass, JObject, LoaderContext},
+    sys, JavaVM,
+};
 
 #[cfg(doc)]
 use crate::objects::WeakRef;
@@ -293,11 +298,20 @@ impl<T> JObjectRef for GlobalRef<T>
 where
     T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
 {
+    const CLASS_NAME: &'static str = T::CLASS_NAME;
+
     type Kind<'env> = T::Kind<'env>;
     type GlobalKind = T::GlobalKind;
 
     fn as_raw(&self) -> jobject {
         self.obj.as_raw()
+    }
+
+    fn lookup_class<'vm>(
+        vm: &'vm JavaVM,
+        loader_context: LoaderContext,
+    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+        T::lookup_class(vm, loader_context)
     }
 
     unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {

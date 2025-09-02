@@ -19,12 +19,16 @@ pub enum Error {
     UninitializedJavaVM,
     #[error("Invalid JValue type cast: {0}. Actual type: {1}")]
     WrongJValueType(&'static str, &'static str),
+    #[error("Invalid object type")]
+    WrongObjectType,
     #[error("Invalid constructor return type (must be void)")]
     InvalidCtorReturn,
     #[error("Invalid number or type of arguments passed to java method: {0}")]
     InvalidArgList(TypeSignature),
     #[error("Object behind weak reference freed")]
     ObjectFreed,
+    #[error("Class not found: {name:?}")]
+    ClassNotFound { name: &'static str },
     #[error("Method not found: {name} {sig}")]
     MethodNotFound { name: String, sig: String },
     #[error("Field not found: {name} {sig}")]
