@@ -10,7 +10,7 @@ use log::{debug, error};
 use crate::{
     env::JNIEnv,
     errors::*,
-    objects::{GlobalRef, JObject},
+    objects::{GlobalRef, JObject, JObjectRef},
     strings::JNIString,
     sys, JNIVersion,
 };
@@ -1273,11 +1273,12 @@ impl AttachGuard {
         &'local mut self,
         capacity: usize,
         f: F,
-    ) -> std::result::Result<JObject<'local>, E>
+    ) -> std::result::Result<T::Kind<'local>, E>
     where
         F: for<'new_local> FnOnce(
             &mut JNIEnv<'new_local>,
-        ) -> std::result::Result<JObject<'new_local>, E>,
+        ) -> std::result::Result<T::Kind<'new_local>, E>,
+        T: JObjectRef,
         E: From<Error>,
     {
         // Assuming that the application doesn't break the safety rules for
@@ -1286,7 +1287,7 @@ impl AttachGuard {
         // guard on the stack
         assert_eq!(THREAD_GUARD_NEST_LEVEL.get(), self.level + 1);
         let mut env = unsafe { JNIEnv::new(self) };
-        env.with_local_frame_returning_local(capacity, |jni_env| f(jni_env))
+        env.with_local_frame_returning_local::<_, T, E>(capacity, |jni_env| f(jni_env))
     }
 
     /// Runs a closure with a borrowed [`JNIEnv`] associated with the guard's

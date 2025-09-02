@@ -111,7 +111,7 @@ fn weak_ref_is_actually_weak() {
 
         for _ in 0..100 {
             let obj_local = unwrap(
-                env.with_local_frame_returning_local(2, |env| {
+                env.with_local_frame_returning_local::<_, JObject, _>(2, |env| {
                     env.new_object("java/lang/Object", "()V", &[])
                 }),
                 env,
