@@ -6,7 +6,7 @@ use log::{debug, warn};
 use crate::{
     env::JNIEnv,
     errors::{Error, Result},
-    objects::{GlobalRef, JObject},
+    objects::{ClassKind, ClassRef, GlobalRef, JObject, LoaderSource},
     sys, JavaVM,
 };
 
@@ -277,11 +277,18 @@ impl<T> JObjectRef for WeakRef<T>
 where
     T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
 {
+    const CLASS_NAME: &'static str = T::CLASS_NAME;
+    const CLASS_KIND: ClassKind = T::CLASS_KIND;
+
     type Kind<'env> = T::Kind<'env>;
     type GlobalKind = T::GlobalKind;
 
     fn as_raw(&self) -> jobject {
         self.obj.as_raw()
+    }
+
+    fn lookup_class<'vm>(vm: &'vm JavaVM, loader_source: LoaderSource) -> Option<ClassRef<'vm>> {
+        T::lookup_class(vm, loader_source)
     }
 
     unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {

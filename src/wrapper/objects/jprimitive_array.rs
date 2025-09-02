@@ -1,8 +1,10 @@
 use std::marker::PhantomData;
 
 use crate::{
-    objects::{JObject, JObjectRef},
+    errors::Result,
+    objects::{ClassKind, ClassRef, GlobalRef, JClass, JObject, JObjectRef, LoaderSource},
     sys::{jarray, jobject},
+    DataRef, JavaVM,
 };
 
 use super::TypeArray;
@@ -50,23 +52,6 @@ impl<'local, T: TypeArray> ::std::ops::Deref for JPrimitiveArray<'local, T> {
 impl<'local, T: TypeArray> From<JPrimitiveArray<'local, T>> for JObject<'local> {
     fn from(other: JPrimitiveArray<'local, T>) -> JObject<'local> {
         other.obj
-    }
-}
-
-/// This conversion assumes that the `JObject` is a pointer to a class object.
-impl<'local, T: TypeArray> From<JObject<'local>> for JPrimitiveArray<'local, T> {
-    fn from(other: JObject) -> Self {
-        unsafe { Self::from_raw(other.into_raw()) }
-    }
-}
-
-/// This conversion assumes that the `JObject` is a pointer to a class object.
-impl<'local, 'obj_ref, T: TypeArray> From<&'obj_ref JObject<'local>>
-    for &'obj_ref JPrimitiveArray<'local, T>
-{
-    fn from(other: &'obj_ref JObject<'local>) -> Self {
-        // Safety: `JPrimitiveArray` is `repr(transparent)` around `JObject`.
-        unsafe { &*(other as *const JObject<'local> as *const JPrimitiveArray<'local, T>) }
     }
 }
 
@@ -143,19 +128,70 @@ pub unsafe trait AsJArrayRaw<'local>: AsRef<JObject<'local>> {
 
 unsafe impl<'local, T: TypeArray> AsJArrayRaw<'local> for JPrimitiveArray<'local, T> {}
 
-impl<T: TypeArray> JObjectRef for JPrimitiveArray<'_, T> {
-    type Kind<'env> = JPrimitiveArray<'env, T>;
-    type GlobalKind = JPrimitiveArray<'static, T>;
+use paste::paste;
 
-    fn as_raw(&self) -> jobject {
-        self.obj.as_raw()
-    }
+macro_rules! impl_ref_for_jprimitive_array {
+    ($type:ident, $class_name:expr) => {
+        paste! {
+            #[allow(non_camel_case_types)]
+            struct [<JPrimitiveArrayAPI _ $type>] {
+                class: GlobalRef<JClass<'static>>,
+            }
 
-    unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        JPrimitiveArray::from_raw(local_ref)
-    }
+            impl [<JPrimitiveArrayAPI _ $type>] {
+                fn get<'vm, 'any_local>(
+                    vm: &'vm JavaVM,
+                    loader_source: &LoaderSource<'any_local, '_>,
+                ) -> Result<DataRef<'vm, Self>> {
+                    vm.get_cached_or_insert_with(|| {
+                        vm.with_env_current_frame(|env| {
+                            let class =
+                                loader_source.load_class(JPrimitiveArray::<crate::sys::$type>::CLASS_NAME, env)?;
+                            let class = env.new_global_ref(&class).unwrap();
+                            Ok(Self {
+                                class,
+                            })
+                        })
+                    })
+                }
+            }
 
-    unsafe fn from_global_raw(global_ref: jobject) -> Self::GlobalKind {
-        JPrimitiveArray::from_raw(global_ref)
-    }
+            impl JObjectRef for JPrimitiveArray<'_, crate::sys::$type> {
+                const CLASS_NAME: &'static str = $class_name;
+                const CLASS_KIND: ClassKind = ClassKind::Bootstrap;
+
+                type Kind<'env> = JPrimitiveArray<'env, crate::sys::$type>;
+                type GlobalKind = JPrimitiveArray<'static, crate::sys::$type>;
+
+                fn as_raw(&self) -> jobject {
+                    self.obj.as_raw()
+                }
+
+                fn lookup_class<'vm>(
+                    vm: &'vm JavaVM,
+                    loader_source: LoaderSource,
+                ) -> Option<ClassRef<'vm>> {
+                    let api = [<JPrimitiveArrayAPI _ $type>]::get(vm, &loader_source).ok()?;
+                    Some(api.map(|api| &api.class))
+                }
+
+                unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+                    JPrimitiveArray::from_raw(local_ref)
+                }
+
+                unsafe fn from_global_raw(global_ref: jobject) -> Self::GlobalKind {
+                    JPrimitiveArray::from_raw(global_ref)
+                }
+            }
+        }
+    };
 }
+
+impl_ref_for_jprimitive_array!(jboolean, "[Z");
+impl_ref_for_jprimitive_array!(jbyte, "[B");
+impl_ref_for_jprimitive_array!(jchar, "[C");
+impl_ref_for_jprimitive_array!(jshort, "[S");
+impl_ref_for_jprimitive_array!(jint, "[I");
+impl_ref_for_jprimitive_array!(jlong, "[J");
+impl_ref_for_jprimitive_array!(jfloat, "[F");
+impl_ref_for_jprimitive_array!(jdouble, "[D");

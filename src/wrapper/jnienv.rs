@@ -1,23 +1,27 @@
 use std::{
     convert::TryInto,
+    env,
     marker::PhantomData,
     os::raw::{c_char, c_void},
     panic::{catch_unwind, resume_unwind, AssertUnwindSafe},
-    ptr, str,
-    str::FromStr,
+    ptr,
+    str::{self, FromStr},
     sync::{Mutex, MutexGuard},
 };
 
 use jni_sys::jobject;
-use once_cell::sync::OnceCell;
 
+use crate::objects::{
+    JBooleanArray, JByteArray, JCharArray, JDoubleArray, JFloatArray, JIntArray, JLongArray,
+    JObjectArray, JPrimitiveArray, JShortArray, LoaderSource,
+};
 use crate::{
     descriptors::Desc,
     errors::*,
     objects::{
-        AutoElements, AutoElementsCritical, AutoLocal, GlobalRef, IntoAutoLocal as _, JByteBuffer,
-        JClass, JFieldID, JList, JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID,
-        JString, JThrowable, JValue, JValueOwned, ReleaseMode, TypeArray, WeakRef,
+        AutoElements, AutoElementsCritical, AutoLocal, ClassKind, GlobalRef, IntoAutoLocal as _,
+        JByteBuffer, JClass, JFieldID, JList, JMap, JMethodID, JObject, JStaticFieldID,
+        JStaticMethodID, JString, JThrowable, JValue, JValueOwned, ReleaseMode, TypeArray, WeakRef,
     },
     signature::{JavaType, Primitive, TypeSignature},
     strings::{JNIStr, JNIString, JavaStr},
@@ -26,13 +30,6 @@ use crate::{
         JNINativeMethod,
     },
     JNIVersion, JavaVM,
-};
-use crate::{
-    errors::Error::JniCall,
-    objects::{
-        JBooleanArray, JByteArray, JCharArray, JDoubleArray, JFloatArray, JIntArray, JLongArray,
-        JObjectArray, JPrimitiveArray, JShortArray,
-    },
 };
 use crate::{objects::AsJArrayRaw, signature::ReturnType};
 
@@ -279,6 +276,47 @@ impl<'local> JNIEnv<'local> {
         JNIVersion::from(unsafe { jni_call_unchecked!(self, v1_1, GetVersion) })
     }
 
+    /// Attempts to downcast a local reference to a more specific type.
+    pub fn downcast_local<To>(
+        &mut self,
+        obj: impl JObjectRef + Into<JObject<'local>> + AsRef<JObject<'local>>,
+    ) -> Result<To::Kind<'local>>
+    where
+        To: JObjectRef,
+    {
+        if obj.is_null() {
+            return Ok(To::null());
+        }
+
+        let vm = self.get_java_vm();
+        let class = match To::CLASS_KIND {
+            ClassKind::Bootstrap => {
+                let class = To::lookup_class(&vm, LoaderSource::FindClass)
+                    .expect("Failed to find bootstrap class");
+                class
+            }
+            ClassKind::Application => {
+                let obj: &JObject = obj.as_ref();
+                let Some(class) = To::lookup_class(&vm, LoaderSource::TryFrom(obj)) else {
+                    // If we couldn't find the class, it means the object wasn't associated with
+                    // a suitable ClassLoader, which also implies it is not of the expected type
+                    return Err(Error::WrongObjectType);
+                };
+                class
+            }
+        };
+
+        let class: &JClass = class.as_ref();
+        let is_instance = self.is_instance_of(&obj, class)?;
+        if is_instance {
+            let obj: JObject = obj.into();
+            // Safety: we have just checked that `obj` is an instance of `T`
+            unsafe { Ok(To::from_local_raw(obj.into_raw())) }
+        } else {
+            Err(Error::WrongObjectType)
+        }
+    }
+
     /// Load a class from a buffer of raw class data.
     ///
     /// If `name` is null, the name of the class is inferred from the buffer.
@@ -359,7 +397,7 @@ impl<'local> JNIEnv<'local> {
         unsafe { self.define_class_impl(name, loader, buf.as_ptr() as *const jbyte, buf.len()) }
     }
 
-    /// Look up a class by name.
+    /// Look up a class by its fully-qualified name.
     ///
     /// # Example
     /// ```rust,no_run
@@ -370,6 +408,8 @@ impl<'local> JNIEnv<'local> {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// Returns the loaded class, or a [`Error::NullPtr`] error if the class could not be found.
     pub fn find_class<S>(&mut self, name: S) -> Result<JClass<'local>>
     where
         S: Into<JNIString>,
@@ -963,8 +1003,8 @@ impl<'local> JNIEnv<'local> {
     ///                 )?
     ///             }
     ///         };
-    ///
-    ///         Ok(JThrowable::from(throwable))
+    ///         let throwable = env.downcast_local::<JThrowable>(throwable)?;
+    ///         Ok(throwable)
     ///     }
     /// }
     /// ```
@@ -2039,31 +2079,22 @@ impl<'local> JNIEnv<'local> {
     /// The returned `JavaStr` can be used to access the modified UTF-8 bytes,
     /// or to convert to a Rust string (which uses standard UTF-8 encoding).
     ///
-    /// This only entails calling the JNI function `GetStringUTFChars`.
+    /// This entails calling the JNI function `GetStringUTFChars`.
     ///
     /// [modified UTF-8]: https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
-    ///
-    /// # Safety
-    ///
-    /// The caller must guarantee that the Object passed in is an instance of `java.lang.String`,
-    /// passing in anything else will lead to undefined behaviour (The JNI implementation
-    /// is likely to crash or abort the process).
-    ///
-    /// If this cannot be guaranteed, use the [`get_string`][Self::get_string]
-    /// method instead.
     ///
     /// # Errors
     ///
     /// Returns an error if `obj` is `null`.
-    pub unsafe fn get_string_unchecked<'other_local: 'obj_ref, 'obj_ref>(
-        &self,
+    #[deprecated(
+        since = "0.22.0",
+        note = "use get_string instead; this method is redundant and does not perform unsafe operations"
+    )]
+    pub fn get_string_unchecked<'other_local: 'obj_ref, 'obj_ref>(
+        &mut self,
         obj: &'obj_ref JString<'other_local>,
     ) -> Result<JavaStr<'local, 'other_local, 'obj_ref>> {
-        // Runtime check that the 'local reference lifetime will be tied to
-        // JNIEnv lifetime for the top JNI stack frame
-        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
-        let obj = null_check!(obj, "get_string obj argument")?;
-        JavaStr::from_env_totally_unchecked(self, obj)
+        self.get_string(obj)
     }
 
     /// Gets the bytes of a Java string, in [modified UTF-8] encoding.
@@ -2071,23 +2102,13 @@ impl<'local> JNIEnv<'local> {
     /// The returned `JavaStr` can be used to access the modified UTF-8 bytes,
     /// or to convert to a Rust string (which uses standard UTF-8 encoding).
     ///
-    /// This entails checking that the given object is a `java.lang.String`,
-    /// then calling the JNI function `GetStringUTFChars`.
+    /// This entails calling the JNI function `GetStringUTFChars`.
     ///
     /// [modified UTF-8]: https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
     ///
-    /// # Performance
-    ///
-    /// This function has some relative performance impact compared to
-    /// [`get_string_unchecked`][Self::get_string_unchecked].
-    /// This performance penalty comes from the extra validation
-    /// performed by this function. If and only if you can guarantee that your
-    /// `obj` is of the class `java.lang.String`, use `get_string_unchecked` to
-    /// skip this extra validation.
-    ///
     /// # Errors
     ///
-    /// Returns an error if `obj` is `null` or is not an instance of `java.lang.String`.
+    /// Returns an error if `obj` is `null`.
     pub fn get_string<'other_local: 'obj_ref, 'obj_ref>(
         &mut self,
         obj: &'obj_ref JString<'other_local>,
@@ -2095,18 +2116,8 @@ impl<'local> JNIEnv<'local> {
         // Runtime check that the 'local reference lifetime will be tied to
         // JNIEnv lifetime for the top JNI stack frame
         assert_eq!(self.level, JavaVM::thread_attach_guard_level());
-        static STRING_CLASS: OnceCell<GlobalRef<JClass<'static>>> = OnceCell::new();
-        let string_class = STRING_CLASS.get_or_try_init(|| {
-            let string_class_local = self.find_class("java/lang/String")?;
-            self.new_global_ref(string_class_local)
-        })?;
-
-        if !self.is_instance_of(obj, string_class)? {
-            return Err(JniCall(JniError::InvalidArguments));
-        }
-
-        // SAFETY: We check that the passed in Object is actually a java.lang.String
-        unsafe { self.get_string_unchecked(obj) }
+        let obj = null_check!(obj, "get_string obj argument")?;
+        JavaStr::from_get_string_utf_chars(self, obj)
     }
 
     /// Create a new java string object from a rust string. This requires a

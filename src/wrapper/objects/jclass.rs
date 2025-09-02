@@ -1,6 +1,10 @@
 use crate::{
-    objects::JObject,
+    env::JNIEnv,
+    errors::Result,
+    objects::{ClassKind, ClassRef, GlobalRef, JClassLoader, JMethodID, JObject, LoaderSource},
+    signature::JavaType,
     sys::{jclass, jobject},
+    DataRef, JavaVM,
 };
 
 use super::JObjectRef;
@@ -36,19 +40,25 @@ impl<'local> From<JClass<'local>> for JObject<'local> {
         other.0
     }
 }
-
-/// This conversion assumes that the `JObject` is a pointer to a class object.
-impl<'local> From<JObject<'local>> for JClass<'local> {
-    fn from(other: JObject) -> Self {
-        unsafe { Self::from_raw(other.into_raw()) }
-    }
+struct JClassAPI {
+    class: GlobalRef<JClass<'static>>,
+    get_class_loader_method: JMethodID,
 }
 
-/// This conversion assumes that the `JObject` is a pointer to a class object.
-impl<'local, 'obj_ref> From<&'obj_ref JObject<'local>> for &'obj_ref JClass<'local> {
-    fn from(other: &'obj_ref JObject<'local>) -> Self {
-        // Safety: `JClass` is `repr(transparent)` around `JObject`.
-        unsafe { &*(other as *const JObject<'local> as *const JClass<'local>) }
+impl JClassAPI {
+    pub fn get<'vm>(vm: &'vm JavaVM) -> Result<DataRef<'vm, Self>> {
+        vm.get_cached_or_insert_with(|| {
+            vm.with_env_current_frame(|env| {
+                let class = env.find_class(JClass::CLASS_NAME)?;
+                let class = env.new_global_ref(class)?;
+                let get_class_loader_method =
+                    env.get_method_id(&class, "getClassLoader", "()Ljava/lang/ClassLoader;")?;
+                Ok(Self {
+                    class,
+                    get_class_loader_method,
+                })
+            })
+        })
     }
 }
 
@@ -76,14 +86,47 @@ impl JClass<'_> {
     pub const fn into_raw(self) -> jclass {
         self.0.into_raw() as jclass
     }
+
+    /// Returns the class loader for this class.
+    ///
+    /// This is used to find the class loader that was responsible for loading this class.
+    ///
+    /// It may return null for bootstrap classes or objects representing primitive types not associated with a class loader.
+    pub fn get_class_loader<'local>(
+        &self,
+        env: &mut JNIEnv<'local>,
+    ) -> Result<JClassLoader<'local>> {
+        let vm = env.get_java_vm();
+        let api = JClassAPI::get(&vm)?;
+
+        // Safety: We know that `getClassLoader` is a valid method on `java/lang/Class` that has no
+        // arguments and it returns a valid `ClassLoader` instance.
+        let loader = unsafe {
+            let loader = env
+                .call_method_unchecked(self, api.get_class_loader_method, JavaType::Object, &[])?
+                .l()?;
+            JClassLoader::from_raw(loader.into_raw())
+        };
+        Ok(loader)
+    }
 }
 
 impl JObjectRef for JClass<'_> {
+    const CLASS_NAME: &'static str = "java/lang/Class";
+    const CLASS_KIND: ClassKind = ClassKind::Bootstrap;
+
     type Kind<'env> = JClass<'env>;
     type GlobalKind = JClass<'static>;
 
     fn as_raw(&self) -> jobject {
         self.0.as_raw()
+    }
+
+    fn lookup_class<'vm>(vm: &'vm JavaVM, _loader_source: LoaderSource) -> Option<ClassRef<'vm>> {
+        // As a special-case; we ignore loader_source just to be clear that there's no risk of
+        // recursion.
+        let api = JClassAPI::get(vm).ok()?;
+        Some(api.map(|api| &api.class))
     }
 
     unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {

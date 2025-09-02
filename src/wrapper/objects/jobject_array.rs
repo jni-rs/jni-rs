@@ -1,6 +1,8 @@
 use crate::{
-    objects::{JObject, JObjectRef},
+    errors::Result,
+    objects::{ClassKind, ClassRef, GlobalRef, JClass, JObject, JObjectRef, LoaderSource},
     sys::{jobject, jobjectArray},
+    DataRef, JavaVM,
 };
 
 use super::AsJArrayRaw;
@@ -36,22 +38,26 @@ impl<'local> From<JObjectArray<'local>> for JObject<'local> {
     }
 }
 
-/// This conversion assumes that the `JObject` is a pointer to a class object.
-impl<'local> From<JObject<'local>> for JObjectArray<'local> {
-    fn from(other: JObject) -> Self {
-        unsafe { Self::from_raw(other.into_raw()) }
-    }
-}
-
-/// This conversion assumes that the `JObject` is a pointer to a class object.
-impl<'local, 'obj_ref> From<&'obj_ref JObject<'local>> for &'obj_ref JObjectArray<'local> {
-    fn from(other: &'obj_ref JObject<'local>) -> Self {
-        // Safety: `JObjectArray` is `repr(transparent)` around `JObject`.
-        unsafe { &*(other as *const JObject<'local> as *const JObjectArray<'local>) }
-    }
-}
-
 unsafe impl<'local> AsJArrayRaw<'local> for JObjectArray<'local> {}
+
+struct JObjectArrayAPI {
+    class: GlobalRef<JClass<'static>>,
+}
+
+impl JObjectArrayAPI {
+    fn get<'vm, 'any_local>(
+        vm: &'vm JavaVM,
+        loader_source: &LoaderSource<'any_local, '_>,
+    ) -> Result<DataRef<'vm, Self>> {
+        vm.get_cached_or_insert_with(|| {
+            vm.with_env_current_frame(|env| {
+                let class = loader_source.load_class(JObjectArray::CLASS_NAME, env)?;
+                let class = env.new_global_ref(&class).unwrap();
+                Ok(Self { class })
+            })
+        })
+    }
+}
 
 impl JObjectArray<'_> {
     /// Creates a [`JObjectArray`] that wraps the given `raw` [`jobjectArray`]
@@ -75,11 +81,19 @@ impl JObjectArray<'_> {
 }
 
 impl JObjectRef for JObjectArray<'_> {
+    const CLASS_NAME: &'static str = "[Ljava/lang/Object;";
+    const CLASS_KIND: ClassKind = ClassKind::Bootstrap;
+
     type Kind<'env> = JObjectArray<'env>;
     type GlobalKind = JObjectArray<'static>;
 
     fn as_raw(&self) -> jobject {
         self.0.as_raw()
+    }
+
+    fn lookup_class<'vm>(vm: &'vm JavaVM, loader_source: LoaderSource) -> Option<ClassRef<'vm>> {
+        let api = JObjectArrayAPI::get(vm, &loader_source).ok()?;
+        Some(api.map(|api| &api.class))
     }
 
     unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {

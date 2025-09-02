@@ -2,7 +2,11 @@ use std::{marker::PhantomData, mem::ManuallyDrop, ops::Deref, ptr};
 
 use jni_sys::jobject;
 
-use crate::{errors, objects::JObject, JavaVM};
+use crate::{
+    errors,
+    objects::{ClassKind, ClassRef, JObject, LoaderSource},
+    JavaVM,
+};
 
 use super::JObjectRef;
 
@@ -223,11 +227,18 @@ impl<'local, T> JObjectRef for AutoLocal<'local, T>
 where
     T: JObjectRef + Into<JObject<'local>>,
 {
+    const CLASS_NAME: &'static str = T::CLASS_NAME;
+    const CLASS_KIND: ClassKind = T::CLASS_KIND;
+
     type Kind<'env> = T::Kind<'env>;
     type GlobalKind = T::GlobalKind;
 
     fn as_raw(&self) -> jobject {
         self.obj.as_raw()
+    }
+
+    fn lookup_class<'vm>(vm: &'vm JavaVM, loader_source: LoaderSource) -> Option<ClassRef<'vm>> {
+        T::lookup_class(vm, loader_source)
     }
 
     unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {

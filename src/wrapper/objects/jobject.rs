@@ -1,9 +1,12 @@
 use std::marker::PhantomData;
 
-use crate::sys::jobject;
-
-#[cfg(doc)]
-use crate::objects::GlobalRef;
+use crate::{
+    env::JNIEnv,
+    errors::Result,
+    objects::{ClassKind, ClassRef, GlobalRef, JClass, JMethodID, LoaderSource},
+    sys::jobject,
+    DataRef, JavaVM,
+};
 
 use super::JObjectRef;
 
@@ -61,6 +64,22 @@ impl ::std::ops::Deref for JObject<'_> {
     }
 }
 
+struct JObjectAPI {
+    class: GlobalRef<JClass<'static>>,
+    // no methods cached for now
+}
+impl JObjectAPI {
+    fn get<'vm>(vm: &'vm JavaVM) -> Result<DataRef<'vm, Self>> {
+        vm.get_cached_or_insert_with(|| {
+            vm.with_env_current_frame(|env| {
+                let class = env.find_class(JObject::CLASS_NAME)?;
+                let class = env.new_global_ref(class)?;
+                Ok(JObjectAPI { class })
+            })
+        })
+    }
+}
+
 impl JObject<'_> {
     /// Creates a [`JObject`] that wraps the given `raw` [`jobject`]
     ///
@@ -104,11 +123,21 @@ impl std::default::Default for JObject<'_> {
 }
 
 impl JObjectRef for JObject<'_> {
+    const CLASS_NAME: &'static str = "java/lang/Object";
+    const CLASS_KIND: ClassKind = ClassKind::Bootstrap;
+
     type Kind<'env> = JObject<'env>;
     type GlobalKind = JObject<'static>;
 
     fn as_raw(&self) -> jobject {
         self.as_raw()
+    }
+
+    fn lookup_class<'vm>(vm: &'vm JavaVM, _loader_source: LoaderSource) -> Option<ClassRef<'vm>> {
+        // As a special-case; we ignore loader_source just to be clear that there's no risk of
+        // recursion.
+        let api = JObjectAPI::get(vm).ok()?;
+        Some(api.map(|api| &api.class))
     }
 
     unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {

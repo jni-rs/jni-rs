@@ -26,6 +26,9 @@ pub use self::jthrowable::*;
 mod jclass;
 pub use self::jclass::*;
 
+mod jclass_loader;
+pub use self::jclass_loader::*;
+
 mod jstring;
 pub use self::jstring::*;
 

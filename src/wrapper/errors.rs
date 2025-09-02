@@ -19,6 +19,8 @@ pub enum Error {
     UninitializedJavaVM,
     #[error("Invalid JValue type cast: {0}. Actual type: {1}")]
     WrongJValueType(&'static str, &'static str),
+    #[error("Invalid object type")]
+    WrongObjectType,
     #[error("Invalid constructor return type (must be void)")]
     InvalidCtorReturn,
     #[error("Invalid number or type of arguments passed to java method: {0}")]
