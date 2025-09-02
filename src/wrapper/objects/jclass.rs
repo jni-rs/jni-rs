@@ -1,6 +1,17 @@
+use std::ops::Deref;
+
+use once_cell::sync::OnceCell;
+
 use crate::{
-    objects::JObject,
+    env::JNIEnv,
+    errors::Result,
+    objects::{
+        GlobalRef, JClassLoader, JMethodID, JObject, JStaticMethodID, JValue, LoaderContext,
+    },
+    signature::JavaType,
+    strings::JNIString,
     sys::{jclass, jobject},
+    JavaVM,
 };
 
 use super::JObjectRef;
@@ -36,19 +47,41 @@ impl<'local> From<JClass<'local>> for JObject<'local> {
         other.0
     }
 }
-
-/// This conversion assumes that the `JObject` is a pointer to a class object.
-impl<'local> From<JObject<'local>> for JClass<'local> {
-    fn from(other: JObject) -> Self {
-        unsafe { Self::from_raw(other.into_raw()) }
-    }
+struct JClassAPI {
+    class: GlobalRef<JClass<'static>>,
+    get_class_loader_method: JMethodID,
+    for_name_method: JStaticMethodID,
+    for_name_with_loader_method: JStaticMethodID,
 }
 
-/// This conversion assumes that the `JObject` is a pointer to a class object.
-impl<'local, 'obj_ref> From<&'obj_ref JObject<'local>> for &'obj_ref JClass<'local> {
-    fn from(other: &'obj_ref JObject<'local>) -> Self {
-        // Safety: `JClass` is `repr(transparent)` around `JObject`.
-        unsafe { &*(other as *const JObject<'local> as *const JClass<'local>) }
+impl JClassAPI {
+    pub fn get(vm: &JavaVM) -> Result<&'static Self> {
+        static JCLASS_API: OnceCell<JClassAPI> = OnceCell::new();
+        JCLASS_API.get_or_try_init(|| {
+            vm.with_env_current_frame(|env| {
+                // NB: Self::CLASS_NAME is a binary name with dots, not slashes
+                let class = env.find_class("java/lang/Class")?;
+                let class = env.new_global_ref(class)?;
+                let get_class_loader_method =
+                    env.get_method_id(&class, "getClassLoader", "()Ljava/lang/ClassLoader;")?;
+                let for_name_method = env.get_static_method_id(
+                    &class,
+                    "forName",
+                    "(Ljava/lang/String;)Ljava/lang/Class;",
+                )?;
+                let for_name_with_loader_method = env.get_static_method_id(
+                    &class,
+                    "forName",
+                    "(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;",
+                )?;
+                Ok(Self {
+                    class,
+                    get_class_loader_method,
+                    for_name_method,
+                    for_name_with_loader_method,
+                })
+            })
+        })
     }
 }
 
@@ -76,9 +109,126 @@ impl JClass<'_> {
     pub const fn into_raw(self) -> jclass {
         self.0.into_raw() as jclass
     }
+
+    /// Returns the class loader for this class.
+    ///
+    /// This is used to find the class loader that was responsible for loading this class.
+    ///
+    /// It may return null for bootstrap classes or objects representing primitive types not associated with a class loader.
+    ///
+    /// # Throws
+    ///
+    /// `SecurityException` if the class loader cannot be accessed.
+    pub fn get_class_loader<'local>(
+        &self,
+        env: &mut JNIEnv<'local>,
+    ) -> Result<JClassLoader<'local>> {
+        let vm = env.get_java_vm();
+        let api = JClassAPI::get(&vm)?;
+
+        // Safety: We know that `getClassLoader` is a valid method on `java/lang/Class` that has no
+        // arguments and it returns a valid `ClassLoader` instance.
+        let loader = unsafe {
+            let loader = env
+                .call_method_unchecked(self, api.get_class_loader_method, JavaType::Object, &[])?
+                .l()?;
+            JClassLoader::from_raw(loader.into_raw())
+        };
+        Ok(loader)
+    }
+
+    /// Finds a class by its fully-qualified binary name or array descriptor.
+    ///
+    /// This is a method binding for `java.lang.Class.forName(String)`
+    ///
+    /// This method is used to locate a class by its name, which may be either a fully-qualified
+    /// binary name (e.g., `java.lang.String`) or an array descriptor (e.g., `[Ljava.lang.String;`).
+    ///
+    /// Note: that unlike `FindClass` the names use dot (`.`) notation instead of slash (`/`) notation.
+    ///
+    /// # Throws
+    ///
+    /// This method may throw a `ClassNotFoundException` if the class cannot be found.
+    pub fn for_name<'local, C>(class_name: C, env: &mut JNIEnv<'local>) -> Result<JClass<'local>>
+    where
+        C: Into<JNIString>,
+    {
+        let vm = env.get_java_vm();
+        let api = JClassAPI::get(&vm)?;
+
+        let class_name = env.new_string(class_name)?;
+
+        // Safety: We know that `forName` is a valid static method on `java/lang/Class` that takes
+        // a String and returns a valid `Class` instance.
+        let class = unsafe {
+            let class = env
+                .call_static_method_unchecked(
+                    &api.class,
+                    api.for_name_method,
+                    JavaType::Object,
+                    &[JValue::Object(&class_name).as_jni()],
+                )?
+                .l()?;
+            JClass::from_raw(class.into_raw())
+        };
+        Ok(class)
+    }
+
+    /// Finds a class by its fully-qualified binary name or array descriptor.
+    ///
+    /// This is a method binding for `java.lang.Class.forName(String, boolean, ClassLoader)`
+    ///
+    /// This method is used to locate a class by its name (via the ClassLoader) which may be either
+    /// a fully-qualified binary name (e.g., `java.lang.String`) or an array descriptor (e.g.,
+    /// `[Ljava.lang.String;`).
+    ///
+    /// Note: that unlike `FindClass` the names use dot (`.`) notation instead of slash (`/`) notation.
+    ///
+    /// If initialized is true, the class will be initialized before it is returned.
+    ///
+    /// # Throws
+    ///
+    /// This method may throw a `ClassNotFoundException` if the class cannot be found.
+    pub fn for_name_with_loader<'loader_local, 'env_local, C, L>(
+        class_name: C,
+        initialize: bool,
+        loader: L,
+        env: &mut JNIEnv<'env_local>,
+    ) -> Result<JClass<'env_local>>
+    where
+        C: Into<JNIString>,
+        L: AsRef<JClassLoader<'loader_local>>,
+    {
+        let vm = env.get_java_vm();
+        let api = JClassAPI::get(&vm)?;
+
+        let class_name = env.new_string(class_name)?;
+
+        // Safety: We know that `forName` is a valid static method on `java/lang/Class` that takes
+        // a String, initializer boolean and a ClassLoader and returns a valid `Class` instance.
+        let class = unsafe {
+            let class = env
+                .call_static_method_unchecked(
+                    &api.class,
+                    api.for_name_with_loader_method,
+                    JavaType::Object,
+                    &[
+                        JValue::Object(&class_name).as_jni(),
+                        JValue::Bool(initialize).as_jni(),
+                        JValue::Object(loader.as_ref()).as_jni(),
+                    ],
+                )?
+                .l()?;
+            JClass::from_raw(class.into_raw())
+        };
+        Ok(class)
+    }
 }
 
-impl JObjectRef for JClass<'_> {
+// SAFETY: JClass is a transparent JObject wrapper with no Drop side effects
+unsafe impl JObjectRef for JClass<'_> {
+    const CLASS_NAME: &'static str = "java.lang.Class";
+
     type Kind<'env> = JClass<'env>;
     type GlobalKind = JClass<'static>;
 
@@ -86,7 +236,17 @@ impl JObjectRef for JClass<'_> {
         self.0.as_raw()
     }
 
-    unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+    fn lookup_class<'vm>(
+        vm: &'vm JavaVM,
+        _loader_context: LoaderContext,
+    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+        // As a special-case; we ignore loader_context just to be clear that there's no risk of
+        // recursion. (`LoaderContext::load_class` depends on the `JClassAPI`)
+        let api = JClassAPI::get(vm)?;
+        Ok(&api.class)
+    }
+
+    unsafe fn from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
         JClass::from_raw(local_ref)
     }
 

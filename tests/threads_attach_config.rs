@@ -29,10 +29,10 @@ fn attach_config() {
                         .unwrap()
                         .l()
                         .unwrap();
-                    let name: JString = env
+                    let name = env
                         .call_method(thread, "getName", "()Ljava/lang/String;", &[])?
-                        .l()?
-                        .into();
+                        .l()?;
+                    let name = env.cast_local::<JString>(name).unwrap();
                     let name = env.get_string(&name)?;
                     assert_eq!(name.as_cstr(), c"test-thread");
                     Ok(())

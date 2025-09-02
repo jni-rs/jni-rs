@@ -16,9 +16,8 @@ macro_rules! jni_call_unchecked {
 
 /// Calls a JNIEnv function, then checks for a pending exception
 ///
-/// This only checks for an exception, it doesn't map an exception into
-/// an Error and it doesn't clear the exception and so the exception will
-/// be thrown if the native code returns to the JVM.
+/// This only checks for an exception, it doesn't clear the exception and so the
+/// exception will be thrown if the native code returns to the JVM.
 ///
 /// Returns `Err` if there is a pending exception after the call.
 macro_rules! jni_call_check_ex {

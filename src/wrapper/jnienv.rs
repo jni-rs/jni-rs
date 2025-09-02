@@ -3,14 +3,17 @@ use std::{
     marker::PhantomData,
     os::raw::{c_char, c_void},
     panic::{catch_unwind, resume_unwind, AssertUnwindSafe},
-    ptr, str,
-    str::FromStr,
+    ptr,
+    str::{self, FromStr},
     sync::{Mutex, MutexGuard},
 };
 
 use jni_sys::jobject;
-use once_cell::sync::OnceCell;
 
+use crate::objects::{
+    Cast, JBooleanArray, JByteArray, JCharArray, JDoubleArray, JFloatArray, JIntArray, JLongArray,
+    JObjectArray, JPrimitiveArray, JShortArray, LoaderContext,
+};
 use crate::{
     descriptors::Desc,
     errors::*,
@@ -26,13 +29,6 @@ use crate::{
         JNINativeMethod,
     },
     JNIVersion, JavaVM,
-};
-use crate::{
-    errors::Error::JniCall,
-    objects::{
-        JBooleanArray, JByteArray, JCharArray, JDoubleArray, JFloatArray, JIntArray, JLongArray,
-        JObjectArray, JPrimitiveArray, JShortArray,
-    },
 };
 use crate::{objects::AsJArrayRaw, signature::ReturnType};
 
@@ -359,7 +355,7 @@ impl<'local> JNIEnv<'local> {
         unsafe { self.define_class_impl(name, loader, buf.as_ptr() as *const jbyte, buf.len()) }
     }
 
-    /// Look up a class by name.
+    /// Look up a class by its fully-qualified name.
     ///
     /// # Example
     /// ```rust,no_run
@@ -370,6 +366,8 @@ impl<'local> JNIEnv<'local> {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// Returns the loaded class, or a [`Error::NullPtr`] error if the class could not be found.
     pub fn find_class<S>(&mut self, name: S) -> Result<JClass<'local>>
     where
         S: Into<JNIString>,
@@ -445,6 +443,48 @@ impl<'local> JNIEnv<'local> {
         }
     }
 
+    /// Checks if an object can be cast to a specific reference type.
+    pub(crate) fn is_instance_of_cast_type<To: JObjectRef>(&self, obj: &JObject) -> Result<bool> {
+        let vm = self.get_java_vm();
+        let class = match To::lookup_class(&vm, LoaderContext::FromObject(obj)) {
+            Ok(class) => class,
+            Err(Error::ClassNotFound { name: _ }) => return Ok(false),
+            Err(e) => return Err(e),
+        };
+
+        let class: &JClass = class.as_ref();
+        self.is_instance_of_class(obj, class)
+    }
+
+    // An internal helper that implements is_instance_of except it doesn't take a
+    // Desc for the class and doesn't need a mutable JNIEnv reference since it never
+    // needs to allocate a new local reference.
+    /// Returns true if the object reference can be cast to the given type.
+    fn is_instance_of_class<'other_local_1, 'other_local_2, O, C>(
+        &self,
+        object: O,
+        class: C,
+    ) -> Result<bool>
+    where
+        O: AsRef<JObject<'other_local_1>>,
+        C: AsRef<JClass<'other_local_2>>,
+    {
+        let class = null_check!(class.as_ref(), "is_instance_of class")?;
+
+        // Safety:
+        // - IsInstanceOf is 1.1 API that must be valid
+        // - We make sure class can't be null
+        unsafe {
+            Ok(jni_call_unchecked!(
+                self,
+                v1_1,
+                IsInstanceOf,
+                object.as_ref().as_raw(), // may be null
+                class.as_raw()            // MUST not be null
+            ))
+        }
+    }
+
     // FIXME: this API shouldn't need a `&mut self` reference since it doesn't return a local reference
     // (currently it just needs the `&mut self` for the sake of `Desc<JClass>::lookup`)
     //
@@ -465,20 +505,7 @@ impl<'local> JNIEnv<'local> {
         T: Desc<'local, JClass<'other_local_2>>,
     {
         let class = class.lookup(self)?;
-        let class = null_check!(class.as_ref(), "is_instance_of class")?;
-
-        // Safety:
-        // - IsInstanceOf is 1.1 API that must be valid
-        // - We make sure class can't be null
-        unsafe {
-            Ok(jni_call_unchecked!(
-                self,
-                v1_1,
-                IsInstanceOf,
-                object.as_ref().as_raw(), // may be null
-                class.as_raw()            // MUST not be null
-            ))
-        }
+        self.is_instance_of_class(object, class)
     }
 
     /// Returns true if ref1 and ref2 refer to the same Java object, or are both `NULL`. Otherwise,
@@ -822,6 +849,120 @@ impl<'local> JNIEnv<'local> {
         }
     }
 
+    /// Creates a new global reference and casts it to a different type.
+    ///
+    /// This is a convenience method that combines [`Self::cast_global`] and
+    /// [`Self::new_global_ref`].
+    ///
+    /// It first checks if the object is an instance of the target type, and if so it creates a new
+    /// global reference with the target type.
+    ///
+    /// `obj` can be a local reference or a global reference.
+    ///
+    /// For upcasting (converting to a more general type), consider using the `AsRef` trait
+    /// implementations instead, which don't require runtime checks.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use jni::{errors::Result, env::JNIEnv, objects::*};
+    /// #
+    /// # fn example(env: &mut JNIEnv) -> Result<()> {
+    /// let local_obj: JObject = env.new_object("java/lang/String", "(Ljava/lang/String;)V", &[])?;
+    /// let global_string = env.new_cast_global_ref::<JString>(local_obj)?;
+    /// // global_string is now a `GlobalRef<JString>` that persists beyond local frames
+    ///
+    /// // For upcasting, the `AsRef` trait is more efficient:
+    /// let as_obj_again: &JObject = global_string.as_ref(); // No runtime check needed
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::WrongObjectType`] if the object is not an instance of the target type.
+    /// Returns [`Error::ClassNotFound`] if the target class cannot be found.
+    pub fn new_cast_global_ref<'any_local, To>(
+        &self,
+        obj: impl JObjectRef + AsRef<JObject<'any_local>>,
+    ) -> Result<GlobalRef<To::GlobalKind>>
+    where
+        To: JObjectRef,
+    {
+        if obj.is_null() {
+            return Ok(Default::default());
+        }
+
+        if self.is_instance_of_cast_type::<To>(obj.as_ref())? {
+            let new = self.new_global_ref(obj)?;
+            // Safety:
+            // - we have just checked that `new` is an instance of `To`
+            unsafe {
+                let cast = To::from_global_raw(new.into_raw());
+                Ok(GlobalRef::new(self, cast))
+            }
+        } else {
+            Err(Error::WrongObjectType)
+        }
+    }
+
+    /// Attempts to cast a global reference to a different type.
+    ///
+    /// This performs a runtime type check using `IsInstanceOf` and consumes the input reference.
+    ///
+    /// For upcasting (converting to a more general type), consider using the `AsRef` trait
+    /// implementations instead, which don't require runtime checks.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use jni::{errors::Result, env::JNIEnv, objects::*};
+    /// #
+    /// # fn example(env: &mut JNIEnv) -> Result<()> {
+    /// let local_obj: JObject = env.new_object("java/lang/String", "(Ljava/lang/String;)V", &[])?;
+    /// let global_obj: GlobalRef<JObject<'static>> = env.new_global_ref(&local_obj)?;
+    /// let global_string = env.cast_global::<JString>(global_obj)?;
+    ///
+    /// // For upcasting, the `AsRef` trait is more efficient:
+    /// let as_obj_again: &JObject = global_string.as_ref(); // No runtime check needed
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::WrongObjectType`] if the object is not an instance of the target type.
+    /// Returns [`Error::ClassNotFound`] if the target class cannot be found.
+    pub fn cast_global<To>(
+        &self,
+        obj: GlobalRef<
+            impl Into<JObject<'static>>
+                + AsRef<JObject<'static>>
+                + Default
+                + JObjectRef
+                + Send
+                + Sync
+                + 'static,
+        >,
+    ) -> Result<GlobalRef<To::GlobalKind>>
+    where
+        To: JObjectRef,
+    {
+        if obj.is_null() {
+            return Ok(Default::default());
+        }
+
+        if self.is_instance_of_cast_type::<To>(obj.as_ref())? {
+            // Safety:
+            // - we have just checked that `obj` is an instance of `T`
+            // - there won't be multiple wrappers since we are creating one from the other
+            unsafe {
+                let cast = To::from_global_raw(obj.into_raw());
+                Ok(GlobalRef::new(self, cast))
+            }
+        } else {
+            Err(Error::WrongObjectType)
+        }
+    }
+
     /// Creates a new weak global reference.
     ///
     /// Weak global references are a special kind of Java object reference that
@@ -963,8 +1104,8 @@ impl<'local> JNIEnv<'local> {
     ///                 )?
     ///             }
     ///         };
-    ///
-    ///         Ok(JThrowable::from(throwable))
+    ///         let throwable = env.cast_local::<JThrowable>(throwable)?;
+    ///         Ok(throwable)
     ///     }
     /// }
     /// ```
@@ -991,9 +1132,8 @@ impl<'local> JNIEnv<'local> {
         // - we can assume that `obj.raw()` is a valid reference, or null
         // - we know there's no other wrapper for the reference passed to from_local_raw
         //   since we have just created it.
-        let local = unsafe {
-            O::from_local_raw(jni_call_unchecked!(self, v1_2, NewLocalRef, obj.as_raw()))
-        };
+        let local =
+            unsafe { O::from_raw(jni_call_unchecked!(self, v1_2, NewLocalRef, obj.as_raw())) };
 
         // Per JNI spec, `NewLocalRef` will return a null pointer if the object was GC'd
         // (which could happen if `obj` is a `WeakRef`):
@@ -1015,6 +1155,136 @@ impl<'local> JNIEnv<'local> {
         } else {
             Ok(local)
         }
+    }
+
+    /// Creates a new local reference and casts it to a different type.
+    ///
+    /// This is a convenience method that combines [`Self::cast_local`] and [`Self::new_local_ref`].
+    ///
+    /// This performs a runtime type check using `IsInstanceOf` and then creates a new local
+    /// reference.
+    ///
+    /// `obj` can be a local reference or a global reference.
+    ///
+    /// For upcasting (converting to a more general type), consider using the `From` trait
+    /// implementations instead, which don't require runtime checks.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use jni::{errors::Result, env::JNIEnv, objects::*};
+    /// #
+    /// # fn example(env: &mut JNIEnv) -> Result<()> {
+    /// let local_obj: JObject = env.new_object("java/lang/String", "(Ljava/lang/String;)V", &[])?;
+    /// let local_string = env.new_cast_local_ref::<JString>(&local_obj)?;
+    /// // local_string is now a JString<'local> in the current frame
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::WrongObjectType`] if the object is not an instance of the target type.
+    /// Returns [`Error::ClassNotFound`] if the target class cannot be found.
+    pub fn new_cast_local_ref<'any_local, To>(
+        &mut self,
+        obj: impl JObjectRef + AsRef<JObject<'any_local>>,
+    ) -> Result<To::Kind<'local>>
+    where
+        To: JObjectRef,
+    {
+        if obj.is_null() {
+            return Ok(To::null());
+        }
+
+        if self.is_instance_of_cast_type::<To>(obj.as_ref())? {
+            let new = self.new_local_ref(obj.as_ref())?;
+            // Safety:
+            // - we have just checked that `new` is an instance of `To`
+            // - as it's a new reference, it's assigned the `'local` JNIEnv lifetime
+            unsafe { Ok(To::from_raw::<'local>(new.into_raw())) }
+        } else {
+            Err(Error::WrongObjectType)
+        }
+    }
+
+    /// Attempts to cast a local reference to a different type.
+    ///
+    /// This performs a runtime type check using `IsInstanceOf` and consumes the input reference.
+    /// For upcasting (converting to a more general type), consider using the `From` trait
+    /// implementations instead, which don't require runtime checks.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use jni::{errors::Result, env::JNIEnv, objects::*};
+    /// #
+    /// # fn example(env: &mut JNIEnv) -> Result<()> {
+    /// let obj: JObject = env.new_object("java/lang/String", "(Ljava/lang/String;)V", &[])?;
+    /// let string: JString = env.cast_local::<JString>(obj)?;
+    ///
+    /// // For upcasting, From trait is more efficient:
+    /// let obj_again: JObject = string.into(); // No runtime check needed
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::WrongObjectType`] if the object is not an instance of the target type.
+    /// Returns [`Error::ClassNotFound`] if the target class cannot be found.
+    pub fn cast_local<'any_local, To>(
+        &self,
+        obj: impl JObjectRef + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
+    ) -> Result<To::Kind<'any_local>>
+    where
+        To: JObjectRef,
+    {
+        if obj.is_null() {
+            return Ok(To::null::<'any_local>());
+        }
+
+        if self.is_instance_of_cast_type::<To>(obj.as_ref())? {
+            let obj: JObject = obj.into();
+            // Safety:
+            // - we have just checked that `obj` is an instance of `T`
+            // - it is associated with the same lifetime that it was created with
+            unsafe { Ok(To::from_raw::<'any_local>(obj.into_raw())) }
+        } else {
+            Err(Error::WrongObjectType)
+        }
+    }
+
+    /// Attempts to cast a reference to a different type without consuming it.
+    ///
+    /// This method borrows the input reference and returns a wrapper that derefs to
+    /// the target type. The original reference remains valid and can be used after
+    /// the cast operation.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use jni::{errors::Result, env::JNIEnv, objects::*};
+    /// #
+    /// # fn example(env: &mut JNIEnv) -> Result<()> {
+    /// let obj: JObject = env.new_object("java/lang/String", "(Ljava/lang/String;)V", &[])?;
+    /// let string_ref = env.as_cast::<JString>(&obj)?;
+    /// // obj is still valid here
+    /// let java_string = env.get_string(&string_ref)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::WrongObjectType`] if the object is not an instance of the target type.
+    /// Returns [`Error::ClassNotFound`] if the target class cannot be found.
+    pub fn as_cast<'from, 'any_local, To>(
+        &self,
+        obj: &'from (impl JObjectRef + AsRef<JObject<'any_local>>),
+    ) -> Result<Cast<'from, 'any_local, To>>
+    where
+        To: JObjectRef,
+        'any_local: 'from,
+    {
+        Cast::new(obj, self)
     }
 
     /// Creates a new auto-deleted local reference.
@@ -1118,7 +1388,7 @@ impl<'local> JNIEnv<'local> {
         // This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
         // We check for JNI > 1.2 in `from_raw`
         let raw = jni_call_unchecked!(self, v1_2, PopLocalFrame, result.into_raw());
-        Ok(T::from_local_raw(raw))
+        Ok(T::from_raw(raw))
     }
 
     /// Executes the given function in a new local reference frame, in which at least a given number
@@ -2039,31 +2309,22 @@ impl<'local> JNIEnv<'local> {
     /// The returned `JavaStr` can be used to access the modified UTF-8 bytes,
     /// or to convert to a Rust string (which uses standard UTF-8 encoding).
     ///
-    /// This only entails calling the JNI function `GetStringUTFChars`.
+    /// This entails calling the JNI function `GetStringUTFChars`.
     ///
     /// [modified UTF-8]: https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
-    ///
-    /// # Safety
-    ///
-    /// The caller must guarantee that the Object passed in is an instance of `java.lang.String`,
-    /// passing in anything else will lead to undefined behaviour (The JNI implementation
-    /// is likely to crash or abort the process).
-    ///
-    /// If this cannot be guaranteed, use the [`get_string`][Self::get_string]
-    /// method instead.
     ///
     /// # Errors
     ///
     /// Returns an error if `obj` is `null`.
-    pub unsafe fn get_string_unchecked<'other_local: 'obj_ref, 'obj_ref>(
-        &self,
+    #[deprecated(
+        since = "0.22.0",
+        note = "use get_string instead; this method is redundant and does not perform unsafe operations"
+    )]
+    pub fn get_string_unchecked<'other_local: 'obj_ref, 'obj_ref>(
+        &mut self,
         obj: &'obj_ref JString<'other_local>,
     ) -> Result<JavaStr<'local, 'other_local, 'obj_ref>> {
-        // Runtime check that the 'local reference lifetime will be tied to
-        // JNIEnv lifetime for the top JNI stack frame
-        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
-        let obj = null_check!(obj, "get_string obj argument")?;
-        JavaStr::from_env_totally_unchecked(self, obj)
+        self.get_string(obj)
     }
 
     /// Gets the bytes of a Java string, in [modified UTF-8] encoding.
@@ -2071,23 +2332,13 @@ impl<'local> JNIEnv<'local> {
     /// The returned `JavaStr` can be used to access the modified UTF-8 bytes,
     /// or to convert to a Rust string (which uses standard UTF-8 encoding).
     ///
-    /// This entails checking that the given object is a `java.lang.String`,
-    /// then calling the JNI function `GetStringUTFChars`.
+    /// This entails calling the JNI function `GetStringUTFChars`.
     ///
     /// [modified UTF-8]: https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
     ///
-    /// # Performance
-    ///
-    /// This function has some relative performance impact compared to
-    /// [`get_string_unchecked`][Self::get_string_unchecked].
-    /// This performance penalty comes from the extra validation
-    /// performed by this function. If and only if you can guarantee that your
-    /// `obj` is of the class `java.lang.String`, use `get_string_unchecked` to
-    /// skip this extra validation.
-    ///
     /// # Errors
     ///
-    /// Returns an error if `obj` is `null` or is not an instance of `java.lang.String`.
+    /// Returns an error if `obj` is `null`.
     pub fn get_string<'other_local: 'obj_ref, 'obj_ref>(
         &mut self,
         obj: &'obj_ref JString<'other_local>,
@@ -2095,18 +2346,8 @@ impl<'local> JNIEnv<'local> {
         // Runtime check that the 'local reference lifetime will be tied to
         // JNIEnv lifetime for the top JNI stack frame
         assert_eq!(self.level, JavaVM::thread_attach_guard_level());
-        static STRING_CLASS: OnceCell<GlobalRef<JClass<'static>>> = OnceCell::new();
-        let string_class = STRING_CLASS.get_or_try_init(|| {
-            let string_class_local = self.find_class("java/lang/String")?;
-            self.new_global_ref(string_class_local)
-        })?;
-
-        if !self.is_instance_of(obj, string_class)? {
-            return Err(JniCall(JniError::InvalidArguments));
-        }
-
-        // SAFETY: We check that the passed in Object is actually a java.lang.String
-        unsafe { self.get_string_unchecked(obj) }
+        let obj = null_check!(obj, "get_string obj argument")?;
+        JavaStr::from_get_string_utf_chars(self, obj)
     }
 
     /// Create a new java string object from a rust string. This requires a

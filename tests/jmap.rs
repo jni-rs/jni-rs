@@ -29,7 +29,7 @@ pub fn jmap_push_and_iterate() {
         unwrap(
             map.iter(env).and_then(|mut iter| {
                 while let Some(e) = iter.next(env)? {
-                    let s = JString::from(e.0);
+                    let s = env.cast_local::<JString>(e.0)?;
                     let s = env.get_string(&s)?;
                     collected.push(String::from(s));
                 }

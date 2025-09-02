@@ -386,7 +386,7 @@ fn jni_get_string_unchecked(c: &mut Criterion) {
 
         c.bench_function("jni_get_string_unchecked", |b| {
             b.iter(|| {
-                let s: String = unsafe { env.get_string_unchecked(&string) }.unwrap().into();
+                let s: String = env.get_string(&string).unwrap().into();
                 assert_eq!(s, TEST_STRING_UNICODE);
             })
         });
