@@ -2,7 +2,11 @@ use std::{marker::PhantomData, mem::ManuallyDrop, ops::Deref, ptr};
 
 use jni_sys::jobject;
 
-use crate::{errors, objects::JObject, JavaVM};
+use crate::{
+    errors,
+    objects::{GlobalRef, JClass, JObject, LoaderContext},
+    JavaVM,
+};
 
 use super::JObjectRef;
 
@@ -219,10 +223,14 @@ where
     }
 }
 
-impl<'local, T> JObjectRef for AutoLocal<'local, T>
+// SAFETY: Kind and GlobalKind are implicitly transparent wrappers if T is
+// implemented correctly / safely.
+unsafe impl<'local, T> JObjectRef for AutoLocal<'local, T>
 where
     T: JObjectRef + Into<JObject<'local>>,
 {
+    const CLASS_NAME: &'static str = T::CLASS_NAME;
+
     type Kind<'env> = T::Kind<'env>;
     type GlobalKind = T::GlobalKind;
 
@@ -230,8 +238,15 @@ where
         self.obj.as_raw()
     }
 
-    unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        T::from_local_raw(local_ref)
+    fn lookup_class<'vm>(
+        vm: &'vm JavaVM,
+        loader_context: LoaderContext,
+    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+        T::lookup_class(vm, loader_context)
+    }
+
+    unsafe fn from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+        T::from_raw(local_ref)
     }
 
     unsafe fn from_global_raw(global_ref: jobject) -> Self::GlobalKind {

@@ -1,9 +1,13 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, ops::Deref};
 
-use crate::sys::jobject;
+use once_cell::sync::OnceCell;
 
-#[cfg(doc)]
-use crate::objects::GlobalRef;
+use crate::{
+    errors::Result,
+    objects::{GlobalRef, JClass, LoaderContext},
+    sys::jobject,
+    JavaVM,
+};
 
 use super::JObjectRef;
 
@@ -61,6 +65,24 @@ impl ::std::ops::Deref for JObject<'_> {
     }
 }
 
+struct JObjectAPI {
+    class: GlobalRef<JClass<'static>>,
+    // no methods cached for now
+}
+impl JObjectAPI {
+    fn get(vm: &JavaVM) -> Result<&'static Self> {
+        static JOBJECT_API: OnceCell<JObjectAPI> = OnceCell::new();
+        JOBJECT_API.get_or_try_init(|| {
+            vm.with_env_current_frame(|env| {
+                // NB: Self::CLASS_NAME is a binary name with dots, not slashes
+                let class = env.find_class("java/lang/Object")?;
+                let class = env.new_global_ref(class)?;
+                Ok(JObjectAPI { class })
+            })
+        })
+    }
+}
+
 impl JObject<'_> {
     /// Creates a [`JObject`] that wraps the given `raw` [`jobject`]
     ///
@@ -103,7 +125,10 @@ impl std::default::Default for JObject<'_> {
     }
 }
 
-impl JObjectRef for JObject<'_> {
+// SAFETY: JObject is a transparent jobject wrapper with no Drop side effects
+unsafe impl JObjectRef for JObject<'_> {
+    const CLASS_NAME: &'static str = "java.lang.Object";
+
     type Kind<'env> = JObject<'env>;
     type GlobalKind = JObject<'static>;
 
@@ -111,7 +136,17 @@ impl JObjectRef for JObject<'_> {
         self.as_raw()
     }
 
-    unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+    fn lookup_class<'vm>(
+        vm: &'vm JavaVM,
+        _loader_context: LoaderContext,
+    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+        // As a special-case; we ignore loader_context just to be clear that there's no risk of
+        // recursion. (`LoaderContext::load_class` depends on the `JObjectAPI`)
+        let api = JObjectAPI::get(vm)?;
+        Ok(&api.class)
+    }
+
+    unsafe fn from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
         JObject::from_raw(local_ref)
     }
 

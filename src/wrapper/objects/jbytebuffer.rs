@@ -1,6 +1,12 @@
+use std::ops::Deref;
+
+use once_cell::sync::OnceCell;
+
 use crate::{
-    objects::{JObject, JObjectRef},
+    errors::Result,
+    objects::{GlobalRef, JClass, JObject, JObjectRef, LoaderContext},
     sys::jobject,
+    JavaVM,
 };
 
 /// Lifetime'd representation of a `jobject` that is an instance of the
@@ -35,16 +41,23 @@ impl<'local> From<JByteBuffer<'local>> for JObject<'local> {
     }
 }
 
-impl<'local> From<JObject<'local>> for JByteBuffer<'local> {
-    fn from(other: JObject) -> Self {
-        unsafe { Self::from_raw(other.into_raw()) }
-    }
+struct JByteBufferAPI {
+    class: GlobalRef<JClass<'static>>,
 }
 
-impl<'local, 'obj_ref> From<&'obj_ref JObject<'local>> for &'obj_ref JByteBuffer<'local> {
-    fn from(other: &'obj_ref JObject<'local>) -> Self {
-        // Safety: `JByteBuffer` is `repr(transparent)` around `JObject`.
-        unsafe { &*(other as *const JObject<'local> as *const JByteBuffer<'local>) }
+impl JByteBufferAPI {
+    fn get<'any_local>(
+        vm: &JavaVM,
+        loader_context: &LoaderContext<'any_local, '_>,
+    ) -> Result<&'static Self> {
+        static JBYTEBUFFER_API: OnceCell<JByteBufferAPI> = OnceCell::new();
+        JBYTEBUFFER_API.get_or_try_init(|| {
+            vm.with_env_current_frame(|env| {
+                let class = loader_context.load_class_for_type::<JByteBuffer>(false, env)?;
+                let class = env.new_global_ref(&class).unwrap();
+                Ok(Self { class })
+            })
+        })
     }
 }
 
@@ -64,7 +77,10 @@ impl JByteBuffer<'_> {
     }
 }
 
-impl JObjectRef for JByteBuffer<'_> {
+// SAFETY: JByteBuffer is a transparent JObject wrapper with no Drop side effects
+unsafe impl JObjectRef for JByteBuffer<'_> {
+    const CLASS_NAME: &'static str = "[Ljava.nio.ByteBuffer;";
+
     type Kind<'env> = JByteBuffer<'env>;
     type GlobalKind = JByteBuffer<'static>;
 
@@ -72,7 +88,14 @@ impl JObjectRef for JByteBuffer<'_> {
         self.0.as_raw()
     }
 
-    unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+    fn lookup_class<'vm>(
+        vm: &'vm JavaVM,
+        loader_context: LoaderContext,
+    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+        let api = JByteBufferAPI::get(vm, &loader_context)?;
+        Ok(&api.class)
+    }
+    unsafe fn from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
         JByteBuffer::from_raw(local_ref)
     }
 

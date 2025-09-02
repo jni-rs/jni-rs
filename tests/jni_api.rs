@@ -8,8 +8,8 @@ use jni::{
     env::JNIEnv,
     errors::{CharToJavaError, Error},
     objects::{
-        AutoElements, IntoAutoLocal as _, JByteBuffer, JList, JObject, JString, JThrowable, JValue,
-        ReleaseMode, WeakRef,
+        AutoElements, IntoAutoLocal as _, JByteBuffer, JList, JObject, JObjectRef as _, JString,
+        JThrowable, JValue, ReleaseMode, WeakRef,
     },
     signature::{JavaType, Primitive, ReturnType},
     strings::JNIString,
@@ -260,8 +260,8 @@ pub fn with_local_frame() {
                 let res = env.new_string("Test")?;
                 Ok(res.into())
             })
-            .unwrap()
-            .into();
+            .unwrap();
+        let s = env.cast_local::<JString>(s).unwrap();
 
         let s = env
             .get_string(&s)
@@ -410,7 +410,7 @@ pub fn call_new_object_unchecked_ok() {
         }
         .expect("JNIEnv#new_object_unchecked should return JValue");
 
-        let jstr = JString::from(val);
+        let jstr = env.cast_local::<JString>(val).unwrap();
         let javastr = env.get_string(&jstr).unwrap();
         let rstr = javastr.to_str();
         assert_eq!(rstr, TESTING_OBJECT_STR);
@@ -1018,7 +1018,7 @@ pub fn get_direct_buffer_capacity_wrong_arg() {
 #[test]
 pub fn get_direct_buffer_capacity_null_arg() {
     attach_current_thread(|env| {
-        let result = env.get_direct_buffer_capacity(&JObject::null().into());
+        let result = env.get_direct_buffer_capacity(&Default::default());
         assert!(result.is_err());
 
         Ok(())
@@ -1050,7 +1050,11 @@ pub fn get_direct_buffer_address_ok() {
 pub fn get_direct_buffer_address_wrong_arg() {
     attach_current_thread(|env| {
         let wrong_obj: JObject = env.new_string("wrong").unwrap().into();
-        let result = env.get_direct_buffer_address(&wrong_obj.into());
+
+        // SAFETY: This is not a valid cast and not generally safe but `GetDirectBufferAddress` is
+        // documented to return a null pointer in case the "given object is not a direct java.nio.Buffer".
+        let wrong_obj = unsafe { JByteBuffer::from_raw(wrong_obj.into_raw()) };
+        let result = env.get_direct_buffer_address(&wrong_obj);
         assert!(result.is_err());
 
         Ok(())
@@ -1061,7 +1065,7 @@ pub fn get_direct_buffer_address_wrong_arg() {
 #[test]
 pub fn get_direct_buffer_address_null_arg() {
     attach_current_thread(|env| {
-        let result = env.get_direct_buffer_address(&JObject::null().into());
+        let result = env.get_direct_buffer_address(&JByteBuffer::null());
         assert!(result.is_err());
 
         Ok(())
@@ -1402,7 +1406,8 @@ pub fn test_conversion() {
         let orig_obj: JObject = env.new_string("Hello, world!").unwrap().into();
 
         let obj: JObject = unwrap(env.new_local_ref(&orig_obj), env);
-        let string = JString::from(obj);
+
+        let string = env.cast_local::<JString>(obj).unwrap();
         let actual = JObject::from(string);
         assert!(env.is_same_object(&orig_obj, actual));
 
@@ -1427,20 +1432,6 @@ pub fn test_null_get_string() {
     attach_current_thread(|env| {
         let s = unsafe { JString::from_raw(std::ptr::null_mut() as _) };
         let ret = env.get_string(&s);
-        assert!(ret.is_err());
-
-        Ok(())
-    })
-    .unwrap();
-}
-
-#[test]
-pub fn test_invalid_list_get_string() {
-    attach_current_thread(|env| {
-        let class = env.find_class("java/util/List").unwrap();
-        let class = JString::from(JObject::from(class)).auto();
-
-        let ret = env.get_string(&class);
         assert!(ret.is_err());
 
         Ok(())
@@ -1508,7 +1499,8 @@ fn assert_exception_message(env: &mut JNIEnv, exception: &JThrowable, expected_m
         .unwrap()
         .l()
         .unwrap();
-    let msg_rust: String = env.get_string(&message.into()).unwrap().into();
+    let message = env.cast_local::<JString>(message).unwrap();
+    let msg_rust: String = env.get_string(&message).unwrap().into();
     assert_eq!(msg_rust, expected_message);
 }
 

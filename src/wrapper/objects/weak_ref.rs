@@ -6,7 +6,7 @@ use log::{debug, warn};
 use crate::{
     env::JNIEnv,
     errors::{Error, Result},
-    objects::{GlobalRef, JObject},
+    objects::{GlobalRef, JClass, JObject, LoaderContext},
     sys, JavaVM,
 };
 
@@ -273,10 +273,14 @@ where
     }
 }
 
-impl<T> JObjectRef for WeakRef<T>
+// SAFETY: Kind and GlobalKind are implicitly transparent wrappers if T is
+// implemented correctly / safely.
+unsafe impl<T> JObjectRef for WeakRef<T>
 where
     T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
 {
+    const CLASS_NAME: &'static str = T::CLASS_NAME;
+
     type Kind<'env> = T::Kind<'env>;
     type GlobalKind = T::GlobalKind;
 
@@ -284,8 +288,15 @@ where
         self.obj.as_raw()
     }
 
-    unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        T::from_local_raw(local_ref)
+    fn lookup_class<'vm>(
+        vm: &'vm JavaVM,
+        loader_context: LoaderContext,
+    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+        T::lookup_class(vm, loader_context)
+    }
+
+    unsafe fn from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+        T::from_raw(local_ref)
     }
 
     unsafe fn from_global_raw(global_ref: jobject) -> Self::GlobalKind {

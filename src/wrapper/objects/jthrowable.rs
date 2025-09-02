@@ -1,6 +1,13 @@
+use std::ops::Deref;
+
+use once_cell::sync::OnceCell;
+
 use crate::{
-    objects::JObject,
+    env::JNIEnv,
+    errors::Result,
+    objects::{GlobalRef, JClass, JMethodID, JObject, JString, LoaderContext},
     sys::{jobject, jthrowable},
+    JavaVM,
 };
 
 use super::JObjectRef;
@@ -37,16 +44,34 @@ impl<'local> From<JThrowable<'local>> for JObject<'local> {
     }
 }
 
-impl<'local> From<JObject<'local>> for JThrowable<'local> {
-    fn from(other: JObject) -> Self {
-        unsafe { Self::from_raw(other.into_raw()) }
-    }
+struct JThrowableAPI {
+    class: GlobalRef<JClass<'static>>,
+    get_message_method: JMethodID,
+    get_cause_method: JMethodID,
 }
-
-impl<'local, 'obj_ref> From<&'obj_ref JObject<'local>> for &'obj_ref JThrowable<'local> {
-    fn from(other: &'obj_ref JObject<'local>) -> Self {
-        // Safety: `JThrowable` is `repr(transparent)` around `JObject`.
-        unsafe { &*(other as *const JObject<'local> as *const JThrowable<'local>) }
+impl JThrowableAPI {
+    fn get<'any_local>(
+        vm: &JavaVM,
+        loader_context: &LoaderContext<'any_local, '_>,
+    ) -> Result<&'static Self> {
+        static JTHROWABLE_API: OnceCell<JThrowableAPI> = OnceCell::new();
+        JTHROWABLE_API.get_or_try_init(|| {
+            vm.with_env_current_frame(|env| {
+                let class = loader_context.load_class_for_type::<JThrowable>(true, env)?;
+                let class = env.new_global_ref(&class).unwrap();
+                let get_message_method = env
+                    .get_method_id(&class, "getMessage", "()Ljava/lang/String;")
+                    .expect("JThrowable.getMessage method not found");
+                let get_cause_method = env
+                    .get_method_id(&class, "getCause", "()Ljava/lang/Throwable;")
+                    .expect("JThrowable.getCause method not found");
+                Ok(Self {
+                    class,
+                    get_cause_method,
+                    get_message_method,
+                })
+            })
+        })
     }
 }
 
@@ -69,9 +94,52 @@ impl JThrowable<'_> {
     pub const fn into_raw(self) -> jthrowable {
         self.0.into_raw() as jthrowable
     }
+
+    /// Get the message of the throwable by calling the `getMessage` method.
+    pub fn get_message(&self, env: &mut JNIEnv<'_>) -> Result<JString<'_>> {
+        let vm = env.get_java_vm();
+        let api = JThrowableAPI::get(&vm, &LoaderContext::None)?;
+
+        // Safety: We know that `getMessage` is a valid method on `java/lang/Throwable` that has no
+        // arguments and it returns a valid `String` instance.
+        unsafe {
+            let message = env
+                .call_method_unchecked(
+                    self,
+                    api.get_message_method,
+                    crate::signature::ReturnType::Object,
+                    &[],
+                )?
+                .l()?;
+            Ok(JString::from_raw(message.into_raw() as _))
+        }
+    }
+
+    /// Get the cause of the throwable by calling the `getCause` method.
+    pub fn get_cause(&self, env: &mut JNIEnv<'_>) -> Result<JThrowable<'_>> {
+        let vm = env.get_java_vm();
+        let api = JThrowableAPI::get(&vm, &LoaderContext::None)?;
+
+        // Safety: We know that `getCause` is a valid method on `java/lang/Throwable` that has no
+        // arguments and it returns a valid `Throwable` instance.
+        unsafe {
+            let cause = env
+                .call_method_unchecked(
+                    self,
+                    api.get_cause_method,
+                    crate::signature::ReturnType::Object,
+                    &[],
+                )?
+                .l()?;
+            Ok(JThrowable::from_raw(cause.into_raw() as _))
+        }
+    }
 }
 
-impl JObjectRef for JThrowable<'_> {
+// SAFETY: JThrowable is a transparent JObject wrapper with no Drop side effects
+unsafe impl JObjectRef for JThrowable<'_> {
+    const CLASS_NAME: &'static str = "java.lang.Throwable";
+
     type Kind<'env> = JThrowable<'env>;
     type GlobalKind = JThrowable<'static>;
 
@@ -79,7 +147,15 @@ impl JObjectRef for JThrowable<'_> {
         self.0.as_raw()
     }
 
-    unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+    fn lookup_class<'vm>(
+        vm: &'vm JavaVM,
+        loader_context: LoaderContext,
+    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+        let api = JThrowableAPI::get(vm, &loader_context)?;
+        Ok(&api.class)
+    }
+
+    unsafe fn from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
         JThrowable::from_raw(local_ref)
     }
 

@@ -36,49 +36,48 @@ use crate::{
 pub struct JavaStr<'local, 'other_local: 'obj_ref, 'obj_ref> {
     internal: *const c_char,
     obj: &'obj_ref JString<'other_local>,
+    is_copy: bool,
     _lifetime: PhantomData<&'local ()>,
 }
 
 impl<'local, 'other_local: 'obj_ref, 'obj_ref> JavaStr<'local, 'other_local, 'obj_ref> {
-    /// Get a pointer to the character array beneath a [JString]
+    /// Constructs a `JavaStr` from a `JNIEnv` and a `JString`.
     ///
-    /// The string will be `NULL` terminated and encoded as
-    /// [Modified UTF-8](https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8) /
+    /// The string will be `NULL` terminated and encoded as [Modified
+    /// UTF-8](https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8) /
     /// [CESU-8](https://en.wikipedia.org/wiki/CESU-8).
     ///
     /// The implementation may either create a copy of the character array for
     /// the given `String` or it may pin it to avoid it being collected by the
     /// garbage collector.
     ///
-    /// Returns a tuple with the pointer and the status of whether the implementation
-    /// created a copy of the underlying character array.
-    ///
-    /// # Warning
-    ///
-    /// The caller must release the array when they are done with it via
-    /// [Self::release_string_utf_chars]
-    ///
-    /// # Safety
-    ///
-    /// The caller must guarantee that the Object passed in is an instance of `java.lang.String`,
-    /// passing in anything else will lead to undefined behaviour (The JNI implementation
-    /// is likely to crash or abort the process).
-    unsafe fn get_string_utf_chars(
-        env: &JNIEnv<'_>,
-        obj: &JString<'_>,
-    ) -> Result<(*const c_char, bool)> {
+    /// Returns a `JavaStr` that will automatically release the underlying
+    /// character array when dropped (see [Self::release_string_utf_chars]).
+    pub(crate) fn from_get_string_utf_chars(
+        env: &JNIEnv<'local>,
+        obj: &'obj_ref JString<'other_local>,
+    ) -> Result<Self> {
         let obj = null_check!(obj, "get_string_utf_chars obj argument")?;
-        let mut is_copy: jboolean = false;
-        let ptr: *const c_char = jni_call_only_check_null_ret!(
-            env,
-            v1_1,
-            GetStringUTFChars,
-            obj.as_raw(),
-            &mut is_copy as *mut _
-        )?;
 
-        let is_copy = is_copy == JNI_TRUE;
-        Ok((ptr, is_copy))
+        // SAFETY:
+        // - We have checked that the object is not null.
+        // - Having a `JString` guarantees that the reference is for a `java.lang.String`
+        //   (it would require unsafe code for that to be violated)
+        // - The pointer is immediately wrapped to ensure that the pointer will
+        //   be released when dropped.
+        unsafe {
+            let mut is_copy: jboolean = false;
+            let ptr: *const c_char = jni_call_only_check_null_ret!(
+                env,
+                v1_1,
+                GetStringUTFChars,
+                obj.as_raw(),
+                &mut is_copy as *mut _
+            )?;
+
+            let is_copy = is_copy == JNI_TRUE;
+            Ok(Self::from_raw(env, obj, ptr, is_copy))
+        }
     }
 
     /// Release the backing string
@@ -107,17 +106,6 @@ impl<'local, 'other_local: 'obj_ref, 'obj_ref> JavaStr<'local, 'other_local, 'ob
         })
     }
 
-    pub(crate) unsafe fn from_env_totally_unchecked(
-        env: &JNIEnv<'local>,
-        obj: &'obj_ref JString<'other_local>,
-    ) -> Result<Self> {
-        Ok({
-            let (ptr, _) = Self::get_string_utf_chars(env, obj)?;
-
-            Self::from_raw(env, obj, ptr)
-        })
-    }
-
     /// Destroys the `JavaStr` without freeing the underlying string, and
     /// returns a raw pointer to it.
     ///
@@ -130,15 +118,17 @@ impl<'local, 'other_local: 'obj_ref, 'obj_ref> JavaStr<'local, 'other_local, 'ob
     /// [CESU-8]: https://en.wikipedia.org/wiki/CESU-8
     /// [modified UTF-8]: https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
     ///
+    /// This also returns the status for whether the original string was copied or not.
+    ///
     /// # Warning
     ///
     /// After calling this method, the underlying string must be manually
     /// freed. This can be done either by reconstructing the [`JavaStr`] using
     /// [`JavaStr::from_raw`] and then dropping it, or by passing the pointer
     /// to the JNI function `ReleaseStringUTFChars`.
-    pub fn into_raw(self) -> *const c_char {
+    pub fn into_raw(self) -> (*const c_char, bool) {
         let _dont_call_drop = std::mem::ManuallyDrop::new(self);
-        _dont_call_drop.internal
+        (_dont_call_drop.internal, _dont_call_drop.is_copy)
     }
 
     /// Constructs a [`JavaStr`] from raw components.
@@ -153,10 +143,12 @@ impl<'local, 'other_local: 'obj_ref, 'obj_ref> JavaStr<'local, 'other_local, 'ob
     /// [`JavaStr::into_raw`] or the JNI function `GetStringUTFChars`. `ptr`
     /// must not belong to another `JavaStr` at the same time.
     ///
-    /// `str` must be a non-null reference to the same `java.lang.String`
-    /// object that was originally passed to [`JNIEnv::get_string`],
-    /// [`JNIEnv::get_string_unchecked`], or the JNI function
-    /// `GetStringUTFChars`, in order to obtain `ptr`.
+    /// `obj` must be a non-null reference to the same `java.lang.String` object
+    /// that was originally passed to [`JNIEnv::get_string`], or the JNI
+    /// function `GetStringUTFChars`, in order to obtain `ptr`.
+    ///
+    /// `is_copy` must be a boolean indicating whether the string was copied
+    /// or not (as returned by `GetStringUTFChars`).
     ///
     /// # Example
     /// ```rust,no_run
@@ -166,9 +158,9 @@ impl<'local, 'other_local: 'obj_ref, 'obj_ref> JavaStr<'local, 'other_local, 'ob
     /// let jstring = env.new_string("foo")?;
     /// let java_str = env.get_string(&jstring)?;
     ///
-    /// let ptr = java_str.into_raw();
+    /// let (ptr, is_copy) = java_str.into_raw();
     /// // Do whatever you need with the pointer
-    /// let java_str = unsafe { JavaStr::from_raw(env, &jstring, ptr) };
+    /// let java_str = unsafe { JavaStr::from_raw(env, &jstring, ptr, is_copy) };
     /// # Ok(())
     /// # }
     /// ```
@@ -176,12 +168,19 @@ impl<'local, 'other_local: 'obj_ref, 'obj_ref> JavaStr<'local, 'other_local, 'ob
         _env: &JNIEnv<'local>,
         obj: &'obj_ref JString<'other_local>,
         ptr: *const c_char,
+        is_copy: bool,
     ) -> Self {
         Self {
             internal: ptr,
             obj,
+            is_copy,
             _lifetime: PhantomData,
         }
+    }
+
+    /// Returns whether the string was copied or not.
+    pub fn is_copy(&self) -> bool {
+        self.is_copy
     }
 }
 

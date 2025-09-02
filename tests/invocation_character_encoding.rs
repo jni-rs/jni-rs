@@ -27,7 +27,7 @@ fn invocation_character_encoding() {
         let prop_name = env.new_string("nbsp").unwrap();
 
         println!("calling getProperty");
-        let prop_value: JString = env
+        let prop_value = env
             .call_static_method(
                 "java/lang/System",
                 "getProperty",
@@ -36,9 +36,8 @@ fn invocation_character_encoding() {
             )
             .unwrap()
             .l()
-            .unwrap()
-            .into();
-
+            .unwrap();
+        let prop_value = env.cast_local::<JString>(prop_value)?;
         let prop_value_str = env.get_string(&prop_value).unwrap();
         let prop_value_str: Cow<str> = prop_value_str.to_str();
 

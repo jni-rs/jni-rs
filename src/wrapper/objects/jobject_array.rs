@@ -1,6 +1,12 @@
+use std::ops::Deref;
+
+use once_cell::sync::OnceCell;
+
 use crate::{
-    objects::{JObject, JObjectRef},
+    errors::Result,
+    objects::{GlobalRef, JClass, JObject, JObjectRef, LoaderContext},
     sys::{jobject, jobjectArray},
+    JavaVM,
 };
 
 use super::AsJArrayRaw;
@@ -36,22 +42,27 @@ impl<'local> From<JObjectArray<'local>> for JObject<'local> {
     }
 }
 
-/// This conversion assumes that the `JObject` is a pointer to a class object.
-impl<'local> From<JObject<'local>> for JObjectArray<'local> {
-    fn from(other: JObject) -> Self {
-        unsafe { Self::from_raw(other.into_raw()) }
-    }
-}
-
-/// This conversion assumes that the `JObject` is a pointer to a class object.
-impl<'local, 'obj_ref> From<&'obj_ref JObject<'local>> for &'obj_ref JObjectArray<'local> {
-    fn from(other: &'obj_ref JObject<'local>) -> Self {
-        // Safety: `JObjectArray` is `repr(transparent)` around `JObject`.
-        unsafe { &*(other as *const JObject<'local> as *const JObjectArray<'local>) }
-    }
-}
-
 unsafe impl<'local> AsJArrayRaw<'local> for JObjectArray<'local> {}
+
+struct JObjectArrayAPI {
+    class: GlobalRef<JClass<'static>>,
+}
+
+impl JObjectArrayAPI {
+    fn get<'any_local>(
+        vm: &JavaVM,
+        loader_context: &LoaderContext<'any_local, '_>,
+    ) -> Result<&'static Self> {
+        static JOBJECT_ARRAY_API: OnceCell<JObjectArrayAPI> = OnceCell::new();
+        JOBJECT_ARRAY_API.get_or_try_init(|| {
+            vm.with_env_current_frame(|env| {
+                let class = loader_context.load_class_for_type::<JObjectArray>(false, env)?;
+                let class = env.new_global_ref(&class).unwrap();
+                Ok(Self { class })
+            })
+        })
+    }
+}
 
 impl JObjectArray<'_> {
     /// Creates a [`JObjectArray`] that wraps the given `raw` [`jobjectArray`]
@@ -74,7 +85,10 @@ impl JObjectArray<'_> {
     }
 }
 
-impl JObjectRef for JObjectArray<'_> {
+// SAFETY: JObjectArray is a transparent JObject wrapper with no Drop side effects
+unsafe impl JObjectRef for JObjectArray<'_> {
+    const CLASS_NAME: &'static str = "[Ljava.lang.Object;";
+
     type Kind<'env> = JObjectArray<'env>;
     type GlobalKind = JObjectArray<'static>;
 
@@ -82,7 +96,15 @@ impl JObjectRef for JObjectArray<'_> {
         self.0.as_raw()
     }
 
-    unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+    fn lookup_class<'vm>(
+        vm: &'vm JavaVM,
+        loader_context: LoaderContext,
+    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+        let api = JObjectArrayAPI::get(vm, &loader_context)?;
+        Ok(&api.class)
+    }
+
+    unsafe fn from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
         JObjectArray::from_raw(local_ref)
     }
 

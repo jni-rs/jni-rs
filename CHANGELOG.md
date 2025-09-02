@@ -92,13 +92,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `JavaVM::with_env` and `JavaVM::with_env_with_capacity` added as methods to borrow a `JNIEnv` that is already attached to the current thread, after pushing a new JNI stack frame ([#570](https://github.com/jni-rs/jni-rs/pull/570))
 - `JavaVM::with_env_current_frame` added to borrow a `JNIEnv` for the top JNI stack frame (i.e. without pushing a new JNI stack frame) ([#570](https://github.com/jni-rs/jni-rs/pull/570))
 - `JNIEnv::to_reflected_method` and `JNIEnv::to_reflected_static_method` for retrieving the Java reflection API instance for a method or constructor. ([#579](https://github.com/jni-rs/jni-rs/pull/579))
-- `JNIStr` now implements `Debug`, `PartialEq`, `Eq`, `PartialOrd`, `Ord` and `Hash`
-- `JNIString` now implements `Debug`, `PartialEq`, `Eq`, `PartialOrd`, `Ord`, `Hash` and `Clone`
-- `PartialEq<&JNIStr> for JNIString` allows `JNIStr` and `JNIString` to be compared.
-- `From<&JNIStr>` and `From<JavaStr>` implementations for `JNIString`.
+- `JNIStr` now implements `Debug`, `PartialEq`, `Eq`, `PartialOrd`, `Ord` and `Hash` ([#615](https://github.com/jni-rs/jni-rs/pull/615))
+- `JNIString` now implements `Debug`, `PartialEq`, `Eq`, `PartialOrd`, `Ord`, `Hash` and `Clone` ([#615](https://github.com/jni-rs/jni-rs/pull/615))
+- `PartialEq<&JNIStr> for JNIString` allows `JNIStr` and `JNIString` to be compared. ([#615](https://github.com/jni-rs/jni-rs/pull/615))
+- `From<&JNIStr>` and `From<JavaStr>` implementations for `JNIString`. ([#615](https://github.com/jni-rs/jni-rs/pull/615))
 - `JNIStr::from_cstr` safely does a zero-copy cast of a `CStr` to a `JNIStr` after a `const` modified-utf8 encoding validation (with a panic on failure)
-- `AsRef<JNIStr>` is implemented for `CStr` (based on `JNIStr::from_cstr`) allows use of literals like `c"java/lang/Foo"` to be passed to JNI APIs without needing to be copied.
-- `JNIStr::to_bytes` gives access to a `&[u8]` slice over the bytes of a JNI string (like `CStr::to_bytes`)
+- `AsRef<JNIStr>` is implemented for `CStr` (based on `JNIStr::from_cstr`) allows use of literals like `c"java/lang/Foo"` to be passed to JNI APIs without needing to be copied. ([#615](https://github.com/jni-rs/jni-rs/pull/615))
+- `JNIStr::to_bytes` gives access to a `&[u8]` slice over the bytes of a JNI string (like `CStr::to_bytes`) ([#615](https://github.com/jni-rs/jni-rs/pull/615))
+- `JThread` as a `JObjectRef` wrapper for `java.lang.Thread` references ([#612](https://github.com/jni-rs/jni-rs/pull/612))
+- `JClassLoader` as a `JObjectRef` wrapper for `java.lang.ClassLoader` references ([#612](https://github.com/jni-rs/jni-rs/pull/612))
+- `LoaderContext` + `LoaderContext::load_class` for loading classes, depending on available context ([#612](https://github.com/jni-rs/jni-rs/pull/612))
+- `JObjectRef::load_class` exposes a cached `GlobalRef<JClass>` for all `JObjectRef` implementations ([#612](https://github.com/jni-rs/jni-rs/pull/612))
+- `JNIEnv::new_cast_global_ref` acts like `new_global_ref` with a type cast ([#612](https://github.com/jni-rs/jni-rs/pull/612))
+- `JNIEnv::cast_global` takes an owned `GlobalRef<From>` and returns a `GlobalRef<To>` ([#612](https://github.com/jni-rs/jni-rs/pull/612))
+- `JNIEnv::new_cast_local_ref` acts like `new_local_ref` with a type cast ([#612](https://github.com/jni-rs/jni-rs/pull/612))
+- `JNIEnv::cast_local` takes an owned local reference and returns a newly type cast wrapper ([#612](https://github.com/jni-rs/jni-rs/pull/612))
+- `JNIEnv::as_cast` borrows any `From: JObjectRef` (global or local) reference and returns  a `Cast<To>` that will Deref into `&To` ([#612](https://github.com/jni-rs/jni-rs/pull/612))
 
 ### Fixed
 - `JNIEnv::get_string` no longer leaks local references. ([#528](https://github.com/jni-rs/jni-rs/pull/528), [#557](https://github.com/jni-rs/jni-rs/pull/557))
