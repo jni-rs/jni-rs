@@ -256,7 +256,7 @@ attach_current_thread(|env| {
 pub fn with_local_frame() {
     attach_current_thread(|env| {
         let s = env
-            .with_local_frame_returning_local::<_, jni::errors::Error>(16, |env| {
+            .with_local_frame_returning_local::<_, JObject, jni::errors::Error>(16, |env| {
                 let res = env.new_string("Test")?;
                 Ok(res.into())
             })
@@ -1303,7 +1303,7 @@ fn short_lifetime_with_local_frame() {
 fn short_lifetime_with_local_frame_sub_fn<'local>(
     env: &'_ mut JNIEnv<'local>,
 ) -> Result<JObject<'local>, Error> {
-    env.with_local_frame_returning_local(16, |env| {
+    env.with_local_frame_returning_local::<_, JObject, _>(16, |env| {
         env.new_object(INTEGER_CLASS, "(I)V", &[JValue::from(5)])
     })
 }

@@ -1109,16 +1109,16 @@ impl<'local> JNIEnv<'local> {
     ///
     /// The `AttachGuard` created before calling `push_local_frame` must be
     /// dropped after calling `pop_local_frame`.
-    unsafe fn pop_local_frame(&self, result: &JObject) -> Result<JObject<'local>> {
+    unsafe fn pop_local_frame<'frame_local, T: JObjectRef>(
+        &self,
+        result: T::Kind<'frame_local>,
+    ) -> Result<T::Kind<'local>> {
+        let result: JObject<'frame_local> = result.into();
         // Safety:
         // This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
         // We check for JNI > 1.2 in `from_raw`
-        Ok(JObject::from_raw(jni_call_unchecked!(
-            self,
-            v1_2,
-            PopLocalFrame,
-            result.as_raw()
-        )))
+        let raw = jni_call_unchecked!(self, v1_2, PopLocalFrame, result.into_raw());
+        Ok(T::from_local_raw(raw))
     }
 
     /// Executes the given function in a new local reference frame, in which at least a given number
@@ -1151,7 +1151,7 @@ impl<'local> JNIEnv<'local> {
             let mut env = JNIEnv::new(&mut guard);
             self.push_local_frame(capacity)?;
             let ret = catch_unwind(AssertUnwindSafe(|| f(&mut env)));
-            self.pop_local_frame(&JObject::null())?;
+            self.pop_local_frame::<JObject>(JObject::null())?;
             drop(env);
             drop(guard);
 
@@ -1175,15 +1175,16 @@ impl<'local> JNIEnv<'local> {
     /// from a local frame as special-case optimization, this alternative to `with_local_frame`
     /// exposes that capability to return a local reference without needing to create a
     /// temporary [`GlobalRef`].
-    pub fn with_local_frame_returning_local<F, E>(
+    pub fn with_local_frame_returning_local<F, T, E>(
         &mut self,
         capacity: usize,
         f: F,
-    ) -> std::result::Result<JObject<'local>, E>
+    ) -> std::result::Result<T::Kind<'local>, E>
     where
         F: for<'new_local> FnOnce(
             &mut JNIEnv<'new_local>,
-        ) -> std::result::Result<JObject<'new_local>, E>,
+        ) -> std::result::Result<T::Kind<'new_local>, E>,
+        T: JObjectRef,
         E: From<Error>,
     {
         // Runtime check that the 'local reference lifetime will be tied to
@@ -1195,34 +1196,33 @@ impl<'local> JNIEnv<'local> {
             .map_err(|_| Error::JniCall(JniError::InvalidArguments))?;
 
         unsafe {
-            // Safety: by creating a new AttachGuard we ensure that the attach guard level
-            // will be incremented in sync with the creation of a new JNI stack frame
-            let mut guard = AttachGuard::from_unowned(self.get_raw());
-            let mut env = JNIEnv::new(&mut guard);
-            self.push_local_frame(capacity)?;
-            let ret = catch_unwind(AssertUnwindSafe(|| f(&mut env)));
-            match ret {
-                Ok(ret) => match ret {
-                    Ok(obj) => {
-                        let obj = self.pop_local_frame(&obj)?;
-                        drop(env);
-                        drop(guard);
-                        Ok(obj)
+            // Inner scope to ensure drop order: `Result` -> `env` -> `guard`, before we potentially call `resume_unwind`.
+            let panic_payload = {
+                // Safety: by creating a new AttachGuard we ensure that the attach guard level
+                // will be incremented in sync with the creation of a new JNI stack frame
+                let mut guard = AttachGuard::from_unowned(self.get_raw());
+                let mut env = JNIEnv::new(&mut guard);
+
+                self.push_local_frame(capacity)?;
+
+                let payload = match catch_unwind(AssertUnwindSafe(|| f(&mut env))) {
+                    Ok(Ok(obj)) => {
+                        let obj = self.pop_local_frame::<T>(obj)?;
+                        return Ok(obj);
                     }
-                    Err(err) => {
-                        self.pop_local_frame(&JObject::null())?;
-                        drop(env);
-                        drop(guard);
-                        Err(err)
+                    Ok(Err(err)) => {
+                        self.pop_local_frame::<T>(T::null())?;
+                        return Err(err);
                     }
-                },
-                Err(payload) => {
-                    self.pop_local_frame(&JObject::null())?;
-                    drop(env);
-                    drop(guard);
-                    resume_unwind(payload);
-                }
-            }
+                    Err(payload) => {
+                        self.pop_local_frame::<T>(T::null())?;
+                        payload
+                    }
+                };
+                payload
+            };
+
+            resume_unwind(panic_payload);
         }
     }
 
