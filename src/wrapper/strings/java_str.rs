@@ -3,10 +3,13 @@ use std::{borrow::Cow, marker::PhantomData, os::raw::c_char};
 
 use log::warn;
 
-use crate::{env::JNIEnv, errors::*, objects::JString, strings::JNIStr, JavaVM};
-
-#[cfg(doc)]
-use crate::strings::JNIString;
+use crate::{
+    env::JNIEnv,
+    errors::*,
+    objects::JString,
+    strings::{JNIStr, JNIString},
+    JavaVM,
+};
 
 /// Represents the bytes of a string in the JVM, in Java's [modified UTF-8]
 /// encoding.
@@ -194,6 +197,13 @@ impl<'other_local: 'obj_ref, 'obj_ref: 'java_str, 'java_str>
 {
     fn from(other: &'java_str JavaStr) -> &'java_str JNIStr {
         unsafe { JNIStr::from_ptr(other.internal) }
+    }
+}
+
+impl<'other_local: 'obj_ref, 'obj_ref> From<JavaStr<'_, 'other_local, 'obj_ref>> for JNIString {
+    fn from(other: JavaStr) -> JNIString {
+        let jni_str: &JNIStr = &other;
+        jni_str.to_owned()
     }
 }
 
