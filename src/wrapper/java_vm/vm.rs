@@ -155,7 +155,7 @@ static JAVA_VM_CACHE: once_cell::sync::OnceCell<Arc<JavaVMCache>> =
 /// jvm.attach_current_thread(|env| -> errors::Result<()> {
 ///     // Call Java Math#abs(-10)
 ///     let x = JValue::from(-10);
-///     let val: jint = env.call_static_method("java/lang/Math", "abs", "(I)I", &[x])?
+///     let val: jint = env.call_static_method(c"java/lang/Math", c"abs", c"(I)I", &[x])?
 ///         .i()?;
 ///
 ///     assert_eq!(val, 10);

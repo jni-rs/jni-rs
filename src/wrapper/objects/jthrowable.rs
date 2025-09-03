@@ -2,6 +2,7 @@ use crate::{
     env::JNIEnv,
     errors::Result,
     objects::{ClassKind, ClassRef, GlobalRef, JClass, JMethodID, JObject, JString, LoaderSource},
+    strings::JNIStr,
     sys::{jobject, jthrowable},
     DataRef, JavaVM,
 };
@@ -52,13 +53,13 @@ impl JThrowableAPI {
     ) -> Result<DataRef<'vm, Self>> {
         vm.get_cached_or_insert_with(|| {
             vm.with_env_current_frame(|env| {
-                let class = loader_source.load_class(JThrowable::CLASS_NAME, env)?;
+                let class = loader_source.load_class::<JThrowable>(env)?;
                 let class = env.new_global_ref(&class).unwrap();
                 let get_message_method = env
-                    .get_method_id(&class, "getMessage", "()Ljava/lang/String;")
+                    .get_method_id(&class, c"getMessage", c"()Ljava/lang/String;")
                     .expect("JThrowable.getMessage method not found");
                 let get_cause_method = env
-                    .get_method_id(&class, "getCause", "()Ljava/lang/Throwable;")
+                    .get_method_id(&class, c"getCause", c"()Ljava/lang/Throwable;")
                     .expect("JThrowable.getCause method not found");
                 Ok(Self {
                     class,
@@ -132,7 +133,8 @@ impl JThrowable<'_> {
 }
 
 impl JObjectRef for JThrowable<'_> {
-    const CLASS_NAME: &'static str = "java/lang/Throwable";
+    const FIND_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java/lang/Throwable");
+    const LOAD_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.Throwable");
     const CLASS_KIND: ClassKind = ClassKind::Bootstrap;
 
     type Kind<'env> = JThrowable<'env>;

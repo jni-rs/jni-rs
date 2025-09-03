@@ -36,7 +36,7 @@ pub unsafe trait Desc<'local, T> {
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
     /// // The value returned by `lookup` is not exactly `JClass`.
     /// let class/*: impl AsRef<JClass> */ =
-    ///     Desc::<JClass>::lookup("java/lang/Object", env)?;
+    ///     Desc::<JClass>::lookup(c"java/lang/Object", env)?;
     ///
     /// // But `&JClass` can be borrowed from it.
     /// let class: &JClass = class.as_ref();
@@ -60,7 +60,7 @@ pub unsafe trait Desc<'local, T> {
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
     /// // Undefined behavior: the `JClass` is dropped before the raw pointer
     /// // is passed to `some_function`!
-    /// some_function(Desc::<JClass>::lookup("java/lang/Object", env)?.as_raw());
+    /// some_function(Desc::<JClass>::lookup(c"java/lang/Object", env)?.as_raw());
     /// # Ok(())
     /// # }
     /// ```
@@ -73,7 +73,7 @@ pub unsafe trait Desc<'local, T> {
     /// # fn some_function<T>(ptr: *mut T) {}
     /// #
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
-    /// let class = Desc::<JClass>::lookup("java/lang/Object", env)?;
+    /// let class = Desc::<JClass>::lookup(c"java/lang/Object", env)?;
     ///
     /// some_function(class.as_raw());
     ///

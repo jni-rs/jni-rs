@@ -1,6 +1,7 @@
 use crate::{
     errors::Result,
     objects::{ClassKind, ClassRef, GlobalRef, JClass, JObject, JObjectRef, LoaderSource},
+    strings::JNIStr,
     sys::{jobject, jobjectArray},
     DataRef, JavaVM,
 };
@@ -51,7 +52,7 @@ impl JObjectArrayAPI {
     ) -> Result<DataRef<'vm, Self>> {
         vm.get_cached_or_insert_with(|| {
             vm.with_env_current_frame(|env| {
-                let class = loader_source.load_class(JObjectArray::CLASS_NAME, env)?;
+                let class = loader_source.load_class::<JObjectArray>(env)?;
                 let class = env.new_global_ref(&class).unwrap();
                 Ok(Self { class })
             })
@@ -81,7 +82,8 @@ impl JObjectArray<'_> {
 }
 
 impl JObjectRef for JObjectArray<'_> {
-    const CLASS_NAME: &'static str = "[Ljava/lang/Object;";
+    const FIND_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"[Ljava/lang/Object;");
+    const LOAD_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.Object[]");
     const CLASS_KIND: ClassKind = ClassKind::Bootstrap;
 
     type Kind<'env> = JObjectArray<'env>;

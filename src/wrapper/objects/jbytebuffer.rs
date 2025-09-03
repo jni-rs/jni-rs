@@ -1,6 +1,7 @@
 use crate::{
     errors::Result,
     objects::{ClassKind, ClassRef, GlobalRef, JClass, JObject, JObjectRef, LoaderSource},
+    strings::JNIStr,
     sys::jobject,
     DataRef, JavaVM,
 };
@@ -48,7 +49,7 @@ impl JByteBufferAPI {
     ) -> Result<DataRef<'vm, Self>> {
         vm.get_cached_or_insert_with(|| {
             vm.with_env_current_frame(|env| {
-                let class = loader_source.load_class(JByteBuffer::CLASS_NAME, env)?;
+                let class = loader_source.load_class::<JByteBuffer>(env)?;
                 let class = env.new_global_ref(&class).unwrap();
                 Ok(Self { class })
             })
@@ -73,7 +74,8 @@ impl JByteBuffer<'_> {
 }
 
 impl JObjectRef for JByteBuffer<'_> {
-    const CLASS_NAME: &'static str = "[Ljava/nio/ByteBuffer;";
+    const FIND_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"[Ljava/nio/ByteBuffer;");
+    const LOAD_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.nio.ByteBuffer");
     const CLASS_KIND: ClassKind = ClassKind::Bootstrap;
 
     type Kind<'env> = JByteBuffer<'env>;

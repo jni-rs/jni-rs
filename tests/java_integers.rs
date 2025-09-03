@@ -13,16 +13,16 @@ fn test_java_integers() {
         for value in -10..10 {
             env.with_local_frame(16, |env| -> Result<()> {
                 let integer_value =
-                    env.new_object("java/lang/Integer", "(I)V", &[JValue::Int(value)])?;
+                    env.new_object(c"java/lang/Integer", c"(I)V", &[JValue::Int(value)])?;
 
                 let values_array =
-                    env.new_object_array(array_length, "java/lang/Integer", &integer_value)?;
+                    env.new_object_array(array_length, c"java/lang/Integer", &integer_value)?;
 
                 let result = env
                     .call_static_method(
-                        "java/util/Arrays",
-                        "binarySearch",
-                        "([Ljava/lang/Object;Ljava/lang/Object;)I",
+                        c"java/util/Arrays",
+                        c"binarySearch",
+                        c"([Ljava/lang/Object;Ljava/lang/Object;)I",
                         &[
                             JValue::Object(&values_array),
                             JValue::Object(&integer_value),

@@ -3,6 +3,7 @@ use crate::{
     errors::Result,
     objects::{ClassKind, ClassRef, GlobalRef, JClassLoader, JMethodID, JObject, LoaderSource},
     signature::JavaType,
+    strings::JNIStr,
     sys::{jclass, jobject},
     DataRef, JavaVM,
 };
@@ -49,10 +50,10 @@ impl JClassAPI {
     pub fn get<'vm>(vm: &'vm JavaVM) -> Result<DataRef<'vm, Self>> {
         vm.get_cached_or_insert_with(|| {
             vm.with_env_current_frame(|env| {
-                let class = env.find_class(JClass::CLASS_NAME)?;
+                let class = env.find_class(JClass::FIND_CLASS_NAME)?;
                 let class = env.new_global_ref(class)?;
                 let get_class_loader_method =
-                    env.get_method_id(&class, "getClassLoader", "()Ljava/lang/ClassLoader;")?;
+                    env.get_method_id(&class, c"getClassLoader", c"()Ljava/lang/ClassLoader;")?;
                 Ok(Self {
                     class,
                     get_class_loader_method,
@@ -112,7 +113,8 @@ impl JClass<'_> {
 }
 
 impl JObjectRef for JClass<'_> {
-    const CLASS_NAME: &'static str = "java/lang/Class";
+    const FIND_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java/lang/Class");
+    const LOAD_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.Class");
     const CLASS_KIND: ClassKind = ClassKind::Bootstrap;
 
     type Kind<'env> = JClass<'env>;

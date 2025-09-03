@@ -3,6 +3,7 @@ use crate::{
     errors::Result,
     objects::{ClassKind, ClassRef, GlobalRef, JClass, JMethodID, JObject, JValue, LoaderSource},
     signature::JavaType,
+    strings::JNIStr,
     sys::{jclass, jobject},
     DataRef, JavaVM,
 };
@@ -49,12 +50,12 @@ impl JClassLoaderAPI {
     fn get<'vm>(vm: &'vm JavaVM) -> Result<DataRef<'vm, Self>> {
         vm.get_cached_or_insert_with(|| {
             vm.with_env_current_frame(|env| {
-                let class = env.find_class(JClassLoader::CLASS_NAME)?;
+                let class = env.find_class(JClassLoader::FIND_CLASS_NAME)?;
                 let class = env.new_global_ref(&class).unwrap();
                 let load_class_method = env.get_method_id(
                     &class,
-                    "loadClass",
-                    "(Ljava/lang/String;)Ljava/lang/Class;",
+                    c"loadClass",
+                    c"(Ljava/lang/String;)Ljava/lang/Class;",
                 )?;
                 Ok(Self {
                     class,
@@ -92,7 +93,7 @@ impl JClassLoader<'_> {
 
     pub(crate) fn load_class<'local>(
         &self,
-        name: &str,
+        name: &JNIStr,
         env: &mut JNIEnv<'local>,
     ) -> Result<JClass<'local>> {
         let vm = env.get_java_vm();
@@ -119,7 +120,8 @@ impl JClassLoader<'_> {
 }
 
 impl JObjectRef for JClassLoader<'_> {
-    const CLASS_NAME: &'static str = "java/lang/ClassLoader";
+    const FIND_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java/lang/ClassLoader");
+    const LOAD_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.ClassLoader");
     const CLASS_KIND: ClassKind = ClassKind::Bootstrap;
 
     type Kind<'env> = JClassLoader<'env>;

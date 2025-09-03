@@ -6,11 +6,12 @@ use jni_sys::jobject;
 use crate::{
     errors::Error,
     objects::{GlobalRef, JClass, JClassLoader, JObject},
+    strings::JNIStr,
     JavaVM,
 };
 
 #[cfg(doc)]
-use crate::objects::{AutoLocal, GlobalRef, JString};
+use crate::objects::{AutoLocal, JString};
 
 /// Identifies whether this is a bootstrap class or an application class.
 pub enum ClassKind {
@@ -36,14 +37,20 @@ pub trait JObjectRef: Sized {
     /// The fully qualified class name of the Java class represented by this
     /// reference.
     ///
-    /// The format depends on the associated `LookupMethod`:
+    /// The class name is expected to be slash-separated, suitable for passing
+    /// to the JNI `FindClass` function.
     ///
-    /// - If the `LookupMethod` is `FindClass`, the class name is expected to be
-    ///   a slash separated name (e.g. `"com/example/MyClass"`).
+    /// For example: `"com/example/MyClass"`
+    const FIND_CLASS_NAME: &'static JNIStr;
+
+    /// The fully qualified class name of the Java class represented by this
+    /// reference.
     ///
-    /// - If the `LookupMethod` is `LoadClass`, the class name is expected to be
-    ///   a dot-separated name (e.g. `"com.example.MyClass"`).
-    const CLASS_NAME: &'static str;
+    /// The class name is expected to be dot-separated, suitable for passing
+    /// to the `java.lang.ClassLoader.loadClass` function.
+    ///
+    /// For example: `"com.example.MyClass"`
+    const LOAD_CLASS_NAME: &'static JNIStr;
 
     /// Determines whether the class can be found using `FindClass` or whether it
     /// requires `ClassLoader::loadClass`.
@@ -156,14 +163,13 @@ impl<'a, 'any_local> LoaderSource<'a, 'any_local> {
     /// Returns the loaded class, or a [`Error::NullPtr`] error if the class could not be found.
     ///
     /// Note: The implementation will only use `FindClass` for `Bootstrap` loader source.
-    pub fn load_class<'env_local>(
+    pub fn load_class<'env_local, T: JObjectRef>(
         &self,
-        name: &str,
         env: &mut crate::env::JNIEnv<'env_local>,
     ) -> crate::errors::Result<JClass<'env_local>> {
         fn load_class_with_catch<'any_loader, 'any_local>(
             loader: &JClassLoader<'any_loader>,
-            name: &str,
+            name: &JNIStr,
             env: &mut crate::env::JNIEnv<'any_local>,
         ) -> crate::errors::Result<JClass<'any_local>> {
             match loader.load_class(name, env) {
@@ -180,15 +186,15 @@ impl<'a, 'any_local> LoaderSource<'a, 'any_local> {
         }
 
         match self {
-            LoaderSource::FindClass => env.find_class(name),
+            LoaderSource::FindClass => env.find_class(T::FIND_CLASS_NAME),
             LoaderSource::TryFrom(candidate) => env
                 .with_local_frame_returning_local::<_, JClass, _>(5, |env| {
                     let candidate_class = env.get_object_class(candidate)?;
                     // Doesn't throw exception for missing loader
                     let loader = candidate_class.get_class_loader(env)?;
-                    load_class_with_catch(&loader, name, env)
+                    load_class_with_catch(&loader, T::LOAD_CLASS_NAME, env)
                 }),
-            LoaderSource::Loader(loader) => load_class_with_catch(loader, name, env),
+            LoaderSource::Loader(loader) => load_class_with_catch(loader, T::LOAD_CLASS_NAME, env),
         }
     }
 }
@@ -197,7 +203,8 @@ impl<T> JObjectRef for &T
 where
     T: JObjectRef,
 {
-    const CLASS_NAME: &'static str = T::CLASS_NAME;
+    const FIND_CLASS_NAME: &'static JNIStr = T::FIND_CLASS_NAME;
+    const LOAD_CLASS_NAME: &'static JNIStr = T::LOAD_CLASS_NAME;
     const CLASS_KIND: ClassKind = T::CLASS_KIND;
 
     type Kind<'local> = T::Kind<'local>;

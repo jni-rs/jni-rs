@@ -113,6 +113,9 @@
 //! // this context and getting used after being GC'd.
 //! use jni::objects::{JClass, JString};
 //!
+//! // This type represents an owned, JNI-compatible string.
+//! use jni::strings::JNIString;
+//!
 //! // This keeps Rust from "mangling" the name and making it unique for this
 //! // crate.
 //! #[no_mangle]
@@ -143,7 +146,7 @@
 //!             env.get_string(&input).expect("Couldn't get java string!").into();
 //!         // Then we have to create a new Java string to return. Again, more info
 //!         // in the `strings` module.
-//!         let output = env.new_string(format!("Hello, {}!", input))
+//!         let output = env.new_string(JNIString::from(format!("Hello, {}!", input)))
 //!             .expect("Couldn't create java string!");
 //!         Ok(output)
 //!     }).unwrap_or_else(|err| {

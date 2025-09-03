@@ -4,6 +4,7 @@ use crate::{
     env::JNIEnv,
     errors::Result,
     objects::{ClassKind, ClassRef, GlobalRef, JClass, JMethodID, LoaderSource},
+    strings::JNIStr,
     sys::jobject,
     DataRef, JavaVM,
 };
@@ -72,7 +73,7 @@ impl JObjectAPI {
     fn get<'vm>(vm: &'vm JavaVM) -> Result<DataRef<'vm, Self>> {
         vm.get_cached_or_insert_with(|| {
             vm.with_env_current_frame(|env| {
-                let class = env.find_class(JObject::CLASS_NAME)?;
+                let class = env.find_class(JObject::FIND_CLASS_NAME)?;
                 let class = env.new_global_ref(class)?;
                 Ok(JObjectAPI { class })
             })
@@ -123,7 +124,8 @@ impl std::default::Default for JObject<'_> {
 }
 
 impl JObjectRef for JObject<'_> {
-    const CLASS_NAME: &'static str = "java/lang/Object";
+    const FIND_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java/lang/Object");
+    const LOAD_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.Object");
     const CLASS_KIND: ClassKind = ClassKind::Bootstrap;
 
     type Kind<'env> = JObject<'env>;

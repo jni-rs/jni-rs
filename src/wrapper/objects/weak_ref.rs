@@ -7,6 +7,7 @@ use crate::{
     env::JNIEnv,
     errors::{Error, Result},
     objects::{ClassKind, ClassRef, GlobalRef, JObject, LoaderSource},
+    strings::JNIStr,
     sys, JavaVM,
 };
 
@@ -277,7 +278,8 @@ impl<T> JObjectRef for WeakRef<T>
 where
     T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
 {
-    const CLASS_NAME: &'static str = T::CLASS_NAME;
+    const FIND_CLASS_NAME: &'static JNIStr = T::FIND_CLASS_NAME;
+    const LOAD_CLASS_NAME: &'static JNIStr = T::LOAD_CLASS_NAME;
     const CLASS_KIND: ClassKind = T::CLASS_KIND;
 
     type Kind<'env> = T::Kind<'env>;

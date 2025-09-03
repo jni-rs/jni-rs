@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use crate::{
     errors::Result,
     objects::{ClassKind, ClassRef, GlobalRef, JClass, JObject, JObjectRef, LoaderSource},
+    strings::JNIStr,
     sys::{jarray, jobject},
     DataRef, JavaVM,
 };
@@ -131,7 +132,7 @@ unsafe impl<'local, T: TypeArray> AsJArrayRaw<'local> for JPrimitiveArray<'local
 use paste::paste;
 
 macro_rules! impl_ref_for_jprimitive_array {
-    ($type:ident, $class_name:expr) => {
+    ($type:ident, $find_class_name:expr) => {
         paste! {
             #[allow(non_camel_case_types)]
             struct [<JPrimitiveArrayAPI _ $type>] {
@@ -146,7 +147,7 @@ macro_rules! impl_ref_for_jprimitive_array {
                     vm.get_cached_or_insert_with(|| {
                         vm.with_env_current_frame(|env| {
                             let class =
-                                loader_source.load_class(JPrimitiveArray::<crate::sys::$type>::CLASS_NAME, env)?;
+                                loader_source.load_class::<JPrimitiveArray::<crate::sys::$type>>(env)?;
                             let class = env.new_global_ref(&class).unwrap();
                             Ok(Self {
                                 class,
@@ -157,7 +158,8 @@ macro_rules! impl_ref_for_jprimitive_array {
             }
 
             impl JObjectRef for JPrimitiveArray<'_, crate::sys::$type> {
-                const CLASS_NAME: &'static str = $class_name;
+                const FIND_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr($find_class_name);
+                const LOAD_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"");
                 const CLASS_KIND: ClassKind = ClassKind::Bootstrap;
 
                 type Kind<'env> = JPrimitiveArray<'env, crate::sys::$type>;
@@ -187,11 +189,11 @@ macro_rules! impl_ref_for_jprimitive_array {
     };
 }
 
-impl_ref_for_jprimitive_array!(jboolean, "[Z");
-impl_ref_for_jprimitive_array!(jbyte, "[B");
-impl_ref_for_jprimitive_array!(jchar, "[C");
-impl_ref_for_jprimitive_array!(jshort, "[S");
-impl_ref_for_jprimitive_array!(jint, "[I");
-impl_ref_for_jprimitive_array!(jlong, "[J");
-impl_ref_for_jprimitive_array!(jfloat, "[F");
-impl_ref_for_jprimitive_array!(jdouble, "[D");
+impl_ref_for_jprimitive_array!(jboolean, c"[Z");
+impl_ref_for_jprimitive_array!(jbyte, c"[B");
+impl_ref_for_jprimitive_array!(jchar, c"[C");
+impl_ref_for_jprimitive_array!(jshort, c"[S");
+impl_ref_for_jprimitive_array!(jint, c"[I");
+impl_ref_for_jprimitive_array!(jlong, c"[J");
+impl_ref_for_jprimitive_array!(jfloat, c"[F");
+impl_ref_for_jprimitive_array!(jdouble, c"[D");
