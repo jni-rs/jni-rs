@@ -1,4 +1,7 @@
-use crate::{objects::JObject, sys::jobject};
+use crate::{
+    objects::{JObject, JObjectRef},
+    sys::jobject,
+};
 
 /// Lifetime'd representation of a `jobject` that is an instance of the
 /// ByteBuffer Java class. Just a `JObject` wrapped in a new class.
@@ -58,5 +61,22 @@ impl JByteBuffer<'_> {
     /// Unwrap to the raw jni type.
     pub const fn into_raw(self) -> jobject {
         self.0.into_raw() as jobject
+    }
+}
+
+impl JObjectRef for JByteBuffer<'_> {
+    type Kind<'env> = JByteBuffer<'env>;
+    type GlobalKind = JByteBuffer<'static>;
+
+    fn as_raw(&self) -> jobject {
+        self.0.as_raw()
+    }
+
+    unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+        JByteBuffer::from_raw(local_ref)
+    }
+
+    unsafe fn from_global_raw(global_ref: jobject) -> Self::GlobalKind {
+        JByteBuffer::from_raw(global_ref)
     }
 }
