@@ -92,6 +92,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `JavaVM::with_env` and `JavaVM::with_env_with_capacity` added as methods to borrow a `JNIEnv` that is already attached to the current thread, after pushing a new JNI stack frame ([#570](https://github.com/jni-rs/jni-rs/pull/570))
 - `JavaVM::with_env_current_frame` added to borrow a `JNIEnv` for the top JNI stack frame (i.e. without pushing a new JNI stack frame) ([#570](https://github.com/jni-rs/jni-rs/pull/570))
 - `JNIEnv::to_reflected_method` and `JNIEnv::to_reflected_static_method` for retrieving the Java reflection API instance for a method or constructor. ([#579](https://github.com/jni-rs/jni-rs/pull/579))
+- `JNIStr` now implements `Debug`, `PartialEq`, `Eq`, `PartialOrd`, `Ord` and `Hash`
+- `JNIString` now implements `Debug`, `PartialEq`, `Eq`, `PartialOrd`, `Ord`, `Hash` and `Clone`
+- `PartialEq<&JNIStr> for JNIString` allows `JNIStr` and `JNIString` to be compared.
+- `From<&JNIStr>` and `From<JavaStr>` implementations for `JNIString`.
+- `JNIStr::from_cstr` safely does a zero-copy cast of a `CStr` to a `JNIStr` after a `const` modified-utf8 encoding validation (with a panic on failure)
+- `AsRef<JNIStr>` is implemented for `CStr` (based on `JNIStr::from_cstr`) allows use of literals like `c"java/lang/Foo"` to be passed to JNI APIs without needing to be copied.
+- `JNIStr::to_bytes` gives access to a `&[u8]` slice over the bytes of a JNI string (like `CStr::to_bytes`)
 
 ### Fixed
 - `JNIEnv::get_string` no longer leaks local references. ([#528](https://github.com/jni-rs/jni-rs/pull/528), [#557](https://github.com/jni-rs/jni-rs/pull/557))

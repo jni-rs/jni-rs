@@ -21,22 +21,40 @@ use crate::wrapper::strings::JavaStr;
 /// it coerces to.
 ///
 /// [modified UTF-8]: https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
+#[derive(Debug, PartialEq, PartialOrd, Eq, Ord, Hash, Clone)]
 pub struct JNIString {
     internal: CString,
+}
+
+impl PartialEq<&JNIStr> for JNIString {
+    #[inline]
+    fn eq(&self, other: &&JNIStr) -> bool {
+        self.internal.as_c_str() == &other.internal
+    }
+}
+
+impl From<&JNIStr> for JNIString {
+    fn from(other: &JNIStr) -> Self {
+        other.to_owned()
+    }
 }
 
 /// A borrowed null-terminated string (like [`CStr`]) encoded in Java's
 /// [modified UTF-8].
 ///
-/// As with `CStr` and [`str`], instances of `JNIStr` cannot be created
-/// directly, but can be borrowed from either [`JNIString`] (for constructing a
-/// Java string in Rust code) or [`JavaStr`] (which refers to an existing Java
-/// string).
+/// `JNIStr` is to `JNIString` as `CStr` is to `CString` and as `str` is to `String`.
+///
+/// Similar to `CStr` and [`str`], instances of `JNIStr` are borrowed from a
+/// [`JNIString`] (for constructing a Java string in Rust code) or [`JavaStr`]
+/// (which refers to an existing Java string).
+///
+/// As a special-case, a `&CStr` can be coerced into a `&JNIStr` if the `CStr`
+/// has a valid modified UTF-8 encoding. (See [`JNIStr::from_cstr`] or
+/// [`JNIStr::from_cstr_unchecked`]).
 ///
 /// To convert a `JNIStr` into an ordinary Rust string, use the
 /// [`to_str`][Self::to_str] method. To get a view of the modified UTF-8
-/// encoding of the `JNIStr`, use the [`as_cstr`][Self::as_cstr] method to get
-/// a `CStr`, then call its [`to_bytes`][CStr::to_bytes] method.
+/// encoding of the `JNIStr`, use the [`Self::to_bytes`] method.
 ///
 /// Note that, as with `CStr`, this type is **not** `repr(C)`. See [the
 /// `CStr` documentation][CStr] for an explanation of what that means. (This
@@ -44,6 +62,7 @@ pub struct JNIString {
 /// pointer.)
 ///
 /// [modified UTF-8]: https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)] // needed because `JNIStr` gets pointer-punned from `CStr`.
 pub struct JNIStr {
     internal: CStr,
@@ -54,6 +73,24 @@ impl ::std::ops::Deref for JNIString {
 
     fn deref(&self) -> &Self::Target {
         unsafe { JNIStr::from_ptr(self.internal.as_ptr()) }
+    }
+}
+
+/// Converts a `CStr` into a `JNIStr`.
+///
+/// # Panic
+///
+/// This function will panic if the `CStr` is not valid modified UTF-8.
+impl AsRef<JNIStr> for CStr {
+    fn as_ref(&self) -> &JNIStr {
+        JNIStr::from_cstr(self)
+    }
+}
+
+impl PartialEq<JNIString> for &JNIStr {
+    #[inline]
+    fn eq(&self, other: &JNIString) -> bool {
+        &self.internal == other.internal.as_c_str()
     }
 }
 
@@ -160,6 +197,84 @@ impl JNIString {
     }
 }
 
+/// Returns true iff the given `CStr` has a valid *modified UTF-8* encoding.
+/// Rules enforced:
+/// - ASCII 0x01..0x7F allowed (0x00 cannot appear inside `CStr::to_bytes()`).
+/// - U+0000 must be encoded as 0xC0 0x80 (accepted).
+/// - 2-byte: lead 0xC2..0xDF with one continuation.
+/// - 3-byte: lead 0xE0..0xEF with two continuations; special overlong guard for 0xE0 (b1>=0xA0).
+/// - Surrogate range (0xED 0xA0..0xBF 0x80..0xBF) is **allowed** (that's how MUTF-8 represents supplementary chars).
+/// - 4-byte leads (0xF0..0xF7) and beyond are **rejected**.
+const fn is_valid_mutf8_cstr(cstr: &CStr) -> bool {
+    let bytes = cstr.to_bytes();
+
+    let mut i = 0;
+    while i < bytes.len() {
+        let b0 = bytes[i];
+
+        // ASCII (not NUL; CStr::to_bytes() strips the trailing NUL and disallows interior NULs)
+        if b0 < 0x80 {
+            i += 1;
+            continue;
+        }
+
+        // Special-case for MUTF-8 NUL: 0xC0 0x80
+        if b0 == 0xC0 {
+            if i + 1 >= bytes.len() {
+                return false;
+            }
+            let b1 = bytes[i + 1];
+            if b1 != 0x80 {
+                return false;
+            }
+            i += 2;
+            continue;
+        }
+
+        // Two-byte sequences: 0xC2..0xDF
+        if b0 >= 0xC2 && b0 <= 0xDF {
+            if i + 1 >= bytes.len() {
+                return false;
+            }
+            let b1 = bytes[i + 1];
+            if (b1 & 0xC0) != 0x80 {
+                return false;
+            }
+            i += 2;
+            continue;
+        }
+
+        // Three-byte sequences: 0xE0..0xEF
+        if b0 >= 0xE0 && b0 <= 0xEF {
+            if i + 2 >= bytes.len() {
+                return false;
+            }
+            let b1 = bytes[i + 1];
+            let b2 = bytes[i + 2];
+
+            if b0 == 0xE0 {
+                // Avoid overlongs for U+0800..: 0xE0 0xA0..0xBF 0x80..0xBF
+                if !(b1 >= 0xA0 && b1 <= 0xBF) || (b2 & 0xC0) != 0x80 {
+                    return false;
+                }
+            } else {
+                // In MUTF-8, surrogates (0xED 0xA0..0xBF 0x80..0xBF) are allowed.
+                if (b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80 {
+                    return false;
+                }
+            }
+
+            i += 3;
+            continue;
+        }
+
+        // Everything else (including 0x80..0xBF continuations, 0xC1 overlong lead,
+        // and 0xF0..0xFF) is invalid in MUTF-8.
+        return false;
+    }
+    true
+}
+
 impl JNIStr {
     /// Constructs a reference to a `JNIStr` from a pointer.
     ///
@@ -210,6 +325,26 @@ impl JNIStr {
         &*(cstr as *const CStr as *const JNIStr)
     }
 
+    /// Converts a `&CStr` to a `&JNIStr`, validating the input.
+    ///
+    /// This API is intended for zero-copy casting of simple `CStr` literals that
+    /// can be passed to JNI for things like signatures or class/method/field names.
+    ///
+    /// It is **not** recommended for use with arbitrary, dynamically generated
+    /// `CString`s that may not be valid modified UTF-8, since this API handles
+    /// validation failures by panicking.
+    ///
+    /// # Panic
+    ///
+    /// This function will panic if the provided `CStr` is not valid modified UTF-8.
+    pub const fn from_cstr(cstr: &CStr) -> &JNIStr {
+        // Safety: We can check the validity of the bytes at compile time.
+        if !is_valid_mutf8_cstr(cstr) {
+            panic!("JNIStr::from_cstr: input is not valid modified UTF-8");
+        }
+        unsafe { Self::from_cstr_unchecked(cstr) }
+    }
+
     /// Returns a `CStr` view of the string.
     ///
     /// To get a view of the raw bytes of the string, call this method, then
@@ -253,6 +388,14 @@ impl JNIStr {
     /// [modified UTF-8]: https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
     pub fn to_str(&'_ self) -> Cow<'_, str> {
         self.into()
+    }
+
+    /// Converts this JNI string to a byte slice.
+    ///
+    /// The returned slice will **not** contain the trailing nul terminator that this JNI
+    /// string has.
+    pub fn to_bytes(&self) -> &[u8] {
+        self.as_cstr().to_bytes()
     }
 }
 
