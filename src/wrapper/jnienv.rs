@@ -291,9 +291,20 @@ impl<'local> JNIEnv<'local> {
         let vm = self.get_java_vm();
         let class = match To::CLASS_KIND {
             ClassKind::Bootstrap => {
-                let class = To::lookup_class(&vm, LoaderSource::FindClass)
-                    .expect("Failed to find bootstrap class");
-                class
+                if true {
+                    // Hack to force use of loadClass
+                    let obj: &JObject = obj.as_ref();
+                    let Some(class) = To::lookup_class(&vm, LoaderSource::TryFrom(obj)) else {
+                        // If we couldn't find the class, it means the object wasn't associated with
+                        // a suitable ClassLoader, which also implies it is not of the expected type
+                        return Err(Error::WrongObjectType);
+                    };
+                    class
+                } else {
+                    let class = To::lookup_class(&vm, LoaderSource::FindClass)
+                        .expect("Failed to find bootstrap class");
+                    class
+                }
             }
             ClassKind::Application => {
                 let obj: &JObject = obj.as_ref();
