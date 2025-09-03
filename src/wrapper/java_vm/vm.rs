@@ -1,10 +1,19 @@
 use std::{
+    any::{Any, TypeId},
     cell::{Cell, RefCell},
+    fmt::Debug,
     ptr,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
     thread::{current, Thread},
 };
 
+use dashmap::{
+    mapref::one::{MappedRef, Ref},
+    DashMap,
+};
 use log::{debug, error};
 
 use crate::{
@@ -41,6 +50,13 @@ pub const DEFAULT_LOCAL_FRAME_CAPACITY: usize = 32;
 /// For example, this guarantee is relied on internally to avoid redundantly saving JavaVM pointers
 /// if know we can assume that `JavaVM::singleton()` will return a `JavaVM` when needed.
 static JAVA_VM_SINGLETON: once_cell::sync::OnceCell<JavaVM> = once_cell::sync::OnceCell::new();
+
+struct JavaVMCache {
+    data: DashMap<TypeId, Box<dyn Any + Send + Sync>>,
+}
+
+static JAVA_VM_CACHE: once_cell::sync::OnceCell<Arc<JavaVMCache>> =
+    once_cell::sync::OnceCell::new();
 
 /// The Java VM API, including (optional) [Invocation API][invocation-api] support.
 ///
@@ -175,8 +191,17 @@ static JAVA_VM_SINGLETON: once_cell::sync::OnceCell<JavaVM> = once_cell::sync::O
 /// [spec-references]:
 ///     https://docs.oracle.com/en/java/javase/12/docs/specs/jni/design.html#referencing-java-objects
 /// [java-locator]: https://crates.io/crates/java-locator
-#[derive(Debug, Clone)]
-pub struct JavaVM(*mut sys::JavaVM);
+#[derive(Clone)]
+pub struct JavaVM {
+    ptr: *mut sys::JavaVM,
+    cache: Arc<JavaVMCache>,
+}
+
+impl Debug for JavaVM {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("JavaVM").field("ptr", &self.ptr).finish()
+    }
+}
 
 unsafe impl Send for JavaVM {}
 unsafe impl Sync for JavaVM {}
@@ -355,12 +380,21 @@ impl JavaVM {
     /// Only does a `null` check.
     pub unsafe fn from_raw(ptr: *mut sys::JavaVM) -> Self {
         assert!(!ptr.is_null());
-        JAVA_VM_SINGLETON.get_or_init(|| JavaVM(ptr)).clone()
+        let cache = JAVA_VM_CACHE
+            .get_or_init(|| {
+                Arc::new(JavaVMCache {
+                    data: DashMap::new(),
+                })
+            })
+            .clone();
+        JAVA_VM_SINGLETON
+            .get_or_init(|| JavaVM { ptr, cache })
+            .clone()
     }
 
     /// Returns underlying [`sys::JavaVM`] interface.
     pub fn get_raw(&self) -> *mut sys::JavaVM {
-        self.0
+        self.ptr
     }
 
     pub(crate) fn from_env(env: &JNIEnv) -> Self {
@@ -929,7 +963,30 @@ impl JavaVM {
             jni_error_code_to_result(res)
         }
     }
+
+    pub fn get_cached_or_insert_with<'a, T: Any + Send + Sync>(
+        &'a self,
+        insert_with: impl FnOnce() -> Result<T>,
+    ) -> Result<DataRef<'a, T>> {
+        let guard_mut = self
+            .cache
+            .data
+            .entry(TypeId::of::<T>())
+            .or_try_insert_with(|| -> Result<Box<dyn Any + Send + Sync>> {
+                Ok(Box::new(insert_with()?) as Box<dyn Any + Send + Sync>)
+            })?;
+        let guard = guard_mut.downgrade();
+        Ok(Ref::map(guard, |boxed| {
+            boxed
+                .as_ref()
+                .downcast_ref::<T>()
+                .expect("TypeId -> T invariant broken")
+        }))
+    }
 }
+
+/// A reference to cached data for a specific type.
+pub type DataRef<'a, T> = MappedRef<'a, TypeId, Box<dyn Any + Send + Sync>, T>;
 
 /// Configuration options for attaching the current thread to a Java VM.
 #[derive(Default)]
