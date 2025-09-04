@@ -1,7 +1,7 @@
 use crate::{
     env::JNIEnv,
     errors::Result,
-    objects::{ClassKind, ClassRef, GlobalRef, JClass, JMethodID, JObject, LoaderSource},
+    objects::{ClassKind, ClassRef, GlobalRef, JClass, JMethodID, JObject, LoaderContext},
     strings::JNIStr,
     sys::{jobject, jstring},
     DataRef, JavaVM,
@@ -49,7 +49,7 @@ struct JStringAPI {
 impl JStringAPI {
     fn get<'vm, 'any_local>(
         vm: &'vm JavaVM,
-        loader_source: &LoaderSource<'any_local, '_>,
+        loader_source: &LoaderContext<'any_local, '_>,
     ) -> Result<DataRef<'vm, Self>> {
         vm.get_cached_or_insert_with(|| {
             vm.with_env_current_frame(|env| {
@@ -91,7 +91,7 @@ impl JString<'_> {
     /// Returns a canonical, interned version of this string.
     pub fn intern<'local>(&self, env: &mut JNIEnv<'local>) -> Result<JString<'local>> {
         let vm = env.get_java_vm();
-        let api = JStringAPI::get(&vm, &LoaderSource::FindClass)?;
+        let api = JStringAPI::get(&vm, &LoaderContext::None)?;
 
         // Safety: We know that `intern` is a valid method on `java/lang/String` that has no
         // arguments and it returns a valid `String` instance.
@@ -111,7 +111,7 @@ impl JString<'_> {
 }
 
 impl JObjectRef for JString<'_> {
-    const FIND_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java/lang/String");
+    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java/lang/String");
     const LOAD_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.String");
     const CLASS_KIND: ClassKind = ClassKind::Bootstrap;
 
@@ -122,7 +122,7 @@ impl JObjectRef for JString<'_> {
         self.0.as_raw()
     }
 
-    fn lookup_class<'vm>(vm: &'vm JavaVM, loader_source: LoaderSource) -> Option<ClassRef<'vm>> {
+    fn lookup_class<'vm>(vm: &'vm JavaVM, loader_source: LoaderContext) -> Option<ClassRef<'vm>> {
         let api = JStringAPI::get(vm, &loader_source).ok()?;
         Some(api.map(|api| &api.class))
     }

@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use crate::{
     env::JNIEnv,
     errors::Result,
-    objects::{ClassKind, ClassRef, GlobalRef, JClass, JMethodID, LoaderSource},
+    objects::{ClassKind, ClassRef, GlobalRef, JClass, JMethodID, LoaderContext},
     strings::JNIStr,
     sys::jobject,
     DataRef, JavaVM,
@@ -73,7 +73,7 @@ impl JObjectAPI {
     fn get<'vm>(vm: &'vm JavaVM) -> Result<DataRef<'vm, Self>> {
         vm.get_cached_or_insert_with(|| {
             vm.with_env_current_frame(|env| {
-                let class = env.find_class(JObject::FIND_CLASS_NAME)?;
+                let class = env.find_class(JObject::CLASS_NAME)?;
                 let class = env.new_global_ref(class)?;
                 Ok(JObjectAPI { class })
             })
@@ -124,7 +124,7 @@ impl std::default::Default for JObject<'_> {
 }
 
 impl JObjectRef for JObject<'_> {
-    const FIND_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java/lang/Object");
+    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java/lang/Object");
     const LOAD_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.Object");
     const CLASS_KIND: ClassKind = ClassKind::Bootstrap;
 
@@ -135,7 +135,7 @@ impl JObjectRef for JObject<'_> {
         self.as_raw()
     }
 
-    fn lookup_class<'vm>(vm: &'vm JavaVM, _loader_source: LoaderSource) -> Option<ClassRef<'vm>> {
+    fn lookup_class<'vm>(vm: &'vm JavaVM, _loader_source: LoaderContext) -> Option<ClassRef<'vm>> {
         // As a special-case; we ignore loader_source just to be clear that there's no risk of
         // recursion.
         let api = JObjectAPI::get(vm).ok()?;

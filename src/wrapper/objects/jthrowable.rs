@@ -1,7 +1,7 @@
 use crate::{
     env::JNIEnv,
     errors::Result,
-    objects::{ClassKind, ClassRef, GlobalRef, JClass, JMethodID, JObject, JString, LoaderSource},
+    objects::{ClassKind, ClassRef, GlobalRef, JClass, JMethodID, JObject, JString, LoaderContext},
     strings::JNIStr,
     sys::{jobject, jthrowable},
     DataRef, JavaVM,
@@ -49,7 +49,7 @@ struct JThrowableAPI {
 impl JThrowableAPI {
     fn get<'vm, 'any_local>(
         vm: &'vm JavaVM,
-        loader_source: &LoaderSource<'any_local, '_>,
+        loader_source: &LoaderContext<'any_local, '_>,
     ) -> Result<DataRef<'vm, Self>> {
         vm.get_cached_or_insert_with(|| {
             vm.with_env_current_frame(|env| {
@@ -94,7 +94,7 @@ impl JThrowable<'_> {
     /// Get the message of the throwable by calling the `getMessage` method.
     pub fn get_message(&self, env: &mut JNIEnv<'_>) -> Result<JString<'_>> {
         let vm = env.get_java_vm();
-        let api = JThrowableAPI::get(&vm, &LoaderSource::FindClass)?;
+        let api = JThrowableAPI::get(&vm, &LoaderContext::None)?;
 
         // Safety: We know that `getMessage` is a valid method on `java/lang/Throwable` that has no
         // arguments and it returns a valid `String` instance.
@@ -114,7 +114,7 @@ impl JThrowable<'_> {
     /// Get the cause of the throwable by calling the `getCause` method.
     pub fn get_cause(&self, env: &mut JNIEnv<'_>) -> Result<JThrowable<'_>> {
         let vm = env.get_java_vm();
-        let api = JThrowableAPI::get(&vm, &LoaderSource::FindClass)?;
+        let api = JThrowableAPI::get(&vm, &LoaderContext::None)?;
 
         // Safety: We know that `getCause` is a valid method on `java/lang/Throwable` that has no
         // arguments and it returns a valid `Throwable` instance.
@@ -133,7 +133,7 @@ impl JThrowable<'_> {
 }
 
 impl JObjectRef for JThrowable<'_> {
-    const FIND_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java/lang/Throwable");
+    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java/lang/Throwable");
     const LOAD_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.Throwable");
     const CLASS_KIND: ClassKind = ClassKind::Bootstrap;
 
@@ -144,7 +144,7 @@ impl JObjectRef for JThrowable<'_> {
         self.0.as_raw()
     }
 
-    fn lookup_class<'vm>(vm: &'vm JavaVM, loader_source: LoaderSource) -> Option<ClassRef<'vm>> {
+    fn lookup_class<'vm>(vm: &'vm JavaVM, loader_source: LoaderContext) -> Option<ClassRef<'vm>> {
         let api = JThrowableAPI::get(vm, &loader_source).ok()?;
         Some(api.map(|api| &api.class))
     }

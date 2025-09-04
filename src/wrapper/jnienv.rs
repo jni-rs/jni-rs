@@ -13,7 +13,7 @@ use jni_sys::jobject;
 
 use crate::objects::{
     JBooleanArray, JByteArray, JCharArray, JDoubleArray, JFloatArray, JIntArray, JLongArray,
-    JObjectArray, JPrimitiveArray, JShortArray, LoaderSource,
+    JObjectArray, JPrimitiveArray, JShortArray, LoaderContext,
 };
 use crate::{
     descriptors::Desc,
@@ -294,21 +294,21 @@ impl<'local> JNIEnv<'local> {
                 if true {
                     // Hack to force use of loadClass
                     let obj: &JObject = obj.as_ref();
-                    let Some(class) = To::lookup_class(&vm, LoaderSource::TryFrom(obj)) else {
+                    let Some(class) = To::lookup_class(&vm, LoaderContext::FromObject(obj)) else {
                         // If we couldn't find the class, it means the object wasn't associated with
                         // a suitable ClassLoader, which also implies it is not of the expected type
                         return Err(Error::WrongObjectType);
                     };
                     class
                 } else {
-                    let class = To::lookup_class(&vm, LoaderSource::FindClass)
+                    let class = To::lookup_class(&vm, LoaderContext::None)
                         .expect("Failed to find bootstrap class");
                     class
                 }
             }
             ClassKind::Application => {
                 let obj: &JObject = obj.as_ref();
-                let Some(class) = To::lookup_class(&vm, LoaderSource::TryFrom(obj)) else {
+                let Some(class) = To::lookup_class(&vm, LoaderContext::FromObject(obj)) else {
                     // If we couldn't find the class, it means the object wasn't associated with
                     // a suitable ClassLoader, which also implies it is not of the expected type
                     return Err(Error::WrongObjectType);

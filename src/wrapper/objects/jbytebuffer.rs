@@ -1,6 +1,6 @@
 use crate::{
     errors::Result,
-    objects::{ClassKind, ClassRef, GlobalRef, JClass, JObject, JObjectRef, LoaderSource},
+    objects::{ClassKind, ClassRef, GlobalRef, JClass, JObject, JObjectRef, LoaderContext},
     strings::JNIStr,
     sys::jobject,
     DataRef, JavaVM,
@@ -45,7 +45,7 @@ struct JByteBufferAPI {
 impl JByteBufferAPI {
     fn get<'vm, 'any_local>(
         vm: &'vm JavaVM,
-        loader_source: &LoaderSource<'any_local, '_>,
+        loader_source: &LoaderContext<'any_local, '_>,
     ) -> Result<DataRef<'vm, Self>> {
         vm.get_cached_or_insert_with(|| {
             vm.with_env_current_frame(|env| {
@@ -74,7 +74,7 @@ impl JByteBuffer<'_> {
 }
 
 impl JObjectRef for JByteBuffer<'_> {
-    const FIND_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"[Ljava/nio/ByteBuffer;");
+    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"[Ljava/nio/ByteBuffer;");
     const LOAD_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.nio.ByteBuffer");
     const CLASS_KIND: ClassKind = ClassKind::Bootstrap;
 
@@ -85,7 +85,7 @@ impl JObjectRef for JByteBuffer<'_> {
         self.0.as_raw()
     }
 
-    fn lookup_class<'vm>(vm: &'vm JavaVM, loader_source: LoaderSource) -> Option<ClassRef<'vm>> {
+    fn lookup_class<'vm>(vm: &'vm JavaVM, loader_source: LoaderContext) -> Option<ClassRef<'vm>> {
         let api = JByteBufferAPI::get(vm, &loader_source).ok()?;
         Some(api.map(|api| &api.class))
     }

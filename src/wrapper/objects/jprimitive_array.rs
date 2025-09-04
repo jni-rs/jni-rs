@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crate::{
     errors::Result,
-    objects::{ClassKind, ClassRef, GlobalRef, JClass, JObject, JObjectRef, LoaderSource},
+    objects::{ClassKind, ClassRef, GlobalRef, JClass, JObject, JObjectRef, LoaderContext},
     strings::JNIStr,
     sys::{jarray, jobject},
     DataRef, JavaVM,

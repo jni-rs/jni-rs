@@ -4,7 +4,7 @@ use jni_sys::jobject;
 
 use crate::{
     errors,
-    objects::{ClassKind, ClassRef, JObject, LoaderSource},
+    objects::{ClassKind, ClassRef, JObject, LoaderContext},
     strings::JNIStr,
     JavaVM,
 };
@@ -228,7 +228,7 @@ impl<'local, T> JObjectRef for AutoLocal<'local, T>
 where
     T: JObjectRef + Into<JObject<'local>>,
 {
-    const FIND_CLASS_NAME: &'static JNIStr = T::FIND_CLASS_NAME;
+    const CLASS_NAME: &'static JNIStr = T::CLASS_NAME;
     const LOAD_CLASS_NAME: &'static JNIStr = T::LOAD_CLASS_NAME;
     const CLASS_KIND: ClassKind = T::CLASS_KIND;
 
@@ -239,7 +239,7 @@ where
         self.obj.as_raw()
     }
 
-    fn lookup_class<'vm>(vm: &'vm JavaVM, loader_source: LoaderSource) -> Option<ClassRef<'vm>> {
+    fn lookup_class<'vm>(vm: &'vm JavaVM, loader_source: LoaderContext) -> Option<ClassRef<'vm>> {
         T::lookup_class(vm, loader_source)
     }
 

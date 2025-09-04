@@ -1,4 +1,8 @@
-use std::any::{Any, TypeId};
+use std::{
+    any::{Any, TypeId},
+    borrow::Cow,
+    ffi::{CStr, CString},
+};
 
 use dashmap::mapref::one::MappedRef;
 use jni_sys::jobject;
@@ -37,24 +41,17 @@ pub trait JObjectRef: Sized {
     /// The fully qualified class name of the Java class represented by this
     /// reference.
     ///
-    /// The class name is expected to be slash-separated, suitable for passing
-    /// to the JNI `FindClass` function.
-    ///
-    /// For example: `"com/example/MyClass"`
-    const FIND_CLASS_NAME: &'static JNIStr;
-
-    /// The fully qualified class name of the Java class represented by this
-    /// reference.
-    ///
-    /// The class name is expected to be dot-separated, suitable for passing
-    /// to the `java.lang.ClassLoader.loadClass` function.
+    /// The class name is expected to be dot-separated, in the same format as
+    /// `Class.getName()` and suitable for passing to `Class.forName()`
     ///
     /// For example: `"com.example.MyClass"`
-    const LOAD_CLASS_NAME: &'static JNIStr;
-
-    /// Determines whether the class can be found using `FindClass` or whether it
-    /// requires `ClassLoader::loadClass`.
-    const CLASS_KIND: ClassKind = ClassKind::Bootstrap;
+    ///
+    /// Note: this format is very similar to the FindClass naming conventions,
+    /// except for the use of dots instead of slashes.
+    ///
+    /// An array of objects would look like: "[Ljava.lang.Object;" An array of
+    /// integers would look like: "[I"
+    const CLASS_NAME: &'static JNIStr;
 
     /// The generic associated [`Self::Kind`] type corresponds to the underlying
     /// class type (such as [`JObject`] or [`JString`]), parameterized by the
@@ -102,7 +99,7 @@ pub trait JObjectRef: Sized {
     /// In case no class reference is already cached then use `loader_source.lookup_class()` to
     /// lookup a class reference.
     ///
-    fn lookup_class<'vm>(vm: &'vm JavaVM, loader_source: LoaderSource) -> Option<ClassRef<'vm>>;
+    fn lookup_class<'vm>(vm: &'vm JavaVM, loader_source: LoaderContext) -> Option<ClassRef<'vm>>;
 
     /// Returns a new reference type based on [`Self::Kind`] for the given `local_ref` that is
     /// tied to the JNI stack frame for the given lifetime.
@@ -136,28 +133,29 @@ pub trait JObjectRef: Sized {
 }
 
 /// Represents the source of a class loader to be used when looking up a class.
-pub enum LoaderSource<'any_local, 'a> {
-    /// `FindClass` can be used instead of using `ClassLoader::loadClass`
+pub enum LoaderContext<'any_local, 'a> {
+    /// There's no extra context that influences how the class should be loaded, and a default
+    /// strategy will be used:
     ///
-    /// Ideally this should only be used to lookup bootstrap classes, but maybe used as a fallback
-    /// for application classes when there's no better place to find a suitable loader.
-    ///
-    /// `FindClass` will typically not find application classes when used from native threads that
-    /// have been attached to the JVM where there is no native method call on the stack that
-    /// can be used to identify a class loader.
-    FindClass,
+    /// 1. The Thread context will be used to find a ClassLoader to check via Class.forName
+    /// 2. FindClass will be called
+    None,
     /// A direct reference to the class loader that should be used
     Loader(&'a JClassLoader<'any_local>),
-    /// In case we don't have a direct reference, to a `ClassLoader`, this reference can be used to
-    /// try and find a suitable loader via `candidate.get_class()` followed by
-    /// `class.get_class_loader()`.
+    /// In case we don't have a direct reference, to a `ClassLoader`, the ClassLoader associated
+    /// with this object's Class may be checked
     ///
-    /// This is used when downcasting, where we can speculate that the `candidate` object being
+    /// This is used when downcasting, where we can speculate that the object being
     /// downcast _should_ be associated with the correct `ClassLoader`.
-    TryFrom(&'a JObject<'any_local>),
+    ///
+    /// The search strategy will be:
+    /// 1. The Thread context will be used to find a ClassLoader to check via Class.forName
+    /// 2. The ClassLoader associated with the object being downcast will be used
+    /// 3. FindClass will be called
+    FromObject(&'a JObject<'any_local>),
 }
 
-impl<'a, 'any_local> LoaderSource<'a, 'any_local> {
+impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
     /// Loads the class with the given `name` using this loader source.
     ///
     /// Returns the loaded class, or a [`Error::NullPtr`] error if the class could not be found.
@@ -185,16 +183,33 @@ impl<'a, 'any_local> LoaderSource<'a, 'any_local> {
             }
         }
 
+        fn internal_find_class_name(binary_name: &JNIStr) -> Cow<CStr> {
+            let binary_name_cstr = binary_name.as_cstr();
+            let bytes = binary_name_cstr.to_bytes();
+            if !bytes.contains(&b'/') {
+                // Already in the right format
+                Cow::Borrowed(binary_name_cstr)
+            } else {
+                // Convert from dot-notation to slash-notation
+                let owned: Vec<u8> = bytes
+                    .into_iter()
+                    .map(|&b| if b == b'.' { b'/' } else { b })
+                    .collect();
+                let cstring = CString::new(owned).unwrap();
+                Cow::Owned(cstring)
+            }
+        }
+
         match self {
-            LoaderSource::FindClass => env.find_class(T::FIND_CLASS_NAME),
-            LoaderSource::TryFrom(candidate) => env
+            LoaderContext::None => env.find_class(T::CLASS_NAME),
+            LoaderContext::FromObject(candidate) => env
                 .with_local_frame_returning_local::<_, JClass, _>(5, |env| {
                     let candidate_class = env.get_object_class(candidate)?;
                     // Doesn't throw exception for missing loader
                     let loader = candidate_class.get_class_loader(env)?;
-                    load_class_with_catch(&loader, T::LOAD_CLASS_NAME, env)
+                    load_class_with_catch(&loader, T::CLASS_NAME, env)
                 }),
-            LoaderSource::Loader(loader) => load_class_with_catch(loader, T::LOAD_CLASS_NAME, env),
+            LoaderContext::Loader(loader) => load_class_with_catch(loader, T::CLASS_NAME, env),
         }
     }
 }
@@ -203,9 +218,7 @@ impl<T> JObjectRef for &T
 where
     T: JObjectRef,
 {
-    const FIND_CLASS_NAME: &'static JNIStr = T::FIND_CLASS_NAME;
-    const LOAD_CLASS_NAME: &'static JNIStr = T::LOAD_CLASS_NAME;
-    const CLASS_KIND: ClassKind = T::CLASS_KIND;
+    const CLASS_NAME: &'static JNIStr = T::CLASS_NAME;
 
     type Kind<'local> = T::Kind<'local>;
     type GlobalKind = T::GlobalKind;
@@ -214,7 +227,7 @@ where
         (*self).as_raw()
     }
 
-    fn lookup_class<'vm>(vm: &'vm JavaVM, loader_source: LoaderSource) -> Option<ClassRef<'vm>> {
+    fn lookup_class<'vm>(vm: &'vm JavaVM, loader_source: LoaderContext) -> Option<ClassRef<'vm>> {
         T::lookup_class(vm, loader_source)
     }
 
