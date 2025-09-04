@@ -159,7 +159,6 @@ macro_rules! impl_ref_for_jprimitive_array {
 
             impl JObjectRef for JPrimitiveArray<'_, crate::sys::$type> {
                 const FIND_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr($find_class_name);
-                const LOAD_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"");
                 const CLASS_KIND: ClassKind = ClassKind::Bootstrap;
 
                 type Kind<'env> = JPrimitiveArray<'env, crate::sys::$type>;

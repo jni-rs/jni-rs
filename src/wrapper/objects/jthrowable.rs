@@ -133,9 +133,7 @@ impl JThrowable<'_> {
 }
 
 impl JObjectRef for JThrowable<'_> {
-    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java/lang/Throwable");
-    const LOAD_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.Throwable");
-    const CLASS_KIND: ClassKind = ClassKind::Bootstrap;
+    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.Throwable");
 
     type Kind<'env> = JThrowable<'env>;
     type GlobalKind = JThrowable<'static>;

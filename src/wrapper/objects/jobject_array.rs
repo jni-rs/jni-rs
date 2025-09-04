@@ -82,9 +82,7 @@ impl JObjectArray<'_> {
 }
 
 impl JObjectRef for JObjectArray<'_> {
-    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"[Ljava/lang/Object;");
-    const LOAD_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.Object[]");
-    const CLASS_KIND: ClassKind = ClassKind::Bootstrap;
+    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"[Ljava.lang.Object;");
 
     type Kind<'env> = JObjectArray<'env>;
     type GlobalKind = JObjectArray<'static>;

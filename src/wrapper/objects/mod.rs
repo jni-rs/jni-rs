@@ -70,3 +70,6 @@ pub use self::auto_elements::*;
 // For automatic pointer-based primitive array release
 mod auto_elements_critical;
 pub use self::auto_elements_critical::*;
+
+mod thread;
+pub use self::thread::*;

@@ -9,7 +9,7 @@ use jni_sys::jobject;
 
 use crate::{
     errors::Error,
-    objects::{GlobalRef, JClass, JClassLoader, JObject},
+    objects::{GlobalRef, JClass, JClassLoader, JObject, JThread},
     strings::JNIStr,
     JavaVM,
 };
@@ -140,7 +140,7 @@ pub enum LoaderContext<'any_local, 'a> {
     /// 1. The Thread context will be used to find a ClassLoader to check via Class.forName
     /// 2. FindClass will be called
     None,
-    /// A direct reference to the class loader that should be used
+    /// A direct reference to the class loader that should be used (with no fallback to FindClass)
     Loader(&'a JClassLoader<'any_local>),
     /// In case we don't have a direct reference, to a `ClassLoader`, the ClassLoader associated
     /// with this object's Class may be checked
@@ -170,6 +170,20 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
             name: &JNIStr,
             env: &mut crate::env::JNIEnv<'any_local>,
         ) -> crate::errors::Result<JClass<'any_local>> {
+
+            let current_thread = JThread::current_thread(env)?;
+            let tccl = match current_thread.get_context_class_loader(env) {
+                Ok(tccl) => Some(tccl),
+                Err(Error::JavaException) => {
+                    env.exception_clear();
+                    None
+                }
+                Err(e) => return Err(e)
+            };
+            if let Some(tccl) = tccl {
+                let class = JClass::for_name(name, env);
+            }
+
             match loader.load_class(name, env) {
                 Ok(cls) => Ok(cls),
                 Err(Error::JavaException) => {
@@ -201,9 +215,13 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
         }
 
         match self {
-            LoaderContext::None => env.find_class(T::CLASS_NAME),
+            LoaderContext::None => {
+                let internal_name = Self::internal_find_class_name(T::CLASS_NAME);
+                env.find_class(internal_name)
+            },
             LoaderContext::FromObject(candidate) => env
                 .with_local_frame_returning_local::<_, JClass, _>(5, |env| {
+
                     let candidate_class = env.get_object_class(candidate)?;
                     // Doesn't throw exception for missing loader
                     let loader = candidate_class.get_class_loader(env)?;

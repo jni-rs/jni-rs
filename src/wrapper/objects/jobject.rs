@@ -124,9 +124,7 @@ impl std::default::Default for JObject<'_> {
 }
 
 impl JObjectRef for JObject<'_> {
-    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java/lang/Object");
-    const LOAD_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.Object");
-    const CLASS_KIND: ClassKind = ClassKind::Bootstrap;
+    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.Object");
 
     type Kind<'env> = JObject<'env>;
     type GlobalKind = JObject<'static>;

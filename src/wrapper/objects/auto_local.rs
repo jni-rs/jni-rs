@@ -229,8 +229,6 @@ where
     T: JObjectRef + Into<JObject<'local>>,
 {
     const CLASS_NAME: &'static JNIStr = T::CLASS_NAME;
-    const LOAD_CLASS_NAME: &'static JNIStr = T::LOAD_CLASS_NAME;
-    const CLASS_KIND: ClassKind = T::CLASS_KIND;
 
     type Kind<'env> = T::Kind<'env>;
     type GlobalKind = T::GlobalKind;

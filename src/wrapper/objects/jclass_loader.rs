@@ -120,9 +120,7 @@ impl JClassLoader<'_> {
 }
 
 impl JObjectRef for JClassLoader<'_> {
-    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java/lang/ClassLoader");
-    const LOAD_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.ClassLoader");
-    const CLASS_KIND: ClassKind = ClassKind::Bootstrap;
+    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.ClassLoader");
 
     type Kind<'env> = JClassLoader<'env>;
     type GlobalKind = JClassLoader<'static>;

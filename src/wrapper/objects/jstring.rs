@@ -111,9 +111,7 @@ impl JString<'_> {
 }
 
 impl JObjectRef for JString<'_> {
-    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java/lang/String");
-    const LOAD_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.String");
-    const CLASS_KIND: ClassKind = ClassKind::Bootstrap;
+    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.String");
 
     type Kind<'env> = JString<'env>;
     type GlobalKind = JString<'static>;

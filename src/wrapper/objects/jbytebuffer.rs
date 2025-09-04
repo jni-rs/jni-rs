@@ -74,9 +74,7 @@ impl JByteBuffer<'_> {
 }
 
 impl JObjectRef for JByteBuffer<'_> {
-    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"[Ljava/nio/ByteBuffer;");
-    const LOAD_CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.nio.ByteBuffer");
-    const CLASS_KIND: ClassKind = ClassKind::Bootstrap;
+    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"[Ljava.nio.ByteBuffer;");
 
     type Kind<'env> = JByteBuffer<'env>;
     type GlobalKind = JByteBuffer<'static>;
