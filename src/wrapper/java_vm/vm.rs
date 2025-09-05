@@ -1,5 +1,6 @@
 use std::{
     cell::{Cell, RefCell},
+    os::raw::c_char,
     ptr,
     sync::atomic::{AtomicUsize, Ordering},
     thread::{current, Thread},
@@ -985,7 +986,7 @@ unsafe fn sys_attach_current_thread(
         name: config
             .name
             .as_ref()
-            .map(|s| s.as_ptr() as *mut i8)
+            .map(|s| s.as_ptr() as *mut c_char)
             .unwrap_or(ptr::null_mut()),
         group: config
             .group
