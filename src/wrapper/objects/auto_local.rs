@@ -5,6 +5,7 @@ use jni_sys::jobject;
 use crate::{
     errors,
     objects::{GlobalRef, JClass, JObject, LoaderContext},
+    strings::JNIStr,
     JavaVM,
 };
 
@@ -227,7 +228,7 @@ impl<'local, T> JObjectRef for AutoLocal<'local, T>
 where
     T: JObjectRef + Into<JObject<'local>>,
 {
-    const CLASS_NAME: &'static str = T::CLASS_NAME;
+    const CLASS_NAME: &'static JNIStr = T::CLASS_NAME;
 
     type Kind<'env> = T::Kind<'env>;
     type GlobalKind = T::GlobalKind;

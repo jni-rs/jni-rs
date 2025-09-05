@@ -3,14 +3,14 @@ use crate::{
     env::JNIEnv,
     errors::*,
     objects::{JClass, JMethodID, JStaticMethodID},
-    strings::JNIString,
+    strings::JNIStr,
 };
 
 unsafe impl<'local, 'other_local, T, U, V> Desc<'local, JMethodID> for (T, U, V)
 where
     T: Desc<'local, JClass<'other_local>>,
-    U: Into<JNIString>,
-    V: Into<JNIString>,
+    U: AsRef<JNIStr>,
+    V: AsRef<JNIStr>,
 {
     type Output = JMethodID;
 
@@ -22,20 +22,20 @@ where
 unsafe impl<'local, 'other_local, T, Signature> Desc<'local, JMethodID> for (T, Signature)
 where
     T: Desc<'local, JClass<'other_local>>,
-    Signature: Into<JNIString>,
+    Signature: AsRef<JNIStr>,
 {
     type Output = JMethodID;
 
     fn lookup(self, env: &mut JNIEnv<'local>) -> Result<Self::Output> {
-        Desc::<JMethodID>::lookup((self.0, "<init>", self.1), env)
+        Desc::<JMethodID>::lookup((self.0, c"<init>", self.1.as_ref()), env)
     }
 }
 
 unsafe impl<'local, 'other_local, T, U, V> Desc<'local, JStaticMethodID> for (T, U, V)
 where
     T: Desc<'local, JClass<'other_local>>,
-    U: Into<JNIString>,
-    V: Into<JNIString>,
+    U: AsRef<JNIStr>,
+    V: AsRef<JNIStr>,
 {
     type Output = JStaticMethodID;
 
