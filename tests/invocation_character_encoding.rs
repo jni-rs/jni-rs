@@ -24,14 +24,14 @@ fn invocation_character_encoding() {
 
     jvm.attach_current_thread(|env| -> jni::errors::Result<()> {
         println!("creating new_string, env = {:?}", env.get_raw());
-        let prop_name = env.new_string("nbsp").unwrap();
+        let prop_name = env.new_string(c"nbsp").unwrap();
 
         println!("calling getProperty");
         let prop_value = env
             .call_static_method(
-                "java/lang/System",
-                "getProperty",
-                "(Ljava/lang/String;)Ljava/lang/String;",
+                c"java/lang/System",
+                c"getProperty",
+                c"(Ljava/lang/String;)Ljava/lang/String;",
                 &[(&prop_name).into()],
             )
             .unwrap()

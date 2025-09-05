@@ -47,13 +47,13 @@ impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> JList<'local, 'other_local_1, '
         env: &mut JNIEnv<'local>,
         obj: &'obj_ref JObject<'other_local_1>,
     ) -> Result<JList<'local, 'other_local_1, 'obj_ref>> {
-        let class = env.find_class("java/util/List")?.auto();
+        let class = env.find_class(c"java/util/List")?.auto();
 
-        let get = env.get_method_id(&class, "get", "(I)Ljava/lang/Object;")?;
-        let add = env.get_method_id(&class, "add", "(Ljava/lang/Object;)Z")?;
-        let add_idx = env.get_method_id(&class, "add", "(ILjava/lang/Object;)V")?;
-        let remove = env.get_method_id(&class, "remove", "(I)Ljava/lang/Object;")?;
-        let size = env.get_method_id(&class, "size", "()I")?;
+        let get = env.get_method_id(&class, c"get", c"(I)Ljava/lang/Object;")?;
+        let add = env.get_method_id(&class, c"add", c"(Ljava/lang/Object;)Z")?;
+        let add_idx = env.get_method_id(&class, c"add", c"(ILjava/lang/Object;)V")?;
+        let remove = env.get_method_id(&class, c"remove", c"(I)Ljava/lang/Object;")?;
+        let size = env.get_method_id(&class, c"size", c"()I")?;
 
         Ok(JList {
             internal: obj,

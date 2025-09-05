@@ -10,7 +10,7 @@ use std::{
 };
 
 use jni::{
-    errors, objects::IntoAutoLocal as _, sys::jint, AttachGuard, JavaVM,
+    errors, objects::IntoAutoLocal as _, strings::JNIStr, sys::jint, AttachGuard, JavaVM,
     DEFAULT_LOCAL_FRAME_CAPACITY,
 };
 
@@ -87,7 +87,7 @@ rusty_fork_test! {
 fn test_destroy() {
     const THREAD_NUM: usize = 2;
     const DAEMON_THREAD_NUM: usize = 2;
-    static MATH_CLASS: &str = "java/lang/Math";
+    static MATH_CLASS: &JNIStr = JNIStr::from_cstr(c"java/lang/Math");
 
     // We don't test this using an `Executor` because we don't want to
     // attach all the threads as daemon threads.
