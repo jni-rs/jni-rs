@@ -1,9 +1,15 @@
+use std::{borrow::Cow, ops::Deref};
+
 use jni_sys::jobject;
 
-use crate::objects::JObject;
+use crate::{
+    errors::Error,
+    objects::{GlobalRef, JClass, JClassLoader, JObject, JThread},
+    JavaVM,
+};
 
 #[cfg(doc)]
-use crate::objects::{AutoLocal, GlobalRef, JString};
+use crate::objects::{AutoLocal, JString};
 
 /// A trait for types that represents a JNI reference (could be local, global or
 /// weak global as well as wrapper types like [`AutoLocal`] and [`GlobalRef`])
@@ -14,6 +20,21 @@ use crate::objects::{AutoLocal, GlobalRef, JString};
 /// [`AutoLocal`] wrapper) and return a [`GlobalRef`] that is instead
 /// parameterized by [`JString<'static>`].
 pub trait JObjectRef: Sized {
+    /// The fully qualified class name of the Java class represented by this
+    /// reference.
+    ///
+    /// The class name is expected to be dot-separated, in the same format as
+    /// `Class.getName()` and suitable for passing to `Class.forName()`
+    ///
+    /// For example: `"com.example.MyClass"`
+    ///
+    /// Note: this format is very similar to the FindClass naming conventions,
+    /// except for the use of dots instead of slashes.
+    ///
+    /// An array of objects would look like: "[Ljava.lang.Object;" An array of
+    /// integers would look like: "[I"
+    const CLASS_NAME: &'static str;
+
     /// The generic associated [`Self::Kind`] type corresponds to the underlying
     /// class type (such as [`JObject`] or [`JString`]), parameterized by the
     /// lifetime that indicates whether the type holds a global reference
@@ -49,6 +70,22 @@ pub trait JObjectRef: Sized {
         Self::Kind::default()
     }
 
+    /// Borrows a global reference to the class implemented by this reference.
+    ///
+    /// This is used as part of downcasting checks to do a cached lookup of associated class
+    /// references - avoiding the cost of repeated FindClass or loadClass calls.
+    ///
+    /// The implementation is expected to use [`JavaVM::get_cached_or_insert_with`] to lookup cached
+    /// API state, including a `GlobalRef<JClass>`.
+    ///
+    /// In case no class reference is already cached then use `loader_source.lookup_class()` to
+    /// lookup a class reference.
+    ///
+    fn lookup_class<'vm>(
+        vm: &'vm JavaVM,
+        loader_context: LoaderContext,
+    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm>;
+
     /// Returns a new reference type based on [`Self::Kind`] for the given `local_ref` that is
     /// tied to the JNI stack frame for the given lifetime.
     ///
@@ -80,15 +117,168 @@ pub trait JObjectRef: Sized {
     unsafe fn from_global_raw(global_ref: jobject) -> Self::GlobalKind;
 }
 
+/// Represents the source of a class loader to be used when looking up a class.
+pub enum LoaderContext<'any_local, 'a> {
+    /// There's no extra context that influences how the class should be loaded, and a default
+    /// strategy will be used:
+    ///
+    /// 1. The Thread context will be used to find a ClassLoader to check via Class.forName
+    /// 2. FindClass will be called
+    None,
+    /// A direct reference to the class loader that should be used (with no fallback to FindClass)
+    Loader(&'a JClassLoader<'any_local>),
+    /// In case we don't have a direct reference, to a `ClassLoader`, the ClassLoader associated
+    /// with this object's Class may be checked
+    ///
+    /// This is used when downcasting, where we can speculate that the object being
+    /// downcast _should_ be associated with the correct `ClassLoader`.
+    ///
+    /// The search strategy will be:
+    /// 1. The Thread context will be used to find a ClassLoader to check via Class.forName
+    /// 2. The ClassLoader associated with the object being downcast will be used
+    /// 3. FindClass will be called
+    FromObject(&'a JObject<'any_local>),
+}
+
+impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
+    /// Loads the class associated with the `JObjectRef` type `T`, using the given loader context.
+    ///
+    /// `initialize` indicates whether a newly loaded class should be initialized (has no effect
+    /// on already initialized classes).
+    ///
+    /// Returns the loaded class, or a [`Error::NullPtr`] error if the class could not be found.
+    ///
+    /// Note: The implementation will only use `FindClass` for `Bootstrap` loader source.
+    pub fn load_class<'env_local, T: JObjectRef>(
+        &self,
+        initialize: bool,
+        env: &mut crate::env::JNIEnv<'env_local>,
+    ) -> crate::errors::Result<JClass<'env_local>> {
+        /// Convert a binary name or array descriptor (like `"java.lang.String"` or
+        /// `"[Ljava.lang.String;"`) into an internal name like `"java/lang/String"` or
+        /// `"[Ljava/lang/String;"` that can be passed to `FindClass`.
+        fn internal_find_class_name(binary_name: &'static str) -> Cow<'static, str> {
+            if !binary_name.contains('.') {
+                Cow::Borrowed(binary_name)
+            } else {
+                // Convert from dot-notation to slash-notation
+                let owned: String = binary_name
+                    .chars()
+                    .map(|b| if b == '.' { '/' } else { b })
+                    .collect();
+                Cow::Owned(owned)
+            }
+        }
+
+        fn lookup_tccl_with_catch<'local>(
+            env: &mut crate::env::JNIEnv<'local>,
+        ) -> crate::errors::Result<Option<JClassLoader<'local>>> {
+            let current_thread = JThread::current_thread(env)?;
+            match current_thread.get_context_class_loader(env) {
+                Ok(tccl) => Ok(Some(tccl)),
+                Err(Error::JavaException) => {
+                    // SecurityException
+                    env.exception_clear();
+                    Ok(None)
+                }
+                Err(e) => Err(e),
+            }
+        }
+
+        fn load_class_with_catch<'any_loader, 'any_local, T: JObjectRef>(
+            initialize: bool,
+            loader: &JClassLoader<'any_loader>,
+            env: &mut crate::env::JNIEnv<'any_local>,
+        ) -> crate::errors::Result<JClass<'any_local>> {
+            // May throw ClassNotFoundException
+            match JClass::for_name_with_loader(T::CLASS_NAME, initialize, loader, env) {
+                Ok(class) => Ok(class),
+                Err(Error::JavaException) => {
+                    // Assume it's a ClassNotFoundException
+                    env.exception_clear();
+                    Err(Error::ClassNotFound {
+                        name: T::CLASS_NAME,
+                    })
+                }
+                Err(e) => Err(e),
+            }
+        }
+
+        fn find_class<'local, T: JObjectRef>(
+            env: &mut crate::env::JNIEnv<'local>,
+        ) -> crate::errors::Result<JClass<'local>> {
+            let internal_name = internal_find_class_name(T::CLASS_NAME);
+            match env.find_class(&internal_name) {
+                Ok(class) => Ok(class),
+                Err(Error::NullPtr(_)) => Err(Error::ClassNotFound {
+                    name: T::CLASS_NAME,
+                }),
+                Err(e) => Err(e),
+            }
+        }
+
+        fn lookup_class_with_fallbacks<'local, T: JObjectRef>(
+            initialize: bool,
+            candidate: Option<&JObject>,
+            env: &mut crate::env::JNIEnv<'local>,
+        ) -> crate::errors::Result<JClass<'local>> {
+            if let Some(tccl) = lookup_tccl_with_catch(env)? {
+                match load_class_with_catch::<T>(initialize, &tccl, env) {
+                    Ok(class) => return Ok(class),
+                    Err(Error::ClassNotFound { .. }) => {
+                        // Try the next fallback
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+
+            if let Some(candidate) = candidate {
+                let candidate_class = env.get_object_class(candidate)?;
+                // Doesn't throw exception for missing loader
+                let loader = candidate_class.get_class_loader(env)?;
+                match load_class_with_catch::<T>(initialize, &loader, env) {
+                    Ok(class) => return Ok(class),
+                    Err(Error::ClassNotFound { .. }) => {
+                        // Try the next fallback
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+
+            find_class::<T>(env)
+        }
+
+        match self {
+            LoaderContext::None => env.with_local_frame_returning_local::<_, JClass, _>(5, |env| {
+                lookup_class_with_fallbacks::<T>(initialize, None, env)
+            }),
+            LoaderContext::FromObject(candidate) => env
+                .with_local_frame_returning_local::<_, JClass, _>(5, |env| {
+                    lookup_class_with_fallbacks::<T>(initialize, Some(candidate), env)
+                }),
+            LoaderContext::Loader(loader) => load_class_with_catch::<T>(initialize, loader, env),
+        }
+    }
+}
+
 impl<T> JObjectRef for &T
 where
     T: JObjectRef,
 {
+    const CLASS_NAME: &'static str = T::CLASS_NAME;
+
     type Kind<'local> = T::Kind<'local>;
     type GlobalKind = T::GlobalKind;
 
     fn as_raw(&self) -> jobject {
         (*self).as_raw()
+    }
+
+    fn lookup_class<'vm>(
+        vm: &'vm JavaVM,
+        loader_context: LoaderContext,
+    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+        T::lookup_class(vm, loader_context)
     }
 
     unsafe fn from_local_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
