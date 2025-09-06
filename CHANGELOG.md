@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
-- `jni-sys` dependency dumped to `0.4` ([#478](https://github.com/jni-rs/jni-rs/issues/478))
+- `jni-sys` dependency bumped to `0.4` ([#478](https://github.com/jni-rs/jni-rs/issues/478))
 - `JNIEnv::get_version` has been renamed to `JNIEnv::version` ([#478](https://github.com/jni-rs/jni-rs/issues/478))
 - JNI version requirements are more explicit in the API and the crate now requires at least JNI `>= 1.4`. It needs `>= 1.2` so it can check for exceptions and needs `>= 1.4` to avoid runtime checks for direct byte buffers ([#478](https://github.com/jni-rs/jni-rs/issues/478))
 - At a low-level (unsafe), all thread attachments (not just scoped attachments) are now represented by an owned or unowned `AttachGuard`
