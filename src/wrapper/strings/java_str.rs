@@ -155,7 +155,7 @@ impl<'local, 'other_local: 'obj_ref, 'obj_ref> JavaStr<'local, 'other_local, 'ob
     /// # use jni::{errors::Result, env::JNIEnv, strings::JavaStr};
     /// #
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
-    /// let jstring = env.new_string("foo")?;
+    /// let jstring = env.new_string(c"foo")?;
     /// let java_str = env.get_string(&jstring)?;
     ///
     /// let (ptr, is_copy) = java_str.into_raw();

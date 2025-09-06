@@ -36,9 +36,9 @@ pub fn jvm() -> &'static Arc<JavaVM> {
 #[allow(dead_code)]
 pub fn call_java_abs(env: &mut JNIEnv, value: i32) -> i32 {
     env.call_static_method(
-        "java/lang/Math",
-        "abs",
-        "(I)I",
+        c"java/lang/Math",
+        c"abs",
+        c"(I)I",
         &[JValue::from(value as jint)],
     )
     .unwrap()

@@ -5,6 +5,7 @@ use once_cell::sync::OnceCell;
 use crate::{
     errors::Result,
     objects::{GlobalRef, JClass, LoaderContext},
+    strings::JNIStr,
     sys::jobject,
     JavaVM,
 };
@@ -75,7 +76,7 @@ impl JObjectAPI {
         JOBJECT_API.get_or_try_init(|| {
             vm.with_env_current_frame(|env| {
                 // NB: Self::CLASS_NAME is a binary name with dots, not slashes
-                let class = env.find_class("java/lang/Object")?;
+                let class = env.find_class(JNIStr::from_cstr(c"java/lang/Object"))?;
                 let class = env.new_global_ref(class)?;
                 Ok(JObjectAPI { class })
             })
@@ -127,7 +128,7 @@ impl std::default::Default for JObject<'_> {
 
 // SAFETY: JObject is a transparent jobject wrapper with no Drop side effects
 unsafe impl JObjectRef for JObject<'_> {
-    const CLASS_NAME: &'static str = "java.lang.Object";
+    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.Object");
 
     type Kind<'env> = JObject<'env>;
     type GlobalKind = JObject<'static>;

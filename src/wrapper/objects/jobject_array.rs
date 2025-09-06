@@ -5,6 +5,7 @@ use once_cell::sync::OnceCell;
 use crate::{
     errors::Result,
     objects::{GlobalRef, JClass, JObject, JObjectRef, LoaderContext},
+    strings::JNIStr,
     sys::{jobject, jobjectArray},
     JavaVM,
 };
@@ -87,7 +88,7 @@ impl JObjectArray<'_> {
 
 // SAFETY: JObjectArray is a transparent JObject wrapper with no Drop side effects
 unsafe impl JObjectRef for JObjectArray<'_> {
-    const CLASS_NAME: &'static str = "[Ljava.lang.Object;";
+    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"[Ljava.lang.Object;");
 
     type Kind<'env> = JObjectArray<'env>;
     type GlobalKind = JObjectArray<'static>;

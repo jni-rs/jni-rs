@@ -1,5 +1,5 @@
 #![cfg(feature = "invocation")]
-use std::{convert::TryFrom, str::FromStr};
+use std::convert::TryFrom;
 
 use assert_matches::assert_matches;
 
@@ -12,35 +12,35 @@ use jni::{
         JThrowable, JValue, ReleaseMode, WeakRef,
     },
     signature::{JavaType, Primitive, ReturnType},
-    strings::JNIString,
+    strings::{JNIStr, JNIString},
     sys::{jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jobject, jshort, jsize},
 };
 
 mod util;
 use util::{attach_current_thread, unwrap};
 
-static ARRAYLIST_CLASS: &str = "java/util/ArrayList";
-static EXCEPTION_CLASS: &str = "java/lang/Exception";
-static ARITHMETIC_EXCEPTION_CLASS: &str = "java/lang/ArithmeticException";
-static RUNTIME_EXCEPTION_CLASS: &str = "java/lang/RuntimeException";
-static INTEGER_CLASS: &str = "java/lang/Integer";
-static MATH_CLASS: &str = "java/lang/Math";
-static STRING_CLASS: &str = "java/lang/String";
-static MATH_ABS_METHOD_NAME: &str = "abs";
-static MATH_TO_INT_METHOD_NAME: &str = "toIntExact";
-static MATH_ABS_SIGNATURE: &str = "(I)I";
-static MATH_TO_INT_SIGNATURE: &str = "(J)I";
-static TEST_EXCEPTION_MESSAGE: &str = "Default exception thrown";
-static TESTING_OBJECT_STR: &str = "TESTING OBJECT";
+static ARRAYLIST_CLASS: &JNIStr = JNIStr::from_cstr(c"java/util/ArrayList");
+static EXCEPTION_CLASS: &JNIStr = JNIStr::from_cstr(c"java/lang/Exception");
+static ARITHMETIC_EXCEPTION_CLASS: &JNIStr = JNIStr::from_cstr(c"java/lang/ArithmeticException");
+static RUNTIME_EXCEPTION_CLASS: &JNIStr = JNIStr::from_cstr(c"java/lang/RuntimeException");
+static INTEGER_CLASS: &JNIStr = JNIStr::from_cstr(c"java/lang/Integer");
+static MATH_CLASS: &JNIStr = JNIStr::from_cstr(c"java/lang/Math");
+static STRING_CLASS: &JNIStr = JNIStr::from_cstr(c"java/lang/String");
+static MATH_ABS_METHOD_NAME: &JNIStr = JNIStr::from_cstr(c"abs");
+static MATH_TO_INT_METHOD_NAME: &JNIStr = JNIStr::from_cstr(c"toIntExact");
+static MATH_ABS_SIGNATURE: &JNIStr = JNIStr::from_cstr(c"(I)I");
+static MATH_TO_INT_SIGNATURE: &JNIStr = JNIStr::from_cstr(c"(J)I");
+static TEST_EXCEPTION_MESSAGE: &JNIStr = JNIStr::from_cstr(c"Default exception thrown");
+static TESTING_OBJECT_STR: &JNIStr = JNIStr::from_cstr(c"TESTING OBJECT");
 
 #[test]
 pub fn call_method_returning_null() {
     attach_current_thread(|env| {
         // Create an Exception with no message
-        let obj = unwrap(env.new_object(EXCEPTION_CLASS, "()V", &[]), env).auto();
+        let obj = unwrap(env.new_object(EXCEPTION_CLASS, c"()V", &[]), env).auto();
         // Call Throwable#getMessage must return null
         let message = unwrap(
-            env.call_method(&obj, "getMessage", "()Ljava/lang/String;", &[]),
+            env.call_method(&obj, c"getMessage", c"()Ljava/lang/String;", &[]),
             env,
         );
         let message_ref = unwrap(message.l(), env).auto();
@@ -54,7 +54,7 @@ pub fn call_method_returning_null() {
 #[test]
 pub fn is_instance_of_same_class() {
     attach_current_thread(|env| {
-        let obj = unwrap(env.new_object(EXCEPTION_CLASS, "()V", &[]), env).auto();
+        let obj = unwrap(env.new_object(EXCEPTION_CLASS, c"()V", &[]), env).auto();
         assert!(unwrap(env.is_instance_of(&obj, EXCEPTION_CLASS), env));
 
         Ok(())
@@ -65,7 +65,7 @@ pub fn is_instance_of_same_class() {
 #[test]
 pub fn is_instance_of_superclass() {
     attach_current_thread(|env| {
-        let obj = unwrap(env.new_object(ARITHMETIC_EXCEPTION_CLASS, "()V", &[]), env).auto();
+        let obj = unwrap(env.new_object(ARITHMETIC_EXCEPTION_CLASS, c"()V", &[]), env).auto();
         assert!(unwrap(env.is_instance_of(&obj, EXCEPTION_CLASS), env));
 
         Ok(())
@@ -76,7 +76,7 @@ pub fn is_instance_of_superclass() {
 #[test]
 pub fn is_instance_of_subclass() {
     attach_current_thread(|env| {
-        let obj = unwrap(env.new_object(EXCEPTION_CLASS, "()V", &[]), env).auto();
+        let obj = unwrap(env.new_object(EXCEPTION_CLASS, c"()V", &[]), env).auto();
         assert!(!unwrap(
             env.is_instance_of(&obj, ARITHMETIC_EXCEPTION_CLASS),
             env,
@@ -90,7 +90,7 @@ pub fn is_instance_of_subclass() {
 #[test]
 pub fn is_instance_of_not_superclass() {
     attach_current_thread(|env| {
-        let obj = unwrap(env.new_object(ARITHMETIC_EXCEPTION_CLASS, "()V", &[]), env).auto();
+        let obj = unwrap(env.new_object(ARITHMETIC_EXCEPTION_CLASS, c"()V", &[]), env).auto();
         assert!(!unwrap(env.is_instance_of(&obj, ARRAYLIST_CLASS), env));
 
         Ok(())
@@ -164,7 +164,7 @@ pub fn is_not_same_object_null() {
 pub fn get_static_public_field() {
     attach_current_thread(|env| {
         let min_int_value = env
-            .get_static_field(INTEGER_CLASS, "MIN_VALUE", "I")
+            .get_static_field(INTEGER_CLASS, c"MIN_VALUE", c"I")
             .unwrap()
             .i()
             .unwrap();
@@ -181,12 +181,12 @@ pub fn get_static_public_field_by_id() {
     attach_current_thread(|env| {
         // One can't pass a JavaType::Primitive(Primitive::Int) to
         //   `get_static_field_id` unfortunately: #137
-        let field_type = "I";
+        let field_type = c"I";
         let field_id = env
-            .get_static_field_id(INTEGER_CLASS, "MIN_VALUE", field_type)
+            .get_static_field_id(INTEGER_CLASS, c"MIN_VALUE", field_type)
             .unwrap();
 
-        let field_type = JavaType::from_str(field_type).unwrap();
+        let field_type = JavaType::Primitive(Primitive::Int);
         let min_int_value = env
             .get_static_field_unchecked(INTEGER_CLASS, field_id, field_type)
             .unwrap()
@@ -257,7 +257,7 @@ pub fn with_local_frame() {
     attach_current_thread(|env| {
         let s = env
             .with_local_frame_returning_local::<_, JObject, jni::errors::Error>(16, |env| {
-                let res = env.new_string("Test")?;
+                let res = env.new_string(c"Test")?;
                 Ok(res.into())
             })
             .unwrap();
@@ -276,7 +276,7 @@ pub fn with_local_frame() {
 #[test]
 pub fn with_local_frame_pending_exception() {
     attach_current_thread(|env| {
-        env.throw_new(RUNTIME_EXCEPTION_CLASS, "Test Exception")
+        env.throw_new(RUNTIME_EXCEPTION_CLASS, c"Test Exception")
             .unwrap();
 
         // Try to allocate a frame of locals
@@ -296,7 +296,7 @@ pub fn call_method_ok() {
         let s = env.new_string(TESTING_OBJECT_STR).unwrap();
 
         let v: jint = env
-            .call_method(s, "indexOf", "(I)I", &[JValue::Int('S' as i32)])
+            .call_method(s, c"indexOf", c"(I)I", &[JValue::Int('S' as i32)])
             .expect("JNIEnv#call_method should return JValue")
             .i()
             .unwrap();
@@ -316,8 +316,8 @@ pub fn call_method_with_bad_args_errs() {
         let is_bad_typ = env
             .call_method(
                 &s,
-                "indexOf",
-                "(I)I",
+                c"indexOf",
+                c"(I)I",
                 &[JValue::Float(std::f32::consts::PI)],
             )
             .map_err(|error| matches!(error, Error::InvalidArgList(_)))
@@ -331,8 +331,8 @@ pub fn call_method_with_bad_args_errs() {
         let is_bad_len = env
             .call_method(
                 &s,
-                "indexOf",
-                "(I)I",
+                c"indexOf",
+                c"(I)I",
                 &[JValue::Int('S' as i32), JValue::Long(3)],
             )
             .map_err(|error| matches!(error, Error::InvalidArgList(_)))
@@ -399,7 +399,7 @@ pub fn call_new_object_unchecked_ok() {
         let string_class = env.find_class(STRING_CLASS).unwrap();
 
         let ctor_method_id = env
-            .get_method_id(&string_class, "<init>", "(Ljava/lang/String;)V")
+            .get_method_id(&string_class, c"<init>", c"(Ljava/lang/String;)V")
             .unwrap();
         let val: JObject = unsafe {
             env.new_object_unchecked(
@@ -412,8 +412,8 @@ pub fn call_new_object_unchecked_ok() {
 
         let jstr = env.cast_local::<JString>(val).unwrap();
         let javastr = env.get_string(&jstr).unwrap();
-        let rstr = javastr.to_str();
-        assert_eq!(rstr, TESTING_OBJECT_STR);
+        let jnistr: &JNIStr = javastr.as_ref();
+        assert_eq!(jnistr, TESTING_OBJECT_STR);
 
         Ok(())
     })
@@ -426,7 +426,7 @@ pub fn call_new_object_with_bad_args_errs() {
         let string_class = env.find_class(STRING_CLASS).unwrap();
 
         let is_bad_typ = env
-            .new_object(&string_class, "(Ljava/lang/String;)V", &[JValue::Int(2)])
+            .new_object(&string_class, c"(Ljava/lang/String;)V", &[JValue::Int(2)])
             .map_err(|error| matches!(error, Error::InvalidArgList(_)))
             .expect_err("JNIEnv#new_object with bad arg type should err");
 
@@ -440,7 +440,7 @@ pub fn call_new_object_with_bad_args_errs() {
         let is_bad_len = env
             .new_object(
                 &string_class,
-                "(Ljava/lang/String;)V",
+                c"(Ljava/lang/String;)V",
                 &[JValue::from(&s), JValue::Int(2)],
             )
             .map_err(|error| matches!(error, Error::InvalidArgList(_)))
@@ -470,7 +470,7 @@ pub fn call_new_object_with_array_class() {
         let byte_array = env.new_byte_array(16).unwrap();
         let array_class = env.get_object_class(byte_array).unwrap();
         // We just make up a plausible constructor signature
-        let result = env.new_object(&array_class, "(I)[B", &[JValue::Int(16)]);
+        let result = env.new_object(&array_class, c"(I)[B", &[JValue::Int(16)]);
 
         assert!(result.is_err());
 
@@ -548,22 +548,22 @@ pub fn call_static_method_with_bad_args_errs() {
 pub fn get_reflected_method_from_id() {
     attach_current_thread(|env| {
         let ctor_method_id = env
-            .get_method_id(INTEGER_CLASS, "<init>", "(Ljava/lang/String;)V")
+            .get_method_id(INTEGER_CLASS, c"<init>", c"(Ljava/lang/String;)V")
             .expect("constructor from string exists");
         let ctor = env
             .to_reflected_method(INTEGER_CLASS, ctor_method_id)
             .unwrap();
 
         let value = {
-            let jstr = env.new_string("55").unwrap();
+            let jstr = env.new_string(c"55").unwrap();
             let vargs = env
-                .new_object_array(1, "java/lang/Object", jstr)
+                .new_object_array(1, c"java/lang/Object", jstr)
                 .expect("can create array");
 
             env.call_method(
                 ctor,
-                "newInstance",
-                "([Ljava/lang/Object;)Ljava/lang/Object;",
+                c"newInstance",
+                c"([Ljava/lang/Object;)Ljava/lang/Object;",
                 &[JValue::from(&vargs)],
             )
             .expect("can invoke Constructor.newInstance")
@@ -572,7 +572,7 @@ pub fn get_reflected_method_from_id() {
         };
 
         let int_value = env
-            .call_method(value, "intValue", "()I", &[])
+            .call_method(value, c"intValue", c"()I", &[])
             .unwrap()
             .i()
             .unwrap();
@@ -596,20 +596,20 @@ pub fn get_reflected_static_method_from_id() {
             .to_reflected_static_method(&math_class, abs_method_id)
             .unwrap();
 
-        let arg = env.new_object(INTEGER_CLASS, "(I)V", &[x]).unwrap();
-        let vargs = env.new_object_array(1, "java/lang/Object", arg).unwrap();
+        let arg = env.new_object(INTEGER_CLASS, c"(I)V", &[x]).unwrap();
+        let vargs = env.new_object_array(1, c"java/lang/Object", arg).unwrap();
         let val = env
             .call_method(
                 abs_method,
-                "invoke",
-                "(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;",
+                c"invoke",
+                c"(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;",
                 &[JValue::from(&JObject::null()), JValue::from(&vargs)],
             )
             .expect("can call Method.invoke")
             .l()
             .expect("return value is an int");
         let val = env
-            .call_method(val, "intValue", "()I", &[])
+            .call_method(val, c"intValue", c"()I", &[])
             .unwrap()
             .i()
             .unwrap();
@@ -929,7 +929,7 @@ pub fn get_array_elements_critical() {
 #[test]
 pub fn get_object_class() {
     attach_current_thread(|env| {
-        let string = env.new_string("test").unwrap();
+        let string = env.new_string(c"test").unwrap();
         let result = env.get_object_class(string);
         assert!(result.is_ok());
         assert!(!result.unwrap().is_null());
@@ -1006,7 +1006,7 @@ pub fn get_direct_buffer_capacity_ok() {
 pub fn get_direct_buffer_capacity_wrong_arg() {
     attach_current_thread(|env| {
         let wrong_obj =
-            unsafe { JByteBuffer::from_raw(env.new_string("wrong").unwrap().into_raw()) };
+            unsafe { JByteBuffer::from_raw(env.new_string(c"wrong").unwrap().into_raw()) };
         let capacity = env.get_direct_buffer_capacity(&wrong_obj);
         assert!(capacity.is_err());
 
@@ -1049,7 +1049,7 @@ pub fn get_direct_buffer_address_ok() {
 #[test]
 pub fn get_direct_buffer_address_wrong_arg() {
     attach_current_thread(|env| {
-        let wrong_obj: JObject = env.new_string("wrong").unwrap().into();
+        let wrong_obj: JObject = env.new_string(c"wrong").unwrap().into();
 
         // SAFETY: This is not a valid cast and not generally safe but `GetDirectBufferAddress` is
         // documented to return a null pointer in case the "given object is not a direct java.nio.Buffer".
@@ -1174,7 +1174,7 @@ fn get_super_class_ok() {
 #[test]
 fn get_super_class_null() {
     attach_current_thread(|env| {
-        let result = env.get_superclass("java/lang/Object");
+        let result = env.get_superclass(c"java/lang/Object");
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
 
@@ -1255,17 +1255,17 @@ fn auto_local_null() {
 #[test]
 fn test_call_nonvirtual_method() {
     attach_current_thread(|env| {
-        let a_string = JObject::from(env.new_string("test").unwrap());
-        let another_string = JObject::from(env.new_string("test").unwrap());
+        let a_string = JObject::from(env.new_string(c"test").unwrap());
+        let another_string = JObject::from(env.new_string(c"test").unwrap());
 
         // The `equals` method in java/lang/Object will compare the reference
-        let obj_class = env.find_class("java/lang/Object").unwrap();
+        let obj_class = env.find_class(c"java/lang/Object").unwrap();
         let object_result = env
             .call_nonvirtual_method(
                 &a_string,
                 &obj_class,
-                "equals",
-                "(Ljava/lang/Object;)Z",
+                c"equals",
+                c"(Ljava/lang/Object;)Z",
                 &[JValue::from(&another_string)],
             )
             .unwrap()
@@ -1274,13 +1274,13 @@ fn test_call_nonvirtual_method() {
         assert!(!object_result);
 
         // However, java/lang/String overrided it and it now compares the content.
-        let string_class = env.find_class("java/lang/String").unwrap();
+        let string_class = env.find_class(c"java/lang/String").unwrap();
         let string_result = env
             .call_nonvirtual_method(
                 &a_string,
                 &string_class,
-                "equals",
-                "(Ljava/lang/Object;)Z",
+                c"equals",
+                c"(Ljava/lang/Object;)Z",
                 &[JValue::from(&another_string)],
             )
             .unwrap()
@@ -1308,7 +1308,7 @@ fn short_lifetime_with_local_frame_sub_fn<'local>(
     env: &'_ mut JNIEnv<'local>,
 ) -> Result<JObject<'local>, Error> {
     env.with_local_frame_returning_local::<_, JObject, _>(16, |env| {
-        env.new_object(INTEGER_CLASS, "(I)V", &[JValue::from(5)])
+        env.new_object(INTEGER_CLASS, c"(I)V", &[JValue::from(5)])
     })
 }
 
@@ -1316,7 +1316,7 @@ fn short_lifetime_with_local_frame_sub_fn<'local>(
 fn short_lifetime_list() {
     attach_current_thread(|env| {
         let first_list_object = short_lifetime_list_sub_fn(env).unwrap();
-        let value = env.call_method(first_list_object, "intValue", "()I", &[]);
+        let value = env.call_method(first_list_object, c"intValue", c"()I", &[]);
         assert_eq!(value.unwrap().i().unwrap(), 1);
 
         Ok(())
@@ -1327,9 +1327,9 @@ fn short_lifetime_list() {
 fn short_lifetime_list_sub_fn<'local>(
     env: &'_ mut JNIEnv<'local>,
 ) -> Result<JObject<'local>, Error> {
-    let list_object = env.new_object(ARRAYLIST_CLASS, "()V", &[])?;
+    let list_object = env.new_object(ARRAYLIST_CLASS, c"()V", &[])?;
     let list = JList::from_env(env, &list_object)?;
-    let element = env.new_object(INTEGER_CLASS, "(I)V", &[JValue::from(1)])?;
+    let element = env.new_object(INTEGER_CLASS, c"(I)V", &[JValue::from(1)])?;
     list.add(env, &element)?;
     short_lifetime_list_sub_fn_get_first_element(env, &list)
 }
@@ -1350,7 +1350,7 @@ fn get_object_array_element() {
             .unwrap();
         assert!(!array.is_null());
         assert!(env.get_object_array_element(&array, 0).unwrap().is_null());
-        let test_str = env.new_string("test").unwrap();
+        let test_str = env.new_string(c"test").unwrap();
         env.set_object_array_element(&array, 0, test_str).unwrap();
         assert!(!env.get_object_array_element(&array, 0).unwrap().is_null());
 
@@ -1362,12 +1362,12 @@ fn get_object_array_element() {
 #[test]
 pub fn throw_new() {
     attach_current_thread(|env| {
-        let result = env.throw_new(RUNTIME_EXCEPTION_CLASS, "Test Exception");
+        let result = env.throw_new(RUNTIME_EXCEPTION_CLASS, c"Test Exception");
         assert!(result.is_ok());
         assert_pending_java_exception_detailed(
             env,
             Some(RUNTIME_EXCEPTION_CLASS),
-            Some("Test Exception"),
+            Some(JNIStr::from_cstr(c"Test Exception")),
         );
 
         Ok(())
@@ -1378,7 +1378,7 @@ pub fn throw_new() {
 #[test]
 pub fn throw_new_fail() {
     attach_current_thread(|env| {
-        let result = env.throw_new("java/lang/NonexistentException", "Test Exception");
+        let result = env.throw_new(c"java/lang/NonexistentException", c"Test Exception");
         assert!(result.is_err());
         // Just to clear the java.lang.NoClassDefFoundError
         assert_pending_java_exception(env);
@@ -1403,7 +1403,7 @@ pub fn throw_defaults() {
 #[test]
 pub fn test_conversion() {
     attach_current_thread(|env| {
-        let orig_obj: JObject = env.new_string("Hello, world!").unwrap().into();
+        let orig_obj: JObject = env.new_string(c"Hello, world!").unwrap().into();
 
         let obj: JObject = unwrap(env.new_local_ref(&orig_obj), env);
 
@@ -1471,8 +1471,8 @@ fn assert_pending_java_exception(env: &mut JNIEnv) {
 // `expected_message` and clears it if any.
 fn assert_pending_java_exception_detailed(
     env: &mut JNIEnv,
-    expected_type: Option<&str>,
-    expected_message: Option<&str>,
+    expected_type: Option<&JNIStr>,
+    expected_message: Option<&JNIStr>,
 ) {
     assert!(env.exception_check());
     let exception = env.exception_occurred().expect("Unable to get exception");
@@ -1488,19 +1488,19 @@ fn assert_pending_java_exception_detailed(
 }
 
 // Asserts that exception is of `expected_type` type.
-fn assert_exception_type(env: &mut JNIEnv, exception: &JThrowable, expected_type: &str) {
+fn assert_exception_type(env: &mut JNIEnv, exception: &JThrowable, expected_type: &JNIStr) {
     assert!(env.is_instance_of(exception, expected_type).unwrap());
 }
 
 // Asserts that exception's message is `expected_message`.
-fn assert_exception_message(env: &mut JNIEnv, exception: &JThrowable, expected_message: &str) {
+fn assert_exception_message(env: &mut JNIEnv, exception: &JThrowable, expected_message: &JNIStr) {
     let message = env
-        .call_method(exception, "getMessage", "()Ljava/lang/String;", &[])
+        .call_method(exception, c"getMessage", c"()Ljava/lang/String;", &[])
         .unwrap()
         .l()
         .unwrap();
     let message = env.cast_local::<JString>(message).unwrap();
-    let msg_rust: String = env.get_string(&message).unwrap().into();
+    let msg_rust: JNIString = env.get_string(&message).unwrap().into();
     assert_eq!(msg_rust, expected_message);
 }
 
@@ -1508,7 +1508,7 @@ fn assert_exception_message(env: &mut JNIEnv, exception: &JThrowable, expected_m
 fn test_java_char_conversion() {
     attach_current_thread(|env| {
         // Make a Java `StringBuilder`.
-        let sb = unwrap(env.new_object("java/lang/StringBuilder", "()V", &[]), env);
+        let sb = unwrap(env.new_object(c"java/lang/StringBuilder", c"()V", &[]), env);
 
         // U+1F913 is not representable in a single UTF-16 unit, so this conversion should fail.
         assert_matches!(JValue::try_from('🤓'), Err(CharToJavaError { char: '🤓' }));
@@ -1517,8 +1517,8 @@ fn test_java_char_conversion() {
         unwrap(
             env.call_method(
                 &sb,
-                "appendCodePoint",
-                "(I)Ljava/lang/StringBuilder;",
+                c"appendCodePoint",
+                c"(I)Ljava/lang/StringBuilder;",
                 &[JValue::int_from_char('🤓')],
             ),
             env,
@@ -1528,8 +1528,8 @@ fn test_java_char_conversion() {
         unwrap(
             env.call_method(
                 &sb,
-                "append",
-                "(C)Ljava/lang/StringBuilder;",
+                c"append",
+                c"(C)Ljava/lang/StringBuilder;",
                 &[JValue::try_from('☃').unwrap()],
             ),
             env,
@@ -1537,7 +1537,7 @@ fn test_java_char_conversion() {
 
         // Finish the `StringBuilder` and get a Java `String`.
         let s = unwrap(
-            env.call_method(&sb, "toString", "()Ljava/lang/String;", &[]),
+            env.call_method(&sb, c"toString", c"()Ljava/lang/String;", &[]),
             env,
         )
         .l()
@@ -1550,7 +1550,7 @@ fn test_java_char_conversion() {
 
             // Get the first Java `char` and try to unwrap it to a Rust `char`.
             let c = unwrap(
-                env.call_method(&s, "charAt", "(I)C", &[JValue::Int(0)]),
+                env.call_method(&s, c"charAt", c"(I)C", &[JValue::Int(0)]),
                 env,
             )
             .c_char();
@@ -1571,7 +1571,7 @@ fn test_java_char_conversion() {
 
             // Get the UTF-32 unit and unwrap it.
             let c = unwrap(
-                env.call_method(&s, "codePointAt", "(I)I", &[JValue::Int(0)]),
+                env.call_method(&s, c"codePointAt", c"(I)I", &[JValue::Int(0)]),
                 env,
             )
             .i_char()
@@ -1588,8 +1588,8 @@ fn test_java_char_conversion() {
             let c = unwrap(
                 env.call_method(
                     &s,
-                    "charAt",
-                    "(I)C",
+                    c"charAt",
+                    c"(I)C",
                     // The first character is represented in UTF-16 as a surrogate pair, so the second character occurs at index 2 instead of 1.
                     &[JValue::Int(2)],
                 ),

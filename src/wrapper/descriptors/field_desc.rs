@@ -3,14 +3,14 @@ use crate::{
     env::JNIEnv,
     errors::*,
     objects::{JClass, JFieldID, JStaticFieldID},
-    strings::JNIString,
+    strings::JNIStr,
 };
 
 unsafe impl<'local, 'other_local, T, U, V> Desc<'local, JFieldID> for (T, U, V)
 where
     T: Desc<'local, JClass<'other_local>>,
-    U: Into<JNIString>,
-    V: Into<JNIString>,
+    U: AsRef<JNIStr>,
+    V: AsRef<JNIStr>,
 {
     type Output = JFieldID;
 
@@ -22,8 +22,8 @@ where
 unsafe impl<'local, 'other_local, T, U, V> Desc<'local, JStaticFieldID> for (T, U, V)
 where
     T: Desc<'local, JClass<'other_local>>,
-    U: Into<JNIString>,
-    V: Into<JNIString>,
+    U: AsRef<JNIStr>,
+    V: AsRef<JNIStr>,
 {
     type Output = JStaticFieldID;
 

@@ -21,8 +21,8 @@ pub fn weak_ref_works_in_other_threads() {
     attach_current_thread(|env| {
         let atomic_integer_local = unwrap(
             env.new_object(
-                "java/util/concurrent/atomic/AtomicInteger",
-                "(I)V",
+                c"java/util/concurrent/atomic/AtomicInteger",
+                c"(I)V",
                 &[JValue::from(0)],
             ),
             env,
@@ -52,7 +52,12 @@ pub fn weak_ref_works_in_other_threads() {
                                 .auto();
                             unwrap(
                                 unwrap(
-                                    env.call_method(&atomic_integer, "incrementAndGet", "()I", &[]),
+                                    env.call_method(
+                                        &atomic_integer,
+                                        c"incrementAndGet",
+                                        c"()I",
+                                        &[],
+                                    ),
                                     env,
                                 )
                                 .i(),
@@ -77,8 +82,8 @@ pub fn weak_ref_works_in_other_threads() {
                     unwrap(
                         env.call_method(
                             &atomic_integer_local,
-                            "getAndSet",
-                            "(I)I",
+                            c"getAndSet",
+                            c"(I)I",
                             &[JValue::from(0)]
                         ),
                         env,
@@ -102,7 +107,7 @@ fn weak_ref_is_actually_weak() {
         fn run_gc(env: &mut JNIEnv) {
             unwrap(
                 env.with_local_frame(1, |env| {
-                    env.call_static_method("java/lang/System", "gc", "()V", &[])?;
+                    env.call_static_method(c"java/lang/System", c"gc", c"()V", &[])?;
                     Ok(())
                 }),
                 env,
@@ -112,7 +117,7 @@ fn weak_ref_is_actually_weak() {
         for _ in 0..100 {
             let obj_local = unwrap(
                 env.with_local_frame_returning_local::<_, JObject, _>(2, |env| {
-                    env.new_object("java/lang/Object", "()V", &[])
+                    env.new_object(c"java/lang/Object", c"()V", &[])
                 }),
                 env,
             )

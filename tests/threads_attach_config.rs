@@ -21,16 +21,16 @@ fn attach_config() {
                     // Get the current Thread and query the name
                     let thread = env
                         .call_static_method(
-                            "java/lang/Thread",
-                            "currentThread",
-                            "()Ljava/lang/Thread;",
+                            c"java/lang/Thread",
+                            c"currentThread",
+                            c"()Ljava/lang/Thread;",
                             &[],
                         )
                         .unwrap()
                         .l()
                         .unwrap();
                     let name = env
-                        .call_method(thread, "getName", "()Ljava/lang/String;", &[])?
+                        .call_method(thread, c"getName", c"()Ljava/lang/String;", &[])?
                         .l()?;
                     let name = env.cast_local::<JString>(name).unwrap();
                     let name = env.get_string(&name)?;

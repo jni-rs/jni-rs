@@ -6,6 +6,7 @@ use crate::{
     env::JNIEnv,
     errors::Result,
     objects::{GlobalRef, JClass, JMethodID, JObject, JString, LoaderContext},
+    strings::JNIStr,
     sys::{jobject, jthrowable},
     JavaVM,
 };
@@ -60,10 +61,10 @@ impl JThrowableAPI {
                 let class = loader_context.load_class_for_type::<JThrowable>(true, env)?;
                 let class = env.new_global_ref(&class).unwrap();
                 let get_message_method = env
-                    .get_method_id(&class, "getMessage", "()Ljava/lang/String;")
+                    .get_method_id(&class, c"getMessage", c"()Ljava/lang/String;")
                     .expect("JThrowable.getMessage method not found");
                 let get_cause_method = env
-                    .get_method_id(&class, "getCause", "()Ljava/lang/Throwable;")
+                    .get_method_id(&class, c"getCause", c"()Ljava/lang/Throwable;")
                     .expect("JThrowable.getCause method not found");
                 Ok(Self {
                     class,
@@ -138,7 +139,7 @@ impl JThrowable<'_> {
 
 // SAFETY: JThrowable is a transparent JObject wrapper with no Drop side effects
 unsafe impl JObjectRef for JThrowable<'_> {
-    const CLASS_NAME: &'static str = "java.lang.Throwable";
+    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.Throwable");
 
     type Kind<'env> = JThrowable<'env>;
     type GlobalKind = JThrowable<'static>;

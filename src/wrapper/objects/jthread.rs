@@ -8,6 +8,7 @@ use crate::{
     objects::{
         GlobalRef, JClass, JClassLoader, JMethodID, JObject, JStaticMethodID, JValue, LoaderContext,
     },
+    strings::JNIStr,
     sys::{jobject, jthrowable},
     JavaVM,
 };
@@ -58,19 +59,23 @@ impl JThreadAPI {
         JTHREAD_API.get_or_try_init(|| {
             vm.with_env_current_frame(|env| {
                 // NB: Self::CLASS_NAME is a binary name with dots, not slashes
-                let class = env.find_class("java/lang/Thread")?;
+                let class = env.find_class(JNIStr::from_cstr(c"java/lang/Thread"))?;
                 let class = env.new_global_ref(&class).unwrap();
                 let current_thread_method = env
-                    .get_static_method_id(&class, "currentThread", "()Ljava/lang/Thread;")
+                    .get_static_method_id(&class, c"currentThread", c"()Ljava/lang/Thread;")
                     .expect("Thread.currentThread method not found");
                 let get_context_class_loader_method = env
-                    .get_method_id(&class, "getContextClassLoader", "()Ljava/lang/ClassLoader;")
+                    .get_method_id(
+                        &class,
+                        c"getContextClassLoader",
+                        c"()Ljava/lang/ClassLoader;",
+                    )
                     .expect("Thread.getContextClassLoader method not found");
                 let set_context_class_loader_method = env
                     .get_method_id(
                         &class,
-                        "setContextClassLoader",
-                        "(Ljava/lang/ClassLoader;)V",
+                        c"setContextClassLoader",
+                        c"(Ljava/lang/ClassLoader;)V",
                     )
                     .expect("Thread.setContextClassLoader method not found");
                 Ok(Self {
@@ -188,7 +193,7 @@ impl JThread<'_> {
 
 // SAFETY: JThread is a transparent JObject wrapper with no Drop side effects
 unsafe impl JObjectRef for JThread<'_> {
-    const CLASS_NAME: &'static str = "java.lang.Thread";
+    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.Thread");
 
     type Kind<'env> = JThread<'env>;
     type GlobalKind = JThread<'static>;

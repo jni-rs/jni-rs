@@ -32,8 +32,8 @@ impl AtomicIntegerProxy {
         vm.attach_current_thread(|env| -> Result<Self> {
             let obj = env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
                 let i = env.new_object(
-                    "java/util/concurrent/atomic/AtomicInteger",
-                    "(I)V",
+                    c"java/util/concurrent/atomic/AtomicInteger",
+                    c"(I)V",
                     &[JValue::from(init_value)],
                 )?;
                 env.new_global_ref(i)
@@ -47,14 +47,14 @@ impl AtomicIntegerProxy {
     /// Gets a current value from java object
     pub fn get(&mut self) -> Result<jint> {
         let vm = JavaVM::singleton()?;
-        vm.attach_current_thread(|env| env.call_method(&*self.obj, "get", "()I", &[])?.i())
+        vm.attach_current_thread(|env| env.call_method(&*self.obj, c"get", c"()I", &[])?.i())
     }
 
     /// Increments a value of java object and then gets it
     pub fn increment_and_get(&mut self) -> Result<jint> {
         let vm = JavaVM::singleton()?;
         vm.attach_current_thread(|env| {
-            env.call_method(&*self.obj, "incrementAndGet", "()I", &[])?
+            env.call_method(&*self.obj, c"incrementAndGet", c"()I", &[])?
                 .i()
         })
     }
@@ -64,7 +64,7 @@ impl AtomicIntegerProxy {
         let vm = JavaVM::singleton()?;
         vm.attach_current_thread(|env| {
             let delta = JValue::from(delta);
-            env.call_method(&*self.obj, "addAndGet", "(I)I", &[delta])?
+            env.call_method(&*self.obj, c"addAndGet", c"(I)I", &[delta])?
                 .i()
         })
     }

@@ -9,6 +9,9 @@ use jni::env::JNIEnvUnowned;
 use jni::objects::{GlobalRef, JClass, JObject, JString};
 
 use jni::objects::JByteArray;
+
+use jni::strings::JNIString;
+
 use jni::sys::{jint, jlong};
 
 use std::{sync::mpsc, thread, time::Duration};
@@ -62,7 +65,7 @@ pub extern "system" fn Java_HelloWorld_hello<'caller_frame>(
             // Then we have to create a new java string to return. Again, more info
             // in the `strings` module.
             let output = env
-                .new_string(format!("Hello, {}!", input))
+                .new_string(JNIString::from(format!("Hello, {}!", input)))
                 .expect("Couldn't create java string!");
             Ok(output)
         })
@@ -106,7 +109,7 @@ pub extern "system" fn Java_HelloWorld_factAndCallMeBack(
             let i = n as i32;
             let res: jint = (2..i + 1).product();
 
-            env.call_method(callback, "factCallback", "(I)V", &[res.into()])
+            env.call_method(callback, c"factCallback", c"(I)V", &[res.into()])
                 .unwrap();
             Ok(())
         })
@@ -133,8 +136,8 @@ impl Counter {
         self.count = self.count + 1;
         env.call_method(
             &self.callback,
-            "counterCallback",
-            "(I)V",
+            c"counterCallback",
+            c"(I)V",
             &[self.count.into()],
         )
         .unwrap();
@@ -218,7 +221,7 @@ pub extern "system" fn Java_HelloWorld_asyncComputation(
                     for i in 0..11 {
                         let progress = (i * 10) as jint;
                         // Now we can use all available `JNIEnv` functionality normally.
-                        env.call_method(&callback, "asyncCallback", "(I)V", &[progress.into()])
+                        env.call_method(&callback, c"asyncCallback", c"(I)V", &[progress.into()])
                             .unwrap();
                         thread::sleep(Duration::from_millis(100));
                     }

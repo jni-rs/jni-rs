@@ -6,6 +6,7 @@ use crate::{
     env::JNIEnv,
     errors::Result,
     objects::{GlobalRef, JClass, JMethodID, JObject, LoaderContext},
+    strings::JNIStr,
     sys::{jobject, jstring},
     JavaVM,
 };
@@ -60,7 +61,7 @@ impl JStringAPI {
                 let class = loader_context.load_class_for_type::<JString>(true, env)?;
                 let class = env.new_global_ref(&class).unwrap();
                 let intern_method = env
-                    .get_method_id(&class, "intern", "()Ljava/lang/String;")
+                    .get_method_id(&class, c"intern", c"()Ljava/lang/String;")
                     .expect("JString.intern method not found");
 
                 Ok(Self {
@@ -116,7 +117,7 @@ impl JString<'_> {
 
 // SAFETY: JString is a transparent JObject wrapper with no Drop side effects
 unsafe impl JObjectRef for JString<'_> {
-    const CLASS_NAME: &'static str = "java.lang.String";
+    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.String");
 
     type Kind<'env> = JString<'env>;
     type GlobalKind = JString<'static>;

@@ -1,10 +1,11 @@
-use std::{borrow::Cow, ops::Deref};
+use std::{borrow::Cow, ffi::CString, ops::Deref};
 
 use jni_sys::jobject;
 
 use crate::{
     errors::Error,
     objects::{GlobalRef, JClass, JClassLoader, JObject, JThread},
+    strings::{JNIStr, JNIString},
     JavaVM,
 };
 
@@ -39,7 +40,7 @@ pub unsafe trait JObjectRef: Sized {
     ///
     /// An array of objects would look like: "[Ljava.lang.Object;" An array of
     /// integers would look like: "[I"
-    const CLASS_NAME: &'static str;
+    const CLASS_NAME: &'static JNIStr;
 
     /// The generic associated [`Self::Kind`] type corresponds to the underlying
     /// class type (such as [`JObject`] or [`JString`]), parameterized by the
@@ -181,23 +182,26 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
     /// The strategy for loading the class depends on the loader context (See [Self]).
     pub fn load_class<'env_local>(
         &self,
-        name: &'static str,
+        name: &'static JNIStr,
         initialize: bool,
         env: &mut crate::env::JNIEnv<'env_local>,
     ) -> crate::errors::Result<JClass<'env_local>> {
         /// Convert a binary name or array descriptor (like `"java.lang.String"` or
         /// `"[Ljava.lang.String;"`) into an internal name like `"java/lang/String"` or
         /// `"[Ljava/lang/String;"` that can be passed to `FindClass`.
-        fn internal_find_class_name(binary_name: &'static str) -> Cow<'static, str> {
-            if !binary_name.contains('.') {
+        fn internal_find_class_name(binary_name: &'static JNIStr) -> Cow<'static, JNIStr> {
+            let bytes = binary_name.to_bytes();
+            if !bytes.contains(&b'.') {
                 Cow::Borrowed(binary_name)
             } else {
                 // Convert from dot-notation to slash-notation
-                let owned: String = binary_name
-                    .chars()
-                    .map(|b| if b == '.' { '/' } else { b })
+                let owned: Vec<u8> = bytes
+                    .iter()
+                    .map(|&b| if b == b'.' { b'/' } else { b })
                     .collect();
-                Cow::Owned(owned)
+                let cstring = CString::new(owned).unwrap();
+                let jni_string = unsafe { JNIString::from_cstring(cstring) };
+                Cow::Owned(jni_string)
             }
         }
 
@@ -217,7 +221,7 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
         }
 
         fn load_class_with_catch<'any_loader, 'any_local>(
-            name: &'static str,
+            name: &'static JNIStr,
             initialize: bool,
             loader: &JClassLoader<'any_loader>,
             env: &mut crate::env::JNIEnv<'any_local>,
@@ -235,7 +239,7 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
         }
 
         fn find_class<'local>(
-            name: &'static str,
+            name: &'static JNIStr,
             env: &mut crate::env::JNIEnv<'local>,
         ) -> crate::errors::Result<JClass<'local>> {
             let internal_name = internal_find_class_name(name);
@@ -247,7 +251,7 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
         }
 
         fn lookup_class_with_fallbacks<'local>(
-            name: &'static str,
+            name: &'static JNIStr,
             initialize: bool,
             candidate: Option<&JObject>,
             env: &mut crate::env::JNIEnv<'local>,
@@ -314,7 +318,7 @@ unsafe impl<T> JObjectRef for &T
 where
     T: JObjectRef,
 {
-    const CLASS_NAME: &'static str = T::CLASS_NAME;
+    const CLASS_NAME: &'static JNIStr = T::CLASS_NAME;
 
     type Kind<'local> = T::Kind<'local>;
     type GlobalKind = T::GlobalKind;
