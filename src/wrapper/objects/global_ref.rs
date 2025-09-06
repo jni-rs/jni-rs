@@ -7,6 +7,7 @@ use crate::{
     env::JNIEnv,
     errors::Result,
     objects::{JClass, JObject, LoaderContext},
+    strings::JNIStr,
     sys, JavaVM,
 };
 
@@ -300,7 +301,7 @@ unsafe impl<T> JObjectRef for GlobalRef<T>
 where
     T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
 {
-    const CLASS_NAME: &'static str = T::CLASS_NAME;
+    const CLASS_NAME: &'static JNIStr = T::CLASS_NAME;
 
     type Kind<'env> = T::Kind<'env>;
     type GlobalKind = T::GlobalKind;

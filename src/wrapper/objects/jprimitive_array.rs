@@ -6,6 +6,7 @@ use once_cell::sync::OnceCell;
 use crate::{
     errors::Result,
     objects::{GlobalRef, JClass, JObject, JObjectRef, LoaderContext},
+    strings::JNIStr,
     sys::{jarray, jobject},
     JavaVM,
 };
@@ -162,7 +163,7 @@ macro_rules! impl_ref_for_jprimitive_array {
 
             // SAFETY: JPrimitiveArray is a transparent JObject wrapper with no Drop side effects
             unsafe impl JObjectRef for JPrimitiveArray<'_, crate::sys::$type> {
-                const CLASS_NAME: &'static str = $class_name;
+                const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr($class_name);
 
                 type Kind<'env> = JPrimitiveArray<'env, crate::sys::$type>;
                 type GlobalKind = JPrimitiveArray<'static, crate::sys::$type>;
@@ -191,11 +192,11 @@ macro_rules! impl_ref_for_jprimitive_array {
     };
 }
 
-impl_ref_for_jprimitive_array!(jboolean, "[Z");
-impl_ref_for_jprimitive_array!(jbyte, "[B");
-impl_ref_for_jprimitive_array!(jchar, "[C");
-impl_ref_for_jprimitive_array!(jshort, "[S");
-impl_ref_for_jprimitive_array!(jint, "[I");
-impl_ref_for_jprimitive_array!(jlong, "[J");
-impl_ref_for_jprimitive_array!(jfloat, "[F");
-impl_ref_for_jprimitive_array!(jdouble, "[D");
+impl_ref_for_jprimitive_array!(jboolean, c"[Z");
+impl_ref_for_jprimitive_array!(jbyte, c"[B");
+impl_ref_for_jprimitive_array!(jchar, c"[C");
+impl_ref_for_jprimitive_array!(jshort, c"[S");
+impl_ref_for_jprimitive_array!(jint, c"[I");
+impl_ref_for_jprimitive_array!(jlong, c"[J");
+impl_ref_for_jprimitive_array!(jfloat, c"[F");
+impl_ref_for_jprimitive_array!(jdouble, c"[D");

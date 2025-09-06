@@ -5,6 +5,7 @@ use once_cell::sync::OnceCell;
 use crate::{
     errors::Result,
     objects::{GlobalRef, JClass, JObject, JObjectRef, LoaderContext},
+    strings::JNIStr,
     sys::jobject,
     JavaVM,
 };
@@ -79,7 +80,7 @@ impl JByteBuffer<'_> {
 
 // SAFETY: JByteBuffer is a transparent JObject wrapper with no Drop side effects
 unsafe impl JObjectRef for JByteBuffer<'_> {
-    const CLASS_NAME: &'static str = "[Ljava.nio.ByteBuffer;";
+    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"[Ljava.nio.ByteBuffer;");
 
     type Kind<'env> = JByteBuffer<'env>;
     type GlobalKind = JByteBuffer<'static>;

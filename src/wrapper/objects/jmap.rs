@@ -44,18 +44,17 @@ impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> JMap<'local, 'other_local_1, 'o
         env: &mut JNIEnv<'local>,
         obj: &'obj_ref JObject<'other_local_1>,
     ) -> Result<JMap<'local, 'other_local_1, 'obj_ref>> {
-        let class = env.find_class("java/util/Map")?.auto();
+        let class = env.find_class(c"java/util/Map")?.auto();
 
-        let get = env.get_method_id(&class, "get", "(Ljava/lang/Object;)Ljava/lang/Object;")?;
+        let get = env.get_method_id(&class, c"get", c"(Ljava/lang/Object;)Ljava/lang/Object;")?;
         let put = env.get_method_id(
             &class,
-            "put",
-            "(Ljava/lang/Object;Ljava/lang/Object;\
-             )Ljava/lang/Object;",
+            c"put",
+            c"(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
         )?;
 
         let remove =
-            env.get_method_id(&class, "remove", "(Ljava/lang/Object;)Ljava/lang/Object;")?;
+            env.get_method_id(&class, c"remove", c"(Ljava/lang/Object;)Ljava/lang/Object;")?;
 
         Ok(JMap {
             internal: obj,
@@ -184,17 +183,17 @@ impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> JMap<'local, 'other_local_1, 'o
         &'map self,
         env: &mut JNIEnv<'iter_local>,
     ) -> Result<JMapIter<'map, 'local, 'other_local_1, 'obj_ref, 'iter_local>> {
-        let iter_class = env.find_class("java/util/Iterator")?.auto();
+        let iter_class = env.find_class(c"java/util/Iterator")?.auto();
 
-        let has_next = env.get_method_id(&iter_class, "hasNext", "()Z")?;
+        let has_next = env.get_method_id(&iter_class, c"hasNext", c"()Z")?;
 
-        let next = env.get_method_id(&iter_class, "next", "()Ljava/lang/Object;")?;
+        let next = env.get_method_id(&iter_class, c"next", c"()Ljava/lang/Object;")?;
 
-        let entry_class = env.find_class("java/util/Map$Entry")?.auto();
+        let entry_class = env.find_class(c"java/util/Map$Entry")?.auto();
 
-        let get_key = env.get_method_id(&entry_class, "getKey", "()Ljava/lang/Object;")?;
+        let get_key = env.get_method_id(&entry_class, c"getKey", c"()Ljava/lang/Object;")?;
 
-        let get_value = env.get_method_id(&entry_class, "getValue", "()Ljava/lang/Object;")?;
+        let get_value = env.get_method_id(&entry_class, c"getValue", c"()Ljava/lang/Object;")?;
 
         // Get the iterator over Map entries.
 
@@ -202,7 +201,7 @@ impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> JMap<'local, 'other_local_1, 'o
         let entry_set = unsafe {
             env.call_method_unchecked(
                 self.internal,
-                (&self.class, "entrySet", "()Ljava/util/Set;"),
+                (&self.class, c"entrySet", c"()Ljava/util/Set;"),
                 ReturnType::Object,
                 &[],
             )
@@ -214,7 +213,7 @@ impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> JMap<'local, 'other_local_1, 'o
         let iter = unsafe {
             env.call_method_unchecked(
                 entry_set,
-                ("java/util/Set", "iterator", "()Ljava/util/Iterator;"),
+                (c"java/util/Set", c"iterator", c"()Ljava/util/Iterator;"),
                 ReturnType::Object,
                 &[],
             )

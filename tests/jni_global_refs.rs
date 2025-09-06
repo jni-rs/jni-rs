@@ -20,8 +20,8 @@ pub fn global_ref_works_in_other_threads() {
     let atomic_integer = attach_current_thread(|env| {
         let local_ref = unwrap(
             env.new_object(
-                "java/util/concurrent/atomic/AtomicInteger",
-                "(I)V",
+                c"java/util/concurrent/atomic/AtomicInteger",
+                c"(I)V",
                 &[JValue::from(0)],
             ),
             env,
@@ -50,7 +50,7 @@ pub fn global_ref_works_in_other_threads() {
                     for _ in 0..ITERS_PER_THREAD {
                         unwrap(
                             unwrap(
-                                env.call_method(atomic_integer, "incrementAndGet", "()I", &[]),
+                                env.call_method(atomic_integer, c"incrementAndGet", c"()I", &[]),
                                 env,
                             )
                             .i(),
@@ -75,7 +75,7 @@ pub fn global_ref_works_in_other_threads() {
                 expected,
                 unwrap(
                     unwrap(
-                        env.call_method(atomic_integer, "getAndSet", "(I)I", &[JValue::from(0)]),
+                        env.call_method(atomic_integer, c"getAndSet", c"(I)I", &[JValue::from(0)]),
                         env,
                     )
                     .i(),

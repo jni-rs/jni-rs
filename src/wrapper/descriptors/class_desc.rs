@@ -3,17 +3,17 @@ use crate::{
     env::JNIEnv,
     errors::*,
     objects::{AutoLocal, IntoAutoLocal as _, JClass},
-    strings::JNIString,
+    strings::JNIStr,
 };
 
 unsafe impl<'local, T> Desc<'local, JClass<'local>> for T
 where
-    T: Into<JNIString>,
+    T: AsRef<JNIStr>,
 {
     type Output = AutoLocal<'local, JClass<'local>>;
 
     fn lookup(self, env: &mut JNIEnv<'local>) -> Result<Self::Output> {
-        Ok(env.find_class(self)?.auto())
+        Ok(env.find_class(self.as_ref())?.auto())
     }
 }
 

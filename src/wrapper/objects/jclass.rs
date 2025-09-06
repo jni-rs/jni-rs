@@ -9,7 +9,7 @@ use crate::{
         GlobalRef, JClassLoader, JMethodID, JObject, JStaticMethodID, JValue, LoaderContext,
     },
     signature::JavaType,
-    strings::JNIString,
+    strings::JNIStr,
     sys::{jclass, jobject},
     JavaVM,
 };
@@ -60,19 +60,19 @@ impl JClassAPI {
         JCLASS_API.get_or_try_init(|| {
             vm.with_env_current_frame(|env| {
                 // NB: Self::CLASS_NAME is a binary name with dots, not slashes
-                let class = env.find_class("java/lang/Class")?;
+                let class = env.find_class(JNIStr::from_cstr(c"java/lang/Class"))?;
                 let class = env.new_global_ref(class)?;
                 let get_class_loader_method =
-                    env.get_method_id(&class, "getClassLoader", "()Ljava/lang/ClassLoader;")?;
+                    env.get_method_id(&class, c"getClassLoader", c"()Ljava/lang/ClassLoader;")?;
                 let for_name_method = env.get_static_method_id(
                     &class,
-                    "forName",
-                    "(Ljava/lang/String;)Ljava/lang/Class;",
+                    c"forName",
+                    c"(Ljava/lang/String;)Ljava/lang/Class;",
                 )?;
                 let for_name_with_loader_method = env.get_static_method_id(
                     &class,
-                    "forName",
-                    "(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;",
+                    c"forName",
+                    c"(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;",
                 )?;
                 Ok(Self {
                     class,
@@ -151,7 +151,7 @@ impl JClass<'_> {
     /// This method may throw a `ClassNotFoundException` if the class cannot be found.
     pub fn for_name<'local, C>(class_name: C, env: &mut JNIEnv<'local>) -> Result<JClass<'local>>
     where
-        C: Into<JNIString>,
+        C: AsRef<JNIStr>,
     {
         let vm = env.get_java_vm();
         let api = JClassAPI::get(&vm)?;
@@ -196,7 +196,7 @@ impl JClass<'_> {
         env: &mut JNIEnv<'env_local>,
     ) -> Result<JClass<'env_local>>
     where
-        C: Into<JNIString>,
+        C: AsRef<JNIStr>,
         L: AsRef<JClassLoader<'loader_local>>,
     {
         let vm = env.get_java_vm();
@@ -227,7 +227,7 @@ impl JClass<'_> {
 
 // SAFETY: JClass is a transparent JObject wrapper with no Drop side effects
 unsafe impl JObjectRef for JClass<'_> {
-    const CLASS_NAME: &'static str = "java.lang.Class";
+    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.Class");
 
     type Kind<'env> = JClass<'env>;
     type GlobalKind = JClass<'static>;

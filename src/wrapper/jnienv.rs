@@ -135,8 +135,8 @@ use super::{objects::JObjectRef, AttachGuard};
 ///     env,
 ///     // ERROR: cannot borrow `*env` as mutable more than once at a time
 ///     &env.new_object(
-///         "com/example/SomeClass",
-///         "()V",
+///         c"com/example/SomeClass",
+///         c"()V",
 ///         &[],
 ///     )?,
 /// )
@@ -159,8 +159,8 @@ use super::{objects::JObjectRef, AttachGuard};
 ///
 /// example_function(
 ///     &env.new_object(
-///         "com/example/SomeClass",
-///         "()V",
+///         c"com/example/SomeClass",
+///         c"()V",
 ///         &[],
 ///     )?,
 ///     env,
@@ -326,10 +326,10 @@ impl<'local> JNIEnv<'local> {
         buf: &[u8],
     ) -> Result<JClass<'local>>
     where
-        S: Into<JNIString>,
+        S: AsRef<JNIStr>,
     {
-        let name: Option<JNIString> = name.map(|n| n.into());
-        let name = name.as_ref().map_or(ptr::null(), |n| n.as_ptr());
+        let name: Option<&JNIStr> = name.as_ref().map(|n| n.as_ref());
+        let name = name.map_or(ptr::null(), |n| n.as_ptr());
         // Safety: we know the pointer for the u8 slice is valid for buf.len() bytes
         unsafe { self.define_class_impl(name, loader, buf.as_ptr() as *const jbyte, buf.len()) }
     }
@@ -347,9 +347,9 @@ impl<'local> JNIEnv<'local> {
         buf: &[jbyte],
     ) -> Result<JClass<'local>>
     where
-        S: Into<JNIString>,
+        S: AsRef<JNIStr>,
     {
-        let name: Option<JNIString> = name.map(|n| n.into());
+        let name: Option<&JNIStr> = name.as_ref().map(|n| n.as_ref());
         let name = name.as_ref().map_or(ptr::null(), |n| n.as_ptr());
         // Safety: we know the pointer for the u8 slice is valid for buf.len() bytes
         unsafe { self.define_class_impl(name, loader, buf.as_ptr() as *const jbyte, buf.len()) }
@@ -362,7 +362,7 @@ impl<'local> JNIEnv<'local> {
     /// # use jni::{errors::Result, env::JNIEnv, objects::JClass};
     /// #
     /// # fn example<'local>(env: &mut JNIEnv<'local>) -> Result<()> {
-    /// let class: JClass<'local> = env.find_class("java/lang/String")?;
+    /// let class: JClass<'local> = env.find_class(c"java/lang/String")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -370,12 +370,12 @@ impl<'local> JNIEnv<'local> {
     /// Returns the loaded class, or a [`Error::NullPtr`] error if the class could not be found.
     pub fn find_class<S>(&mut self, name: S) -> Result<JClass<'local>>
     where
-        S: Into<JNIString>,
+        S: AsRef<JNIStr>,
     {
         // Runtime check that the 'local reference lifetime will be tied to
         // JNIEnv lifetime for the top JNI stack frame
         assert_eq!(self.level, JavaVM::thread_attach_guard_level());
-        let name = name.into();
+        let name = name.as_ref();
         // Safety:
         // FindClass is 1.1 API that must be valid
         // name is non-null
@@ -540,7 +540,7 @@ impl<'local> JNIEnv<'local> {
     /// # use jni::{errors::Result, env::JNIEnv};
     /// #
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
-    /// env.throw(("java/lang/Exception", "something bad happened"))?;
+    /// env.throw((c"java/lang/Exception", c"something bad happened"))?;
     /// # Ok(())
     /// # }
     /// ```
@@ -551,7 +551,7 @@ impl<'local> JNIEnv<'local> {
     /// # use jni::{errors::Result, env::JNIEnv};
     /// #
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
-    /// env.throw("something bad happened")?;
+    /// env.throw(c"something bad happened")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -590,17 +590,17 @@ impl<'local> JNIEnv<'local> {
     /// # use jni::{errors::Result, env::JNIEnv};
     /// #
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
-    /// env.throw_new("java/lang/Exception", "something bad happened")?;
+    /// env.throw_new(c"java/lang/Exception", c"something bad happened")?;
     /// # Ok(())
     /// # }
     /// ```
     pub fn throw_new<'other_local, S, T>(&mut self, class: T, msg: S) -> Result<()>
     where
-        S: Into<JNIString>,
+        S: AsRef<JNIStr>,
         T: Desc<'local, JClass<'other_local>>,
     {
         let class = class.lookup(self)?;
-        let msg = msg.into();
+        let msg = msg.as_ref();
 
         // Safety:
         // ThrowNew is 1.1 API that must be valid
@@ -611,9 +611,8 @@ impl<'local> JNIEnv<'local> {
             jni_call_unchecked!(self, v1_1, ThrowNew, class.as_ref().as_raw(), msg.as_ptr())
         };
 
-        // Ensure that `class` and msg aren't dropped before the JNI call returns.
+        // Ensure that `class` isn't dropped before the JNI call returns.
         drop(class);
-        drop(msg);
 
         if res == 0 {
             Ok(())
@@ -867,7 +866,7 @@ impl<'local> JNIEnv<'local> {
     /// # use jni::{errors::Result, env::JNIEnv, objects::*};
     /// #
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
-    /// let local_obj: JObject = env.new_object("java/lang/String", "(Ljava/lang/String;)V", &[])?;
+    /// let local_obj: JObject = env.new_object(c"java/lang/String", c"(Ljava/lang/String;)V", &[])?;
     /// let global_string = env.new_cast_global_ref::<JString>(local_obj)?;
     /// // global_string is now a `GlobalRef<JString>` that persists beyond local frames
     ///
@@ -917,7 +916,7 @@ impl<'local> JNIEnv<'local> {
     /// # use jni::{errors::Result, env::JNIEnv, objects::*};
     /// #
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
-    /// let local_obj: JObject = env.new_object("java/lang/String", "(Ljava/lang/String;)V", &[])?;
+    /// let local_obj: JObject = env.new_object(c"java/lang/String", c"(Ljava/lang/String;)V", &[])?;
     /// let global_obj: GlobalRef<JObject<'static>> = env.new_global_ref(&local_obj)?;
     /// let global_string = env.cast_global::<JString>(global_obj)?;
     ///
@@ -1051,7 +1050,7 @@ impl<'local> JNIEnv<'local> {
     /// reference:
     ///
     /// ```no_run
-    /// # use jni::{env::JNIEnv, objects::*};
+    /// # use jni::{env::JNIEnv, objects::*, strings::*};
     /// # use std::fmt::Display;
     /// #
     /// # type SomeOtherErrorType = Box<dyn Display>;
@@ -1093,11 +1092,11 @@ impl<'local> JNIEnv<'local> {
     ///                 // The error was caused by something that happened in Rust code. Create a
     ///                 // new `java.lang.Error` to represent it.
     ///
-    ///                 let error_string = env.new_string(error.to_string())?;
+    ///                 let error_string = env.new_string(JNIString::from(error.to_string()))?;
     ///
     ///                 env.new_object(
-    ///                     "java/lang/Error",
-    ///                     "(Ljava/lang/String;)V",
+    ///                     c"java/lang/Error",
+    ///                     c"(Ljava/lang/String;)V",
     ///                     &[
     ///                         (&error_string).into(),
     ///                     ],
@@ -1174,7 +1173,7 @@ impl<'local> JNIEnv<'local> {
     /// # use jni::{errors::Result, env::JNIEnv, objects::*};
     /// #
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
-    /// let local_obj: JObject = env.new_object("java/lang/String", "(Ljava/lang/String;)V", &[])?;
+    /// let local_obj: JObject = env.new_object(c"java/lang/String", c"(Ljava/lang/String;)V", &[])?;
     /// let local_string = env.new_cast_local_ref::<JString>(&local_obj)?;
     /// // local_string is now a JString<'local> in the current frame
     /// # Ok(())
@@ -1218,7 +1217,7 @@ impl<'local> JNIEnv<'local> {
     /// # use jni::{errors::Result, env::JNIEnv, objects::*};
     /// #
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
-    /// let obj: JObject = env.new_object("java/lang/String", "(Ljava/lang/String;)V", &[])?;
+    /// let obj: JObject = env.new_object(c"java/lang/String", c"(Ljava/lang/String;)V", &[])?;
     /// let string: JString = env.cast_local::<JString>(obj)?;
     ///
     /// // For upcasting, From trait is more efficient:
@@ -1264,7 +1263,7 @@ impl<'local> JNIEnv<'local> {
     /// # use jni::{errors::Result, env::JNIEnv, objects::*};
     /// #
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
-    /// let obj: JObject = env.new_object("java/lang/String", "(Ljava/lang/String;)V", &[])?;
+    /// let obj: JObject = env.new_object(c"java/lang/String", c"(Ljava/lang/String;)V", &[])?;
     /// let string_ref = env.as_cast::<JString>(&obj)?;
     /// // obj is still valid here
     /// let java_string = env.get_string(&string_ref)?;
@@ -1530,27 +1529,27 @@ impl<'local> JNIEnv<'local> {
     ) -> Result<R>
     where
         T: Desc<'local, JClass<'other_local_1>>,
-        U: Into<JNIString>,
-        V: Into<JNIString>,
+        U: AsRef<JNIStr>,
+        V: AsRef<JNIStr>,
         C: for<'other_local_2> Fn(
             &mut Self,
             &JClass<'other_local_2>,
-            &JNIString,
-            &JNIString,
+            &JNIStr,
+            &JNIStr,
         ) -> Result<R>,
     {
         let class = class.lookup(self)?;
-        let ffi_name = name.into();
-        let sig = sig.into();
+        let ffi_name = name.as_ref();
+        let sig = sig.as_ref();
 
-        let res: Result<R> = get_method(self, class.as_ref(), &ffi_name, &sig);
+        let res: Result<R> = get_method(self, class.as_ref(), ffi_name, sig);
 
         match res {
             Ok(m) => Ok(m),
             Err(e) => match e {
                 Error::NullPtr(_) => {
-                    let name: String = ffi_name.into();
-                    let sig: String = sig.into();
+                    let name: String = ffi_name.to_str().into();
+                    let sig: String = sig.to_str().into();
                     Err(Error::MethodNotFound { name, sig })
                 }
                 _ => Err(e),
@@ -1570,7 +1569,7 @@ impl<'local> JNIEnv<'local> {
     /// #
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
     /// let method_id: JMethodID =
-    ///     env.get_method_id("java/lang/String", "substring", "(II)Ljava/lang/String;")?;
+    ///     env.get_method_id(c"java/lang/String", c"substring", c"(II)Ljava/lang/String;")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -1582,8 +1581,8 @@ impl<'local> JNIEnv<'local> {
     ) -> Result<JMethodID>
     where
         T: Desc<'local, JClass<'other_local>>,
-        U: Into<JNIString>,
-        V: Into<JNIString>,
+        U: AsRef<JNIStr>,
+        V: AsRef<JNIStr>,
     {
         self.get_method_id_base(class, name, sig, |env, class, name, sig| unsafe {
             jni_call_check_ex_and_null_ret!(
@@ -1610,7 +1609,7 @@ impl<'local> JNIEnv<'local> {
     /// #
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
     /// let method_id: JStaticMethodID =
-    ///     env.get_static_method_id("java/lang/String", "valueOf", "(I)Ljava/lang/String;")?;
+    ///     env.get_static_method_id(c"java/lang/String", c"valueOf", c"(I)Ljava/lang/String;")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -1622,8 +1621,8 @@ impl<'local> JNIEnv<'local> {
     ) -> Result<JStaticMethodID>
     where
         T: Desc<'local, JClass<'other_local>>,
-        U: Into<JNIString>,
-        V: Into<JNIString>,
+        U: AsRef<JNIStr>,
+        V: AsRef<JNIStr>,
     {
         self.get_method_id_base(class, name, sig, |env, class, name, sig| unsafe {
             jni_call_check_ex_and_null_ret!(
@@ -1648,7 +1647,7 @@ impl<'local> JNIEnv<'local> {
     /// # use jni::{errors::Result, env::JNIEnv, objects::JFieldID};
     /// #
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
-    /// let field_id: JFieldID = env.get_field_id("com/my/Class", "intField", "I")?;
+    /// let field_id: JFieldID = env.get_field_id(c"com/my/Class", c"intField", c"I")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -1660,12 +1659,12 @@ impl<'local> JNIEnv<'local> {
     ) -> Result<JFieldID>
     where
         T: Desc<'local, JClass<'other_local>>,
-        U: Into<JNIString>,
-        V: Into<JNIString>,
+        U: AsRef<JNIStr>,
+        V: AsRef<JNIStr>,
     {
         let class = class.lookup(self)?;
-        let ffi_name = name.into();
-        let ffi_sig = sig.into();
+        let ffi_name = name.as_ref();
+        let ffi_sig = sig.as_ref();
 
         let res = unsafe {
             jni_call_check_ex_and_null_ret!(
@@ -1683,8 +1682,8 @@ impl<'local> JNIEnv<'local> {
             Ok(m) => Ok(m),
             Err(e) => match e {
                 Error::NullPtr(_) => {
-                    let name: String = ffi_name.into();
-                    let sig: String = ffi_sig.into();
+                    let name: String = ffi_name.to_str().into();
+                    let sig: String = ffi_sig.to_str().into();
                     Err(Error::FieldNotFound { name, sig })
                 }
                 _ => Err(e),
@@ -1702,7 +1701,7 @@ impl<'local> JNIEnv<'local> {
     /// # use jni::{errors::Result, env::JNIEnv, objects::JStaticFieldID};
     /// #
     /// # fn example(env: &mut JNIEnv) -> Result<()> {
-    /// let field_id: JStaticFieldID = env.get_static_field_id("com/my/Class", "intField", "I")?;
+    /// let field_id: JStaticFieldID = env.get_static_field_id(c"com/my/Class", c"intField", c"I")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -1714,12 +1713,12 @@ impl<'local> JNIEnv<'local> {
     ) -> Result<JStaticFieldID>
     where
         T: Desc<'local, JClass<'other_local>>,
-        U: Into<JNIString>,
-        V: Into<JNIString>,
+        U: AsRef<JNIStr>,
+        V: AsRef<JNIStr>,
     {
         let class = class.lookup(self)?;
-        let ffi_name = name.into();
-        let ffi_sig = sig.into();
+        let ffi_name = name.as_ref();
+        let ffi_sig = sig.as_ref();
 
         let res = unsafe {
             jni_call_check_ex_and_null_ret!(
@@ -1740,8 +1739,8 @@ impl<'local> JNIEnv<'local> {
             Ok(m) => Ok(m),
             Err(e) => match e {
                 Error::NullPtr(_) => {
-                    let name: String = ffi_name.into();
-                    let sig: String = ffi_sig.into();
+                    let name: String = ffi_name.to_str().into();
+                    let sig: String = ffi_sig.to_str().into();
                     Err(Error::FieldNotFound { name, sig })
                 }
                 _ => Err(e),
@@ -2014,17 +2013,18 @@ impl<'local> JNIEnv<'local> {
     ) -> Result<JValueOwned<'local>>
     where
         O: AsRef<JObject<'other_local>>,
-        S: Into<JNIString>,
-        T: Into<JNIString> + AsRef<str>,
+        S: AsRef<JNIStr>,
+        T: AsRef<JNIStr>,
     {
         // Runtime check that the 'local reference lifetime will be tied to
         // JNIEnv lifetime for the top JNI stack frame
         assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let obj = obj.as_ref();
         let obj = null_check!(obj, "call_method obj argument")?;
+        let sig = sig.as_ref();
 
         // parse the signature
-        let parsed = TypeSignature::from_str(sig.as_ref())?;
+        let parsed = TypeSignature::from_str(sig.to_str())?;
         if parsed.args.len() != args.len() {
             return Err(Error::InvalidArgList(parsed));
         }
@@ -2073,13 +2073,14 @@ impl<'local> JNIEnv<'local> {
     ) -> Result<JValueOwned<'local>>
     where
         T: Desc<'local, JClass<'other_local>>,
-        U: Into<JNIString>,
-        V: Into<JNIString> + AsRef<str>,
+        U: AsRef<JNIStr>,
+        V: AsRef<JNIStr>,
     {
         // Runtime check that the 'local reference lifetime will be tied to
         // JNIEnv lifetime for the top JNI stack frame
         assert_eq!(self.level, JavaVM::thread_attach_guard_level());
-        let parsed = TypeSignature::from_str(&sig)?;
+        let sig = sig.as_ref();
+        let parsed = TypeSignature::from_str(sig.to_str())?;
         if parsed.args.len() != args.len() {
             return Err(Error::InvalidArgList(parsed));
         }
@@ -2132,16 +2133,17 @@ impl<'local> JNIEnv<'local> {
     where
         O: AsRef<JObject<'other_local>>,
         T: Desc<'local, JClass<'other_local>>,
-        U: Into<JNIString>,
-        V: Into<JNIString> + AsRef<str>,
+        U: AsRef<JNIStr>,
+        V: AsRef<JNIStr>,
     {
         // Runtime check that the 'local reference lifetime will be tied to
         // JNIEnv lifetime for the top JNI stack frame
         assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let obj = obj.as_ref();
         let obj = null_check!(obj, "call_method obj argument")?;
+        let sig = sig.as_ref();
 
-        let parsed = TypeSignature::from_str(&sig)?;
+        let parsed = TypeSignature::from_str(sig.to_str())?;
         if parsed.args.len() != args.len() {
             return Err(Error::InvalidArgList(parsed));
         }
@@ -2183,13 +2185,14 @@ impl<'local> JNIEnv<'local> {
     ) -> Result<JObject<'local>>
     where
         T: Desc<'local, JClass<'other_local>>,
-        U: Into<JNIString> + AsRef<str>,
+        U: AsRef<JNIStr>,
     {
         // Runtime check that the 'local reference lifetime will be tied to
         // JNIEnv lifetime for the top JNI stack frame
         assert_eq!(self.level, JavaVM::thread_attach_guard_level());
+        let ctor_sig = ctor_sig.as_ref();
         // parse the signature
-        let parsed = TypeSignature::from_str(&ctor_sig)?;
+        let parsed = TypeSignature::from_str(ctor_sig.to_str())?;
 
         // check arguments length
         if parsed.args.len() != ctor_args.len() {
@@ -2353,11 +2356,11 @@ impl<'local> JNIEnv<'local> {
     /// Create a new java string object from a rust string. This requires a
     /// re-encoding of rusts *real* UTF-8 strings to java's modified UTF-8
     /// format.
-    pub fn new_string<S: Into<JNIString>>(&mut self, from: S) -> Result<JString<'local>> {
+    pub fn new_string<S: AsRef<JNIStr>>(&mut self, from: S) -> Result<JString<'local>> {
         // Runtime check that the 'local reference lifetime will be tied to
         // JNIEnv lifetime for the top JNI stack frame
         assert_eq!(self.level, JavaVM::thread_attach_guard_level());
-        let ffi_str = from.into();
+        let ffi_str = from.as_ref();
         unsafe {
             jni_call_check_ex_and_null_ret!(self, v1_1, NewStringUTF, ffi_str.as_ptr())
                 .map(|s| JString::from_raw(s))
@@ -3181,8 +3184,8 @@ impl<'local> JNIEnv<'local> {
     ) -> Result<JValueOwned<'local>>
     where
         O: AsRef<JObject<'other_local>>,
-        S: Into<JNIString>,
-        T: Into<JNIString> + AsRef<str>,
+        S: AsRef<JNIStr>,
+        T: AsRef<JNIStr>,
     {
         // Runtime check that the 'local reference lifetime will be tied to
         // JNIEnv lifetime for the top JNI stack frame
@@ -3190,7 +3193,8 @@ impl<'local> JNIEnv<'local> {
         let obj = obj.as_ref();
         let class = self.get_object_class(obj)?.auto();
 
-        let parsed = ReturnType::from_str(ty.as_ref())?;
+        let ty = ty.as_ref();
+        let parsed = ReturnType::from_str(&ty.to_str())?;
 
         let field_id: JFieldID = Desc::<JFieldID>::lookup((&class, name, ty), self)?;
 
@@ -3210,11 +3214,12 @@ impl<'local> JNIEnv<'local> {
     ) -> Result<()>
     where
         O: AsRef<JObject<'other_local>>,
-        S: Into<JNIString>,
-        T: Into<JNIString> + AsRef<str>,
+        S: AsRef<JNIStr>,
+        T: AsRef<JNIStr>,
     {
         let obj = obj.as_ref();
-        let field_ty = JavaType::from_str(ty.as_ref())?;
+        let ty = ty.as_ref();
+        let field_ty = JavaType::from_str(&ty.to_str())?;
         let val_primitive = val.primitive_type();
 
         let wrong_type = Err(Error::WrongJValueType(val.type_name(), "see java field"));
@@ -3303,13 +3308,14 @@ impl<'local> JNIEnv<'local> {
     ) -> Result<JValueOwned<'local>>
     where
         T: Desc<'local, JClass<'other_local>>,
-        U: Into<JNIString>,
-        V: Into<JNIString> + AsRef<str>,
+        U: AsRef<JNIStr>,
+        V: AsRef<JNIStr>,
     {
         // Runtime check that the 'local reference lifetime will be tied to
         // JNIEnv lifetime for the top JNI stack frame
         assert_eq!(self.level, JavaVM::thread_attach_guard_level());
-        let ty = JavaType::from_str(sig.as_ref())?;
+        let sig = sig.as_ref();
+        let ty = JavaType::from_str(&sig.to_str())?;
 
         // go ahead and look up the class sincewe'll need that for the next
         // call.
@@ -3380,7 +3386,7 @@ impl<'local> JNIEnv<'local> {
     ) -> Result<(MonitorGuard<'_>, JFieldID)>
     where
         O: AsRef<JObject<'other_local>>,
-        S: AsRef<str>,
+        S: AsRef<JNIStr>,
     {
         // Note: although the returned Monitor is associated with a lifetime, this API doesn't need
         // a `&mut self` reference because we don't need to create and return a new local reference
@@ -3399,7 +3405,7 @@ impl<'local> JNIEnv<'local> {
         JavaVM::singleton()?.with_env(|env| {
             let obj = obj.as_ref();
             let class = env.get_object_class(obj)?;
-            let field_id: JFieldID = Desc::<JFieldID>::lookup((&class, &field, "J"), env)?;
+            let field_id: JFieldID = Desc::<JFieldID>::lookup((&class, &field, c"J"), env)?;
             let guard = self.lock_obj(obj)?;
             Ok((guard, field_id))
         })
@@ -3453,7 +3459,7 @@ impl<'local> JNIEnv<'local> {
     ) -> Result<()>
     where
         O: AsRef<JObject<'other_local>>,
-        S: AsRef<str>,
+        S: AsRef<JNIStr>,
         T: Send + 'static,
     {
         let (_guard, field_id) = self.lock_rust_field(&obj, &field)?;
@@ -3472,7 +3478,7 @@ impl<'local> JNIEnv<'local> {
                     .get_field_unchecked(&obj, field_id, ReturnType::Primitive(Primitive::Long))?
                     .j()? as *mut Mutex<T>;
                 if !field_ptr.is_null() {
-                    return Err(Error::FieldAlreadySet(field.as_ref().to_owned()));
+                    return Err(Error::FieldAlreadySet(field.as_ref().to_str().into()));
                 }
             }
 
@@ -3510,7 +3516,7 @@ impl<'local> JNIEnv<'local> {
     ) -> Result<MutexGuard<'_, T>>
     where
         O: AsRef<JObject<'other_local>>,
-        S: AsRef<str>,
+        S: AsRef<JNIStr>,
         T: Send + 'static,
     {
         let (_guard, field_id) = self.lock_rust_field(&obj, &field)?;
@@ -3554,7 +3560,7 @@ impl<'local> JNIEnv<'local> {
     pub unsafe fn take_rust_field<'other_local, O, S, T>(&self, obj: O, field: S) -> Result<T>
     where
         O: AsRef<JObject<'other_local>>,
-        S: AsRef<str>,
+        S: AsRef<JNIStr>,
         T: Send + 'static,
     {
         let (_guard, field_id) = self.lock_rust_field(&obj, &field)?;

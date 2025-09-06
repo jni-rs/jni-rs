@@ -56,12 +56,12 @@ impl JClassLoaderAPI {
         JCLASS_LOADER_API.get_or_try_init(|| {
             vm.with_env_current_frame(|env| {
                 // NB: Self::CLASS_NAME is a binary name with dots, not slashes
-                let class = env.find_class("java/lang/ClassLoader")?;
+                let class = env.find_class(c"java/lang/ClassLoader")?;
                 let class = env.new_global_ref(&class).unwrap();
                 let load_class_method = env.get_method_id(
                     &class,
-                    "loadClass",
-                    "(Ljava/lang/String;)Ljava/lang/Class;",
+                    c"loadClass",
+                    c"(Ljava/lang/String;)Ljava/lang/Class;",
                 )?;
                 Ok(Self {
                     class,
@@ -134,7 +134,7 @@ impl JClassLoader<'_> {
 
 // SAFETY: JClassLoader is a transparent JObject wrapper with no Drop side effects
 unsafe impl JObjectRef for JClassLoader<'_> {
-    const CLASS_NAME: &'static str = "java.lang.ClassLoader";
+    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.ClassLoader");
 
     type Kind<'env> = JClassLoader<'env>;
     type GlobalKind = JClassLoader<'static>;

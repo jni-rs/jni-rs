@@ -1,5 +1,6 @@
 #![cfg(feature = "invocation")]
 
+use jni::strings::{JNIStr, JNIString};
 use jni_sys::jvalue;
 use lazy_static::lazy_static;
 
@@ -16,17 +17,17 @@ use jni::{
 use std::rc::Rc;
 use std::sync::Arc;
 
-static CLASS_MATH: &str = "java/lang/Math";
-static CLASS_OBJECT: &str = "java/lang/Object";
-static CLASS_LOCAL_DATE_TIME: &str = "java/time/LocalDateTime";
-static METHOD_MATH_ABS: &str = "abs";
-static METHOD_OBJECT_HASH_CODE: &str = "hashCode";
-static METHOD_CTOR: &str = "<init>";
-static METHOD_LOCAL_DATE_TIME_OF: &str = "of";
-static SIG_OBJECT_CTOR: &str = "()V";
-static SIG_MATH_ABS: &str = "(I)I";
-static SIG_OBJECT_HASH_CODE: &str = "()I";
-static SIG_LOCAL_DATE_TIME_OF: &str = "(IIIIIII)Ljava/time/LocalDateTime;";
+static CLASS_MATH: &JNIStr = JNIStr::from_cstr(c"java/lang/Math");
+static CLASS_OBJECT: &JNIStr = JNIStr::from_cstr(c"java/lang/Object");
+static CLASS_LOCAL_DATE_TIME: &JNIStr = JNIStr::from_cstr(c"java/time/LocalDateTime");
+static METHOD_MATH_ABS: &JNIStr = JNIStr::from_cstr(c"abs");
+static METHOD_OBJECT_HASH_CODE: &JNIStr = JNIStr::from_cstr(c"hashCode");
+static METHOD_CTOR: &JNIStr = JNIStr::from_cstr(c"<init>");
+static METHOD_LOCAL_DATE_TIME_OF: &JNIStr = JNIStr::from_cstr(c"of");
+static SIG_OBJECT_CTOR: &JNIStr = JNIStr::from_cstr(c"()V");
+static SIG_MATH_ABS: &JNIStr = JNIStr::from_cstr(c"(I)I");
+static SIG_OBJECT_HASH_CODE: &JNIStr = JNIStr::from_cstr(c"()I");
+static SIG_LOCAL_DATE_TIME_OF: &JNIStr = JNIStr::from_cstr(c"(IIIIIII)Ljava/time/LocalDateTime;");
 
 // 32 characters
 static TEST_STRING_UNICODE: &str = "_񍷕㳧~δ򗊁᪘׷ġ˥쩽|ņ/򖕡ٶԦ萴퀉֒ٞHy󢕒%ӓ娎񢞊ăꊦȮ񳗌";
@@ -230,7 +231,7 @@ fn jni_call_static_date_time_method_unchecked_jclass(c: &mut Criterion) {
 
 fn jni_call_object_hash_method_safe(c: &mut Criterion) {
     VM.attach_current_thread_for_scope(|env| -> jni::errors::Result<()> {
-        let s = env.new_string("").unwrap();
+        let s = env.new_string(c"").unwrap();
         let obj = black_box(JObject::from(s));
 
         c.bench_function("jni_call_object_hash_method_safe", |b| {
@@ -243,7 +244,7 @@ fn jni_call_object_hash_method_safe(c: &mut Criterion) {
 
 fn jni_call_object_hash_method_unchecked(c: &mut Criterion) {
     VM.attach_current_thread_for_scope(|env| -> jni::errors::Result<()> {
-        let s = env.new_string("").unwrap();
+        let s = env.new_string(c"").unwrap();
         let obj = black_box(JObject::from(s));
         let obj_class = env.get_object_class(&obj).unwrap();
         let method_id = env
@@ -367,7 +368,9 @@ fn jni_get_java_vm(c: &mut Criterion) {
 
 fn jni_get_string(c: &mut Criterion) {
     VM.attach_current_thread_for_scope(|env| -> jni::errors::Result<()> {
-        let string = env.new_string(TEST_STRING_UNICODE).unwrap();
+        let string = env
+            .new_string(JNIString::from(TEST_STRING_UNICODE))
+            .unwrap();
 
         c.bench_function("jni_get_string", |b| {
             b.iter(|| {
@@ -382,7 +385,9 @@ fn jni_get_string(c: &mut Criterion) {
 
 fn jni_get_string_unchecked(c: &mut Criterion) {
     VM.attach_current_thread_for_scope(|env| -> jni::errors::Result<()> {
-        let string = env.new_string(TEST_STRING_UNICODE).unwrap();
+        let string = env
+            .new_string(JNIString::from(TEST_STRING_UNICODE))
+            .unwrap();
 
         c.bench_function("jni_get_string_unchecked", |b| {
             b.iter(|| {
@@ -471,7 +476,7 @@ fn jni_new_string_within_single_thread_attachment(c: &mut Criterion) {
     VM.attach_current_thread_for_scope(|env| -> jni::errors::Result<()> {
         c.bench_function("jni_new_string_within_single_thread_attachment", |b| {
             b.iter(|| {
-                black_box(env.new_string("Test").unwrap().auto());
+                black_box(env.new_string(c"Test").unwrap().auto());
             })
         });
         Ok(())
@@ -486,7 +491,7 @@ fn jni_new_string_with_repeat_scoped_thread_attachments(c: &mut Criterion) {
         |b| {
             b.iter(|| {
                 VM.attach_current_thread_for_scope(|env| -> jni::errors::Result<()> {
-                    black_box(env.new_string("Test").unwrap().auto());
+                    black_box(env.new_string(c"Test").unwrap().auto());
                     Ok(())
                 })
                 .unwrap();
@@ -509,7 +514,7 @@ fn jni_new_string_with_repeat_permanent_thread_attachments(c: &mut Criterion) {
         |b| {
             b.iter(|| {
                 VM.attach_current_thread(|env| -> jni::errors::Result<()> {
-                    black_box(env.new_string("Test").unwrap().auto());
+                    black_box(env.new_string(c"Test").unwrap().auto());
                     Ok(())
                 })
                 .unwrap();

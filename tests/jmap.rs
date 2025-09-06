@@ -1,6 +1,9 @@
 #![cfg(feature = "invocation")]
 
-use jni::objects::{JMap, JObject, JString};
+use jni::{
+    objects::{JMap, JObject, JString},
+    strings::JNIStr,
+};
 
 mod util;
 use util::{attach_current_thread, unwrap};
@@ -8,10 +11,15 @@ use util::{attach_current_thread, unwrap};
 #[test]
 pub fn jmap_push_and_iterate() {
     attach_current_thread(|env| {
-        let data = &["hello", "world", "from", "test"];
+        let data = &[
+            JNIStr::from_cstr(c"hello"),
+            JNIStr::from_cstr(c"world"),
+            JNIStr::from_cstr(c"from"),
+            JNIStr::from_cstr(c"test"),
+        ];
 
         // Create a new map. Use LinkedHashMap to have predictable iteration order
-        let map_object = unwrap(env.new_object("java/util/LinkedHashMap", "()V", &[]), env);
+        let map_object = unwrap(env.new_object(c"java/util/LinkedHashMap", c"()V", &[]), env);
         let map = unwrap(JMap::from_env(env, &map_object), env);
 
         // Push all strings
@@ -31,7 +39,8 @@ pub fn jmap_push_and_iterate() {
                 while let Some(e) = iter.next(env)? {
                     let s = env.cast_local::<JString>(e.0)?;
                     let s = env.get_string(&s)?;
-                    collected.push(String::from(s));
+
+                    collected.push(s.to_owned());
                 }
                 Ok(())
             }),
