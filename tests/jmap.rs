@@ -20,7 +20,7 @@ pub fn jmap_push_and_iterate() {
 
         // Create a new map. Use LinkedHashMap to have predictable iteration order
         let map_object = unwrap(env.new_object(c"java/util/LinkedHashMap", c"()V", &[]), env);
-        let map = unwrap(JMap::from_env(env, &map_object), env);
+        let map = unwrap(JMap::cast_local(map_object, env), env);
 
         // Push all strings
         unwrap(
@@ -37,7 +37,8 @@ pub fn jmap_push_and_iterate() {
         unwrap(
             map.iter(env).and_then(|mut iter| {
                 while let Some(e) = iter.next(env)? {
-                    let s = env.cast_local::<JString>(e.0)?;
+                    let value = e.value(env)?;
+                    let s = env.cast_local::<JString>(value)?;
                     let s = env.get_string(&s)?;
 
                     collected.push(s.to_owned());

@@ -2287,21 +2287,18 @@ impl<'local> JNIEnv<'local> {
         JList::cast_local(obj, self)
     }
 
-    /// Cast a JObject to a JMap. This won't throw exceptions or return errors
-    /// in the event that the object isn't actually a map, but the methods on
-    /// the resulting map object will.
-    pub fn get_map<'other_local_1, 'obj_ref>(
+    /// Cast a [JObject] to a [JMap].
+    ///
+    /// Returns `Error::WrongObjectType` if the object is not a `java.util.Map`.
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JMap::cast_local instead or JNIEnv::new_cast_local_ref/cast_local/as_cast_local or JNIEnv::new_cast_global_ref/cast_global/as_cast_global"
+    )]
+    pub fn get_map<'any_local>(
         &mut self,
-        obj: &'obj_ref JObject<'other_local_1>,
-    ) -> Result<JMap<'local, 'other_local_1, 'obj_ref>>
-    where
-        'other_local_1: 'obj_ref,
-    {
-        // Runtime check that the 'local reference lifetime will be tied to
-        // JNIEnv lifetime for the top JNI stack frame
-        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
-        let obj = null_check!(obj, "get_map obj argument")?;
-        JMap::from_env(self, obj)
+        obj: impl JObjectRef + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
+    ) -> Result<JMap<'any_local>> {
+        JMap::cast_local(obj, self)
     }
 
     /// Gets the bytes of a Java string, in [modified UTF-8] encoding.

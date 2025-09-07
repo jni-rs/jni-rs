@@ -1,83 +1,168 @@
+use jni_sys::jobject;
+use once_cell::sync::OnceCell;
+
 use crate::{
     env::JNIEnv,
     errors::*,
-    objects::{AutoLocal, IntoAutoLocal as _, JClass, JMethodID, JObject, JValue},
+    objects::{
+        GlobalRef, JClass, JIterator, JMethodID, JObject, JObjectRef, JSet, JValue, LoaderContext,
+    },
     signature::{Primitive, ReturnType},
+    strings::JNIStr,
+    JavaVM,
 };
 
-use std::marker::PhantomData;
+use std::ops::Deref;
 
-/// Wrapper for JObjects that implement `java/util/Map`. Provides methods to get
-/// and set entries and a way to iterate over key/value pairs.
-///
-/// Looks up the class and method ids on creation rather than for every method
-/// call.
-pub struct JMap<'local, 'other_local_1: 'obj_ref, 'obj_ref> {
-    internal: &'obj_ref JObject<'other_local_1>,
-    class: AutoLocal<'local, JClass<'local>>,
-    get: JMethodID,
-    put: JMethodID,
-    remove: JMethodID,
-}
+/// Wrapper for `java.utils.Map` references. Provides methods to get, add, and
+/// set entries and a way to iterate over key/value pairs.
+#[repr(transparent)]
+#[derive(Default)]
+pub struct JMap<'local>(JObject<'local>);
 
-impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> AsRef<JMap<'local, 'other_local_1, 'obj_ref>>
-    for JMap<'local, 'other_local_1, 'obj_ref>
-{
-    fn as_ref(&self) -> &JMap<'local, 'other_local_1, 'obj_ref> {
+impl<'local> AsRef<JMap<'local>> for JMap<'local> {
+    fn as_ref(&self) -> &JMap<'local> {
         self
     }
 }
 
-impl<'other_local_1: 'obj_ref, 'obj_ref> AsRef<JObject<'other_local_1>>
-    for JMap<'_, 'other_local_1, 'obj_ref>
-{
-    fn as_ref(&self) -> &JObject<'other_local_1> {
-        self.internal
+impl<'local> AsRef<JObject<'local>> for JMap<'local> {
+    fn as_ref(&self) -> &JObject<'local> {
+        self
     }
 }
 
-impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> JMap<'local, 'other_local_1, 'obj_ref> {
-    /// Create a map from the environment and an object. This looks up the
-    /// necessary class and method ids to call all of the methods on it so that
-    /// exra work doesn't need to be done on every method call.
-    pub fn from_env(
-        env: &mut JNIEnv<'local>,
-        obj: &'obj_ref JObject<'other_local_1>,
-    ) -> Result<JMap<'local, 'other_local_1, 'obj_ref>> {
-        let class = env.find_class(c"java/util/Map")?.auto();
+impl<'local> ::std::ops::Deref for JMap<'local> {
+    type Target = JObject<'local>;
 
-        let get = env.get_method_id(&class, c"get", c"(Ljava/lang/Object;)Ljava/lang/Object;")?;
-        let put = env.get_method_id(
-            &class,
-            c"put",
-            c"(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
-        )?;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
-        let remove =
-            env.get_method_id(&class, c"remove", c"(Ljava/lang/Object;)Ljava/lang/Object;")?;
+impl<'local> From<JMap<'local>> for JObject<'local> {
+    fn from(other: JMap<'local>) -> JObject<'local> {
+        other.0
+    }
+}
 
-        Ok(JMap {
-            internal: obj,
-            class,
-            get,
-            put,
-            remove,
+struct JMapAPI {
+    class: GlobalRef<JClass<'static>>,
+    get_method: JMethodID,
+    put_method: JMethodID,
+    remove_method: JMethodID,
+    entry_set_method: JMethodID,
+}
+
+impl JMapAPI {
+    fn get<'any_local>(
+        vm: &JavaVM,
+        loader_context: &LoaderContext<'any_local, '_>,
+    ) -> Result<&'static Self> {
+        static JMAP_API: OnceCell<JMapAPI> = OnceCell::new();
+        JMAP_API.get_or_try_init(|| {
+            vm.with_env_current_frame(|env| {
+                let class = loader_context.load_class_for_type::<JMap>(true, env)?;
+                let class = env.new_global_ref(&class).unwrap();
+
+                let get_method =
+                    env.get_method_id(&class, c"get", c"(Ljava/lang/Object;)Ljava/lang/Object;")?;
+                let put_method = env.get_method_id(
+                    &class,
+                    c"put",
+                    c"(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
+                )?;
+                let remove_method = env.get_method_id(
+                    &class,
+                    c"remove",
+                    c"(Ljava/lang/Object;)Ljava/lang/Object;",
+                )?;
+                let entry_set_method =
+                    env.get_method_id(&class, c"entrySet", c"()Ljava/util/Set;")?;
+
+                Ok(Self {
+                    class,
+                    get_method,
+                    put_method,
+                    remove_method,
+                    entry_set_method,
+                })
+            })
         })
+    }
+}
+
+impl<'local> JMap<'local> {
+    /// Creates a [`JMap`] that wraps the given `raw` [`jobject`]
+    ///
+    /// # Safety
+    ///
+    /// `raw` may be a null pointer. If `raw` is not a null pointer, then:
+    ///
+    /// * `raw` must be a valid raw JNI local reference.
+    /// * There must not be any other `JObject` representing the same local reference.
+    /// * The lifetime `'local` must not outlive the local reference frame that the local reference
+    ///   was created in.
+    pub const unsafe fn from_raw(raw: jobject) -> Self {
+        Self(JObject::from_raw(raw))
+    }
+
+    /// Unwrap to the raw jni type.
+    pub const fn into_raw(self) -> jobject {
+        self.0.into_raw()
+    }
+
+    /// Cast a local reference to a `JMap`
+    ///
+    /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.util.Map`.
+    ///
+    /// Also see these other options for casting local or global references to a `JMap`:
+    /// - [JNIEnv::new_cast_local_ref]
+    /// - [JNIEnv::cast_local]
+    /// - [JNIEnv::as_cast_local]
+    /// - [JNIEnv::new_cast_global_ref]
+    /// - [JNIEnv::cast_global]
+    /// - [JNIEnv::as_cast_global]
+    ///
+    /// # Errors
+    ///
+    /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
+    pub fn cast_local<'any_local>(
+        obj: impl JObjectRef + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
+        env: &mut JNIEnv<'_>,
+    ) -> Result<JMap<'any_local>> {
+        env.cast_local::<JMap>(obj)
+    }
+
+    /// Cast a local reference to a `JMap`
+    ///
+    /// See [`JMap::cast_local`] for more information.
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JMap::cast_local instead or JNIEnv::new_cast_local_ref/cast_local/as_cast_local or JNIEnv::new_cast_global_ref/cast_global/as_cast_global"
+    )]
+    pub fn from_env<'any_local>(
+        obj: impl JObjectRef + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
+        env: &mut JNIEnv<'_>,
+    ) -> Result<JMap<'any_local>> {
+        env.cast_local::<JMap>(obj)
     }
 
     /// Look up the value for a key. Returns `Some` if it's found and `None` if
     /// a null pointer would be returned.
-    pub fn get<'other_local_2>(
+    pub fn get<'top_local>(
         &self,
-        env: &mut JNIEnv<'other_local_2>,
+        env: &mut JNIEnv<'top_local>,
         key: &JObject,
-    ) -> Result<Option<JObject<'other_local_2>>> {
+    ) -> Result<Option<JObject<'top_local>>> {
+        let vm = env.get_java_vm();
+        let api = JMapAPI::get(&vm, &LoaderContext::None)?;
         // SAFETY: We keep the class loaded, and fetched the method ID for this function.
         // Provided argument is statically known as a JObject/null, rather than another primitive type.
         let result = unsafe {
             env.call_method_unchecked(
-                self.internal,
-                self.get,
+                self,
+                api.get_method,
                 ReturnType::Object,
                 &[JValue::from(key).as_jni()],
             )
@@ -100,12 +185,14 @@ impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> JMap<'local, 'other_local_1, 'o
         key: &JObject,
         value: &JObject,
     ) -> Result<Option<JObject<'other_local_2>>> {
+        let vm = env.get_java_vm();
+        let api = JMapAPI::get(&vm, &LoaderContext::None)?;
         // SAFETY: We keep the class loaded, and fetched the method ID for this function.
         // Provided argument is statically known as a JObject/null, rather than another primitive type.
         let result = unsafe {
             env.call_method_unchecked(
-                self.internal,
-                self.put,
+                self,
+                api.put_method,
                 ReturnType::Object,
                 &[JValue::from(key).as_jni(), JValue::from(value).as_jni()],
             )
@@ -127,12 +214,14 @@ impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> JMap<'local, 'other_local_1, 'o
         env: &mut JNIEnv<'other_local_2>,
         key: &JObject,
     ) -> Result<Option<JObject<'other_local_2>>> {
+        let vm = env.get_java_vm();
+        let api = JMapAPI::get(&vm, &LoaderContext::None)?;
         // SAFETY: We keep the class loaded, and fetched the method ID for this function.
         // Provided argument is statically known as a JObject/null, rather than another primitive type.
         let result = unsafe {
             env.call_method_unchecked(
-                self.internal,
-                self.remove,
+                self,
+                api.remove_method,
                 ReturnType::Object,
                 &[JValue::from(key).as_jni()],
             )
@@ -145,6 +234,23 @@ impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> JMap<'local, 'other_local_1, 'o
                 _ => Err(e),
             },
         }
+    }
+
+    /// Get the entry set for the map.
+    ///
+    /// This returns a [JSet] view of the mappings contained in the map, which can be used to iterate over the key/value pairs.
+    ///
+    /// Also see [JSet::iterator] and [Self::iter]
+    pub fn entry_set<'env_local>(&self, env: &mut JNIEnv<'env_local>) -> Result<JSet<'env_local>> {
+        let vm = env.get_java_vm();
+        let api = JMapAPI::get(&vm, &LoaderContext::None)?;
+        // SAFETY: We keep the class loaded, and fetched the method ID for this function. Arg list is known empty.
+        let entry_set = unsafe {
+            env.call_method_unchecked(self, api.entry_set_method, ReturnType::Object, &[])
+        }?
+        .l()?;
+        let set = JSet::cast_local(entry_set, env)?;
+        Ok(set)
     }
 
     /// Get key/value iterator for the map. This is done by getting the
@@ -161,10 +267,10 @@ impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> JMap<'local, 'other_local_1, 'o
     /// # fn example(env: &mut JNIEnv, map: JMap) -> Result<()> {
     /// let mut iterator = map.iter(env)?;
     ///
-    /// while let Some((key, value)) = iterator.next(env)? {
+    /// while let Some(entry) = iterator.next(env)? {
     ///     // Wrap as AutoLocals to avoid leaking while iterating
-    ///     let key = key.auto();
-    ///     let value = value.auto();
+    ///     let key = entry.key(env)?.auto();
+    ///     let value = entry.value(env)?.auto();
     ///
     ///     // Do something with `key` and `value` here.
     /// }
@@ -179,74 +285,259 @@ impl<'local, 'other_local_1: 'obj_ref, 'obj_ref> JMap<'local, 'other_local_1, 'o
     /// have a small, predictable size, the loop could be wrapped in
     /// [`JNIEnv::with_local_frame`] to delete all of the local references at
     /// once.
-    pub fn iter<'map, 'iter_local>(
-        &'map self,
-        env: &mut JNIEnv<'iter_local>,
-    ) -> Result<JMapIter<'map, 'local, 'other_local_1, 'obj_ref, 'iter_local>> {
-        let iter_class = env.find_class(c"java/util/Iterator")?.auto();
+    pub fn iter<'env_local>(&self, env: &mut JNIEnv<'env_local>) -> Result<JMapIter<'env_local>> {
+        let set = self.entry_set(env)?;
+        let iterator = set.iterator(env)?;
 
-        let has_next = env.get_method_id(&iter_class, c"hasNext", c"()Z")?;
+        Ok(JMapIter { iterator })
+    }
+}
 
-        let next = env.get_method_id(&iter_class, c"next", c"()Ljava/lang/Object;")?;
+// SAFETY: JMap is a transparent JObject wrapper with no Drop side effects
+unsafe impl JObjectRef for JMap<'_> {
+    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.util.Map");
 
-        let entry_class = env.find_class(c"java/util/Map$Entry")?.auto();
+    type Kind<'env> = JMap<'env>;
+    type GlobalKind = JMap<'static>;
 
-        let get_key = env.get_method_id(&entry_class, c"getKey", c"()Ljava/lang/Object;")?;
+    fn as_raw(&self) -> jobject {
+        self.0.as_raw()
+    }
 
-        let get_value = env.get_method_id(&entry_class, c"getValue", c"()Ljava/lang/Object;")?;
+    fn lookup_class<'vm>(
+        vm: &'vm JavaVM,
+        loader_context: LoaderContext,
+    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+        let api = JMapAPI::get(vm, &loader_context)?;
+        Ok(&api.class)
+    }
 
-        // Get the iterator over Map entries.
+    unsafe fn from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+        JMap::from_raw(local_ref)
+    }
 
-        // SAFETY: We keep the class loaded, and fetched the method ID for this function. Arg list is known empty.
-        let entry_set = unsafe {
-            env.call_method_unchecked(
-                self.internal,
-                (&self.class, c"entrySet", c"()Ljava/util/Set;"),
-                ReturnType::Object,
-                &[],
-            )
-        }?
-        .l()?
-        .auto();
+    unsafe fn from_global_raw(global_ref: jobject) -> Self::GlobalKind {
+        JMap::from_raw(global_ref)
+    }
+}
 
-        // SAFETY: We keep the class loaded, and fetched the method ID for this function. Arg list is known empty.
-        let iter = unsafe {
-            env.call_method_unchecked(
-                entry_set,
-                (c"java/util/Set", c"iterator", c"()Ljava/util/Iterator;"),
-                ReturnType::Object,
-                &[],
-            )
-        }?
-        .l()?
-        .auto();
+/// Wrapper for `java.utils.Map.Entry` references. Provides methods to get the key and value.
+#[repr(transparent)]
+#[derive(Default)]
+pub struct JMapEntry<'local>(JObject<'local>);
 
-        Ok(JMapIter {
-            _phantom_map: PhantomData,
-            has_next,
-            next,
-            get_key,
-            get_value,
-            iter,
+impl<'local> AsRef<JMapEntry<'local>> for JMapEntry<'local> {
+    fn as_ref(&self) -> &JMapEntry<'local> {
+        self
+    }
+}
+
+impl<'local> AsRef<JObject<'local>> for JMapEntry<'local> {
+    fn as_ref(&self) -> &JObject<'local> {
+        self
+    }
+}
+
+impl<'local> ::std::ops::Deref for JMapEntry<'local> {
+    type Target = JObject<'local>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<'local> From<JMapEntry<'local>> for JObject<'local> {
+    fn from(other: JMapEntry<'local>) -> JObject<'local> {
+        other.0
+    }
+}
+
+struct JMapEntryAPI {
+    class: GlobalRef<JClass<'static>>,
+    get_key_method: JMethodID,
+    get_value_method: JMethodID,
+    set_value_method: JMethodID,
+}
+
+impl JMapEntryAPI {
+    fn get<'any_local>(
+        vm: &JavaVM,
+        loader_context: &LoaderContext<'any_local, '_>,
+    ) -> Result<&'static Self> {
+        static JMAPENTRY_API: OnceCell<JMapEntryAPI> = OnceCell::new();
+        JMAPENTRY_API.get_or_try_init(|| {
+            vm.with_env_current_frame(|env| {
+                let class = loader_context.load_class_for_type::<JMapEntry>(true, env)?;
+                let class = env.new_global_ref(&class).unwrap();
+
+                let get_key_method =
+                    env.get_method_id(&class, c"getKey", c"()Ljava/lang/Object;")?;
+                let get_value_method =
+                    env.get_method_id(&class, c"getValue", c"()Ljava/lang/Object;")?;
+                let set_value_method = env.get_method_id(
+                    &class,
+                    c"setValue",
+                    c"(Ljava/lang/Object;)Ljava/lang/Object;",
+                )?;
+                Ok(Self {
+                    class,
+                    get_key_method,
+                    get_value_method,
+                    set_value_method,
+                })
+            })
         })
+    }
+}
+
+impl<'local> JMapEntry<'local> {
+    /// Creates a [`JMapEntry`] that wraps the given `raw` [`jobject`]
+    ///
+    /// # Safety
+    ///
+    /// `raw` may be a null pointer. If `raw` is not a null pointer, then:
+    ///
+    /// * `raw` must be a valid raw JNI local reference.
+    /// * There must not be any other `JObject` representing the same local reference.
+    /// * The lifetime `'local` must not outlive the local reference frame that the local reference
+    ///   was created in.
+    pub const unsafe fn from_raw(raw: jobject) -> Self {
+        Self(JObject::from_raw(raw))
+    }
+
+    /// Unwrap to the raw jni type.
+    pub const fn into_raw(self) -> jobject {
+        self.0.into_raw()
+    }
+
+    /// Cast a local reference to a `JMapEntry`
+    ///
+    /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.util.Map.Entry`.
+    ///
+    /// Also see these other options for casting local or global references to a `JMapEntry`:
+    /// - [JNIEnv::new_cast_local_ref]
+    /// - [JNIEnv::cast_local]
+    /// - [JNIEnv::as_cast_local]
+    /// - [JNIEnv::new_cast_global_ref]
+    /// - [JNIEnv::cast_global]
+    /// - [JNIEnv::as_cast_global]
+    ///
+    /// # Errors
+    ///
+    /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
+    pub fn cast_local<'any_local>(
+        obj: impl JObjectRef + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
+        env: &mut JNIEnv<'_>,
+    ) -> Result<JMapEntry<'any_local>> {
+        env.cast_local::<JMapEntry>(obj)
+    }
+
+    /// Get the key of the map entry by calling the `getKey` method.
+    ///
+    /// # Throws
+    ///
+    /// May throw `IllegalStateException` if the entry has been removed from the map (depending on implementation)
+    pub fn key<'env_local>(&self, env: &mut JNIEnv<'env_local>) -> Result<JObject<'env_local>> {
+        let vm = env.get_java_vm();
+        let api = JMapEntryAPI::get(&vm, &LoaderContext::None)?;
+        unsafe {
+            env.call_method_unchecked(self, api.get_key_method, ReturnType::Object, &[])?
+                .l()
+        }
+    }
+
+    /// Get the value of the map entry by calling the `getValue` method.
+    ///
+    /// # Throws
+    ///
+    /// May throw `IllegalStateException` if the entry has been removed from the map (depending on implementation)
+    pub fn value<'env_local>(&self, env: &mut JNIEnv<'env_local>) -> Result<JObject<'env_local>> {
+        let vm = env.get_java_vm();
+        let api = JMapEntryAPI::get(&vm, &LoaderContext::None)?;
+        unsafe {
+            env.call_method_unchecked(self, api.get_value_method, ReturnType::Object, &[])?
+                .l()
+        }
+    }
+
+    /// Set the value of the map entry by calling the `setValue` method.
+    ///
+    /// # Throws
+    ///
+    /// - `UnsupportedOperationException` if the backing map does not support the put operation
+    /// - `ClassCastException` if the value is not of a compatible type
+    /// - `NullPointerException` if a null value is given and the backing map doesn't allow storing null values
+    /// - `IllegalArgumentException` if the values has a property that prevents it from being stored by the backing map
+    /// - May throw `IllegalStateException` if the entry has been removed from the map (depending on implementation)
+    pub fn set_value<'any_local, 'env_local>(
+        &self,
+        value: &JObject<'any_local>,
+        env: &mut JNIEnv<'env_local>,
+    ) -> Result<JObject<'env_local>> {
+        let vm = env.get_java_vm();
+        let api = JMapEntryAPI::get(&vm, &LoaderContext::None)?;
+        unsafe {
+            env.call_method_unchecked(
+                self,
+                api.set_value_method,
+                ReturnType::Primitive(Primitive::Void),
+                &[JValue::from(value).as_jni()],
+            )?
+            .l()
+        }
+    }
+}
+
+// SAFETY: JMapEntry is a transparent JObject wrapper with no Drop side effects
+unsafe impl JObjectRef for JMapEntry<'_> {
+    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.util.Map$Entry");
+
+    type Kind<'env> = JMapEntry<'env>;
+    type GlobalKind = JMapEntry<'static>;
+
+    fn as_raw(&self) -> jobject {
+        self.0.as_raw()
+    }
+
+    fn lookup_class<'vm>(
+        vm: &'vm JavaVM,
+        loader_context: LoaderContext,
+    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+        let api = JMapEntryAPI::get(vm, &loader_context)?;
+        Ok(&api.class)
+    }
+
+    unsafe fn from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+        JMapEntry::from_raw(local_ref)
+    }
+
+    unsafe fn from_global_raw(global_ref: jobject) -> Self::GlobalKind {
+        JMapEntry::from_raw(global_ref)
     }
 }
 
 /// An iterator over the keys and values in a map. See [`JMap::iter`] for more
 /// information.
 ///
-/// TODO: make the iterator implementation for java iterators its own thing
-/// and generic enough to use elsewhere.
-pub struct JMapIter<'map, 'local, 'other_local_1: 'obj_ref, 'obj_ref, 'iter_local> {
-    _phantom_map: PhantomData<&'map JMap<'local, 'other_local_1, 'obj_ref>>,
-    has_next: JMethodID,
-    next: JMethodID,
-    get_key: JMethodID,
-    get_value: JMethodID,
-    iter: AutoLocal<'iter_local, JObject<'iter_local>>,
+/// This is implemented as a thin wrapper over [`JIterator`] and the only
+/// difference is that [JMapIter::next] will yield [JMapEntry] values,
+/// (avoiding the need for a runtime type check, compared to using
+/// [JIterator::next] followed by [`JMapEntry::cast_local`]).
+///
+/// This derefs to [`JIterator`].
+pub struct JMapIter<'iter_local> {
+    iterator: JIterator<'iter_local>,
 }
 
-impl<'other_local_1: 'obj_ref, 'obj_ref> JMapIter<'_, '_, 'other_local_1, 'obj_ref, '_> {
+impl<'local> Deref for JMapIter<'local> {
+    type Target = JIterator<'local>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.iterator
+    }
+}
+
+impl<'local> JMapIter<'local> {
     /// Advances the iterator and returns the next key-value pair in the
     /// `java.util.Map`, or `None` if there are no more objects.
     ///
@@ -269,38 +560,15 @@ impl<'other_local_1: 'obj_ref, 'obj_ref> JMapIter<'_, '_, 'other_local_1, 'obj_r
     ///
     /// This is like [`std::iter::Iterator::next`], but requires a parameter of
     /// type `&mut JNIEnv` in order to call into Java.
-    pub fn next<'other_local_2>(
+    pub fn next<'env_local>(
         &mut self,
-        env: &mut JNIEnv<'other_local_2>,
-    ) -> Result<Option<(JObject<'other_local_2>, JObject<'other_local_2>)>> {
-        // SAFETY: We keep the class loaded, and fetched the method ID for these functions. We know none expect args.
-
-        let has_next = unsafe {
-            env.call_method_unchecked(
-                &self.iter,
-                self.has_next,
-                ReturnType::Primitive(Primitive::Boolean),
-                &[],
-            )
-        }?
-        .z()?;
-
-        if !has_next {
-            return Ok(None);
-        }
-        let next =
-            unsafe { env.call_method_unchecked(&self.iter, self.next, ReturnType::Object, &[]) }?
-                .l()?
-                .auto();
-
-        let key =
-            unsafe { env.call_method_unchecked(&next, self.get_key, ReturnType::Object, &[]) }?
-                .l()?;
-
-        let value =
-            unsafe { env.call_method_unchecked(&next, self.get_value, ReturnType::Object, &[]) }?
-                .l()?;
-
-        Ok(Some((key, value)))
+        env: &mut JNIEnv<'env_local>,
+    ) -> Result<Option<JMapEntry<'env_local>>> {
+        self.iterator.next(env)?.map_or(Ok(None), |entry| {
+            // SAFETY: we know that the entrySet iterator will yield Map.Entry values
+            // so we can safely downcast without needing a runtime type check
+            let entry = unsafe { JMapEntry::from_raw(entry.into_raw()) };
+            Ok(Some(entry))
+        })
     }
 }
