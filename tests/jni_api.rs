@@ -1328,17 +1328,17 @@ fn short_lifetime_list_sub_fn<'local>(
     env: &'_ mut JNIEnv<'local>,
 ) -> Result<JObject<'local>, Error> {
     let list_object = env.new_object(ARRAYLIST_CLASS, c"()V", &[])?;
-    let list = JList::from_env(env, &list_object)?;
+    let list = env.as_cast::<JList>(&list_object)?;
     let element = env.new_object(INTEGER_CLASS, c"(I)V", &[JValue::from(1)])?;
     list.add(env, &element)?;
-    short_lifetime_list_sub_fn_get_first_element(env, &list)
+    short_lifetime_list_sub_fn_get_first_element(&list, env)
 }
 
-fn short_lifetime_list_sub_fn_get_first_element<'local>(
-    env: &'_ mut JNIEnv<'local>,
-    list: &'_ JList<'local, '_, '_>,
-) -> Result<JObject<'local>, Error> {
-    let mut iterator = list.iter(env)?;
+fn short_lifetime_list_sub_fn_get_first_element<'list_local, 'env_local>(
+    list: &'_ JList<'list_local>,
+    env: &'_ mut JNIEnv<'env_local>,
+) -> Result<JObject<'env_local>, Error> {
+    let iterator = list.iter(env)?;
     Ok(iterator.next(env)?.unwrap())
 }
 
