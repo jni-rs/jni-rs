@@ -35,6 +35,15 @@ pub use self::jclass_loader::*;
 mod jstring;
 pub use self::jstring::*;
 
+mod jcollection;
+pub use self::jcollection::*;
+
+mod jset;
+pub use self::jset::*;
+
+mod jiterator;
+pub use self::jiterator::*;
+
 mod jmap;
 pub use self::jmap::*;
 
