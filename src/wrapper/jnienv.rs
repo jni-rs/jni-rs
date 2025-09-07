@@ -2273,21 +2273,18 @@ impl<'local> JNIEnv<'local> {
         Ok(obj)
     }
 
-    /// Cast a JObject to a `JList`. This won't throw exceptions or return errors
-    /// in the event that the object isn't actually a list, but the methods on
-    /// the resulting map object will.
-    pub fn get_list<'other_local_1, 'obj_ref>(
+    /// Cast a [JObject] to a [JList].
+    ///
+    /// Returns `Error::WrongObjectType` if the object is not a `java.util.List`.
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JList::cast_local instead or JNIEnv::new_cast_local_ref/cast_local/as_cast_local or JNIEnv::new_cast_global_ref/cast_global/as_cast_global"
+    )]
+    pub fn get_list<'any_local>(
         &mut self,
-        obj: &'obj_ref JObject<'other_local_1>,
-    ) -> Result<JList<'local, 'other_local_1, 'obj_ref>>
-    where
-        'other_local_1: 'obj_ref,
-    {
-        // Runtime check that the 'local reference lifetime will be tied to
-        // JNIEnv lifetime for the top JNI stack frame
-        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
-        let obj = null_check!(obj, "get_list obj argument")?;
-        JList::from_env(self, obj)
+        obj: impl JObjectRef + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
+    ) -> Result<JList<'any_local>> {
+        JList::cast_local(obj, self)
     }
 
     /// Cast a JObject to a JMap. This won't throw exceptions or return errors

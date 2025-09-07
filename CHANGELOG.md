@@ -68,6 +68,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `AutoElements` was simplified to only be parameterized by one lifetime for the array reference, and accepts any `AsRef<JPrimitiveArray<T>>` as a reference. ([#508](https://github.com/jni-rs/jni-rs/pull/508))
 - `JavaType` was simplified to not capture object names or array details (like `ReturnType`) since these details don't affect `JValue` type checks and had a hidden cost that was redundant.
 - `JNIEnv::with_local_frame_returning_local` can now return any kind of `JObjectRef` local reference, not just `JObject`
+- `JList` is a simpler, transparent reference wrapper implementing `JObjectRef`, like `JObject`, `JClass`, `JString` etc
+- `JList::add` returns the boolean returned by the Java API
+- `JList::remove` no longer returns an `Option` since there's nothing special about getting a `null` from the Java `remove` API.
+- `JList::pop` is deprecated since this doesn't map to standard Java `List` method.
+- `JList::iter` returns a `JIterator` instead of a `JListIter`
+- `JNIEnv::get_list` has been deprecated, in favor of `JList::cast_local`, or other generic `JNIEnv` `cast_local/cast_global` APIs.
 
 ### Removed
 - `JavaVM::attach_current_thread_as_daemon` (and general support for 'daemon' threads) has been removed, since their semantics are inherently poorly defined and unsafe (the distinction relates to the poorly defined limbo state after calling `JavaDestroyVM`, where it becomes undefined to touch the JVM) ([#593](https://github.com/jni-rs/jni-rs/pull/593))
@@ -110,6 +116,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `JNIEnv::cast_local` takes an owned local reference and returns a newly type cast wrapper ([#612](https://github.com/jni-rs/jni-rs/pull/612))
 - `JNIEnv::as_cast` borrows any `From: JObjectRef` (global or local) reference and returns  a `Cast<To>` that will Deref into `&To` ([#612](https://github.com/jni-rs/jni-rs/pull/612))
 - `JCollection`, `JSet` and `JIterator` reference wrappers for `java.util.Collection`, `java.util.Set` and `java.util.Iterator` interfaces.
+- `JList::remove_item` for removing a given value, by-reference, from the list (instead of by index).
+- `JList::clear` allows a list to be cleared.
+- `JList::is_empty` checks if a list is empty.
+- `JList::as_collection` casts a list into a `JCollection`
 
 ### Fixed
 - `JNIEnv::get_string` no longer leaks local references. ([#528](https://github.com/jni-rs/jni-rs/pull/528), [#557](https://github.com/jni-rs/jni-rs/pull/557))
