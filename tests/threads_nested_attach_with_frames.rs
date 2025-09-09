@@ -11,7 +11,11 @@ use util::jvm;
 /// on exit.
 #[test]
 fn nested_attach() {
+    // A newly created VM will be attached
+    assert_eq!(jvm().threads_attached(), 1);
+    jvm().detach_current_thread().unwrap();
     assert_eq!(jvm().threads_attached(), 0);
+
     let thread = spawn(|| {
         assert_eq!(jvm().threads_attached(), 0);
         check_nested_attach(jvm());
