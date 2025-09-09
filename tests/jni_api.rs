@@ -263,8 +263,8 @@ pub fn with_local_frame() {
             .unwrap();
         let s = env.cast_local::<JString>(s).unwrap();
 
-        let s = env
-            .get_string(&s)
+        let s = s
+            .mutf8_chars(env)
             .expect("The object returned from the local frame must remain valid");
         assert_eq!(s.to_str(), "Test");
 
@@ -411,7 +411,7 @@ pub fn call_new_object_unchecked_ok() {
         .expect("JNIEnv#new_object_unchecked should return JValue");
 
         let jstr = env.cast_local::<JString>(val).unwrap();
-        let javastr = env.get_string(&jstr).unwrap();
+        let javastr = jstr.mutf8_chars(env).unwrap();
         let jnistr: &JNIStr = javastr.as_ref();
         assert_eq!(jnistr, TESTING_OBJECT_STR);
 
@@ -1366,10 +1366,10 @@ pub fn test_conversion() {
 }
 
 #[test]
-pub fn test_null_get_string() {
+pub fn test_null_string_mutf8_chars() {
     attach_current_thread(|env| {
         let s = unsafe { JString::from_raw(std::ptr::null_mut() as _) };
-        let ret = env.get_string(&s);
+        let ret = s.mutf8_chars(env);
         assert!(ret.is_err());
 
         Ok(())
@@ -1438,7 +1438,7 @@ fn assert_exception_message(env: &mut JNIEnv, exception: &JThrowable, expected_m
         .l()
         .unwrap();
     let message = env.cast_local::<JString>(message).unwrap();
-    let msg_rust: JNIString = env.get_string(&message).unwrap().into();
+    let msg_rust: JNIString = message.mutf8_chars(env).unwrap().into();
     assert_eq!(msg_rust, expected_message);
 }
 

@@ -45,7 +45,7 @@ pub fn jlist_push_and_iterate() {
             list.iter(env).and_then(|iter| {
                 while let Some(obj) = iter.next(env)? {
                     let s = env.cast_local::<JString>(obj)?;
-                    let s = env.get_string(&s)?;
+                    let s = s.mutf8_chars(env)?;
                     collected.push(s.to_owned());
                 }
                 Ok(())
@@ -79,14 +79,14 @@ pub fn jlist_get_and_set() {
         assert!(first.is_some());
         let first_obj = first.unwrap();
         let first_jstring = unwrap(env.cast_local::<JString>(first_obj), env);
-        let first_str = unwrap(env.get_string(&first_jstring), env);
+        let first_str = unwrap(first_jstring.mutf8_chars(env), env);
         assert_eq!(first_str.to_str().as_ref(), "hello");
 
         let second = unwrap(list.get(env, 1), env);
         assert!(second.is_some());
         let second_obj = second.unwrap();
         let second_jstring = unwrap(env.cast_local::<JString>(second_obj), env);
-        let second_str = unwrap(env.get_string(&second_jstring), env);
+        let second_str = unwrap(second_jstring.mutf8_chars(env), env);
         assert_eq!(second_str.to_str().as_ref(), "world");
 
         // Test get with invalid index (should throw IndexOutOfBoundsException)
@@ -125,7 +125,7 @@ pub fn jlist_insert_and_remove() {
             .map(|i| {
                 let obj = unwrap(list.get(env, i), env).unwrap();
                 let jstring = unwrap(env.cast_local::<JString>(obj), env);
-                String::from(unwrap(env.get_string(&jstring), env))
+                String::from(unwrap(jstring.mutf8_chars(env), env))
             })
             .collect();
 
@@ -134,7 +134,7 @@ pub fn jlist_insert_and_remove() {
         // Remove the middle element
         let removed_obj = unwrap(list.remove(env, 1), env);
         let removed_jstring = unwrap(env.cast_local::<JString>(removed_obj), env);
-        let removed_str = unwrap(env.get_string(&removed_jstring), env);
+        let removed_str = unwrap(removed_jstring.mutf8_chars(env), env);
         assert_eq!(removed_str.to_str().as_ref(), "second");
 
         // Verify size is now 2
@@ -144,12 +144,12 @@ pub fn jlist_insert_and_remove() {
         // Verify remaining elements
         let first_remaining = unwrap(list.get(env, 0), env).unwrap();
         let first_jstring = unwrap(env.cast_local::<JString>(first_remaining), env);
-        let first_str = unwrap(env.get_string(&first_jstring), env);
+        let first_str = unwrap(first_jstring.mutf8_chars(env), env);
         assert_eq!(first_str.to_str().as_ref(), "first");
 
         let second_remaining = unwrap(list.get(env, 1), env).unwrap();
         let second_jstring = unwrap(env.cast_local::<JString>(second_remaining), env);
-        let second_str = unwrap(env.get_string(&second_jstring), env);
+        let second_str = unwrap(second_jstring.mutf8_chars(env), env);
         assert_eq!(second_str.to_str().as_ref(), "third");
 
         Ok(())
@@ -184,7 +184,7 @@ pub fn jlist_size_and_remove() {
         // Remove the last element
         let removed_obj = unwrap(list.remove(env, 2), env);
         let removed_jstring = unwrap(env.cast_local::<JString>(removed_obj), env);
-        let removed_str = unwrap(env.get_string(&removed_jstring), env);
+        let removed_str = unwrap(removed_jstring.mutf8_chars(env), env);
         assert_eq!(removed_str.to_str().as_ref(), "third");
 
         // Verify size is now 2
@@ -194,7 +194,7 @@ pub fn jlist_size_and_remove() {
         // Remove another element
         let removed_obj = unwrap(list.remove(env, 1), env);
         let removed_jstring = unwrap(env.cast_local::<JString>(removed_obj), env);
-        let removed_str = unwrap(env.get_string(&removed_jstring), env);
+        let removed_str = unwrap(removed_jstring.mutf8_chars(env), env);
         assert_eq!(removed_str.to_str().as_ref(), "second");
 
         // Verify size is now 1
@@ -204,7 +204,7 @@ pub fn jlist_size_and_remove() {
         // Remove the last element
         let removed_obj = unwrap(list.remove(env, 0), env);
         let removed_jstring = unwrap(env.cast_local::<JString>(removed_obj), env);
-        let removed_str = unwrap(env.get_string(&removed_jstring), env);
+        let removed_str = unwrap(removed_jstring.mutf8_chars(env), env);
         assert_eq!(removed_str.to_str().as_ref(), "first");
 
         // Verify list is now empty
@@ -229,7 +229,7 @@ pub fn jlist_iterator_empty() {
             list.iter(env).and_then(|iter| {
                 while let Some(obj) = iter.next(env)? {
                     let s = env.cast_local::<JString>(obj)?;
-                    let s = env.get_string(&s)?;
+                    let s = s.mutf8_chars(env)?;
                     collected.push(s.to_owned());
                 }
                 Ok(())
@@ -274,7 +274,7 @@ pub fn jlist_iterator_with_auto_local() {
                 while let Some(obj) = iter.next(env)? {
                     let obj = obj.auto(); // Wrap as AutoLocal to avoid leaking while iterating
                     let s = env.as_cast::<JString>(&obj)?;
-                    let s = env.get_string(&s)?;
+                    let s = s.mutf8_chars(env)?;
                     collected.push(s.to_owned());
                 }
                 Ok(())

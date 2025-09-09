@@ -23,7 +23,7 @@ use crate::{
         JString, JThrowable, JValue, JValueOwned, ReleaseMode, TypeArray, WeakRef,
     },
     signature::{JavaType, Primitive, TypeSignature},
-    strings::{JNIStr, JNIString, JavaStr},
+    strings::{JNIStr, JNIString, MUTF8Chars},
     sys::{
         self, jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jshort, jsize, jvalue,
         JNINativeMethod,
@@ -2301,9 +2301,9 @@ impl<'local> JNIEnv<'local> {
         JMap::cast_local(obj, self)
     }
 
-    /// Gets the bytes of a Java string, in [modified UTF-8] encoding.
+    /// Gets the contents of a Java string, in [modified UTF-8] encoding.
     ///
-    /// The returned `JavaStr` can be used to access the modified UTF-8 bytes,
+    /// The returned [MUTF8Chars] can be used to access the modified UTF-8 bytes,
     /// or to convert to a Rust string (which uses standard UTF-8 encoding).
     ///
     /// This entails calling the JNI function `GetStringUTFChars`.
@@ -2315,18 +2315,21 @@ impl<'local> JNIEnv<'local> {
     /// Returns an error if `obj` is `null`.
     #[deprecated(
         since = "0.22.0",
-        note = "use get_string instead; this method is redundant and does not perform unsafe operations"
+        note = "use JString::mutf8_chars or JString::to_string instead; this method is redundant and does not perform unsafe operations"
     )]
-    pub fn get_string_unchecked<'other_local: 'obj_ref, 'obj_ref>(
+    pub fn get_string_unchecked<'any_local, StringRef>(
         &mut self,
-        obj: &'obj_ref JString<'other_local>,
-    ) -> Result<JavaStr<'local, 'other_local, 'obj_ref>> {
-        self.get_string(obj)
+        obj: StringRef,
+    ) -> Result<MUTF8Chars<'any_local, StringRef>>
+    where
+        StringRef: AsRef<JString<'any_local>> + JObjectRef,
+    {
+        MUTF8Chars::from_get_string_utf_chars(self, obj)
     }
 
-    /// Gets the bytes of a Java string, in [modified UTF-8] encoding.
+    /// Gets the contents of a Java string, in [modified UTF-8] encoding.
     ///
-    /// The returned `JavaStr` can be used to access the modified UTF-8 bytes,
+    /// The returned [MUTF8Chars] can be used to access the modified UTF-8 bytes,
     /// or to convert to a Rust string (which uses standard UTF-8 encoding).
     ///
     /// This entails calling the JNI function `GetStringUTFChars`.
@@ -2336,15 +2339,18 @@ impl<'local> JNIEnv<'local> {
     /// # Errors
     ///
     /// Returns an error if `obj` is `null`.
-    pub fn get_string<'other_local: 'obj_ref, 'obj_ref>(
-        &mut self,
-        obj: &'obj_ref JString<'other_local>,
-    ) -> Result<JavaStr<'local, 'other_local, 'obj_ref>> {
-        // Runtime check that the 'local reference lifetime will be tied to
-        // JNIEnv lifetime for the top JNI stack frame
-        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
-        let obj = null_check!(obj, "get_string obj argument")?;
-        JavaStr::from_get_string_utf_chars(self, obj)
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JString::mutf8_chars or JString::to_string instead"
+    )]
+    pub fn get_string<'any_local, StringRef>(
+        &self,
+        obj: StringRef,
+    ) -> Result<MUTF8Chars<'any_local, StringRef>>
+    where
+        StringRef: AsRef<JString<'any_local>> + JObjectRef,
+    {
+        MUTF8Chars::from_get_string_utf_chars(self, obj)
     }
 
     /// Create a new java string object from a rust string. This requires a

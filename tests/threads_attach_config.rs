@@ -33,7 +33,7 @@ fn attach_config() {
                         .call_method(thread, c"getName", c"()Ljava/lang/String;", &[])?
                         .l()?;
                     let name = env.cast_local::<JString>(name).unwrap();
-                    let name = env.get_string(&name)?;
+                    let name = name.mutf8_chars(env)?;
                     assert_eq!(name.as_cstr(), c"test-thread");
                     Ok(())
                 },

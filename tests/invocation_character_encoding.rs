@@ -38,7 +38,7 @@ fn invocation_character_encoding() {
             .l()
             .unwrap();
         let prop_value = env.cast_local::<JString>(prop_value)?;
-        let prop_value_str = env.get_string(&prop_value).unwrap();
+        let prop_value_str = prop_value.mutf8_chars(env).unwrap();
         let prop_value_str: Cow<str> = prop_value_str.to_str();
 
         assert_eq!("\u{00a0}", prop_value_str);

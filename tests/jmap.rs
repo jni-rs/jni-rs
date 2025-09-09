@@ -39,7 +39,7 @@ pub fn jmap_push_and_iterate() {
                 while let Some(e) = iter.next(env)? {
                     let value = e.value(env)?;
                     let s = env.cast_local::<JString>(value)?;
-                    let s = env.get_string(&s)?;
+                    let s = s.mutf8_chars(env)?;
 
                     collected.push(s.to_owned());
                 }

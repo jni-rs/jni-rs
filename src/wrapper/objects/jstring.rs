@@ -6,12 +6,15 @@ use crate::{
     env::JNIEnv,
     errors::Result,
     objects::{GlobalRef, JClass, JMethodID, JObject, LoaderContext},
-    strings::JNIStr,
+    strings::{JNIStr, MUTF8Chars},
     sys::{jobject, jstring},
     JavaVM,
 };
 
 use super::JObjectRef;
+
+#[cfg(doc)]
+use crate::errors::Error;
 
 /// Lifetime'd representation of a `jstring`. Just a `JObject` wrapped in a new
 /// class.
@@ -112,6 +115,76 @@ impl JString<'_> {
             JString::from_raw(interned.into_raw() as jstring)
         };
         Ok(interned)
+    }
+
+    /// Gets the contents of this string, in [modified UTF-8] encoding (via `GetStringUTFChars`).
+    ///
+    /// The returned [MUTF8Chars] guard can be used to access the modified UTF-8
+    /// bytes, or to convert to a Rust string (UTF-8).
+    ///
+    /// For example:
+    ///
+    /// ```rust,no_run
+    /// # use jni::{errors::Result, env::JNIEnv, objects::*};
+    /// #
+    /// # fn f(env: &mut JNIEnv) -> Result<()> {
+    /// let my_jstring = env.new_string(c"Hello, world!")?;
+    /// let mutf8_chars = my_jstring.mutf8_chars(env)?;
+    /// let rust_string = mutf8_chars.to_string();
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// When the [MUTF8Chars] guard is dropped, the reference to the contents
+    /// gets released.
+    ///
+    /// The [MUTF8Chars] guard dereferences to a [JNIStr].
+    ///
+    /// For convenience, also see [Self::to_string].
+    ///
+    /// [modified UTF-8]: https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
+    ///
+    /// # Errors
+    ///
+    /// Returns an [Error::NullPtr] if this [`JString`] is null.
+    pub fn mutf8_chars(&self, env: &JNIEnv<'_>) -> Result<MUTF8Chars<'_, &JString<'_>>> {
+        MUTF8Chars::from_get_string_utf_chars(env, self)
+    }
+
+    /// Gets the contents of this string as a Rust `String`.
+    ///
+    /// For example:
+    ///
+    /// ```rust,no_run
+    /// # use jni::{errors::Result, env::JNIEnv, objects::*};
+    /// #
+    /// # fn f(env: &mut JNIEnv) -> Result<()> {
+    /// let jstring = env.new_string(c"Hello, world!")?;
+    /// let rust_string = jstring.to_string(&env)?;
+    /// assert_eq!(rust_string, "Hello, world!");
+    /// # ; Ok(())
+    /// # }
+    /// ```
+    ///
+    /// This is equivalent to calling [`mutf8_chars`] and then converting that to a `String`, like:
+    ///
+    /// ```rust,no_run
+    /// # use jni::{errors::Result, env::JNIEnv, objects::*};
+    /// #
+    /// # fn f(env: &mut JNIEnv) -> Result<()> {
+    /// let jstring = env.new_string(c"Hello, world!")?;
+    /// let mutf8_chars = jstring.mutf8_chars(&env)?;
+    /// let rust_string = mutf8_chars.to_string();
+    /// # ; Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an [Error::NullPtr] if this [`JString`] is null.
+    pub fn to_string(&self, env: &JNIEnv<'_>) -> Result<String> {
+        let mutf8_chars = self.mutf8_chars(env)?;
+        Ok(mutf8_chars.to_string())
     }
 }
 
