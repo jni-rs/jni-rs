@@ -49,7 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `JValueGen` has been removed. `JValue` and `JValueOwned` are now separate, unrelated, non-generic types. ([#429](https://github.com/jni-rs/jni-rs/pull/429))
 - Make most `from_raw()`, `get_raw()` and `into_raw()` methods `const fn`. ([#453](https://github.com/jni-rs/jni-rs/pull/453))
 - `get_object_class` borrows the `JNIEnv` mutably because it creates a new local reference. ([#456](https://github.com/jni-rs/jni-rs/pull/456))
-- `get/set_field_unchecked` have been marked as unsafe since they can lead to undefined behaviour if the given types don't match the field type ([#457](https://github.com/jni-rs/jni-rs/pull/457))
+- `get/set_*_field_unchecked` have been marked as unsafe since they can lead to undefined behaviour if the given types don't match the field type ([#457](https://github.com/jni-rs/jni-rs/pull/457) + [#629](https://github.com/jni-rs/jni-rs/pull/629))
+- `set_static_field` takes a field name and signature as strings so the ID is looked up internally to ensure it's valid. ([#629](https://github.com/jni-rs/jni-rs/pull/629))
 - `JNIEnv::get/set/take_rust_field` no longer require a mutable `JNIEnv` reference since they don't return any new local references to the caller ([#455](https://github.com/jni-rs/jni-rs/issues/455))
 - `JNIEnv::is_assignable_from` and `is_instance_of` no longer requires a mutable `JNIEnv` reference, since they doesn't return an new local references to the caller
 - `JavaStr` has been renamed `MUTF8Chars` and intended to be got via `JString::mutf8_chars()`
