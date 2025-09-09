@@ -342,7 +342,20 @@ impl JavaVM {
         ))?;
 
         let vm = Self::from_raw(ptr);
-        java_vm_call_unchecked!(vm, v1_1, DetachCurrentThread);
+
+        // JNI_CreateJavaVM will implicitly attach the calling thread to the JVM.
+        //
+        // Since the JVM may attribute this thread with special significance as a "main" thread, we
+        // avoid detaching it.
+        //
+        // Instead we take ownership of that attachment by creating a `TLSAttachGuard` for it.
+        //
+        // Note: This will make a redundant `AttachCurrentThread` call via
+        // `sys_attach_current_thread` and the `Default` `config` is benign here because it will be
+        // ignored while the thread is already attached.
+        //
+        // This will track the new attachment in TLS, under `THREAD_ATTACH_GUARD`
+        TLSAttachGuard::attach_current_thread(&vm, &Default::default())?;
 
         Ok(vm)
     }

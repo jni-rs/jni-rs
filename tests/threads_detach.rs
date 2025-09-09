@@ -32,7 +32,11 @@ fn thread_detaches_for_tls_attachment_when_finished() {
 rusty_fork_test! {
 #[test]
 fn thread_detaches_for_scoped_attachment() {
+    // A newly created VM will be attached
+    assert_eq!(jvm().threads_attached(), 1);
+    jvm().detach_current_thread().unwrap();
     assert_eq!(jvm().threads_attached(), 0);
+
     attach_current_thread_for_scope(|env| {
         assert_eq!(jvm().threads_attached(), 1);
         let val = call_java_abs(env, -1);
@@ -55,6 +59,9 @@ fn thread_detaches_for_outer_scoped_attachment() {
 rusty_fork_test! {
 #[test]
 fn threads_explicit_detach_error_for_scoped_attachment() {
+    // A newly created VM will be attached
+    assert_eq!(jvm().threads_attached(), 1);
+    jvm().detach_current_thread().unwrap();
     assert_eq!(jvm().threads_attached(), 0);
 
     attach_current_thread_for_scope(|env| {
@@ -83,6 +90,9 @@ fn threads_explicit_detach_error_for_scoped_attachment() {
 rusty_fork_test! {
 #[test]
 fn threads_explicit_detach_tls_attachment() {
+    // A newly created VM will be attached
+    assert_eq!(jvm().threads_attached(), 1);
+    jvm().detach_current_thread().unwrap();
     assert_eq!(jvm().threads_attached(), 0);
 
     attach_current_thread(|env| {
@@ -117,6 +127,9 @@ fn threads_explicit_detach_tls_attachment() {
 rusty_fork_test! {
 #[test]
 fn threads_scoped_attachments_nest() {
+    // A newly created VM will be attached
+    assert_eq!(jvm().threads_attached(), 1);
+    jvm().detach_current_thread().unwrap();
     assert_eq!(jvm().threads_attached(), 0);
     assert!(!util::is_thread_attached());
 
@@ -155,6 +168,9 @@ fn threads_scoped_attachments_nest() {
 rusty_fork_test! {
 #[test]
 fn threads_scope_attachments_block_tls_attachments() {
+    // A newly created VM will be attached
+    assert_eq!(jvm().threads_attached(), 1);
+    jvm().detach_current_thread().unwrap();
     assert_eq!(jvm().threads_attached(), 0);
 
     attach_current_thread_for_scope(|_| {
@@ -191,8 +207,12 @@ fn threads_scope_attachments_block_tls_attachments() {
 rusty_fork_test! {
 #[test]
 fn threads_guard_nesting_blocks_explicit_detachment() {
-    assert_eq!(jvm().threads_attached(), 0);
+    // A newly created VM will be attached
+    assert_eq!(jvm().threads_attached(), 1);
+    // There are initially no AttachGuards in place
     assert_eq!(JavaVM::thread_attach_guard_level(), 0);
+    jvm().detach_current_thread().unwrap();
+    assert_eq!(jvm().threads_attached(), 0);
 
     // While there are no guards and no attachment then `detach_current_thread`
     // is a no-op that shouldn't return an error.
