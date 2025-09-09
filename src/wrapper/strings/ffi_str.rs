@@ -144,6 +144,13 @@ impl From<JNIString> for String {
     }
 }
 
+impl std::fmt::Display for JNIStr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = self.to_str();
+        write!(f, "{}", s)
+    }
+}
+
 impl JNIString {
     /// Converts a Rust string (in standard UTF-8 encoding) into a
     /// Java-compatible string (in Java's [modified UTF-8] encoding).
