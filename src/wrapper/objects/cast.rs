@@ -1,9 +1,13 @@
 use std::{marker::PhantomData, ops::Deref};
 
+use jni_sys::jobject;
+
 use crate::{
     env::JNIEnv,
     errors::{Error, Result},
-    objects::{JObject, JObjectRef},
+    objects::{GlobalRef, JClass, JObject, JObjectRef, LoaderContext},
+    strings::JNIStr,
+    JavaVM,
 };
 
 /// Represents a runtime checked (via `IsInstanceOf`) cast of a reference from one type to another
@@ -109,5 +113,31 @@ impl<'local, 'from, To: JObjectRef> Deref for Cast<'local, 'from, To> {
 impl<'local, 'from, To: JObjectRef> AsRef<To::Kind<'local>> for Cast<'local, 'from, To> {
     fn as_ref(&self) -> &To::Kind<'local> {
         &self.to
+    }
+}
+
+unsafe impl<'any, 'from, To: JObjectRef> JObjectRef for Cast<'any, 'from, To> {
+    const CLASS_NAME: &'static JNIStr = To::CLASS_NAME;
+
+    type Kind<'local> = To::Kind<'local>;
+    type GlobalKind = To::GlobalKind;
+
+    fn as_raw(&self) -> jobject {
+        self.to.as_raw()
+    }
+
+    fn lookup_class<'vm>(
+        vm: &'vm JavaVM,
+        loader_context: LoaderContext,
+    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+        To::lookup_class(vm, loader_context)
+    }
+
+    unsafe fn from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+        To::from_raw(local_ref)
+    }
+
+    unsafe fn from_global_raw(global_ref: jobject) -> Self::GlobalKind {
+        To::from_global_raw(global_ref)
     }
 }
