@@ -74,6 +74,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `JList::pop` is deprecated since this doesn't map to standard Java `List` method.
 - `JList::iter` returns a `JIterator` instead of a `JListIter`
 - `JNIEnv::get_list` has been deprecated, in favor of `JList::cast_local`, or other generic `JNIEnv` `cast_local/cast_global` APIs.
+- `JNIEnv::get_array_elements` is deprecated in favor of `JPrimitiveArray::get_elements`
+- `JNIEnv::get_array_elements_critical` is deprecated in favor of `JPrimitiveArray::get_elements_critical`
+- `JNIEnv::get_*_array_region` and `JNIEnv::set_*_array_region` are deprecated in favor of `JPrimitiveArray::get/set_region`
+- `JNIEnv::get_array_length` is deprecated in favor of `JPrimitiveArray::len` and `JObjectArray::len`
 
 ### Removed
 - `JavaVM::attach_current_thread_as_daemon` (and general support for 'daemon' threads) has been removed, since their semantics are inherently poorly defined and unsafe (the distinction relates to the poorly defined limbo state after calling `JavaDestroyVM`, where it becomes undefined to touch the JVM) ([#593](https://github.com/jni-rs/jni-rs/pull/593))

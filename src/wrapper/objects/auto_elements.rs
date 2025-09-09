@@ -2,8 +2,8 @@ use log::error;
 use std::marker::PhantomData;
 use std::ptr::NonNull;
 
-use crate::objects::JObjectRef;
-use crate::sys::{jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jshort};
+use crate::objects::{JObjectRef, TypeArray};
+use crate::sys::jboolean;
 use crate::wrapper::objects::ReleaseMode;
 use crate::{env::JNIEnv, errors::*, sys, JavaVM};
 
@@ -11,102 +11,6 @@ use super::JPrimitiveArray;
 
 #[cfg(doc)]
 use super::JByteArray;
-
-mod type_array_sealed {
-    use crate::sys::{jarray, jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jshort};
-    use crate::{env::JNIEnv, errors::*};
-    use std::ptr::NonNull;
-
-    /// Trait to define type array access/release
-    ///
-    /// # Safety
-    ///
-    /// The methods of this trait must uphold the invariants described in [`JNIEnv::unsafe_clone`] when
-    /// using the provided [`JNIEnv`].
-    ///
-    /// The `get` method must return a valid pointer to the beginning of the JNI array.
-    ///
-    /// The `release` method must not invalidate the `ptr` if the `mode` is [`sys::JNI_COMMIT`].
-    pub unsafe trait TypeArraySealed: Copy {
-        /// getter
-        ///
-        /// # Safety
-        ///
-        /// `array` must be a valid pointer to an `Array` object, or `null`
-        ///
-        /// The caller is responsible for passing the returned pointer to [`release`], along
-        /// with the same `env` and `array` reference (which needs to still be valid)
-        unsafe fn get(env: &JNIEnv, array: jarray, is_copy: &mut jboolean) -> Result<*mut Self>;
-
-        /// releaser
-        ///
-        /// # Safety
-        ///
-        /// `ptr` must have been previously returned by the `get` function.
-        ///
-        /// If `mode` is not [`sys::JNI_COMMIT`], `ptr` must not be used again after calling this
-        /// function.
-        unsafe fn release(env: &JNIEnv, array: jarray, ptr: NonNull<Self>, mode: i32)
-            -> Result<()>;
-    }
-
-    // TypeArray builder
-    macro_rules! type_array {
-        ( $jni_type:ty, $jni_get:tt, $jni_release:tt ) => {
-            /// $jni_type array access/release impl
-            unsafe impl TypeArraySealed for $jni_type {
-                /// Get Java $jni_type array
-                unsafe fn get(
-                    env: &JNIEnv,
-                    array: jarray,
-                    is_copy: &mut jboolean,
-                ) -> Result<*mut Self> {
-                    // There are no documented exceptions for Get<Primitive>ArrayElements() but
-                    // they may return `NULL`.
-                    let ptr = jni_call_only_check_null_ret!(env, v1_1, $jni_get, array, is_copy)?;
-                    Ok(ptr as _)
-                }
-
-                /// Release Java $jni_type array
-                unsafe fn release(
-                    env: &JNIEnv,
-                    array: jarray,
-                    ptr: NonNull<Self>,
-                    mode: i32,
-                ) -> Result<()> {
-                    // There are no documented exceptions for Release<Primitive>ArrayElements()
-                    jni_call_unchecked!(env, v1_1, $jni_release, array, ptr.as_ptr(), mode as i32);
-                    Ok(())
-                }
-            }
-        };
-    }
-
-    type_array!(jint, GetIntArrayElements, ReleaseIntArrayElements);
-    type_array!(jlong, GetLongArrayElements, ReleaseLongArrayElements);
-    type_array!(jbyte, GetByteArrayElements, ReleaseByteArrayElements);
-    type_array!(
-        jboolean,
-        GetBooleanArrayElements,
-        ReleaseBooleanArrayElements
-    );
-    type_array!(jchar, GetCharArrayElements, ReleaseCharArrayElements);
-    type_array!(jshort, GetShortArrayElements, ReleaseShortArrayElements);
-    type_array!(jfloat, GetFloatArrayElements, ReleaseFloatArrayElements);
-    type_array!(jdouble, GetDoubleArrayElements, ReleaseDoubleArrayElements);
-}
-
-/// A sealed trait to define type array access/release for primitive JNI types
-pub trait TypeArray: type_array_sealed::TypeArraySealed + Send + Sync {}
-
-impl TypeArray for jint {}
-impl TypeArray for jlong {}
-impl TypeArray for jbyte {}
-impl TypeArray for jboolean {}
-impl TypeArray for jchar {}
-impl TypeArray for jshort {}
-impl TypeArray for jfloat {}
-impl TypeArray for jdouble {}
 
 /// Auto-release wrapper for a mutable pointer to the elements of a [`JPrimitiveArray`]
 /// (such as [`JByteArray`])
@@ -120,7 +24,7 @@ impl TypeArray for jdouble {}
 pub struct AutoElements<'array_local, T, TArrayRef>
 where
     T: TypeArray + 'array_local,
-    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>> + JObjectRef,
+    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>>,
 {
     array: TArrayRef,
     len: usize,
@@ -136,7 +40,7 @@ where
 impl<'array_local, T, TArrayRef> AutoElements<'array_local, T, TArrayRef>
 where
     T: TypeArray + 'array_local,
-    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>> + JObjectRef,
+    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>>,
 {
     /// # Safety
     ///
@@ -148,7 +52,7 @@ where
         mode: ReleaseMode,
     ) -> Result<Self> {
         let mut is_copy: jboolean = true;
-        let ptr = unsafe { T::get(env, array.as_ref().as_raw(), &mut is_copy) }?;
+        let ptr = unsafe { T::get_elements(env, array.as_ref().as_raw(), &mut is_copy) }?;
         Ok(AutoElements {
             array,
             len,
@@ -160,8 +64,7 @@ where
     }
 
     pub(crate) fn new(env: &JNIEnv<'_>, array: TArrayRef, mode: ReleaseMode) -> Result<Self> {
-        let array = null_check!(array, "get_array_elements array argument")?;
-        let len = env.get_array_length(array.as_ref())? as usize;
+        let len = array.as_ref().len(env)?;
         unsafe { Self::new_with_len(env, array, len, mode) }
     }
 
@@ -186,8 +89,9 @@ where
     unsafe fn release_array_elements(&self, mode: i32) -> Result<()> {
         // Panic: Since we can't construct `AutoElements` without a valid `JNIEnv` reference
         // we know we can call `JavaVM::singleton()` without a panic.
-        JavaVM::singleton()?
-            .with_env_current_frame(|env| T::release(env, self.array.as_raw(), self.ptr, mode))
+        JavaVM::singleton()?.with_env_current_frame(|env| {
+            T::release_elements(env, self.array.as_ref().as_raw(), self.ptr, mode)
+        })
     }
 
     /// Don't copy back the changes to the array on release (if it is a copy).
@@ -230,7 +134,7 @@ where
 impl<'array_local, T, TArrayRef> Drop for AutoElements<'array_local, T, TArrayRef>
 where
     T: TypeArray,
-    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>> + JObjectRef,
+    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>>,
 {
     fn drop(&mut self) {
         // Safety: `self.mode` is valid and the array has not yet been released.

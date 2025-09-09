@@ -3,6 +3,7 @@ use std::ops::Deref;
 use once_cell::sync::OnceCell;
 
 use crate::{
+    env::JNIEnv,
     errors::Result,
     objects::{GlobalRef, JClass, JObject, JObjectRef, LoaderContext},
     strings::JNIStr,
@@ -80,9 +81,21 @@ impl JObjectArray<'_> {
         Self(JObject::from_raw(raw as jobject))
     }
 
+    /// Returns the raw JNI pointer.
+    pub const fn as_raw(&self) -> jobjectArray {
+        self.0.as_raw() as jobjectArray
+    }
+
     /// Unwrap to the raw jni type.
     pub const fn into_raw(self) -> jobjectArray {
         self.0.into_raw() as jobjectArray
+    }
+
+    /// Returns the length of the array.
+    pub fn len(&self, env: &JNIEnv) -> Result<usize> {
+        let array = null_check!(self.as_raw(), "JObjectArray::len self argument")?;
+        let len = unsafe { jni_call_unchecked!(env, v1_1, GetArrayLength, array) } as usize;
+        Ok(len)
     }
 }
 

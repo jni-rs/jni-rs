@@ -74,6 +74,9 @@ pub use self::release_mode::*;
 mod jobject_array;
 pub use self::jobject_array::*;
 
+mod type_array;
+pub use self::type_array::*;
+
 /// Primitive Array types
 mod jprimitive_array;
 pub use self::jprimitive_array::*;

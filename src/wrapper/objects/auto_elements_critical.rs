@@ -1,8 +1,10 @@
 use log::error;
+use std::marker::PhantomData;
 use std::ptr::NonNull;
 
 use crate::sys::jboolean;
 use crate::wrapper::objects::ReleaseMode;
+use crate::JavaVM;
 use crate::{env::JNIEnv, errors::*, sys};
 
 use super::{JPrimitiveArray, TypeArray};
@@ -15,24 +17,28 @@ use super::JByteArray;
 ///
 /// This type is used to wrap pointers returned by `GetPrimitiveArrayCritical`
 /// and ensure the pointer is released via `ReleasePrimitiveArrayCritical` when dropped.
-pub struct AutoElementsCritical<'local, 'other_local, 'array, 'env, T: TypeArray> {
-    array: &'array JPrimitiveArray<'other_local, T>,
+pub struct AutoElementsCritical<'array_local, T: TypeArray, TArrayRef>
+where
+    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>>,
+{
+    array: TArrayRef,
     len: usize,
     ptr: NonNull<T>,
     mode: ReleaseMode,
     is_copy: bool,
-    env: &'env mut JNIEnv<'local>,
+    _lifetime: PhantomData<&'array_local ()>,
 }
 
-impl<'local, 'other_local, 'array, 'env, T: TypeArray>
-    AutoElementsCritical<'local, 'other_local, 'array, 'env, T>
+impl<'array_local, T: TypeArray, TArrayRef> AutoElementsCritical<'array_local, T, TArrayRef>
+where
+    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>>,
 {
     /// # Safety
     ///
     /// `len` must be the correct length (number of elements) of the given `array`
     pub(crate) unsafe fn new_with_len(
-        env: &'env mut JNIEnv<'local>,
-        array: &'array JPrimitiveArray<'other_local, T>,
+        env: &JNIEnv<'_>,
+        array: TArrayRef,
         len: usize,
         mode: ReleaseMode,
     ) -> Result<Self> {
@@ -43,7 +49,7 @@ impl<'local, 'other_local, 'array, 'env, T: TypeArray>
             env,
             v1_2,
             GetPrimitiveArrayCritical,
-            array.as_raw(),
+            array.as_ref().as_raw(),
             &mut is_copy
         )? as *mut T;
 
@@ -53,16 +59,12 @@ impl<'local, 'other_local, 'array, 'env, T: TypeArray>
             ptr: NonNull::new(ptr).ok_or(Error::NullPtr("Non-null ptr expected"))?,
             mode,
             is_copy: is_copy == sys::JNI_TRUE,
-            env,
+            _lifetime: PhantomData,
         })
     }
 
-    pub(crate) fn new(
-        env: &'env mut JNIEnv<'local>,
-        array: &'array JPrimitiveArray<'other_local, T>,
-        mode: ReleaseMode,
-    ) -> Result<Self> {
-        let len = env.get_array_length(array)? as usize;
+    pub(crate) fn new(env: &JNIEnv<'_>, array: TArrayRef, mode: ReleaseMode) -> Result<Self> {
+        let len = array.as_ref().len(env)?;
         unsafe { Self::new_with_len(env, array, len, mode) }
     }
 
@@ -80,15 +82,20 @@ impl<'local, 'other_local, 'array, 'env, T: TypeArray>
     ///
     /// If `mode` is not [`sys::JNI_COMMIT`], then `self.ptr` must not have already been released.
     unsafe fn release_primitive_array_critical(&mut self, mode: i32) -> Result<()> {
-        jni_call_unchecked!(
-            self.env,
-            v1_2,
-            ReleasePrimitiveArrayCritical,
-            self.array.as_raw(),
-            self.ptr.as_ptr().cast(),
-            mode
-        );
-        Ok(())
+        // Panic: Since we can't construct `AutoElementsCritical` without a
+        // valid `JNIEnv` reference we know we can call `JavaVM::singleton()`
+        // without a panic.
+        JavaVM::singleton()?.with_env_current_frame(|env| {
+            jni_call_unchecked!(
+                env,
+                v1_2,
+                ReleasePrimitiveArrayCritical,
+                self.array.as_ref().as_raw(),
+                self.ptr.as_ptr().cast(),
+                mode
+            );
+            Ok(())
+        })
     }
 
     /// Don't copy back the changes to the array on release (if it is a copy).
@@ -117,16 +124,21 @@ impl<'local, 'other_local, 'array, 'env, T: TypeArray>
     }
 }
 
-impl<'local, 'other_local, 'array, 'env, T: TypeArray>
-    AsRef<AutoElementsCritical<'local, 'other_local, 'array, 'env, T>>
-    for AutoElementsCritical<'local, 'other_local, 'array, 'env, T>
+impl<'array_local, T: TypeArray, TArrayRef> AsRef<AutoElementsCritical<'array_local, T, TArrayRef>>
+    for AutoElementsCritical<'array_local, T, TArrayRef>
+where
+    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>>,
 {
-    fn as_ref(&self) -> &AutoElementsCritical<'local, 'other_local, 'array, 'env, T> {
+    fn as_ref(&self) -> &AutoElementsCritical<'array_local, T, TArrayRef> {
         self
     }
 }
 
-impl<T: TypeArray> Drop for AutoElementsCritical<'_, '_, '_, '_, T> {
+impl<'array_local, T: TypeArray, TArrayRef> Drop
+    for AutoElementsCritical<'array_local, T, TArrayRef>
+where
+    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>>,
+{
     fn drop(&mut self) {
         // Safety: `self.mode` is valid and the array has not yet been released.
         let res = unsafe { self.release_primitive_array_critical(self.mode as i32) };
@@ -138,13 +150,21 @@ impl<T: TypeArray> Drop for AutoElementsCritical<'_, '_, '_, '_, T> {
     }
 }
 
-impl<T: TypeArray> From<&AutoElementsCritical<'_, '_, '_, '_, T>> for *mut T {
-    fn from(other: &AutoElementsCritical<T>) -> *mut T {
+impl<'array_local, T: TypeArray, TArrayRef> From<&AutoElementsCritical<'array_local, T, TArrayRef>>
+    for *mut T
+where
+    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>>,
+{
+    fn from(other: &AutoElementsCritical<'array_local, T, TArrayRef>) -> *mut T {
         other.as_ptr()
     }
 }
 
-impl<T: TypeArray> std::ops::Deref for AutoElementsCritical<'_, '_, '_, '_, T> {
+impl<'array_local, T: TypeArray, TArrayRef> std::ops::Deref
+    for AutoElementsCritical<'array_local, T, TArrayRef>
+where
+    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>>,
+{
     type Target = [T];
 
     fn deref(&self) -> &Self::Target {
@@ -152,7 +172,11 @@ impl<T: TypeArray> std::ops::Deref for AutoElementsCritical<'_, '_, '_, '_, T> {
     }
 }
 
-impl<T: TypeArray> std::ops::DerefMut for AutoElementsCritical<'_, '_, '_, '_, T> {
+impl<'array_local, T: TypeArray, TArrayRef> std::ops::DerefMut
+    for AutoElementsCritical<'array_local, T, TArrayRef>
+where
+    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>>,
+{
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { std::slice::from_raw_parts_mut(self.ptr.as_mut(), self.len) }
     }
