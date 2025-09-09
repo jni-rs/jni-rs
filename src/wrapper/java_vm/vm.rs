@@ -903,7 +903,7 @@ impl JavaVM {
     /// - `AutoElementsCritical`
     /// - `AutoLocal`
     /// - `GlobalRef`
-    /// - `JavaStr`
+    /// - `MUTF8Chars`
     /// - `JMap`
     /// - `WeakRef`
     ///

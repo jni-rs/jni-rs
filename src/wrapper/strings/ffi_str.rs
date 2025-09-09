@@ -8,7 +8,7 @@ use cesu8::{from_java_cesu8, to_java_cesu8};
 use log::debug;
 
 #[cfg(doc)]
-use crate::wrapper::strings::JavaStr;
+use crate::wrapper::strings::MUTF8Chars;
 
 /// An owned null-terminated string (like [`CString`]) encoded in Java's
 /// [modified UTF-8].
@@ -42,24 +42,26 @@ impl From<&JNIStr> for JNIString {
 /// A borrowed null-terminated string (like [`CStr`]) encoded in Java's
 /// [modified UTF-8].
 ///
-/// `JNIStr` is to `JNIString` as `CStr` is to `CString` and as `str` is to `String`.
+/// [`JNIStr`] is to [`JNIString`] as `CStr` is to `CString` and as `str` is to
+/// `String`.
 ///
 /// Similar to `CStr` and [`str`], instances of `JNIStr` are borrowed from a
-/// [`JNIString`] (for constructing a Java string in Rust code) or [`JavaStr`]
-/// (which refers to an existing Java string).
+/// [`JNIString`].
+///
+/// [JNIStr] is generally used for passing string arguments to JNI functions or
+/// for viewing the borrowed contents of a `java.lang.String` object.
 ///
 /// As a special-case, a `&CStr` can be coerced into a `&JNIStr` if the `CStr`
 /// has a valid modified UTF-8 encoding. (See [`JNIStr::from_cstr`] or
 /// [`JNIStr::from_cstr_unchecked`]).
 ///
 /// To convert a `JNIStr` into an ordinary Rust string, use the
-/// [`to_str`][Self::to_str] method. To get a view of the modified UTF-8
-/// encoding of the `JNIStr`, use the [`Self::to_bytes`] method.
+/// [`to_str`][Self::to_str] method or [JNIStr::to_string]. To get a view of the
+/// modified UTF-8 encoding of the `JNIStr`, use the [`Self::to_bytes`] method.
 ///
-/// Note that, as with `CStr`, this type is **not** `repr(C)`. See [the
-/// `CStr` documentation][CStr] for an explanation of what that means. (This
-/// type is `repr(transparent)`, but it wraps around a `CStr`, not a raw
-/// pointer.)
+/// Note that, as with `CStr`, this type is **not** `repr(C)`. See [the `CStr`
+/// documentation][CStr] for an explanation of what that means. (This type is
+/// `repr(transparent)`, but it wraps around a `CStr`, not a raw pointer.)
 ///
 /// [modified UTF-8]: https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -376,7 +378,7 @@ impl JNIStr {
         &self.internal
     }
 
-    /// Converts this [modified UTF-8] string to an ordinary Rust string (which
+    /// Converts this [modified UTF-8] string to a `Cow<str>` (which
     /// uses standard UTF-8 encoding).
     ///
     /// Standard UTF-8 and modified UTF-8 differ in how they encode the code
