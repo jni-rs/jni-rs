@@ -1,3 +1,11 @@
+warning: use of deprecated method `jni::env::JNIEnv::<'local>::get_array_elements`: use JPrimitiveArray::get_elements instead. This API will be removed in a future version
+  --> tests/ui/fail/auto-elements-lifetime.rs:19:30
+   |
+19 |                         env2.get_array_elements(java_array, ReleaseMode::CopyBack)
+   |                              ^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+
 error: lifetime may not live long enough
   --> tests/ui/fail/auto-elements-lifetime.rs:26:17
    |

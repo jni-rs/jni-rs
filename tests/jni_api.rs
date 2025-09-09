@@ -631,7 +631,7 @@ pub fn java_byte_array_from_slice() {
 
         assert!(!java_array.is_null());
         let mut res: [i8; 3] = [0; 3];
-        env.get_byte_array_region(&java_array, 0, &mut res).unwrap();
+        java_array.get_region(env, 0, &mut res).unwrap();
         assert_eq!(res[0], 1);
         assert_eq!(res[1], 2);
         assert_eq!(res[2], 3);
@@ -642,7 +642,7 @@ pub fn java_byte_array_from_slice() {
 }
 
 macro_rules! test_auto_array_read_write {
-    ( $test_name:tt, $jni_type:ty, $new_array:tt, $get_array:tt, $set_array:tt, $value_a:tt, $value_b:tt ) => {
+    ( $test_name:tt, $jni_type:ty, $new_array:tt, $value_a:tt, $value_b:tt ) => {
         #[test]
         pub fn $test_name() {
             attach_current_thread(|env| {
@@ -653,7 +653,7 @@ macro_rules! test_auto_array_read_write {
                     .expect(stringify!(JNIEnv #$new_array must create a Java $jni_type array with given size));
 
                 // Insert array elements
-                let _ = env.$set_array(&java_array, 0, buf);
+                let _ = java_array.set_region(env, 0, buf);
 
                 // Use a scope to test Drop
                 {
@@ -664,7 +664,7 @@ macro_rules! test_auto_array_read_write {
                     let mut auto_ptr = env.with_local_frame(10, |env| -> jni::errors::Result<_> {
                         // Get byte array elements auto wrapper
                         let auto_ptr: AutoElements<$jni_type, _> = unsafe {
-                            env.get_array_elements(&java_array, ReleaseMode::CopyBack).unwrap()
+                            java_array.get_elements(env, ReleaseMode::CopyBack).unwrap()
                         };
                         Ok(auto_ptr)
                     }).unwrap();
@@ -714,7 +714,7 @@ macro_rules! test_auto_array_read_write {
 
                 // Confirm modification of original Java array
                 let mut res: [$jni_type; 2] = [$value_a as $jni_type; 2];
-                env.$get_array(&java_array, 0, &mut res).unwrap();
+                java_array.get_region(env, 0, &mut res).unwrap();
                 assert_eq!(res[0], $value_b);
                 assert_eq!(res[1], $value_a);
                 Ok(())
@@ -724,93 +724,33 @@ macro_rules! test_auto_array_read_write {
 }
 
 // Test generic get_array_elements
-test_auto_array_read_write!(
-    get_array_elements,
-    jint,
-    new_int_array,
-    get_int_array_region,
-    set_int_array_region,
-    0,
-    1
-);
+test_auto_array_read_write!(get_array_elements, jint, new_int_array, 0, 1);
 
 // Test type-specific array accessors
-test_auto_array_read_write!(
-    get_int_array_elements,
-    jint,
-    new_int_array,
-    get_int_array_region,
-    set_int_array_region,
-    0,
-    1
-);
+test_auto_array_read_write!(get_int_array_elements, jint, new_int_array, 0, 1);
 
-test_auto_array_read_write!(
-    get_long_array_elements,
-    jlong,
-    new_long_array,
-    get_long_array_region,
-    set_long_array_region,
-    0,
-    1
-);
+test_auto_array_read_write!(get_long_array_elements, jlong, new_long_array, 0, 1);
 
-test_auto_array_read_write!(
-    get_byte_array_elements,
-    jbyte,
-    new_byte_array,
-    get_byte_array_region,
-    set_byte_array_region,
-    0,
-    1
-);
+test_auto_array_read_write!(get_byte_array_elements, jbyte, new_byte_array, 0, 1);
 
 test_auto_array_read_write!(
     get_boolean_array_elements,
     jboolean,
     new_boolean_array,
-    get_boolean_array_region,
-    set_boolean_array_region,
     true,
     false
 );
 
-test_auto_array_read_write!(
-    get_char_array_elements,
-    jchar,
-    new_char_array,
-    get_char_array_region,
-    set_char_array_region,
-    0,
-    1
-);
+test_auto_array_read_write!(get_char_array_elements, jchar, new_char_array, 0, 1);
 
-test_auto_array_read_write!(
-    get_short_array_elements,
-    jshort,
-    new_short_array,
-    get_short_array_region,
-    set_short_array_region,
-    0,
-    1
-);
+test_auto_array_read_write!(get_short_array_elements, jshort, new_short_array, 0, 1);
 
-test_auto_array_read_write!(
-    get_float_array_elements,
-    jfloat,
-    new_float_array,
-    get_float_array_region,
-    set_float_array_region,
-    0.0,
-    1.0
-);
+test_auto_array_read_write!(get_float_array_elements, jfloat, new_float_array, 0.0, 1.0);
 
 test_auto_array_read_write!(
     get_double_array_elements,
     jdouble,
     new_double_array,
-    get_double_array_region,
-    set_double_array_region,
     0.0,
     1.0
 );
@@ -826,13 +766,10 @@ pub fn get_long_array_elements_commit() {
             .expect("JNIEnv#new_long_array must create a java array with given size");
 
         // Insert array elements
-        let _ = env.set_long_array_region(&java_array, 0, buf);
+        let _ = java_array.set_region(env, 0, buf);
 
         // Get long array elements auto wrapper
-        let mut auto_ptr = unsafe {
-            env.get_array_elements(&java_array, ReleaseMode::CopyBack)
-                .unwrap()
-        };
+        let mut auto_ptr = unsafe { java_array.get_elements(env, ReleaseMode::CopyBack).unwrap() };
 
         // Copying the array depends on the VM vendor/version/GC combinations.
         // If the wrapped array is not being copied, we can skip the test.
@@ -852,7 +789,7 @@ pub fn get_long_array_elements_commit() {
 
         // Check that original Java array is unmodified
         let mut res: [i64; 3] = [0; 3];
-        env.get_long_array_region(&java_array, 0, &mut res).unwrap();
+        java_array.get_region(env, 0, &mut res).unwrap();
         assert_eq!(res[0], 1);
         assert_eq!(res[1], 2);
         assert_eq!(res[2], 3);
@@ -860,7 +797,7 @@ pub fn get_long_array_elements_commit() {
         auto_ptr.commit().unwrap();
 
         // Confirm modification of original Java array
-        env.get_long_array_region(&java_array, 0, &mut res).unwrap();
+        java_array.get_region(env, 0, &mut res).unwrap();
         assert_eq!(res[0], 2);
         assert_eq!(res[1], 3);
         assert_eq!(res[2], 4);
@@ -883,7 +820,8 @@ pub fn get_array_elements_critical() {
         {
             // Get primitive array elements auto wrapper
             let mut auto_ptr = unsafe {
-                env.get_array_elements_critical(&java_array, ReleaseMode::CopyBack)
+                java_array
+                    .get_elements_critical(env, ReleaseMode::CopyBack)
                     .unwrap()
             };
 
@@ -916,7 +854,7 @@ pub fn get_array_elements_critical() {
 
         // Confirm modification of original Java array
         let mut res: [i8; 3] = [0; 3];
-        env.get_byte_array_region(&java_array, 0, &mut res).unwrap();
+        java_array.get_region(env, 0, &mut res).unwrap();
         assert_eq!(res[0], 2);
         assert_eq!(res[1], 3);
         assert_eq!(res[2], 4);

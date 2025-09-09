@@ -11,8 +11,8 @@ use std::{
 use jni_sys::jobject;
 
 use crate::objects::{
-    Cast, JBooleanArray, JByteArray, JCharArray, JDoubleArray, JFloatArray, JIntArray, JLongArray,
-    JObjectArray, JPrimitiveArray, JShortArray, LoaderContext,
+    type_array_sealed::TypeArraySealed, Cast, JBooleanArray, JByteArray, JCharArray, JDoubleArray,
+    JFloatArray, JIntArray, JLongArray, JObjectArray, JPrimitiveArray, JShortArray, LoaderContext,
 };
 use crate::{
     descriptors::Desc,
@@ -2362,6 +2362,10 @@ impl<'local> JNIEnv<'local> {
     }
 
     /// Get the length of a [`JPrimitiveArray`] or [`JObjectArray`].
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JPrimitiveArray::len or JObjectArray::len instead. This method will be removed in a future version"
+    )]
     pub fn get_array_length<'other_local, 'array>(
         &self,
         array: &'array impl AsJArrayRaw<'other_local>,
@@ -2598,25 +2602,19 @@ impl<'local> JNIEnv<'local> {
     /// and `Err` is returned.
     ///
     /// [`array.length`]: struct.JNIEnv.html#method.get_array_length
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JBooleanArray::get_region instead; this method will be removed in a future version"
+    )]
     pub fn get_boolean_array_region<'other_local>(
         &self,
         array: impl AsRef<JBooleanArray<'other_local>>,
         start: jsize,
         buf: &mut [jboolean],
     ) -> Result<()> {
-        let array = null_check!(array.as_ref(), "get_boolean_array_region array argument")?;
         unsafe {
-            jni_call_check_ex!(
-                self,
-                v1_1,
-                GetBooleanArrayRegion,
-                array.as_raw(),
-                start,
-                buf.len() as jsize,
-                buf.as_mut_ptr()
-            )?;
+            <jboolean as TypeArraySealed>::get_region(self, array.as_ref().as_raw(), start, buf)
         }
-        Ok(())
     }
 
     /// Copy elements of the java byte array from the `start` index to the `buf`
@@ -2628,24 +2626,17 @@ impl<'local> JNIEnv<'local> {
     /// and `Err` is returned.
     ///
     /// [`array.length`]: struct.JNIEnv.html#method.get_array_length
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JByteArray::get_region instead; this method will be removed in a future version"
+    )]
     pub fn get_byte_array_region<'other_local>(
         &self,
         array: impl AsRef<JByteArray<'other_local>>,
         start: jsize,
         buf: &mut [jbyte],
     ) -> Result<()> {
-        let array = null_check!(array.as_ref(), "get_byte_array_region array argument")?;
-        unsafe {
-            jni_call_check_ex!(
-                self,
-                v1_1,
-                GetByteArrayRegion,
-                array.as_raw(),
-                start,
-                buf.len() as jsize,
-                buf.as_mut_ptr()
-            )
-        }
+        unsafe { <jbyte as TypeArraySealed>::get_region(self, array.as_ref().as_raw(), start, buf) }
     }
 
     /// Copy elements of the java char array from the `start` index to the
@@ -2657,24 +2648,17 @@ impl<'local> JNIEnv<'local> {
     /// and `Err` is returned.
     ///
     /// [`array.length`]: struct.JNIEnv.html#method.get_array_length
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JCharArray::get_region instead; this method will be removed in a future version"
+    )]
     pub fn get_char_array_region<'other_local>(
         &self,
         array: impl AsRef<JCharArray<'other_local>>,
         start: jsize,
         buf: &mut [jchar],
     ) -> Result<()> {
-        let array = null_check!(array.as_ref(), "get_char_array_region array argument")?;
-        unsafe {
-            jni_call_check_ex!(
-                self,
-                v1_1,
-                GetCharArrayRegion,
-                array.as_raw(),
-                start,
-                buf.len() as jsize,
-                buf.as_mut_ptr()
-            )
-        }
+        unsafe { <jchar as TypeArraySealed>::get_region(self, array.as_ref().as_raw(), start, buf) }
     }
 
     /// Copy elements of the java short array from the `start` index to the
@@ -2686,23 +2670,18 @@ impl<'local> JNIEnv<'local> {
     /// and `Err` is returned.
     ///
     /// [`array.length`]: struct.JNIEnv.html#method.get_array_length
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JShortArray::get_region instead; this method will be removed in a future version"
+    )]
     pub fn get_short_array_region<'other_local>(
         &self,
         array: impl AsRef<JShortArray<'other_local>>,
         start: jsize,
         buf: &mut [jshort],
     ) -> Result<()> {
-        let array = null_check!(array.as_ref(), "get_short_array_region array argument")?;
         unsafe {
-            jni_call_check_ex!(
-                self,
-                v1_1,
-                GetShortArrayRegion,
-                array.as_raw(),
-                start,
-                buf.len() as jsize,
-                buf.as_mut_ptr()
-            )
+            <jshort as TypeArraySealed>::get_region(self, array.as_ref().as_raw(), start, buf)
         }
     }
 
@@ -2715,24 +2694,17 @@ impl<'local> JNIEnv<'local> {
     /// and `Err` is returned.
     ///
     /// [`array.length`]: struct.JNIEnv.html#method.get_array_length
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JIntArray::get_region instead; this method will be removed in a future version"
+    )]
     pub fn get_int_array_region<'other_local>(
         &self,
         array: impl AsRef<JIntArray<'other_local>>,
         start: jsize,
         buf: &mut [jint],
     ) -> Result<()> {
-        let array = null_check!(array.as_ref(), "get_int_array_region array argument")?;
-        unsafe {
-            jni_call_check_ex!(
-                self,
-                v1_1,
-                GetIntArrayRegion,
-                array.as_raw(),
-                start,
-                buf.len() as jsize,
-                buf.as_mut_ptr()
-            )
-        }
+        unsafe { <jint as TypeArraySealed>::get_region(self, array.as_ref().as_raw(), start, buf) }
     }
 
     /// Copy elements of the java long array from the `start` index to the
@@ -2744,24 +2716,17 @@ impl<'local> JNIEnv<'local> {
     /// and `Err` is returned.
     ///
     /// [`array.length`]: struct.JNIEnv.html#method.get_array_length
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JLongArray::get_region instead; this method will be removed in a future version"
+    )]
     pub fn get_long_array_region<'other_local>(
         &self,
         array: impl AsRef<JLongArray<'other_local>>,
         start: jsize,
         buf: &mut [jlong],
     ) -> Result<()> {
-        let array = null_check!(array.as_ref(), "get_long_array_region array argument")?;
-        unsafe {
-            jni_call_check_ex!(
-                self,
-                v1_1,
-                GetLongArrayRegion,
-                array.as_raw(),
-                start,
-                buf.len() as jsize,
-                buf.as_mut_ptr()
-            )
-        }
+        unsafe { <jlong as TypeArraySealed>::get_region(self, array.as_ref().as_raw(), start, buf) }
     }
 
     /// Copy elements of the java float array from the `start` index to the
@@ -2773,23 +2738,18 @@ impl<'local> JNIEnv<'local> {
     /// and `Err` is returned.
     ///
     /// [`array.length`]: struct.JNIEnv.html#method.get_array_length
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JFloatArray::get_region instead; this method will be removed in a future version"
+    )]
     pub fn get_float_array_region<'other_local>(
         &self,
         array: impl AsRef<JFloatArray<'other_local>>,
         start: jsize,
         buf: &mut [jfloat],
     ) -> Result<()> {
-        let array = null_check!(array.as_ref(), "get_float_array_region array argument")?;
         unsafe {
-            jni_call_check_ex!(
-                self,
-                v1_1,
-                GetFloatArrayRegion,
-                array.as_raw(),
-                start,
-                buf.len() as jsize,
-                buf.as_mut_ptr()
-            )
+            <jfloat as TypeArraySealed>::get_region(self, array.as_ref().as_raw(), start, buf)
         }
     }
 
@@ -2802,199 +2762,146 @@ impl<'local> JNIEnv<'local> {
     /// and `Err` is returned.
     ///
     /// [`array.length`]: struct.JNIEnv.html#method.get_array_length
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JDoubleArray::get_region instead; this method will be removed in a future version"
+    )]
     pub fn get_double_array_region<'other_local>(
         &self,
         array: impl AsRef<JDoubleArray<'other_local>>,
         start: jsize,
         buf: &mut [jdouble],
     ) -> Result<()> {
-        let array = null_check!(array.as_ref(), "get_double_array_region array argument")?;
         unsafe {
-            jni_call_check_ex!(
-                self,
-                v1_1,
-                GetDoubleArrayRegion,
-                array.as_raw(),
-                start,
-                buf.len() as jsize,
-                buf.as_mut_ptr()
-            )
+            <jdouble as TypeArraySealed>::get_region(self, array.as_ref().as_raw(), start, buf)
         }
     }
 
     /// Copy the contents of the `buf` slice to the java boolean array at the
     /// `start` index.
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JBooleanArray::set_region instead; this method will be removed in a future version"
+    )]
     pub fn set_boolean_array_region<'other_local>(
         &self,
         array: impl AsRef<JBooleanArray<'other_local>>,
         start: jsize,
         buf: &[jboolean],
     ) -> Result<()> {
-        let array = null_check!(array.as_ref(), "set_boolean_array_region array argument")?;
         unsafe {
-            jni_call_check_ex!(
-                self,
-                v1_1,
-                SetBooleanArrayRegion,
-                array.as_raw(),
-                start,
-                buf.len() as jsize,
-                buf.as_ptr()
-            )
+            <jboolean as TypeArraySealed>::set_region(self, array.as_ref().as_raw(), start, buf)
         }
     }
 
     /// Copy the contents of the `buf` slice to the java byte array at the
     /// `start` index.
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JByteArray::set_region instead; this method will be removed in a future version"
+    )]
     pub fn set_byte_array_region<'other_local>(
         &self,
         array: impl AsRef<JByteArray<'other_local>>,
         start: jsize,
         buf: &[jbyte],
     ) -> Result<()> {
-        let array = null_check!(array.as_ref(), "set_byte_array_region array argument")?;
-        unsafe {
-            jni_call_check_ex!(
-                self,
-                v1_1,
-                SetByteArrayRegion,
-                array.as_raw(),
-                start,
-                buf.len() as jsize,
-                buf.as_ptr()
-            )
-        }
+        unsafe { <jbyte as TypeArraySealed>::set_region(self, array.as_ref().as_raw(), start, buf) }
     }
 
     /// Copy the contents of the `buf` slice to the java char array at the
     /// `start` index.
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JCharArray::set_region instead; this method will be removed in a future version"
+    )]
     pub fn set_char_array_region<'other_local>(
         &self,
         array: impl AsRef<JCharArray<'other_local>>,
         start: jsize,
         buf: &[jchar],
     ) -> Result<()> {
-        let array = null_check!(array.as_ref(), "set_char_array_region array argument")?;
-        unsafe {
-            jni_call_check_ex!(
-                self,
-                v1_1,
-                SetCharArrayRegion,
-                array.as_raw(),
-                start,
-                buf.len() as jsize,
-                buf.as_ptr()
-            )
-        }
+        unsafe { <jchar as TypeArraySealed>::set_region(self, array.as_ref().as_raw(), start, buf) }
     }
 
     /// Copy the contents of the `buf` slice to the java short array at the
     /// `start` index.
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JShortArray::set_region instead; this method will be removed in a future version"
+    )]
     pub fn set_short_array_region<'other_local>(
         &self,
         array: impl AsRef<JShortArray<'other_local>>,
         start: jsize,
         buf: &[jshort],
     ) -> Result<()> {
-        let array = null_check!(array.as_ref(), "set_short_array_region array argument")?;
         unsafe {
-            jni_call_check_ex!(
-                self,
-                v1_1,
-                SetShortArrayRegion,
-                array.as_raw(),
-                start,
-                buf.len() as jsize,
-                buf.as_ptr()
-            )
+            <jshort as TypeArraySealed>::set_region(self, array.as_ref().as_raw(), start, buf)
         }
     }
 
     /// Copy the contents of the `buf` slice to the java int array at the
     /// `start` index.
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JIntArray::set_region instead; this method will be removed in a future version"
+    )]
     pub fn set_int_array_region<'other_local>(
         &self,
         array: impl AsRef<JIntArray<'other_local>>,
         start: jsize,
         buf: &[jint],
     ) -> Result<()> {
-        let array = null_check!(array.as_ref(), "set_int_array_region array argument")?;
-        unsafe {
-            jni_call_check_ex!(
-                self,
-                v1_1,
-                SetIntArrayRegion,
-                array.as_raw(),
-                start,
-                buf.len() as jsize,
-                buf.as_ptr()
-            )
-        }
+        unsafe { <jint as TypeArraySealed>::set_region(self, array.as_ref().as_raw(), start, buf) }
     }
 
     /// Copy the contents of the `buf` slice to the java long array at the
     /// `start` index.
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JLongArray::set_region instead; this method will be removed in a future version"
+    )]
     pub fn set_long_array_region<'other_local>(
         &self,
         array: impl AsRef<JLongArray<'other_local>>,
         start: jsize,
         buf: &[jlong],
     ) -> Result<()> {
-        let array = null_check!(array.as_ref(), "set_long_array_region array argument")?;
-        unsafe {
-            jni_call_check_ex!(
-                self,
-                v1_1,
-                SetLongArrayRegion,
-                array.as_raw(),
-                start,
-                buf.len() as jsize,
-                buf.as_ptr()
-            )
-        }
+        unsafe { <jlong as TypeArraySealed>::set_region(self, array.as_ref().as_raw(), start, buf) }
     }
 
     /// Copy the contents of the `buf` slice to the java float array at the
     /// `start` index.
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JFloatArray::set_region instead; this method will be removed in a future version"
+    )]
     pub fn set_float_array_region<'other_local>(
         &self,
         array: impl AsRef<JFloatArray<'other_local>>,
         start: jsize,
         buf: &[jfloat],
     ) -> Result<()> {
-        let array = null_check!(array.as_ref(), "set_float_array_region array argument")?;
         unsafe {
-            jni_call_check_ex!(
-                self,
-                v1_1,
-                SetFloatArrayRegion,
-                array.as_raw(),
-                start,
-                buf.len() as jsize,
-                buf.as_ptr()
-            )
+            <jfloat as TypeArraySealed>::set_region(self, array.as_ref().as_raw(), start, buf)
         }
     }
 
     /// Copy the contents of the `buf` slice to the java double array at the
     /// `start` index.
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JDoubleArray::set_region instead; this method will be removed in a future version"
+    )]
     pub fn set_double_array_region<'other_local>(
         &self,
         array: impl AsRef<JDoubleArray<'other_local>>,
         start: jsize,
         buf: &[jdouble],
     ) -> Result<()> {
-        let array = null_check!(array.as_ref(), "set_double_array_region array argument")?;
         unsafe {
-            jni_call_check_ex!(
-                self,
-                v1_1,
-                SetDoubleArrayRegion,
-                array.as_raw(),
-                start,
-                buf.len() as jsize,
-                buf.as_ptr()
-            )
+            <jdouble as TypeArraySealed>::set_region(self, array.as_ref().as_raw(), start, buf)
         }
     }
 
@@ -3704,60 +3611,13 @@ impl<'local> JNIEnv<'local> {
 
     /// Returns an [`AutoElements`] to access the elements of the given Java `array`.
     ///
-    /// The elements are accessible until the returned auto-release guard is dropped.
-    ///
-    /// The returned array may be a copy of the Java array and changes made to
-    /// the returned array will not necessarily be reflected in the original
-    /// array until the [`AutoElements`] guard is dropped.
-    ///
-    /// If you know in advance that you will only be reading from the array then
-    /// pass [`ReleaseMode::NoCopyBack`] so that the JNI implementation knows
-    /// that it's not necessary to copy any data back to the original Java array
-    /// when the [`AutoElements`] guard is dropped.
-    ///
-    /// Since the returned array may be a copy of the Java array, changes made to the
-    /// returned array will not necessarily be reflected in the original array until
-    /// the corresponding `Release*ArrayElements` JNI method is called.
-    /// [`AutoElements`] has a commit() method, to force a copy back of pending
-    /// array changes if needed (and without releasing it).
-    ///
     /// # Safety
     ///
-    /// ## No data races
-    ///
-    /// This API has no built-in synchronization that ensures there won't be any data
-    /// races while accessing the array elements.
-    ///
-    /// To avoid undefined behaviour it is the caller's responsibility to ensure there
-    /// will be no data races between other Rust or Java threads trying to access the
-    /// same array.
-    ///
-    /// Acquiring a [`MonitorGuard`] lock for the `array` could be one way of ensuring
-    /// mutual exclusion between Rust and Java threads, so long as the Java threads
-    /// also acquire the same lock via `synchronized(array) {}`.
-    ///
-    /// ## No aliasing
-    ///
-    /// Callers must not create more than one [`AutoElements`] or
-    /// [`AutoElementsCritical`] per Java array at the same time - even if
-    /// there is no risk of a data race.
-    ///
-    /// The reason for this restriction is that [`AutoElements`] and
-    /// [`AutoElementsCritical`] implement `DerefMut` which can provide a
-    /// mutable `&mut [T]` slice reference for the elements and it would
-    /// constitute undefined behaviour to allow there to be more than one
-    /// mutable reference that points to the same memory.
-    ///
-    /// # jboolean elements
-    ///
-    /// Keep in mind that arrays of `jboolean` values should only ever hold
-    /// values of `0` or `1` because any other value could lead to undefined
-    /// behaviour within the JVM.
-    ///
-    /// Also see
-    /// [`get_array_elements_critical`](Self::get_array_elements_critical) which
-    /// imposes additional restrictions that make it less likely to incur the
-    /// cost of copying the array elements.
+    /// See: [JPrimitiveArray::get_array_elements] for more details
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JPrimitiveArray::get_elements instead. This API will be removed in a future version"
+    )]
     pub unsafe fn get_array_elements<'array_local, T, TArrayRef>(
         &self,
         array: TArrayRef,
@@ -3772,104 +3632,22 @@ impl<'local> JNIEnv<'local> {
 
     /// Returns an [`AutoElementsCritical`] to access the elements of the given Java `array`.
     ///
-    /// The elements are accessible during the critical section that exists until the
-    /// returned auto-release guard is dropped.
-    ///
-    /// This API imposes some strict restrictions that help the JNI implementation
-    /// avoid any need to copy the underlying array elements before making them
-    /// accessible to native code:
-    ///
-    /// 1. No other use of JNI calls are allowed (on the same thread) within the critical
-    ///    section that exists while holding the [`AutoElementsCritical`] guard.
-    /// 2. No system calls can be made (Such as `read`) that may depend on a result
-    ///    from another Java thread.
-    ///
-    /// The JNI spec does not specify what will happen if these rules aren't adhered to
-    /// but it should be assumed it will lead to undefined behaviour, likely deadlock
-    /// and possible program termination.
-    ///
-    /// Even with these restrictions the returned array may still be a copy of
-    /// the Java array and changes made to the returned array will not
-    /// necessarily be reflected in the original array until the [`AutoElementsCritical`]
-    /// guard is dropped.
-    ///
-    /// If you know in advance that you will only be reading from the array then
-    /// pass [`ReleaseMode::NoCopyBack`] so that the JNI implementation knows
-    /// that it's not necessary to copy any data back to the original Java array
-    /// when the [`AutoElementsCritical`] guard is dropped.
-    ///
-    /// A nested scope or explicit use of `std::mem::drop` can be used to
-    /// control when the returned [`AutoElementsCritical`] is dropped to
-    /// minimize the length of the critical section.
-    ///
-    /// If the given array is `null`, an `Error::NullPtr` is returned.
-    ///
     /// # Safety
     ///
-    /// ## Critical Section Restrictions
-    ///
-    /// Although this API takes a mutable reference to a [`JNIEnv`] which should
-    /// ensure that it's not possible to call JNI, this API is still marked as
-    /// `unsafe` due to the complex, far-reaching nature of the critical-section
-    /// restrictions imposed here that can't be guaranteed simply through Rust's
-    /// borrow checker rules.
-    ///
-    /// The rules above about JNI usage and system calls _must_ be adhered to.
-    ///
-    /// Using this API implies:
-    ///
-    /// 1. All garbage collection will likely be paused during the critical section
-    /// 2. Any use of JNI in other threads may block if they need to allocate memory
-    ///    (due to the garbage collector being paused)
-    /// 3. Any use of system calls that will wait for a result from another Java thread
-    ///    could deadlock if that other thread is blocked by a paused garbage collector.
-    ///
-    /// A failure to adhere to the critical section rules could lead to any
-    /// undefined behaviour, including aborting the program.
-    ///
-    /// ## No data races
-    ///
-    /// This API has no built-in synchronization that ensures there won't be any data
-    /// races while accessing the array elements.
-    ///
-    /// To avoid undefined behaviour it is the caller's responsibility to ensure there
-    /// will be no data races between other Rust or Java threads trying to access the
-    /// same array.
-    ///
-    /// Acquiring a [`MonitorGuard`] lock for the `array` could be one way of ensuring
-    /// mutual exclusion between Rust and Java threads, so long as the Java threads
-    /// also acquire the same lock via `synchronized(array) {}`.
-    ///
-    /// ## No aliasing
-    ///
-    /// Callers must not create more than one [`AutoElements`] or
-    /// [`AutoElementsCritical`] per Java array at the same time - even if
-    /// there is no risk of a data race.
-    ///
-    /// The reason for this restriction is that [`AutoElements`] and
-    /// [`AutoElementsCritical`] implement `DerefMut` which can provide a
-    /// mutable `&mut [T]` slice reference for the elements and it would
-    /// constitute undefined behaviour to allow there to be more than one
-    /// mutable reference that points to the same memory.
-    ///
-    /// ## jboolean elements
-    ///
-    /// Keep in mind that arrays of `jboolean` values should only ever hold
-    /// values of `0` or `1` because any other value could lead to undefined
-    /// behaviour within the JVM.
-    ///
-    /// Also see [`get_array_elements`](Self::get_array_elements) which has fewer
-    /// restrictions, but is is more likely to incur a cost from copying the
-    /// array elements.
-    pub unsafe fn get_array_elements_critical<'other_local, 'array, 'env, T: TypeArray>(
-        &'env mut self,
-        array: &'array JPrimitiveArray<'other_local, T>,
+    /// See: [JPrimitiveArray::get_array_elements_critical] for more details
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JPrimitiveArray::get_elements_critical instead. This API will be removed in a future version"
+    )]
+    pub unsafe fn get_array_elements_critical<'array_local, T, TArrayRef>(
+        &self,
+        array: TArrayRef,
         mode: ReleaseMode,
-    ) -> Result<AutoElementsCritical<'local, 'other_local, 'array, 'env, T>> {
-        // Runtime check that the 'local reference lifetime will be tied to
-        // JNIEnv lifetime for the top JNI stack frame
-        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
-        let array = null_check!(array, "get_primitive_array_critical array argument")?;
+    ) -> Result<AutoElementsCritical<'array_local, T, TArrayRef>>
+    where
+        T: TypeArray,
+        TArrayRef: AsRef<JPrimitiveArray<'array_local, T>> + JObjectRef,
+    {
         AutoElementsCritical::new(self, array, mode)
     }
 }
