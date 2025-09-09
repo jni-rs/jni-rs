@@ -19,6 +19,8 @@ use jni::{
 mod util;
 use util::{attach_current_thread, unwrap};
 
+use rusty_fork::rusty_fork_test;
+
 static ARRAYLIST_CLASS: &JNIStr = JNIStr::from_cstr(c"java/util/ArrayList");
 static EXCEPTION_CLASS: &JNIStr = JNIStr::from_cstr(c"java/lang/Exception");
 static ARITHMETIC_EXCEPTION_CLASS: &JNIStr = JNIStr::from_cstr(c"java/lang/ArithmeticException");
@@ -161,6 +163,144 @@ pub fn is_not_same_object_null() {
 }
 
 #[test]
+pub fn get_public_field() {
+    attach_current_thread(|env| {
+        // Create a new Point(5, 10)
+        let point = unwrap(
+            env.new_object(
+                c"java/awt/Point",
+                c"(II)V",
+                &[JValue::Int(5), JValue::Int(10)],
+            ),
+            env,
+        )
+        .auto();
+
+        // Get the x field value
+        let x_value = env.get_field(&point, c"x", c"I").unwrap().i().unwrap();
+
+        assert_eq!(x_value, 5);
+
+        // Get the y field value
+        let y_value = env.get_field(&point, c"y", c"I").unwrap().i().unwrap();
+
+        assert_eq!(y_value, 10);
+
+        Ok(())
+    })
+    .unwrap();
+}
+
+#[test]
+pub fn get_public_field_by_id() {
+    attach_current_thread(|env| {
+        // Create a new Point(5, 10)
+        let point = unwrap(
+            env.new_object(
+                c"java/awt/Point",
+                c"(II)V",
+                &[JValue::Int(5), JValue::Int(10)],
+            ),
+            env,
+        )
+        .auto();
+
+        // Get the field ID for x field
+        let field_type = c"I";
+        let field_id = env
+            .get_field_id(c"java/awt/Point", c"x", field_type)
+            .unwrap();
+
+        let field_type = ReturnType::Primitive(Primitive::Int);
+        // Safety: we have just looked up the field ID based on the given class and field_type
+        unsafe {
+            let x_value = env
+                .get_field_unchecked(&point, field_id, field_type)
+                .unwrap()
+                .i()
+                .unwrap();
+
+            assert_eq!(x_value, 5);
+        }
+
+        Ok(())
+    })
+    .unwrap();
+}
+
+#[test]
+pub fn set_public_field() {
+    attach_current_thread(|env| {
+        // Create a new Point(5, 10)
+        let point = unwrap(
+            env.new_object(
+                c"java/awt/Point",
+                c"(II)V",
+                &[JValue::Int(5), JValue::Int(10)],
+            ),
+            env,
+        )
+        .auto();
+
+        // Set the x field to a new value
+        env.set_field(&point, c"x", c"I", JValue::Int(15)).unwrap();
+
+        // Verify the field was set
+        let x_value = env.get_field(&point, c"x", c"I").unwrap().i().unwrap();
+
+        assert_eq!(x_value, 15);
+
+        // Set the y field to a new value
+        env.set_field(&point, c"y", c"I", JValue::Int(25)).unwrap();
+
+        // Verify the field was set
+        let y_value = env.get_field(&point, c"y", c"I").unwrap().i().unwrap();
+
+        assert_eq!(y_value, 25);
+
+        Ok(())
+    })
+    .unwrap();
+}
+
+#[test]
+pub fn set_public_field_by_id() {
+    attach_current_thread(|env| {
+        // Create a new Point(5, 10)
+        let point = unwrap(
+            env.new_object(
+                c"java/awt/Point",
+                c"(II)V",
+                &[JValue::Int(5), JValue::Int(10)],
+            ),
+            env,
+        )
+        .auto();
+
+        // Get the field ID for x field
+        let field_type = c"I";
+        let field_id = env
+            .get_field_id(c"java/awt/Point", c"x", field_type)
+            .unwrap();
+
+        // Set the x field using the field ID
+        // Safety: we have just looked up the field ID based on the given field name and type
+        unsafe {
+            env.set_field_unchecked(&point, field_id, JValue::Int(15))
+                .unwrap();
+        }
+
+        // Verify the field was set
+        let x_value = env.get_field(&point, c"x", c"I").unwrap().i().unwrap();
+
+        assert_eq!(x_value, 15);
+
+        Ok(())
+    })
+    .unwrap();
+}
+
+#[test]
 pub fn get_static_public_field() {
     attach_current_thread(|env| {
         let min_int_value = env
@@ -187,17 +327,161 @@ pub fn get_static_public_field_by_id() {
             .unwrap();
 
         let field_type = JavaType::Primitive(Primitive::Int);
-        let min_int_value = env
-            .get_static_field_unchecked(INTEGER_CLASS, field_id, field_type)
-            .unwrap()
-            .i()
-            .unwrap();
+        // Safety: we have just looked up the field ID based on the given class and field_type
+        unsafe {
+            let min_int_value = env
+                .get_static_field_unchecked(INTEGER_CLASS, field_id, field_type)
+                .unwrap()
+                .i()
+                .unwrap();
 
-        assert_eq!(min_int_value, i32::MIN);
+            assert_eq!(min_int_value, i32::MIN);
+        }
 
         Ok(())
     })
     .unwrap();
+}
+
+rusty_fork_test! {
+#[test]
+fn set_static_public_field() {
+    attach_current_thread(|env| {
+        // We'll use System.in which is a mutable static field
+
+        // Get the original System.in value
+        let original_in = env
+            .get_static_field(c"java/lang/System", c"in", c"Ljava/io/InputStream;")
+            .unwrap()
+            .l()
+            .unwrap();
+
+        // Create a new ByteArrayInputStream as a different InputStream
+        let byte_array = env.new_byte_array(10).unwrap();
+        let new_input_stream = env
+            .new_object(
+                c"java/io/ByteArrayInputStream",
+                c"([B)V",
+                &[JValue::from(&byte_array)],
+            )
+            .unwrap();
+
+        // Set System.in to our new ByteArrayInputStream
+        env.set_static_field(
+            c"java/lang/System",
+            c"in",
+            c"Ljava/io/InputStream;",
+            JValue::from(&new_input_stream),
+        )
+        .unwrap();
+
+        // Verify the field was set by getting it again and checking it's no longer null
+        let current_in = env
+            .get_static_field(c"java/lang/System", c"in", c"Ljava/io/InputStream;")
+            .unwrap()
+            .l()
+            .unwrap();
+
+        // The field should not be null after setting
+        assert!(!current_in.is_null());
+
+        // Restore the original System.in
+        env.set_static_field(
+            c"java/lang/System",
+            c"in",
+            c"Ljava/io/InputStream;",
+            JValue::from(&original_in),
+        )
+        .unwrap();
+
+        // Verify restoration worked - the field should still not be null
+        let restored_in = env
+            .get_static_field(c"java/lang/System", c"in", c"Ljava/io/InputStream;")
+            .unwrap()
+            .l()
+            .unwrap();
+
+        assert!(!restored_in.is_null());
+
+        Ok(())
+    })
+    .unwrap();
+}
+}
+
+rusty_fork_test! {
+#[test]
+fn set_static_public_field_by_id() {
+    attach_current_thread(|env| {
+        // Get the original System.in value
+        let original_in = env
+            .get_static_field(c"java/lang/System", c"in", c"Ljava/io/InputStream;")
+            .unwrap()
+            .l()
+            .unwrap();
+
+        // Get the field ID for System.in
+        let field_type = c"Ljava/io/InputStream;";
+        let field_id = env
+            .get_static_field_id(c"java/lang/System", c"in", field_type)
+            .unwrap();
+
+        // Create a new ByteArrayInputStream as a different InputStream
+        let byte_array = env.new_byte_array(10).unwrap();
+        let new_input_stream = env
+            .new_object(
+                c"java/io/ByteArrayInputStream",
+                c"([B)V",
+                &[JValue::from(&byte_array)],
+            )
+            .unwrap();
+
+        // Set System.in to our new ByteArrayInputStream using the field ID
+        // Safety: we have just looked up the field ID based on the given field name and type
+        unsafe {
+            env.set_static_field_unchecked(
+                c"java/lang/System",
+                field_id,
+                JValue::from(&new_input_stream),
+            )
+            .unwrap();
+        }
+
+        // Verify the field was set by getting it again (this ensures the set operation worked)
+        let current_in = env
+            .get_static_field(c"java/lang/System", c"in", c"Ljava/io/InputStream;")
+            .unwrap()
+            .l()
+            .unwrap();
+
+        // Verify that we can successfully retrieve a non-null input stream
+        assert!(!current_in.is_null());
+
+        // Restore the original System.in using the unchecked method
+        // Safety: we have the correct field ID and value type
+        unsafe {
+            env.set_static_field_unchecked(
+                c"java/lang/System",
+                field_id,
+                JValue::from(&original_in),
+            )
+            .unwrap();
+        }
+
+        // Verify restoration worked
+        let restored_in = env
+            .get_static_field(c"java/lang/System", c"in", c"Ljava/io/InputStream;")
+            .unwrap()
+            .l()
+            .unwrap();
+
+        // The restored value should be the same as original
+        assert!(env.is_same_object(&original_in, &restored_in));
+
+        Ok(())
+    })
+    .unwrap();
+}
 }
 
 /*

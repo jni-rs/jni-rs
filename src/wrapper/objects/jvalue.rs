@@ -4,6 +4,7 @@ use std::fmt::Debug;
 
 use log::trace;
 
+use crate::signature::JavaType;
 use crate::{errors::*, objects::JObject, signature::Primitive, sys::*};
 
 #[cfg(doc)]
@@ -219,6 +220,22 @@ impl<'obj_ref> JValue<'obj_ref> {
             Self::Bool(_) => "bool",
             Self::Float(_) => "float",
             Self::Double(_) => "double",
+        }
+    }
+
+    /// Get the corresponding Java type.
+    pub fn java_type(&self) -> JavaType {
+        match *self {
+            Self::Object(_) => JavaType::Object,
+            Self::Void => JavaType::Primitive(Primitive::Void),
+            Self::Byte(_) => JavaType::Primitive(Primitive::Byte),
+            Self::Char(_) => JavaType::Primitive(Primitive::Char),
+            Self::Short(_) => JavaType::Primitive(Primitive::Short),
+            Self::Int(_) => JavaType::Primitive(Primitive::Int),
+            Self::Long(_) => JavaType::Primitive(Primitive::Long),
+            Self::Bool(_) => JavaType::Primitive(Primitive::Boolean),
+            Self::Float(_) => JavaType::Primitive(Primitive::Float),
+            Self::Double(_) => JavaType::Primitive(Primitive::Double),
         }
     }
 

@@ -2978,17 +2978,19 @@ impl<'local> JNIEnv<'local> {
     /// Get a field without checking the provided type against the actual field.
     ///
     /// # Safety
-    /// There will be undefined behaviour if the return type `ty` doesn't match
-    /// the type for the given `field`
-    pub unsafe fn get_field_unchecked<'other_local, O, T>(
+    ///
+    /// - The `obj` must not be `null`
+    /// - The `field` must be associated with the given `obj` (got from passing the `obj` to [JNIEnv::get_field_id])
+    /// - The field must have the specified `ty` type.
+    pub unsafe fn get_field_unchecked<'other_local, O, F>(
         &mut self,
         obj: O,
-        field: T,
+        field: F,
         ty: ReturnType,
     ) -> Result<JValueOwned<'local>>
     where
         O: AsRef<JObject<'other_local>>,
-        T: Desc<'local, JFieldID>,
+        F: Desc<'local, JFieldID>,
     {
         // Runtime check that the 'local reference lifetime will be tied to
         // JNIEnv lifetime for the top JNI stack frame
@@ -3037,19 +3039,21 @@ impl<'local> JNIEnv<'local> {
     /// Set a field without any type checking.
     ///
     /// # Safety
-    /// There will be undefined behaviour if the `val` type doesn't match
-    /// the type for the given `field`
-    pub unsafe fn set_field_unchecked<'other_local, O, T>(
+    ///
+    /// - The `obj` must not be `null`
+    /// - The `field` must be associated with the given `obj` (got from passing the `obj` to [JNIEnv::get_field_id])
+    /// - The field type must match the given `value` type.
+    pub unsafe fn set_field_unchecked<'other_local, O, F>(
         &mut self,
         obj: O,
-        field: T,
-        val: JValue,
+        field: F,
+        value: JValue,
     ) -> Result<()>
     where
         O: AsRef<JObject<'other_local>>,
-        T: Desc<'local, JFieldID>,
+        F: Desc<'local, JFieldID>,
     {
-        if let JValue::Void = val {
+        if let JValue::Void = value {
             return Err(Error::WrongJValueType("void", "see java field"));
         }
 
@@ -3065,7 +3069,7 @@ impl<'local> JNIEnv<'local> {
             }};
         }
 
-        match val {
+        match value {
             JValue::Object(o) => set_field!(SetObjectField(o.as_raw())),
             JValue::Bool(b) => set_field!(SetBooleanField(b)),
             JValue::Char(c) => set_field!(SetCharField(c)),
@@ -3083,16 +3087,16 @@ impl<'local> JNIEnv<'local> {
 
     /// Get a field. Requires an object class lookup and a field id lookup
     /// internally.
-    pub fn get_field<'other_local, O, S, T>(
+    pub fn get_field<'other_local, O, N, S>(
         &mut self,
         obj: O,
-        name: S,
-        ty: T,
+        name: N,
+        sig: S,
     ) -> Result<JValueOwned<'local>>
     where
         O: AsRef<JObject<'other_local>>,
+        N: AsRef<JNIStr>,
         S: AsRef<JNIStr>,
-        T: AsRef<JNIStr>,
     {
         // Runtime check that the 'local reference lifetime will be tied to
         // JNIEnv lifetime for the top JNI stack frame
@@ -3100,62 +3104,62 @@ impl<'local> JNIEnv<'local> {
         let obj = obj.as_ref();
         let class = self.get_object_class(obj)?.auto();
 
-        let ty = ty.as_ref();
-        let parsed = ReturnType::from_str(&ty.to_str())?;
-
-        let field_id: JFieldID = Desc::<JFieldID>::lookup((&class, name, ty), self)?;
+        let sig = sig.as_ref();
+        let field_ty = JavaType::from_str(&sig.to_str())?;
+        let field_id: JFieldID = Desc::<JFieldID>::lookup((&class, name, sig), self)?;
 
         // Safety: Since we have explicitly looked up the field ID based on the given
         // return type we have already validate that they match
-        unsafe { self.get_field_unchecked(obj, field_id, parsed) }
+        unsafe { self.get_field_unchecked(obj, field_id, field_ty) }
     }
 
     /// Set a field. Does the same lookups as `get_field` and ensures that the
     /// type matches the given value.
-    pub fn set_field<'other_local, O, S, T>(
+    pub fn set_field<'other_local, O, N, S>(
         &mut self,
         obj: O,
-        name: S,
-        ty: T,
-        val: JValue,
+        name: N,
+        sig: S,
+        value: JValue,
     ) -> Result<()>
     where
         O: AsRef<JObject<'other_local>>,
+        N: AsRef<JNIStr>,
         S: AsRef<JNIStr>,
-        T: AsRef<JNIStr>,
     {
         let obj = obj.as_ref();
-        let ty = ty.as_ref();
-        let field_ty = JavaType::from_str(&ty.to_str())?;
-        let val_primitive = val.primitive_type();
+        let sig = sig.as_ref();
+        let field_ty = JavaType::from_str(&sig.to_str())?;
 
-        let wrong_type = Err(Error::WrongJValueType(val.type_name(), "see java field"));
-
-        match field_ty {
-            JavaType::Object | JavaType::Array if val_primitive.is_some() => wrong_type,
-            JavaType::Primitive(p) if val_primitive != Some(p) => wrong_type,
-            JavaType::Primitive(_) if val_primitive.is_none() => wrong_type,
-            _ => {
-                let class = self.get_object_class(obj)?.auto();
-
-                // Safety: We have explicitly checked that the field type matches
-                // the value type
-                unsafe { self.set_field_unchecked(obj, (&class, name, ty), val) }
-            }
+        if value.java_type() != field_ty {
+            return Err(Error::WrongJValueType(value.type_name(), "see java field"));
         }
+
+        let class = self.get_object_class(obj)?.auto();
+
+        // Safety: We have explicitly checked that the field type matches
+        // the value type and the field ID is going to be looked up dynamically
+        // based on the class, name and signature (so it's safe to use)
+        unsafe { self.set_field_unchecked(obj, (&class, name, sig), value) }
     }
 
     /// Get a static field without checking the provided type against the actual
     /// field.
-    pub fn get_static_field_unchecked<'other_local, T, U>(
+    ///
+    /// # Safety
+    ///
+    /// - The `class` must not be null
+    /// - The `field` must be associated with the given `class` (got from passing the `class` to [JNIEnv::get_static_field_id])
+    /// - The field must have the specified `ty` type.
+    pub unsafe fn get_static_field_unchecked<'other_local, C, F>(
         &mut self,
-        class: T,
-        field: U,
+        class: C,
+        field: F,
         ty: JavaType,
     ) -> Result<JValueOwned<'local>>
     where
-        T: Desc<'local, JClass<'other_local>>,
-        U: Desc<'local, JStaticFieldID>,
+        C: Desc<'local, JClass<'other_local>>,
+        F: Desc<'local, JStaticFieldID>,
     {
         // Runtime check that the 'local reference lifetime will be tied to
         // JNIEnv lifetime for the top JNI stack frame
@@ -3205,47 +3209,23 @@ impl<'local> JNIEnv<'local> {
         ret
     }
 
-    /// Get a static field. Requires a class lookup and a field id lookup
-    /// internally.
-    pub fn get_static_field<'other_local, T, U, V>(
-        &mut self,
-        class: T,
-        field: U,
-        sig: V,
-    ) -> Result<JValueOwned<'local>>
-    where
-        T: Desc<'local, JClass<'other_local>>,
-        U: AsRef<JNIStr>,
-        V: AsRef<JNIStr>,
-    {
-        // Runtime check that the 'local reference lifetime will be tied to
-        // JNIEnv lifetime for the top JNI stack frame
-        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
-        let sig = sig.as_ref();
-        let ty = JavaType::from_str(&sig.to_str())?;
-
-        // go ahead and look up the class sincewe'll need that for the next
-        // call.
-        let class = class.lookup(self)?;
-
-        self.get_static_field_unchecked(class.as_ref(), (class.as_ref(), field, sig), ty)
-    }
-
     /// Set a static field. Requires a class lookup and a field id lookup internally.
-    pub fn set_static_field<'other_local, T, U>(
+    ///
+    /// # Safety
+    ///
+    /// - The `class` must not be null
+    /// - The `field` must be associated with the given `class` (got from passing the `class` to [JNIEnv::get_static_field_id])
+    /// - The field type must match the given `value` type.
+    pub unsafe fn set_static_field_unchecked<'other_local, C, F>(
         &mut self,
-        class: T,
-        field: U,
+        class: C,
+        field: F,
         value: JValue,
     ) -> Result<()>
     where
-        T: Desc<'local, JClass<'other_local>>,
-        U: Desc<'local, JStaticFieldID>,
+        C: Desc<'local, JClass<'other_local>>,
+        F: Desc<'local, JStaticFieldID>,
     {
-        if let JValue::Void = value {
-            return Err(Error::WrongJValueType("void", "see java field"));
-        }
-
         let class = class.lookup(self)?;
         let field = field.lookup(self)?;
 
@@ -3281,6 +3261,62 @@ impl<'local> JNIEnv<'local> {
         drop(class);
 
         Ok(())
+    }
+
+    /// Get a static field. Requires a class lookup and a field id lookup
+    /// internally.
+    pub fn get_static_field<'other_local, C, N, S>(
+        &mut self,
+        class: C,
+        name: N,
+        sig: S,
+    ) -> Result<JValueOwned<'local>>
+    where
+        C: Desc<'local, JClass<'other_local>>,
+        N: AsRef<JNIStr>,
+        S: AsRef<JNIStr>,
+    {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // JNIEnv lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
+        let sig = sig.as_ref();
+        let field_ty = JavaType::from_str(&sig.to_str())?;
+
+        // go ahead and look up the class since we'll need that for the next call.
+        let class = class.lookup(self)?;
+
+        // SAFETY: We have verified that `class`, `field`, `sig` and `ty` are valid
+        unsafe {
+            self.get_static_field_unchecked(class.as_ref(), (class.as_ref(), name, sig), field_ty)
+        }
+    }
+
+    /// Set a static field. Requires a class lookup and a field id lookup internally.
+    pub fn set_static_field<'other_local, C, N, S>(
+        &mut self,
+        class: C,
+        name: N,
+        sig: S,
+        value: JValue,
+    ) -> Result<()>
+    where
+        C: Desc<'local, JClass<'other_local>>,
+        N: AsRef<JNIStr>,
+        S: AsRef<JNIStr>,
+    {
+        let sig = sig.as_ref();
+        let field_ty = JavaType::from_str(&sig.to_str())?;
+
+        if value.java_type() != field_ty {
+            return Err(Error::WrongJValueType(value.type_name(), "see java field"));
+        }
+
+        let class = class.lookup(self)?;
+
+        // Safety: We have explicitly checked that the field type matches the value type.
+        unsafe {
+            self.set_static_field_unchecked(class.as_ref(), (class.as_ref(), name, sig), value)
+        }
     }
 
     /// Looks up the field ID for the given field name and takes the monitor
