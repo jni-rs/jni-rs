@@ -10,7 +10,7 @@ use std::{
 };
 
 use jni::{
-    errors, objects::IntoAutoLocal as _, strings::JNIStr, sys::jint, AttachGuard, JavaVM,
+    errors, objects::IntoAuto as _, strings::JNIStr, sys::jint, AttachGuard, JavaVM,
     DEFAULT_LOCAL_FRAME_CAPACITY,
 };
 
@@ -151,7 +151,7 @@ fn test_destroy() {
         let atomic = atomic.clone();
         let jh = spawn(move || {
             // We have to be _very_ careful to ensure we have finished accessing the
-            // JavaVM before it gets destroyed, including dropping the AutoLocal
+            // JavaVM before it gets destroyed, including dropping the Auto<T>
             // for the `MATH_CLASS`
             {
                 // Safety: there is no other mutable `Env` in scope, so we aren't

@@ -18,9 +18,9 @@ use crate::{
     descriptors::Desc,
     errors::*,
     objects::{
-        AutoElements, AutoElementsCritical, AutoLocal, Global, IntoAutoLocal as _, JByteBuffer,
-        JClass, JFieldID, JList, JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID,
-        JString, JThrowable, JValue, JValueOwned, ReleaseMode, TypeArray, Weak,
+        Auto, AutoElements, AutoElementsCritical, Global, IntoAuto as _, JByteBuffer, JClass,
+        JFieldID, JList, JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID, JString,
+        JThrowable, JValue, JValueOwned, ReleaseMode, TypeArray, Weak,
     },
     signature::{JavaType, Primitive, TypeSignature},
     strings::{JNIStr, JNIString, MUTF8Chars},
@@ -34,46 +34,45 @@ use crate::{objects::AsJArrayRaw, signature::ReturnType};
 
 use super::{objects::JObjectRef, AttachGuard};
 
-/// FFI-compatible Env struct. You can safely use this as the Env argument
-/// to exported methods that will be called by java. This is where most of the
-/// magic happens. All methods on this object are wrappers around JNI functions,
-/// so the documentation on their behavior is still pretty applicable.
+/// FFI-compatible Env struct. You can safely use this as the Env argument to exported methods that
+/// will be called by java. This is where most of the magic happens. All methods on this object are
+/// wrappers around JNI functions, so the documentation on their behavior is still pretty
+/// applicable.
 ///
 /// # Exception handling
 ///
-/// Since we're calling into the JVM with this, many methods also have the
-/// potential to cause an exception to get thrown. If this is the case, an `Err`
-/// result will be returned with the error kind `JavaException`. Note that this
-/// will _not_ clear the exception - it's up to the caller to decide whether to
-/// do so or to let it continue being thrown.
+/// Since we're calling into the JVM with this, many methods also have the potential to cause an
+/// exception to get thrown. If this is the case, an `Err` result will be returned with the error
+/// kind `JavaException`. Note that this will _not_ clear the exception - it's up to the caller to
+/// decide whether to do so or to let it continue being thrown.
 ///
 /// # References and Lifetimes
 ///
 /// As in C JNI, interactions with Java objects happen through <dfn>references</dfn>, either local
-/// or global, represented by [`JObject`] and [`Global`] respectively. So long as there is at
-/// least one such reference to a Java object, the JVM garbage collector will not reclaim it.
+/// or global, represented by [`JObject`] and [`Global`] respectively. So long as there is at least
+/// one such reference to a Java object, the JVM garbage collector will not reclaim it.
 ///
-/// <dfn>Global references</dfn> exist until deleted. Deletion occurs when the `Global` is
-/// dropped.
+/// <dfn>Global references</dfn> exist until deleted. Deletion occurs when the `Global` is dropped.
 ///
 /// <dfn>Local references</dfn> belong to a local reference frame, and exist until
 /// [deleted][Env::delete_local_ref] or until the local reference frame is exited. A <dfn>local
 /// reference frame</dfn> is entered when a native method is called from Java, or when Rust code
-/// does so explicitly using [`Env::with_local_frame`]. That local reference frame is exited
-/// when the native method or `with_local_frame` returns. When a local reference frame is exited,
-/// all local references created inside it are deleted.
+/// does so explicitly using [`Env::with_local_frame`]. That local reference frame is exited when
+/// the native method or `with_local_frame` returns. When a local reference frame is exited, all
+/// local references created inside it are deleted.
 ///
-/// Unlike C JNI, this crate creates a separate `Env` for each local reference frame. The
-/// associated Rust lifetime `'local` represents that local reference frame. Rust's borrow checker
-/// will ensure that local references are not used after their local reference frame exits (which
-/// would cause undefined behavior).
+/// Unlike C JNI, this crate creates a separate `Env` for each local reference frame. The associated
+/// Rust lifetime `'local` represents that local reference frame. Rust's borrow checker will ensure
+/// that local references are not used after their local reference frame exits (which would cause
+/// undefined behavior).
 ///
 /// Unlike global references, local references are not deleted when dropped by default. This is for
 /// performance: it is faster for the JVM to delete all of the local references in a frame all at
 /// once, than to delete each local reference one at a time. However, this can cause a memory leak
 /// if the local reference frame remains entered for a long time, such as a long-lasting loop, in
 /// which case local references should be deleted explicitly. Local references can be deleted when
-/// dropped if desired; use [`Env::auto_local`] to arrange that.
+/// dropped if desired; use [`Env::delete_local_ref`] or wrap with
+/// [`crate::objects::IntoAuto::auto`] to arrange that.
 ///
 /// ## Lifetime Names
 ///
@@ -83,34 +82,34 @@ use super::{objects::JObjectRef, AttachGuard};
 ///
 /// * `'other_local`, `'other_local_1`, and `'other_local_2` are the lifetimes of some other local
 ///   reference frame, which may be but doesn't have to be the same as `'local`. For example,
-///   [`Env::new_local_ref`] accepts a local reference in any local reference frame
-///   `'other_local` and creates a new local reference to the same object in `'local`.
+///   [`Env::new_local_ref`] accepts a local reference in any local reference frame `'other_local`
+///   and creates a new local reference to the same object in `'local`.
 ///
-/// * `'obj_ref` is the lifetime of a borrow of a JNI reference, like <code>&amp;[JObject]</code>
-///   or <code>&amp;[Global]</code>. For example, [`Env::get_list`] constructs a new
-///   [`JList`] that borrows a `&'obj_ref JObject`.
+/// * `'obj_ref` is the lifetime of a borrow of a JNI reference, like <code>&amp;[JObject]</code> or
+///   <code>&amp;[Global]</code>. For example, [`Env::get_list`] constructs a new [`JList`] that
+///   borrows a `&'obj_ref JObject`.
 ///
 /// ## `null` Java references
 /// `null` Java references are handled by the following rules:
-///   - If a `null` Java reference is passed to a method that expects a non-`null`
-///     argument, an `Err` result with the kind `NullPtr` is returned.
-///   - If a JNI function returns `null` to indicate an error (e.g. `new_int_array`),
-///     it is converted to `Err`/`NullPtr` or, where possible, to a more applicable
-///     error type, such as `MethodNotFound`. If the JNI function also throws
-///     an exception, the `JavaException` error kind will be preferred.
-///   - If a JNI function may return `null` Java reference as one of possible reference
-///     values (e.g., `get_object_array_element` or `get_field_unchecked`),
-///     it is converted to `JObject::null()`.
+///   - If a `null` Java reference is passed to a method that expects a non-`null` argument, an
+///     `Err` result with the kind `NullPtr` is returned.
+///   - If a JNI function returns `null` to indicate an error (e.g. `new_int_array`), it is
+///     converted to `Err`/`NullPtr` or, where possible, to a more applicable error type, such as
+///     `MethodNotFound`. If the JNI function also throws an exception, the `JavaException` error
+///     kind will be preferred.
+///   - If a JNI function may return `null` Java reference as one of possible reference values
+///     (e.g., `get_object_array_element` or `get_field_unchecked`), it is converted to
+///     `JObject::null()`.
 ///
 /// # `&self` and `&mut self`
 ///
-/// Most of the methods on this type take a `&mut self` reference, specifically all methods that
-/// can enter a new local reference frame. This includes anything that might invoke user-defined
-/// Java code, which can indirectly enter a new local reference frame by calling a native method.
+/// Most of the methods on this type take a `&mut self` reference, specifically all methods that can
+/// enter a new local reference frame. This includes anything that might invoke user-defined Java
+/// code, which can indirectly enter a new local reference frame by calling a native method.
 ///
-/// The reason for this restriction is to ensure that a `Env` instance can only be used in the
-/// local reference frame that it belongs to. This, in turn, ensures that it is not possible to
-/// create [`JObject`]s with the lifetime of a different local reference frame, which would lead to
+/// The reason for this restriction is to ensure that a `Env` instance can only be used in the local
+/// reference frame that it belongs to. This, in turn, ensures that it is not possible to create
+/// [`JObject`]s with the lifetime of a different local reference frame, which would lead to
 /// undefined behavior. (See [issue #392] for background discussion.)
 ///
 /// [issue #392]: https://github.com/jni-rs/jni-rs/issues/392
@@ -171,27 +170,25 @@ use super::{objects::JObjectRef, AttachGuard};
 ///
 /// # Checked and unchecked methods
 ///
-/// Some of the methods come in two versions: checked (e.g. `call_method`) and
-/// unchecked (e.g. `call_method_unchecked`). Under the hood, checked methods
-/// perform some checks to ensure the validity of provided signatures, names
-/// and arguments, and then call the corresponding unchecked method.
+/// Some of the methods come in two versions: checked (e.g. `call_method`) and unchecked (e.g.
+/// `call_method_unchecked`). Under the hood, checked methods perform some checks to ensure the
+/// validity of provided signatures, names and arguments, and then call the corresponding unchecked
+/// method.
 ///
-/// Checked methods are more flexible as they allow passing class names
-/// and method/field descriptors as strings and may perform lookups
-/// of class objects and method/field ids for you, also performing
-/// all the needed precondition checks. However, these lookup operations
-/// are expensive, so if you need to call the same method (or access
-/// the same field) multiple times, it is
+/// Checked methods are more flexible as they allow passing class names and method/field descriptors
+/// as strings and may perform lookups of class objects and method/field ids for you, also
+/// performing all the needed precondition checks. However, these lookup operations are expensive,
+/// so if you need to call the same method (or access the same field) multiple times, it is
 /// [recommended](https://docs.oracle.com/en/java/javase/11/docs/specs/jni/design.html#accessing-fields-and-methods)
 /// to cache the instance of the class and the method/field id, e.g.
 ///   - in loops
 ///   - when calling the same Java callback repeatedly.
 ///
-/// If you do not cache references to classes and method/field ids,
-/// you will *not* benefit from the unchecked methods.
+/// If you do not cache references to classes and method/field ids, you will *not* benefit from the
+/// unchecked methods.
 ///
-/// Calling unchecked methods with invalid arguments and/or invalid class and
-/// method descriptors may lead to segmentation fault.
+/// Calling unchecked methods with invalid arguments and/or invalid class and method descriptors may
+/// lead to segmentation fault.
 #[derive(Debug)]
 pub struct Env<'local> {
     /// A non-null Env pointer
@@ -1292,32 +1289,34 @@ impl<'local> Env<'local> {
     /// can be more convenient when you create a _bounded_ number of local references
     /// but cannot rely on automatic de-allocation (e.g., in case of recursion, deep call stacks,
     /// [permanently-attached](struct.JavaVM.html#attaching-native-threads) native threads, etc.).
-    #[deprecated = "Use '.auto()' from IntoAutoLocal trait"]
-    pub fn auto_local<O>(&self, obj: O) -> AutoLocal<'local, O>
+    #[deprecated = "Use '.auto()' from IntoAuto trait"]
+    pub fn auto_local<O>(&self, obj: O) -> Auto<'local, O>
     where
         O: Into<JObject<'local>>,
     {
-        AutoLocal::new(obj)
+        Auto::new(obj)
     }
 
-    /// Deletes the local reference.
+    /// Deletes a local reference early, before its JNI stack frame unwinds.
     ///
-    /// Local references are valid for the duration of a native method call.
-    /// They are freed automatically after the native method returns. Each local
-    /// reference costs some amount of Java Virtual Machine resource.
-    /// Programmers need to make sure that native methods do not excessively
-    /// allocate local references. Although local references are automatically
-    /// freed after the native method returns to Java, excessive allocation of
-    /// local references may cause the VM to run out of memory during the
-    /// execution of a native method.
+    /// Local references exist within a JNI stack frame, which would typically be created by the
+    /// Java VM before making a native method call, and then unwound when your native method
+    /// returns.
     ///
-    /// In most cases it is better to use `AutoLocal` (see `auto_local` method)
-    /// or `with_local_frame` instead of direct `delete_local_ref` calls.
+    /// New JNI stack frames may also be created via [`Self::with_local_frame`].
     ///
-    /// `obj` can be a mutable borrow of a local reference (such as
-    /// `&mut JObject`) instead of the local reference itself (such as
-    /// `JObject`). In this case, the local reference will still exist after
-    /// this method returns, but it will be null.
+    /// Typically you don't have to worry about deleting local references since they are
+    /// automatically freed when the JNI stack frame they were created in unwinds.
+    ///
+    /// But, each local reference takes memory and so you need to make sure to not excessively
+    /// allocate local references.
+    ///
+    /// If you find that you are allocating a large number of local references in a single native
+    /// method call, (e.g. while looping over a large collection), this API can be used to
+    /// explicitly delete local references before the JNI stack frame unwinds.
+    ///
+    /// In most cases it is better to use [`Auto`] (see [`crate::IntoAuto::auto`] method) or
+    /// [`Self::with_local_frame`] instead of directly calling [`Self::delete_local_ref`].
     pub fn delete_local_ref<'other_local, O>(&self, obj: O)
     where
         O: Into<JObject<'other_local>>,
@@ -1339,9 +1338,6 @@ impl<'local> Env<'local> {
     /// Prefer to use
     /// [`with_local_frame`](struct.Env.html#method.with_local_frame)
     /// instead of direct `push_local_frame`/`pop_local_frame` calls.
-    ///
-    /// See also [`auto_local`](struct.Env.html#method.auto_local) method
-    /// and `AutoLocal` type — that approach can be more convenient in loops.
     ///
     /// # Safety
     ///

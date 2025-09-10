@@ -7,7 +7,7 @@ use jni::{
     descriptors::Desc,
     errors::{CharToJavaError, Error},
     objects::{
-        AutoElements, IntoAutoLocal as _, JByteBuffer, JList, JObject, JObjectRef as _, JString,
+        AutoElements, IntoAuto as _, JByteBuffer, JList, JObject, JObjectRef as _, JString,
         JThrowable, JValue, ReleaseMode, Weak,
     },
     signature::{JavaType, Primitive, ReturnType},
@@ -1466,7 +1466,7 @@ fn new_weak_ref_null() {
 }
 
 #[test]
-fn auto_local_null() {
+fn auto_null() {
     let null_obj = JObject::null();
     {
         let auto_ref = null_obj.auto();

@@ -288,21 +288,22 @@ impl<'local> JList<'local> {
         self.remove(env, size - 1).map(Some)
     }
 
-    /// Returns an iterator (`java.util.Iterator`) over the elements in this list.
+    /// Returns an iterator (`java.util.Iterator`) over the elements in this
+    /// list.
     ///
     /// The returned iterator does not implement [`std::iter::Iterator`] and
-    /// cannot be used with a `for` loop. This is because its `next` method
-    /// uses a `&mut Env` to call the Java iterator. Use a `while let` loop
-    /// instead:
+    /// cannot be used with a `for` loop. This is because its `next` method uses
+    /// a `&mut Env` to call the Java iterator. Use a `while let` loop instead:
     ///
     /// ```rust,no_run
-    /// # use jni::{errors::Result, Env, objects::{IntoAutoLocal as _, JList, JObject}};
+    /// # use jni::{errors::Result, Env, objects::{JList, JObject}};
     /// #
     /// # fn example(env: &mut Env, list: JList) -> Result<()> {
+    /// use jni::objects::IntoAuto as _; // for .auto()
     /// let mut iterator = list.iter(env)?;
     ///
     /// while let Some(obj) = iterator.next(env)? {
-    ///     let obj = obj.auto(); // Wrap as AutoLocal to avoid leaking while iterating
+    ///     let obj = obj.auto(); // Wrap as Auto<T> to avoid leaking while iterating
     ///
     ///     // Do something with `obj` here.
     /// }
@@ -312,11 +313,11 @@ impl<'local> JList<'local> {
     ///
     /// Each call to `next` creates a new local reference. To prevent excessive
     /// memory usage or overflow errors, the local reference should be deleted
-    /// using [`Env::delete_local_ref`] or [`Env::auto_local`] before the
-    /// next loop iteration. Alternatively, if the list is known to have a
-    /// small, predictable size, the loop could be wrapped in
-    /// [`Env::with_local_frame`] to delete all of the local references at
-    /// once.
+    /// using [`Env::delete_local_ref`] or wrapped with
+    /// [`crate::objects::IntoAuto::auto`] before the next loop iteration.
+    /// Alternatively, if the list is known to have a small, predictable size,
+    /// the loop could be wrapped in [`Env::with_local_frame`] to delete all of
+    /// the local references at once.
     pub fn iter<'env_local>(&self, env: &mut Env<'env_local>) -> Result<JIterator<'env_local>> {
         self.as_collection().iterator(env)
     }

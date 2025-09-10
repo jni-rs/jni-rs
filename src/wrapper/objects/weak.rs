@@ -14,7 +14,7 @@ use crate::{
 use super::JObjectRef;
 
 // Note: `Weak` must not implement `Into<JObject>`! If it did, then it would be possible to
-// wrap it in `AutoLocal`, which would cause undefined behavior upon drop as a result of calling
+// wrap it in `Auto`, which would cause undefined behavior upon drop as a result of calling
 // the wrong JNI function to delete the reference.
 
 /// A global reference to a Java object that does *not* prevent it from being

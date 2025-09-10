@@ -1,7 +1,7 @@
 #![cfg(feature = "invocation")]
 
 use jni::{
-    objects::{IntoAutoLocal, JList, JString},
+    objects::{IntoAuto, JList, JString},
     strings::JNIStr,
     sys::jint,
 };
@@ -244,7 +244,7 @@ pub fn jlist_iterator_empty() {
 }
 
 #[test]
-pub fn jlist_iterator_with_auto_local() {
+pub fn jlist_iterator_with_auto() {
     attach_current_thread(|env| {
         let data = &[
             JNIStr::from_cstr(c"item1"),
@@ -267,12 +267,12 @@ pub fn jlist_iterator_with_auto_local() {
             env,
         );
 
-        // Test iterator with auto_local to prevent memory leaks
+        // Test iterator with Auto<T> to prevent memory leaks
         let mut collected = Vec::new();
         unwrap(
             list.iter(env).and_then(|iter| {
                 while let Some(obj) = iter.next(env)? {
-                    let obj = obj.auto(); // Wrap as AutoLocal to avoid leaking while iterating
+                    let obj = obj.auto(); // Wrap as Auto<T> to avoid leaking while iterating
                     let s = env.as_cast::<JString>(&obj)?;
                     let s = s.mutf8_chars(env)?;
                     collected.push(s.to_owned());

@@ -6,7 +6,7 @@ use std::{
 };
 
 use jni::{
-    objects::{IntoAutoLocal as _, JObject, JValue, Weak},
+    objects::{IntoAuto as _, JObject, JValue, Weak},
     sys::jint,
     Env,
 };

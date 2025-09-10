@@ -11,48 +11,86 @@ use crate::{
 
 use super::JObjectRef;
 
-/// Auto-delete wrapper for local references.
+/// A wrapper to `Auto` delete local references early (before the JNI stack
+/// frame unwinds).
+///
+/// ---
+///
+/// _**Note** that it's often not necessary, or even recommended, to create an
+/// `Auto` wrapper for local JNI references if you can instead rely on the
+/// references being deleted when the current JNI stack frame unwinds._
+///
+/// ---
+///
+/// ## Overview
 ///
 /// Anything passed to a foreign method or returned from JNI methods that refers
 /// to a `JObject` is considered a local reference.
 ///
 /// JNI local references belong to a JNI stack frame (the top frame at the time
-/// they are created). These reference are normally automatically deleted once
-/// the the stack frame unwinds, such as when a foreign method implementation
-/// returns back to the JavaVM.
+/// they are created).
 ///
-/// In some situations you don't want to wait until the current stack frame
-/// unwinds before you delete a local reference because you might be creating a
-/// very large number of temporary references in a loop that can lead to running
-/// out of memory if they aren't explicitly deleted before the stack frame
-/// unwinds.
+/// These JNI references are normally automatically deleted once the their JNI
+/// stack frame unwinds, such as when a foreign method implementation returns
+/// back to the JavaVM.
+///
+/// In some situations you don't want to wait until the current JNI stack frame
+/// unwinds before you delete a local reference and you can wrap then with
+/// `Auto` so they are deleted earlier, when they are dropped.
+///
+/// For example, you might be creating a very large number of temporary
+/// references in a loop that can lead to running out of memory if they aren't
+/// explicitly deleted before the JNI stack frame unwinds.
 ///
 /// This wrapper type provides automatic local reference deletion when it goes
-/// out of scope.
+/// out of scope and gets dropped.
 ///
 /// See also the [JNI specification][spec-references] for details on referencing
 /// Java objects and some [extra information][android-jni-references].
 ///
-/// Note that it's often not necessary, or even recommended, to create an
-/// `AutoLocal` wrapper for local JNI references if you can instead rely on the
-/// references being deleted when the current JNI stack frame unwinds.
+/// ## `IntoAuto` trait (`.auto()`)
+///
+/// As a convenience, the `IntoAuto` trait is implemented for all reference
+/// types (like `JObject`, `JClass`, `JString` etc). This allows you to easily
+/// create an `Auto` wrapper by calling the `.auto()` method on any local
+/// reference.
+///
+/// For example:
+///
+/// ```rust,no_run
+/// # use jni::{objects::Auto, Env};
+/// # fn example(env: &mut Env) -> std::result::Result<(), jni::errors::Error> {
+/// use jni::objects::IntoAuto as _;
+/// for i in 0..1000 {
+///     // Ensure we aren't left with a new local for each iteration by
+///     // wrapping the reference in an `Auto` wrapper.
+///     let auto_delete_string = env.new_string(c"Hello, world!")?.auto();
+/// }
+/// # Ok(())
+/// # }
+/// ```
+///
+/// ## Alternatives
 ///
 /// It is usually more efficient to rely on stack frame unwinding to release
-/// local references in bulk instead of creating `AutoLocal` wrappers that
-/// are then deleted one-by-one.
+/// local references in bulk instead of creating [`Auto`] wrappers that are then
+/// deleted one-by-one.
 ///
 /// If you aren't sure whether it's OK to create new local references in the
-/// current JNI frame (perhaps because you don't know when it will unwind)
-/// you can also consider using APIs like `Env::with_local_frame()` which
+/// current JNI frame (perhaps because you don't know when it will unwind) you
+/// can also consider using APIs like [`crate::Env::with_local_frame()`] which
 /// can run your code in a temporary stack frame that will release all local
-/// references in bulk, without needing to use `AutoLocal`.
+/// references in bulk, without needing to use [`Auto`].
+///
+/// You can also explicitly delete a local reference with
+/// [crate::Env::delete_local_ref].
 ///
 /// [spec-references]:
 ///     https://docs.oracle.com/en/java/javase/12/docs/specs/jni/design.html#referencing-java-objects
 /// [android-jni-references]:
 ///     https://developer.android.com/training/articles/perf-jni#local-and-global-references
 #[derive(Debug)]
-pub struct AutoLocal<'local, T>
+pub struct Auto<'local, T>
 where
     T: Into<JObject<'local>>,
 {
@@ -60,9 +98,13 @@ where
     _lifetime: PhantomData<&'local T>,
 }
 
-impl<'local, T> AutoLocal<'local, T>
+/// A temporary alias to sign post that `AutoLocal` has been renamed to [`Auto`]
+#[deprecated(since = "0.22.0", note = "AutoLocal has been renamed to `Auto`")]
+pub type AutoLocal<'local, T> = Auto<'local, T>;
+
+impl<'local, T> Auto<'local, T>
 where
-    // Note that this bound prevents `AutoLocal` from wrapping a `Global`, which implements
+    // Note that this bound prevents `Auto` from wrapping a `Global`, which implements
     // `AsRef<JObject<'static>>` but *not* `Into<JObject<'static>>`. This is good, because trying
     // to delete a global reference as though it were local would cause undefined behavior.
     T: Into<JObject<'local>>,
@@ -73,7 +115,7 @@ where
     /// called on the object. While wrapped, the object can be accessed via
     /// the `Deref` impl.
     pub fn new(obj: T) -> Self {
-        AutoLocal {
+        Auto {
             obj: ManuallyDrop::new(obj),
             _lifetime: PhantomData,
         }
@@ -88,11 +130,11 @@ where
     ///
     /// # Leaking References
     ///
-    /// When unwrapping an `AutoLocal` you should consider how else you will
+    /// When unwrapping an [`Auto`] you should consider how else you will
     /// ensure that the local reference will get released.
     ///
     /// If you are implementing a native method then you may not need to keep
-    /// and AutoLocal wrapper since you can assume that when you return back to
+    /// an [`Auto`] wrapper since you can assume that when you return back to
     /// the Java VM then the local JNI stack frame will unwind and delete all
     /// local references.
     ///
@@ -127,13 +169,13 @@ where
     /// Unwrap the RAII, auto-delete wrapper, returning the original local reference.
     ///
     /// See [`Self::unwrap`]
-    #[deprecated = "Renamed to AutoLocal::unwrap"]
+    #[deprecated = "Renamed to Auto::unwrap"]
     pub fn forget(self) -> T {
         self.unwrap()
     }
 }
 
-impl<'local, T> Drop for AutoLocal<'local, T>
+impl<'local, T> Drop for Auto<'local, T>
 where
     T: Into<JObject<'local>>,
 {
@@ -158,13 +200,13 @@ where
                 // in order to get a Env reference.
                 //
                 // The only (remote) exception to this is that the reference came from a native
-                // method argument and for some reason an AutoLocal wrapper was created before an
+                // method argument and for some reason an `Auto` wrapper was created before an
                 // AttachGuard was created to access a Env reference (which would initialize the
                 // JavaVM singleton).
                 //
                 // This would be a redundant thing to try, but just to err on the side of caution we
                 // avoid panicking here and only log an error.
-                log::error!("Failed to drop AutoLocal: No JavaVM initialized");
+                log::error!("Failed to drop Auto: No JavaVM initialized");
                 // In this unlikely case it should be fine to return early, since it would be
                 // redundant to explicitly delete the local reference of a native method argument.
                 return;
@@ -184,7 +226,7 @@ where
     }
 }
 
-impl<'local, T, U> AsRef<U> for AutoLocal<'local, T>
+impl<'local, T, U> AsRef<U> for Auto<'local, T>
 where
     T: AsRef<U> + Into<JObject<'local>>,
 {
@@ -193,7 +235,7 @@ where
     }
 }
 
-impl<'local, T> Deref for AutoLocal<'local, T>
+impl<'local, T> Deref for Auto<'local, T>
 where
     T: Into<JObject<'local>>,
 {
@@ -204,29 +246,29 @@ where
     }
 }
 
-/// A trait for wrapping a local reference type into an [`AutoLocal`]
-pub trait IntoAutoLocal<'local>: Sized + Into<JObject<'local>> {
-    /// Wraps the local reference type into an auto-delete [`AutoLocal`] that will
+/// A trait for wrapping a local reference type into an [`Auto`]
+pub trait IntoAuto<'local>: Sized + Into<JObject<'local>> {
+    /// Wraps the local reference type into an auto-delete [`Auto`] that will
     /// automatically delete the local reference when it is dropped
-    fn auto(self) -> AutoLocal<'local, Self> {
-        AutoLocal::new(self)
+    fn auto(self) -> Auto<'local, Self> {
+        Auto::new(self)
     }
 }
 
-impl<'local, T> IntoAutoLocal<'local> for T where T: Into<JObject<'local>> {}
+impl<'local, T> IntoAuto<'local> for T where T: Into<JObject<'local>> {}
 
-impl<'local, T> From<T> for AutoLocal<'local, T>
+impl<'local, T> From<T> for Auto<'local, T>
 where
     T: Into<JObject<'local>>,
 {
     fn from(value: T) -> Self {
-        AutoLocal::new(value)
+        Auto::new(value)
     }
 }
 
 // SAFETY: Kind and GlobalKind are implicitly transparent wrappers if T is
 // implemented correctly / safely.
-unsafe impl<'local, T> JObjectRef for AutoLocal<'local, T>
+unsafe impl<'local, T> JObjectRef for Auto<'local, T>
 where
     T: JObjectRef + Into<JObject<'local>>,
 {

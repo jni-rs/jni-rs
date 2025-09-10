@@ -1,6 +1,6 @@
 use crate::{
     errors::*,
-    objects::{AutoLocal, Global, JObject, JObjectRef},
+    objects::{Auto, Global, JObject, JObjectRef},
     Env,
 };
 
@@ -45,7 +45,7 @@ pub unsafe trait Desc<'local, T> {
     /// ```
     ///
     /// **Warning:** Many built-in implementations of this trait return
-    /// [`AutoLocal`] from this method. If you then call [`JObject::as_raw`] on
+    /// [`Auto`] from this method. If you then call [`JObject::as_raw`] on
     /// the returned object reference, this may result in the reference being
     /// [deleted][Env::delete_local_ref] before it is used, causing
     /// undefined behavior.
@@ -110,7 +110,7 @@ where
     }
 }
 
-unsafe impl<'local, 'other_local, T> Desc<'local, T> for AutoLocal<'other_local, T>
+unsafe impl<'local, 'other_local, T> Desc<'local, T> for Auto<'other_local, T>
 where
     T: AsRef<T> + Into<JObject<'other_local>>,
 {
@@ -121,7 +121,7 @@ where
     }
 }
 
-unsafe impl<'local, 'other_local, T> Desc<'local, T> for &AutoLocal<'other_local, T>
+unsafe impl<'local, 'other_local, T> Desc<'local, T> for &Auto<'other_local, T>
 where
     T: AsRef<T> + Into<JObject<'other_local>>,
 {

@@ -2,7 +2,7 @@ use crate::{
     descriptors::Desc,
     env::Env,
     errors::*,
-    objects::{AutoLocal, IntoAutoLocal as _, JClass},
+    objects::{Auto, IntoAuto as _, JClass},
     strings::JNIStr,
 };
 
@@ -10,7 +10,7 @@ unsafe impl<'local, T> Desc<'local, JClass<'local>> for T
 where
     T: AsRef<JNIStr>,
 {
-    type Output = AutoLocal<'local, JClass<'local>>;
+    type Output = Auto<'local, JClass<'local>>;
 
     fn lookup(self, env: &mut Env<'local>) -> Result<Self::Output> {
         Ok(env.find_class(self.as_ref())?.auto())
