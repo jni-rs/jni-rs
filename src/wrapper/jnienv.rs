@@ -352,7 +352,7 @@ impl<'local> Env<'local> {
         unsafe { self.define_class_impl(name, loader, buf.as_ptr() as *const jbyte, buf.len()) }
     }
 
-    /// Look up a class by its fully-qualified name.
+    /// Look up a class by its fully-qualified name, via JNI `FindClass`.
     ///
     /// # Example
     /// ```rust,no_run
@@ -365,6 +365,46 @@ impl<'local> Env<'local> {
     /// ```
     ///
     /// Returns the loaded class, or a [`Error::NullPtr`] error if the class could not be found.
+    ///
+    /// ## Use [JObjectRef::lookup_class], instead of [Env::find_class] where possible
+    ///
+    /// Whenever you need the class associated with some reference wrapper type (e.g. [`JObject`],
+    /// [`JClass`], [`JString`] etc), prefer using [JObjectRef::lookup_class] instead of this method.
+    ///
+    /// [JObjectRef] is a trait that all of these reference wrapper types implement.
+    ///
+    /// All implementations of [JObjectRef::lookup_class] will maintain a static cache holding a
+    /// `Global<JClass>` that is cheap to lookup and doesn't require a JNI call or creating any new
+    /// references.
+    ///
+    /// For example, lookup the class for `java.lang.String` / [JString] like this:
+    /// ```rust,no_run
+    /// # use jni::{errors::Result, Env, objects::JClass};
+    /// #
+    /// # fn example<'local>(env: &mut Env<'local>) -> Result<()> {
+    /// use jni::objects::{JString, JObjectRef as _, LoaderContext};
+    /// let vm = env.get_java_vm();
+    /// let string_class = JString::lookup_class(&vm, LoaderContext::None)?;
+    /// let string_class_ref: &JClass = string_class.as_ref();
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## Consider using [LoaderContext::load_class] in all other cases
+    ///
+    /// Unless you strictly need to use the JNI `FindClass` API directly to look up classes it may
+    /// be best to use [LoaderContext::load_class] or [LoaderContext::find_class] instead of this
+    /// method.
+    ///
+    /// [LoaderContext::load_class] can be given a specific `java.lang.ClassLoader`
+    /// ([crate::objects::JClassLoader]) for finding application classes that `FindClass` may not
+    /// find.
+    ///
+    /// Even without providing a `ClassLoader`, [LoaderContext::load_class] will check the context
+    /// class loader of the current thread, which makes it possible to associate a thread with an
+    /// application class loader. This may be particularly useful for native applications on Android
+    /// because native threads will not normally be able to find application classes through
+    /// `FindClass`.
     pub fn find_class<S>(&mut self, name: S) -> Result<JClass<'local>>
     where
         S: AsRef<JNIStr>,
