@@ -63,11 +63,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Env::get_string` performance was optimized by caching an expensive class lookup, and using a faster instanceof check. ([#531](https://github.com/jni-rs/jni-rs/pull/531))
 - `Env::get_string` performance was later further optimized to avoid the need for runtime type checking ([#612](https://github.com/jni-rs/jni-rs/pull/612))
 - `Env::get_string` has been deprecated in favor of `JString::mutf8_chars` and `JString::to_string()` or `JString::try_to_string(env)`
-- `GlobalRef` and `WeakRef` are parameterized, transparent wrappers over `'static` reference types like `GlobalRef<JClass<'static>>` (no longer an `Arc` holding a reference and VM pointer) ([#596](https://github.com/jni-rs/jni-rs/pull/596))
-  - `GlobalRef` and `WeakRef` no longer implement `Clone`, since JNI is required to create new reference (you'll need to explicitly use `env.new_global_ref`)
-  - `GlobalRef` and `WeakRef` both implement `Default`, which will represent `::null()` references (equivalent to `JObject::null()`)
-- `GlobalRef::into_raw` replaces `GlobalRef::try_into_raw` and is infallible ([#596](https://github.com/jni-rs/jni-rs/pull/596))
-- `Env::new_weak_ref` returns a `Result<WeakRef>` and `Error::ObjectFreed` if the reference is null or has already been freed (instead of `Result<Option<WeakRef>>`) ([#596](https://github.com/jni-rs/jni-rs/pull/596))
+
+- `GlobalRef` and `WeakRef` have been renamed to `Global` and `Weak` and are now generic, parameterized, transparent wrappers over `'static` reference types like `Global<JClass<'static>>` (no longer an `Arc` holding a reference and VM pointer) ([#596](https://github.com/jni-rs/jni-rs/pull/596))
+  - `Global` and `Weak` no longer implement `Clone`, since JNI is required to create new reference (you'll need to explicitly use `env.new_global_ref`)
+  - `Global` and `Weak` both implement `Default`, which will represent `::null()` references (equivalent to `JObject::null()`)
+- `Global::into_raw` replaces `Global::try_into_raw` and is infallible ([#596](https://github.com/jni-rs/jni-rs/pull/596))
+- `Env::new_weak_ref` returns a `Result<Weak>` and `Error::ObjectFreed` if the reference is null or has already been freed (instead of `Result<Option<Weak>>`) ([#596](https://github.com/jni-rs/jni-rs/pull/596))
 - `Env::new_global_ref` and `::new_local_ref` may return `Error::ObjectFreed` in case a weak reference was given and the object has been freed. ([#596](https://github.com/jni-rs/jni-rs/pull/596))
 - `Env::define_class` takes a `name: Option<>` instead of having a separate `define_unnamed_class` API.
 - `Env::define_class_bytearray` was renamed to `Env::define_class_jbyte` and is identical to `define_class` except for taking a `&[jbyte]` slice instead of `&[u8]`, which is a convenience if you have a `JByteArray` or `AutoElements<JByteArray>`.
@@ -100,7 +101,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `JavaStr/MUTF8Chars`, `JNIStr`, and `JNIString` have several new methods and traits, most notably a `to_str` method that converts to a regular Rust string. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
 - Added dependency on `once_cell` version `1.19.0` for lazy initialization of various global statics.
 - `JavaVM::singleton()` lets you acquire the `JavaVM` for the process when you know that the `JavaVM` singleton has been initialized ([#595](https://github.com/jni-rs/jni-rs/pull/595))
-- `GlobalRef::null()` and `WeakRef::null()` construct null references (equivalent to `Default::default()`). ([#596](https://github.com/jni-rs/jni-rs/pull/596))
+- `Global::null()` and `Weak::null()` construct null references (equivalent to `Default::default()`). ([#596](https://github.com/jni-rs/jni-rs/pull/596))
 - `JavaVM::is_thread_attached` can query whether the current thread is attached to the Java VM ([#570](https://github.com/jni-rs/jni-rs/pull/570))
 - `EnvUnowned` is an FFI-safe type that can be used to capture a `jni_sys::Env` pointer given to native methods and give it a named lifetime (this can then be temporarily upgraded to a `&mut Env` reference via `EnvUnowned::with_env`) ([#570](https://github.com/jni-rs/jni-rs/pull/570))
 - `AttachGuard::from_unowned` added as a low-level (unsafe) way to represent a thread attachment with a raw `jni_sys::Env` pointer ([#570](https://github.com/jni-rs/jni-rs/pull/570))
@@ -120,9 +121,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `JThread` as a `JObjectRef` wrapper for `java.lang.Thread` references ([#612](https://github.com/jni-rs/jni-rs/pull/612))
 - `JClassLoader` as a `JObjectRef` wrapper for `java.lang.ClassLoader` references ([#612](https://github.com/jni-rs/jni-rs/pull/612))
 - `LoaderContext` + `LoaderContext::load_class` for loading classes, depending on available context ([#612](https://github.com/jni-rs/jni-rs/pull/612))
-- `JObjectRef::load_class` exposes a cached `GlobalRef<JClass>` for all `JObjectRef` implementations ([#612](https://github.com/jni-rs/jni-rs/pull/612))
+- `JObjectRef::load_class` exposes a cached `Global<JClass>` for all `JObjectRef` implementations ([#612](https://github.com/jni-rs/jni-rs/pull/612))
 - `Env::new_cast_global_ref` acts like `new_global_ref` with a type cast ([#612](https://github.com/jni-rs/jni-rs/pull/612))
-- `Env::cast_global` takes an owned `GlobalRef<From>` and returns a `GlobalRef<To>` ([#612](https://github.com/jni-rs/jni-rs/pull/612))
+- `Env::cast_global` takes an owned `Global<From>` and returns a `Global<To>` ([#612](https://github.com/jni-rs/jni-rs/pull/612))
 - `Env::new_cast_local_ref` acts like `new_local_ref` with a type cast ([#612](https://github.com/jni-rs/jni-rs/pull/612))
 - `Env::cast_local` takes an owned local reference and returns a newly type cast wrapper ([#612](https://github.com/jni-rs/jni-rs/pull/612))
 - `Env::as_cast` borrows any `From: JObjectRef` (global or local) reference and returns  a `Cast<To>` that will Deref into `&To` ([#612](https://github.com/jni-rs/jni-rs/pull/612))

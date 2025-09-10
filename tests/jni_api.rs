@@ -8,7 +8,7 @@ use jni::{
     errors::{CharToJavaError, Error},
     objects::{
         AutoElements, IntoAutoLocal as _, JByteBuffer, JList, JObject, JObjectRef as _, JString,
-        JThrowable, JValue, ReleaseMode, WeakRef,
+        JThrowable, JValue, ReleaseMode, Weak,
     },
     signature::{JavaType, Primitive, ReturnType},
     strings::{JNIStr, JNIString},
@@ -1457,7 +1457,7 @@ fn new_weak_ref_null() {
         let result = env.new_weak_ref(null_obj);
         assert!(matches!(result, Err(Error::ObjectFreed)));
 
-        let null_weak: WeakRef<JObject<'static>> = WeakRef::null();
+        let null_weak: Weak<JObject<'static>> = Weak::null();
         assert!(null_weak.is_garbage_collected(env));
 
         Ok(())

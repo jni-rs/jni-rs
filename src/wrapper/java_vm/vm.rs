@@ -11,7 +11,7 @@ use log::{debug, error};
 use crate::{
     env::Env,
     errors::*,
-    objects::{GlobalRef, JObject, JObjectRef},
+    objects::{Global, JObject, JObjectRef},
     strings::JNIString,
     sys, JNIVersion,
 };
@@ -915,10 +915,10 @@ impl JavaVM {
     /// - `AutoElements`
     /// - `AutoElementsCritical`
     /// - `AutoLocal`
-    /// - `GlobalRef`
+    /// - `Global`
     /// - `MUTF8Chars`
     /// - `JMap`
-    /// - `WeakRef`
+    /// - `Weak`
     ///
     /// ## Invalid `JavaVM` on return
     ///
@@ -950,7 +950,7 @@ impl JavaVM {
 pub struct AttachConfig<'a> {
     scoped: bool,
     name: Option<JNIString>,
-    group: Option<&'a GlobalRef<JObject<'static>>>,
+    group: Option<&'a Global<JObject<'static>>>,
 }
 
 impl<'a> AttachConfig<'a> {
@@ -980,7 +980,7 @@ impl<'a> AttachConfig<'a> {
 
     /// Specifies a global reference to a `ThreadGroup` that the thread should
     /// be associated with.
-    pub fn group(mut self, group: &'a GlobalRef<JObject<'static>>) -> Self {
+    pub fn group(mut self, group: &'a Global<JObject<'static>>) -> Self {
         self.group = Some(group);
         self
     }
@@ -1100,7 +1100,7 @@ thread_local! {
 ///
 /// If you know that at least one [`AttachGuard`] has ever existed (which is
 /// implied if you have a `Env` reference or any non-null reference type
-/// (like `JObject` or `GlobalRef`) you can assume that [`JavaVM::singleton()`]
+/// (like `JObject` or `Global`) you can assume that [`JavaVM::singleton()`]
 /// will return `Some(JavaVM)`.
 ///
 /// You can use this to avoid redundantly copying JavaVM pointers that can

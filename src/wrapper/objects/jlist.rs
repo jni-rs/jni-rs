@@ -4,7 +4,7 @@ use once_cell::sync::OnceCell;
 use crate::{
     errors::*,
     objects::{
-        Cast, GlobalRef, JClass, JCollection, JIterator, JMethodID, JObject, JObjectRef, JValue,
+        Cast, Global, JClass, JCollection, JIterator, JMethodID, JObject, JObjectRef, JValue,
         LoaderContext,
     },
     signature::{Primitive, ReturnType},
@@ -55,7 +55,7 @@ impl<'local> From<JList<'local>> for JCollection<'local> {
 }
 
 struct JListAPI {
-    class: GlobalRef<JClass<'static>>,
+    class: Global<JClass<'static>>,
     get_method: JMethodID,
     add_idx_method: JMethodID,
     remove_method: JMethodID,
@@ -336,7 +336,7 @@ unsafe impl JObjectRef for JList<'_> {
     fn lookup_class<'vm>(
         vm: &'vm JavaVM,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
         let api = JListAPI::get(vm, &loader_context)?;
         Ok(&api.class)
     }

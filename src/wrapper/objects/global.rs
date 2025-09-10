@@ -12,11 +12,11 @@ use crate::{
 };
 
 #[cfg(doc)]
-use crate::objects::WeakRef;
+use crate::objects::Weak;
 
 use super::JObjectRef;
 
-// Note: `GlobalRef` must not implement `Into<JObject>`! If it did, then it would be possible to
+// Note: `Global` must not implement `Into<JObject>`! If it did, then it would be possible to
 // wrap it in `AutoLocal`, which would cause undefined behavior upon drop as a result of calling
 // the wrong JNI function to delete the reference.
 
@@ -53,14 +53,14 @@ use super::JObjectRef;
 ///   global reference can be used to prevent it from being garbage collected.
 ///   (This hold is released when the global reference is dropped.)
 ///
-/// See also [`WeakRef`], a global reference that does *not* prevent the
+/// See also [`Weak`], a global reference that does *not* prevent the
 /// underlying Java object from being garbage collected.
 ///
 ///
 /// # Creating and Deleting
 ///
 /// To create a global reference, use the [`Env::new_global_ref`] method. To
-/// delete it, simply drop the `GlobalRef` (but be sure to do so on an attached
+/// delete it, simply drop the `Global` (but be sure to do so on an attached
 /// thread if possible; see the warning below).
 ///
 /// Note that, because global references take more time to create or delete than
@@ -72,20 +72,20 @@ use super::JObjectRef;
 ///
 /// # Warning: Drop On an Attached Thread If Possible
 ///
-/// When a `GlobalRef` is dropped, a JNI call is made to delete the global
+/// When a `Global` is dropped, a JNI call is made to delete the global
 /// reference. If this frequently happens on a thread that is not already
 /// attached to the JVM, the thread will be temporarily attached using
 /// [`JavaVM::attach_current_thread_for_scope`], causing a severe performance
 /// penalty.
 ///
-/// To avoid this performance penalty, ensure that `GlobalRef`s are only dropped
+/// To avoid this performance penalty, ensure that `Global`s are only dropped
 /// on a thread that is already attached (or never dropped at all).
 ///
 /// In the event that a global reference is dropped on an unattached thread, a
 /// message is [logged][log] at [`log::Level::Warn`].
 #[repr(transparent)]
 #[derive(Debug)]
-pub struct GlobalRef<T>
+pub struct Global<T>
 where
     T: Into<JObject<'static>>
         + AsRef<JObject<'static>>
@@ -98,7 +98,14 @@ where
     obj: T,
 }
 
-unsafe impl<T> Send for GlobalRef<T> where
+/// A temporary type alias to sign post that `GlobalRef` has been renamed to `Global`.
+#[deprecated(
+    since = "0.22.0",
+    note = r#"Since 0.22, `GlobalRef` has been renamed to `Global`."#
+)]
+pub type GlobalRef<T> = Global<T>;
+
+unsafe impl<T> Send for Global<T> where
     T: Into<JObject<'static>>
         + AsRef<JObject<'static>>
         + Default
@@ -109,7 +116,7 @@ unsafe impl<T> Send for GlobalRef<T> where
 {
 }
 
-unsafe impl<T> Sync for GlobalRef<T> where
+unsafe impl<T> Sync for Global<T> where
     T: Into<JObject<'static>>
         + AsRef<JObject<'static>>
         + Default
@@ -120,7 +127,7 @@ unsafe impl<T> Sync for GlobalRef<T> where
 {
 }
 
-impl<T> Default for GlobalRef<T>
+impl<T> Default for Global<T>
 where
     T: Into<JObject<'static>>
         + AsRef<JObject<'static>>
@@ -135,7 +142,7 @@ where
     }
 }
 
-impl<T, U> AsRef<U> for GlobalRef<T>
+impl<T, U> AsRef<U> for Global<T>
 where
     T: AsRef<U>
         + Into<JObject<'static>>
@@ -150,7 +157,7 @@ where
     }
 }
 
-impl<T> Deref for GlobalRef<T>
+impl<T> Deref for Global<T>
 where
     T: Into<JObject<'static>>
         + AsRef<JObject<'static>>
@@ -167,7 +174,7 @@ where
     }
 }
 
-impl<T> GlobalRef<T>
+impl<T> Global<T>
 where
     T: Into<JObject<'static>>
         + AsRef<JObject<'static>>
@@ -193,9 +200,9 @@ where
         Self { obj }
     }
 
-    /// Creates a [`GlobalRef`] wrapper for a `null` reference
+    /// Creates a [`Global`] wrapper for a `null` reference
     ///
-    /// This is equivalent [`GlobalRef::default()`]
+    /// This is equivalent [`Global::default()`]
     pub fn null() -> Self {
         Self { obj: T::default() }
     }
@@ -208,10 +215,10 @@ where
     ///
     /// # Leaking References
     ///
-    /// When unwrapping a [`GlobalRef`] you should consider how else you will
+    /// When unwrapping a [`Global`] you should consider how else you will
     /// ensure that the reference will get deleted.
     ///
-    /// The global reference may end leaking unless a new [`GlobalRef`] wrapper
+    /// The global reference may end leaking unless a new [`Global`] wrapper
     /// is create later, or you find some way to call the JNI `DeleteGlobalRef`
     /// API on the raw reference.
     ///
@@ -243,18 +250,18 @@ where
     }
 
     /// Borrows a `JObject` referring to the same Java object as this
-    /// `GlobalRef`.
+    /// `Global`.
     ///
     /// This method is zero-cost and does not create a new local reference.
     ///
-    /// `GlobalRef` also implements <code>[AsRef]&lt;[JObject]&gt;</code>.
+    /// `Global` also implements <code>[AsRef]&lt;[JObject]&gt;</code>.
     /// That trait's `as_ref` method does the same thing as this method.
     pub fn as_obj(&self) -> &JObject<'static> {
         self.as_ref()
     }
 }
 
-impl<T> Drop for GlobalRef<T>
+impl<T> Drop for Global<T>
 where
     T: Into<JObject<'static>>
         + AsRef<JObject<'static>>
@@ -278,7 +285,7 @@ where
                     // If the Env is borrowing from an AttachGuard that owns the current thread
                     // attachment that means the thread was not already attached
                     if env.guard().owns_attachment() {
-                        warn!("A JNI global reference was dropped on a thread that is not attached. This will cause a performance problem if it happens frequently. For more information, see the documentation for `jni::objects::GlobalRef`.");
+                        warn!("A JNI global reference was dropped on a thread that is not attached. This will cause a performance problem if it happens frequently. For more information, see the documentation for `jni::objects::Global`.");
                     }
                     // Safety: This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
                     unsafe {
@@ -297,7 +304,7 @@ where
 
 // SAFETY: Kind and GlobalKind are implicitly transparent wrappers if T is
 // implemented correctly / safely.
-unsafe impl<T> JObjectRef for GlobalRef<T>
+unsafe impl<T> JObjectRef for Global<T>
 where
     T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
 {
@@ -313,7 +320,7 @@ where
     fn lookup_class<'vm>(
         vm: &'vm JavaVM,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
         T::lookup_class(vm, loader_context)
     }
 
@@ -329,11 +336,11 @@ where
 #[test]
 fn test_global_ref_send() {
     fn assert_send<T: Send>() {}
-    assert_send::<GlobalRef<JObject<'static>>>();
+    assert_send::<Global<JObject<'static>>>();
 }
 
 #[test]
 fn test_global_ref_sync() {
     fn assert_sync<T: Sync>() {}
-    assert_sync::<GlobalRef<JObject<'static>>>();
+    assert_sync::<Global<JObject<'static>>>();
 }

@@ -5,7 +5,7 @@ use once_cell::sync::OnceCell;
 use crate::{
     env::Env,
     errors::Result,
-    objects::{GlobalRef, JClass, JMethodID, JObject, JValue, LoaderContext},
+    objects::{Global, JClass, JMethodID, JObject, JValue, LoaderContext},
     signature::JavaType,
     strings::JNIStr,
     sys::{jclass, jobject},
@@ -46,7 +46,7 @@ impl<'local> From<JClassLoader<'local>> for JObject<'local> {
 }
 
 struct JClassLoaderAPI {
-    class: GlobalRef<JClass<'static>>,
+    class: Global<JClass<'static>>,
     load_class_method: JMethodID,
 }
 
@@ -146,7 +146,7 @@ unsafe impl JObjectRef for JClassLoader<'_> {
     fn lookup_class<'vm>(
         vm: &'vm JavaVM,
         _loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
         // As a special-case; we ignore loader_context just to be clear that there's no risk of
         // recursion. (`LoaderContext::load_class` depends on the `JClassLoaderAPI`)
         let api = JClassLoaderAPI::get(vm)?;

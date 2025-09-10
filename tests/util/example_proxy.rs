@@ -4,7 +4,7 @@ use std::{ops::Deref, sync::Arc};
 
 use jni::{
     errors::*,
-    objects::{GlobalRef, JObject, JValue},
+    objects::{Global, JObject, JValue},
     sys::jint,
     JavaVM, DEFAULT_LOCAL_FRAME_CAPACITY,
 };
@@ -23,7 +23,7 @@ impl Deref for AtomicIntegerProxy {
 }
 
 pub struct AtomicIntegerProxyInner {
-    obj: GlobalRef<JObject<'static>>,
+    obj: Global<JObject<'static>>,
 }
 
 impl AtomicIntegerProxy {

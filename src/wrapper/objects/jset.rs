@@ -5,7 +5,7 @@ use once_cell::sync::OnceCell;
 use crate::{
     env::Env,
     errors::Result,
-    objects::{Cast, GlobalRef, JClass, JCollection, JIterator, JObject, LoaderContext},
+    objects::{Cast, Global, JClass, JCollection, JIterator, JObject, LoaderContext},
     strings::JNIStr,
     sys::jobject,
     JavaVM,
@@ -52,7 +52,7 @@ impl<'local> From<JSet<'local>> for JCollection<'local> {
 }
 
 struct JSetAPI {
-    class: GlobalRef<JClass<'static>>,
+    class: Global<JClass<'static>>,
 }
 
 impl JSetAPI {
@@ -208,7 +208,7 @@ unsafe impl JObjectRef for JSet<'_> {
     fn lookup_class<'vm>(
         vm: &'vm JavaVM,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
         let api = JSetAPI::get(vm, &loader_context)?;
         Ok(&api.class)
     }

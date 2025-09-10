@@ -4,7 +4,7 @@ use jni_sys::jobject;
 
 use crate::{
     errors,
-    objects::{GlobalRef, JClass, JObject, LoaderContext},
+    objects::{Global, JClass, JObject, LoaderContext},
     strings::JNIStr,
     JavaVM,
 };
@@ -62,7 +62,7 @@ where
 
 impl<'local, T> AutoLocal<'local, T>
 where
-    // Note that this bound prevents `AutoLocal` from wrapping a `GlobalRef`, which implements
+    // Note that this bound prevents `AutoLocal` from wrapping a `Global`, which implements
     // `AsRef<JObject<'static>>` but *not* `Into<JObject<'static>>`. This is good, because trying
     // to delete a global reference as though it were local would cause undefined behavior.
     T: Into<JObject<'local>>,
@@ -242,7 +242,7 @@ where
     fn lookup_class<'vm>(
         vm: &'vm JavaVM,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
         T::lookup_class(vm, loader_context)
     }
 

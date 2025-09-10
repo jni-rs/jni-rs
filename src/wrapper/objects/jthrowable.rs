@@ -5,7 +5,7 @@ use once_cell::sync::OnceCell;
 use crate::{
     env::Env,
     errors::Result,
-    objects::{GlobalRef, JClass, JMethodID, JObject, JString, LoaderContext},
+    objects::{Global, JClass, JMethodID, JObject, JString, LoaderContext},
     strings::JNIStr,
     sys::{jobject, jthrowable},
     JavaVM,
@@ -46,7 +46,7 @@ impl<'local> From<JThrowable<'local>> for JObject<'local> {
 }
 
 struct JThrowableAPI {
-    class: GlobalRef<JClass<'static>>,
+    class: Global<JClass<'static>>,
     get_message_method: JMethodID,
     get_cause_method: JMethodID,
 }
@@ -151,7 +151,7 @@ unsafe impl JObjectRef for JThrowable<'_> {
     fn lookup_class<'vm>(
         vm: &'vm JavaVM,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
         let api = JThrowableAPI::get(vm, &loader_context)?;
         Ok(&api.class)
     }

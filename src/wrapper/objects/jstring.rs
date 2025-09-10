@@ -5,7 +5,7 @@ use thiserror::Error;
 
 use crate::{
     errors::Result,
-    objects::{GlobalRef, JClass, JMethodID, JObject, LoaderContext},
+    objects::{Global, JClass, JMethodID, JObject, LoaderContext},
     strings::{JNIStr, MUTF8Chars},
     sys::{jobject, jstring},
     Env, JavaVM,
@@ -125,7 +125,7 @@ impl<'local> std::fmt::Display for JString<'local> {
 }
 
 struct JStringAPI {
-    class: GlobalRef<JClass<'static>>,
+    class: Global<JClass<'static>>,
     intern_method: JMethodID,
 }
 
@@ -278,7 +278,7 @@ unsafe impl JObjectRef for JString<'_> {
     fn lookup_class<'vm>(
         vm: &'vm JavaVM,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
         let api = JStringAPI::get(vm, &loader_context)?;
         Ok(&api.class)
     }

@@ -4,7 +4,7 @@ use jni_sys::jobject;
 
 use crate::{
     errors::Error,
-    objects::{GlobalRef, JClass, JClassLoader, JObject, JThread},
+    objects::{Global, JClass, JClassLoader, JObject, JThread},
     strings::{JNIStr, JNIString},
     JavaVM,
 };
@@ -13,12 +13,12 @@ use crate::{
 use crate::objects::{AutoLocal, JString};
 
 /// A trait for types that represents a JNI reference (could be local, global or
-/// weak global as well as wrapper types like [`AutoLocal`] and [`GlobalRef`])
+/// weak global as well as wrapper types like [`AutoLocal`] and [`Global`])
 ///
 ///
 /// This makes it possible for APIs like [`Env::new_global_ref`] to be given
 /// a non-static local reference type like [`JString<'local>`] (or an
-/// [`AutoLocal`] wrapper) and return a [`GlobalRef`] that is instead
+/// [`AutoLocal`] wrapper) and return a [`Global`] that is instead
 /// parameterized by [`JString<'static>`].
 ///
 /// # Safety
@@ -94,7 +94,7 @@ pub unsafe trait JObjectRef: Sized {
     /// references - avoiding the cost of repeated FindClass or loadClass calls.
     ///
     /// The implementation is expected to use [`JavaVM::get_cached_or_insert_with`] to lookup cached
-    /// API state, including a `GlobalRef<JClass>`.
+    /// API state, including a `Global<JClass>`.
     ///
     /// In case no class reference is already cached then use `loader_source.lookup_class()` to
     /// lookup a class reference.
@@ -102,7 +102,7 @@ pub unsafe trait JObjectRef: Sized {
     fn lookup_class<'vm>(
         vm: &'vm JavaVM,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm>;
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm>;
 
     /// Returns a new reference type based on [`Self::Kind`] for the given `reference` that is tied
     /// to the specified lifetime.
@@ -330,7 +330,7 @@ where
     fn lookup_class<'vm>(
         vm: &'vm JavaVM,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
         T::lookup_class(vm, loader_context)
     }
 

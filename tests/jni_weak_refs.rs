@@ -6,7 +6,7 @@ use std::{
 };
 
 use jni::{
-    objects::{IntoAutoLocal as _, JObject, JValue, WeakRef},
+    objects::{IntoAutoLocal as _, JObject, JValue, Weak},
     sys::jint,
     Env,
 };
@@ -30,7 +30,7 @@ pub fn weak_ref_works_in_other_threads() {
         .auto();
         let atomic_integer_weak = unwrap(env.new_weak_ref(&atomic_integer_local), env);
 
-        static ATOMIC_INT: OnceLock<WeakRef<JObject<'static>>> = OnceLock::new();
+        static ATOMIC_INT: OnceLock<Weak<JObject<'static>>> = OnceLock::new();
         ATOMIC_INT.set(atomic_integer_weak).unwrap();
 
         let mut join_handlers = Vec::new();

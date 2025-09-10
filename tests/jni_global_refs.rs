@@ -6,7 +6,7 @@ use std::{
 };
 
 use jni::{
-    objects::{GlobalRef, IntoAutoLocal as _, JObject, JValue},
+    objects::{Global, IntoAutoLocal as _, JObject, JValue},
     sys::jint,
 };
 
@@ -31,7 +31,7 @@ pub fn global_ref_works_in_other_threads() {
     })
     .unwrap();
 
-    static ATOMIC_INT: OnceLock<GlobalRef<JObject<'static>>> = OnceLock::new();
+    static ATOMIC_INT: OnceLock<Global<JObject<'static>>> = OnceLock::new();
     ATOMIC_INT.set(atomic_integer).unwrap();
 
     let mut join_handlers = Vec::new();

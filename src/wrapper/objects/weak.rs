@@ -6,14 +6,14 @@ use log::{debug, warn};
 use crate::{
     env::Env,
     errors::{Error, Result},
-    objects::{GlobalRef, JClass, JObject, LoaderContext},
+    objects::{Global, JClass, JObject, LoaderContext},
     strings::JNIStr,
     sys, JavaVM,
 };
 
 use super::JObjectRef;
 
-// Note: `WeakRef` must not implement `Into<JObject>`! If it did, then it would be possible to
+// Note: `Weak` must not implement `Into<JObject>`! If it did, then it would be possible to
 // wrap it in `AutoLocal`, which would cause undefined behavior upon drop as a result of calling
 // the wrong JNI function to delete the reference.
 
@@ -21,7 +21,7 @@ use super::JObjectRef;
 /// garbage collected.
 ///
 /// <dfn>Weak global references</dfn> have the same properties as [ordinary
-/// “strong” global references][GlobalRef], with one exception: a weak global
+/// “strong” global references][Global], with one exception: a weak global
 /// reference does not prevent the referenced Java object from being garbage
 /// collected. In other words, the Java object can be garbage collected even if
 /// there is a weak global reference to it.
@@ -33,7 +33,7 @@ use super::JObjectRef;
 /// garbage collected at any moment, it cannot be directly used (such as
 /// calling methods on the referenced Java object). Instead, it must first be
 /// <dfn>upgraded</dfn> to a local or strong global reference, using the
-/// [`WeakRef::upgrade_local`] or [`WeakRef::upgrade_global`] method,
+/// [`Weak::upgrade_local`] or [`Weak::upgrade_global`] method,
 /// respectively.
 ///
 /// Both upgrade methods return an [`Option`]. If, when the upgrade method is
@@ -42,52 +42,59 @@ use super::JObjectRef;
 /// can be used as normal. If not, the `Option` will be [`None`].
 ///
 /// Upgrading a weak global reference does not delete it. It is only deleted
-/// when the `WeakRef` is dropped, and it can be upgraded more than once.
+/// when the `Weak` is dropped, and it can be upgraded more than once.
 ///
 ///
 /// # Creating and Deleting
 ///
 /// To create a weak global reference, use the [`Env::new_weak_ref`] method.
-/// To delete it, simply drop the `WeakRef` (but be sure to do so on an attached
+/// To delete it, simply drop the `Weak` (but be sure to do so on an attached
 /// thread if possible; see the warning below).
 ///
 /// It is also possible to create a new JNI weak global reference from an
-/// existing one. To do that, use the [`WeakRef::clone_in_jvm`] method.
+/// existing one. To do that, use the [`Weak::clone_in_jvm`] method.
 ///
 ///
 /// # Warning: Drop On an Attached Thread If Possible
 ///
-/// When a `WeakRef` is dropped, a JNI call is made to delete the global
+/// When a `Weak` is dropped, a JNI call is made to delete the global
 /// reference. If this frequently happens on a thread that is not already
 /// attached to the JVM, the thread will be temporarily attached using
 /// [`JavaVM::attach_current_thread_for_scope`], causing a severe performance
 /// penalty.
 ///
-/// To avoid this performance penalty, ensure that `WeakRef`s are only dropped
+/// To avoid this performance penalty, ensure that `Weak`s are only dropped
 /// on a thread that is already attached (or never dropped at all).
 ///
 /// In the event that a global reference is dropped on an unattached thread, a
 /// message is [logged][log] at [`log::Level::Warn`].
 #[repr(transparent)]
 #[derive(Debug)]
-pub struct WeakRef<T>
+pub struct Weak<T>
 where
     T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
 {
     obj: T,
 }
 
-unsafe impl<T> Send for WeakRef<T> where
+/// A temporary type alias to sign post that `WeakRef` has been renamed to `Weak`.
+#[deprecated(
+    since = "0.22.0",
+    note = r#"Since 0.22, `WeakRef` has been renamed to `Weak`."#
+)]
+pub type WeakRef<T> = Weak<T>;
+
+unsafe impl<T> Send for Weak<T> where
     T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync
 {
 }
 
-unsafe impl<T> Sync for WeakRef<T> where
+unsafe impl<T> Sync for Weak<T> where
     T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync
 {
 }
 
-impl<T> Default for WeakRef<T>
+impl<T> Default for Weak<T>
 where
     T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
 {
@@ -96,7 +103,7 @@ where
     }
 }
 
-impl<T, U> AsRef<U> for WeakRef<T>
+impl<T, U> AsRef<U> for Weak<T>
 where
     T: AsRef<U>
         + Into<JObject<'static>>
@@ -111,7 +118,7 @@ where
     }
 }
 
-impl<T> Deref for WeakRef<T>
+impl<T> Deref for Weak<T>
 where
     T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
 {
@@ -122,7 +129,7 @@ where
     }
 }
 
-impl<T> WeakRef<T>
+impl<T> Weak<T>
 where
     T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
 {
@@ -142,11 +149,11 @@ where
         Self { obj }
     }
 
-    /// Creates a [`GlobalRef`] wrapper for a `null` reference
+    /// Creates a [`Global`] wrapper for a `null` reference
     ///
-    /// This is equivalent [`WeakRef::default()`]
+    /// This is equivalent [`Weak::default()`]
     ///
-    /// A `null` [`WeakRef`] acts as-if the object has been garbage collected
+    /// A `null` [`Weak`] acts as-if the object has been garbage collected
     /// ([`Self::is_garbage_collected()`] will return `true`).
     pub fn null() -> Self {
         Self { obj: T::default() }
@@ -179,7 +186,7 @@ where
     ///
     /// If this method returns `Some(r)`, it is guaranteed that the object will not be garbage
     /// collected at least until `r` is deleted or becomes invalid.
-    pub fn upgrade_global(&self, env: &Env) -> Result<Option<GlobalRef<T::GlobalKind>>> {
+    pub fn upgrade_global(&self, env: &Env) -> Result<Option<Global<T::GlobalKind>>> {
         match env.new_global_ref(self) {
             Err(Error::ObjectFreed) => Ok(None),
             Err(err) => Err(err),
@@ -187,14 +194,14 @@ where
         }
     }
 
-    /// Checks if the object referred to by this `WeakRef` has been garbage collected.
+    /// Checks if the object referred to by this `Weak` has been garbage collected.
     ///
     /// Note that garbage collection can happen at any moment, so a return of `Ok(true)` from this
-    /// method does not guarantee that [`WeakRef::upgrade_local`] or [`WeakRef::upgrade_global`]
+    /// method does not guarantee that [`Weak::upgrade_local`] or [`Weak::upgrade_global`]
     /// will succeed.
     ///
     /// This is equivalent to
-    /// <code>self.[is_same_object][WeakRef::is_same_object](env, [JObject::null]\())</code>.
+    /// <code>self.[is_same_object][Weak::is_same_object](env, [JObject::null]\())</code>.
     pub fn is_garbage_collected(&self, env: &Env) -> bool {
         env.is_same_object(self, JObject::null())
     }
@@ -202,8 +209,8 @@ where
     /// Returns true if this weak reference refers to the given object. Otherwise returns false.
     ///
     /// If `object` is [null][JObject::null], then this method is equivalent to
-    /// [`WeakRef::is_garbage_collected`]: it returns true if the object referred to by this
-    /// `WeakRef` has been garbage collected, or false if the object has not yet been garbage
+    /// [`Weak::is_garbage_collected`]: it returns true if the object referred to by this
+    /// `Weak` has been garbage collected, or false if the object has not yet been garbage
     /// collected.
     #[deprecated = "Use Env::is_same_object"]
     pub fn is_same_object<'local, O>(&self, env: &Env<'local>, object: O) -> bool
@@ -226,7 +233,7 @@ where
     /// Creates a new weak reference to the same object that this one refers to.
     ///
     /// This method returns `None` if the object has already been garbage collected.
-    pub fn clone_in_jvm(&self, env: &mut Env<'_>) -> Result<Option<WeakRef<T::GlobalKind>>> {
+    pub fn clone_in_jvm(&self, env: &mut Env<'_>) -> Result<Option<Weak<T::GlobalKind>>> {
         match env.new_weak_ref(self) {
             Err(Error::ObjectFreed) => Ok(None),
             Err(err) => Err(err),
@@ -235,7 +242,7 @@ where
     }
 }
 
-impl<T> Drop for WeakRef<T>
+impl<T> Drop for Weak<T>
 where
     T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
 {
@@ -253,7 +260,7 @@ where
                     // If the Env is borrowing from an AttachGuard that owns the current thread
                     // attachment that means the thread was not already attached
                     if env.guard().owns_attachment() {
-                        warn!("Dropping a WeakRef in a detached thread. Fix your code if this message appears frequently (see the WeakRef docs).");
+                        warn!("Dropping a Weak in a detached thread. Fix your code if this message appears frequently (see the Weak docs).");
                     }
 
                 // Safety: This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
@@ -273,7 +280,7 @@ where
 
 // SAFETY: Kind and GlobalKind are implicitly transparent wrappers if T is
 // implemented correctly / safely.
-unsafe impl<T> JObjectRef for WeakRef<T>
+unsafe impl<T> JObjectRef for Weak<T>
 where
     T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
 {
@@ -289,7 +296,7 @@ where
     fn lookup_class<'vm>(
         vm: &'vm JavaVM,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
         T::lookup_class(vm, loader_context)
     }
 
@@ -305,11 +312,11 @@ where
 #[test]
 fn test_weak_ref_send() {
     fn assert_send<T: Send>() {}
-    assert_send::<WeakRef<JObject<'static>>>();
+    assert_send::<Weak<JObject<'static>>>();
 }
 
 #[test]
 fn test_weak_ref_sync() {
     fn assert_sync<T: Sync>() {}
-    assert_sync::<WeakRef<JObject<'static>>>();
+    assert_sync::<Weak<JObject<'static>>>();
 }

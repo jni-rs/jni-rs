@@ -7,7 +7,7 @@ use crate::{
     env::Env,
     errors::Result,
     objects::{
-        AutoElements, AutoElementsCritical, GlobalRef, JClass, JObject, JObjectRef, LoaderContext,
+        AutoElements, AutoElementsCritical, Global, JClass, JObject, JObjectRef, LoaderContext,
         ReleaseMode,
     },
     strings::JNIStr,
@@ -336,7 +336,7 @@ macro_rules! impl_ref_for_jprimitive_array {
         paste! {
             #[allow(non_camel_case_types)]
             struct [<JPrimitiveArrayAPI _ $type>] {
-                class: GlobalRef<JClass<'static>>,
+                class: Global<JClass<'static>>,
             }
 
             impl [<JPrimitiveArrayAPI _ $type>] {
@@ -372,7 +372,7 @@ macro_rules! impl_ref_for_jprimitive_array {
                 fn lookup_class<'vm>(
                     vm: &'vm JavaVM,
                     loader_context: LoaderContext,
-                ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+                ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
                     let api = [<JPrimitiveArrayAPI _ $type>]::get(vm, &loader_context)?;
                     Ok(&api.class)
                 }

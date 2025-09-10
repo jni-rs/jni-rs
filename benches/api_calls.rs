@@ -5,7 +5,7 @@ use jni_sys::jvalue;
 use lazy_static::lazy_static;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use jni::objects::{GlobalRef, IntoAutoLocal as _};
+use jni::objects::{Global, IntoAutoLocal as _};
 use jni::{
     descriptors::Desc,
     objects::{JClass, JMethodID, JObject, JStaticMethodID, JValue},
@@ -450,7 +450,7 @@ fn jni_with_local_frame_returning_global_to_local(c: &mut Criterion) {
         c.bench_function("jni_with_local_frame_returning_global_to_local", |b| {
             b.iter(|| {
                 let global = env
-                    .with_local_frame::<_, GlobalRef<JObject<'static>>, jni::errors::Error>(
+                    .with_local_frame::<_, Global<JObject<'static>>, jni::errors::Error>(
                         LOCAL_FRAME_SIZE,
                         |env| {
                             let local = env.new_object(&class, SIG_OBJECT_CTOR, &[])?;

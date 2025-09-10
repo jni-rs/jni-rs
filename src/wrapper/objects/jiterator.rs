@@ -5,7 +5,7 @@ use once_cell::sync::OnceCell;
 use crate::{
     env::Env,
     errors::{Error, Result},
-    objects::{GlobalRef, JClass, JMethodID, JObject, LoaderContext},
+    objects::{Global, JClass, JMethodID, JObject, LoaderContext},
     signature::{Primitive, ReturnType},
     strings::JNIStr,
     sys::jobject,
@@ -46,7 +46,7 @@ impl<'local> From<JIterator<'local>> for JObject<'local> {
 }
 
 struct JIteratorAPI {
-    class: GlobalRef<JClass<'static>>,
+    class: Global<JClass<'static>>,
     has_next_method: JMethodID,
     next_method: JMethodID,
     remove_method: JMethodID,
@@ -211,7 +211,7 @@ unsafe impl JObjectRef for JIterator<'_> {
     fn lookup_class<'vm>(
         vm: &'vm JavaVM,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
         let api = JIteratorAPI::get(vm, &loader_context)?;
         Ok(&api.class)
     }

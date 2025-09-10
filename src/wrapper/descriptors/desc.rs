@@ -1,6 +1,6 @@
 use crate::{
     errors::*,
-    objects::{AutoLocal, GlobalRef, JObject, JObjectRef},
+    objects::{AutoLocal, Global, JObject, JObjectRef},
     Env,
 };
 
@@ -132,7 +132,7 @@ where
     }
 }
 
-unsafe impl<'local, 'obj_ref, T> Desc<'local, T> for &'obj_ref GlobalRef<T>
+unsafe impl<'local, 'obj_ref, T> Desc<'local, T> for &'obj_ref Global<T>
 where
     T: JObjectRef
         + AsRef<T>
