@@ -8,11 +8,10 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use jni::objects::{GlobalRef, IntoAutoLocal as _};
 use jni::{
     descriptors::Desc,
-    env::JNIEnv,
     objects::{JClass, JMethodID, JObject, JStaticMethodID, JValue},
     signature::{Primitive, ReturnType},
     sys::jint,
-    InitArgsBuilder, JNIVersion, JavaVM,
+    Env, InitArgsBuilder, JNIVersion, JavaVM,
 };
 use std::rc::Rc;
 use std::sync::Arc;
@@ -37,7 +36,7 @@ fn native_abs(x: i32) -> i32 {
     x.abs()
 }
 
-fn jni_abs_safe(env: &mut JNIEnv, x: jint) -> jint {
+fn jni_abs_safe(env: &mut Env, x: jint) -> jint {
     let x = JValue::from(x);
     let v = env
         .call_static_method(CLASS_MATH, METHOD_MATH_ABS, SIG_MATH_ABS, &[x])
@@ -45,7 +44,7 @@ fn jni_abs_safe(env: &mut JNIEnv, x: jint) -> jint {
     v.i().unwrap()
 }
 
-fn jni_hash_safe(env: &mut JNIEnv, obj: &JObject) -> jint {
+fn jni_hash_safe(env: &mut Env, obj: &JObject) -> jint {
     let v = env
         .call_method(obj, METHOD_OBJECT_HASH_CODE, SIG_OBJECT_HASH_CODE, &[])
         .unwrap();
@@ -54,7 +53,7 @@ fn jni_hash_safe(env: &mut JNIEnv, obj: &JObject) -> jint {
 
 #[allow(clippy::too_many_arguments)]
 fn jni_local_date_time_of_safe<'local>(
-    env: &mut JNIEnv<'local>,
+    env: &mut Env<'local>,
     year: jint,
     month: jint,
     day_of_month: jint,
@@ -83,7 +82,7 @@ fn jni_local_date_time_of_safe<'local>(
 }
 
 fn jni_int_call_static_unchecked<'local, C>(
-    env: &mut JNIEnv<'local>,
+    env: &mut Env<'local>,
     class: C,
     method_id: JStaticMethodID,
     x: jint,
@@ -99,7 +98,7 @@ where
 }
 
 fn jni_int_call_unchecked<'local, M>(
-    env: &mut JNIEnv<'local>,
+    env: &mut Env<'local>,
     obj: &JObject<'local>,
     method_id: M,
 ) -> jint
@@ -113,7 +112,7 @@ where
 }
 
 fn jni_object_call_static_unchecked<'local, C>(
-    env: &mut JNIEnv<'local>,
+    env: &mut Env<'local>,
     class: C,
     method_id: JStaticMethodID,
     args: &[jvalue],

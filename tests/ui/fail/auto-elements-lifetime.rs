@@ -10,7 +10,7 @@ pub fn main() {
             .with_local_frame(10, |env1| -> jni::errors::Result<_> {
                 let java_array = env1
                     .new_int_array(3)
-                    .expect("JNIEnv#new_int_array must create a java array with given size");
+                    .expect("Env#new_int_array must create a java array with given size");
 
                 // It should be OK to get AutoElements from a new `env2` frame because
                 // it is only constrained by the `env1` lifetime of it's array reference

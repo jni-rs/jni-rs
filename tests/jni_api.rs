@@ -5,7 +5,6 @@ use assert_matches::assert_matches;
 
 use jni::{
     descriptors::Desc,
-    env::JNIEnv,
     errors::{CharToJavaError, Error},
     objects::{
         AutoElements, IntoAutoLocal as _, JByteBuffer, JList, JObject, JObjectRef as _, JString,
@@ -14,6 +13,7 @@ use jni::{
     signature::{JavaType, Primitive, ReturnType},
     strings::{JNIStr, JNIString},
     sys::{jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jobject, jshort, jsize},
+    Env,
 };
 
 mod util;
@@ -495,7 +495,7 @@ attach_current_thread(|env| {
 
         // Pop the local frame with a pending exception
         unsafe { env.pop_local_frame(&JObject::null()) }
-            .expect("JNIEnv#pop_local_frame must work in case of pending exception");
+            .expect("Env#pop_local_frame must work in case of pending exception");
 
         env.exception_clear();
 
@@ -511,7 +511,7 @@ attach_current_thread(|env| {
 
         // Push a new local frame with a pending exception
         env.push_local_frame(16)
-            .expect("JNIEnv#push_local_frame must work in case of pending exception");
+            .expect("Env#push_local_frame must work in case of pending exception");
 
         env.exception_clear();
 
@@ -565,7 +565,7 @@ pub fn with_local_frame_pending_exception() {
 
         // Try to allocate a frame of locals
         env.with_local_frame(16, |_| -> Result<_, Error> { Ok(()) })
-            .expect("JNIEnv#with_local_frame must work in case of pending exception");
+            .expect("Env#with_local_frame must work in case of pending exception");
 
         env.exception_clear();
 
@@ -581,7 +581,7 @@ pub fn call_method_ok() {
 
         let v: jint = env
             .call_method(s, c"indexOf", c"(I)I", &[JValue::Int('S' as i32)])
-            .expect("JNIEnv#call_method should return JValue")
+            .expect("Env#call_method should return JValue")
             .i()
             .unwrap();
 
@@ -605,7 +605,7 @@ pub fn call_method_with_bad_args_errs() {
                 &[JValue::Float(std::f32::consts::PI)],
             )
             .map_err(|error| matches!(error, Error::InvalidArgList(_)))
-            .expect_err("JNIEnv#callmethod with bad arg type should err");
+            .expect_err("Env#callmethod with bad arg type should err");
 
         assert!(
             is_bad_typ,
@@ -620,7 +620,7 @@ pub fn call_method_with_bad_args_errs() {
                 &[JValue::Int('S' as i32), JValue::Long(3)],
             )
             .map_err(|error| matches!(error, Error::InvalidArgList(_)))
-            .expect_err("JNIEnv#call_method with bad arg lengths should err");
+            .expect_err("Env#call_method with bad arg lengths should err");
 
         assert!(
             is_bad_len,
@@ -638,7 +638,7 @@ pub fn call_static_method_ok() {
         let x = JValue::from(-10);
         let val: jint = env
             .call_static_method(MATH_CLASS, MATH_ABS_METHOD_NAME, MATH_ABS_SIGNATURE, &[x])
-            .expect("JNIEnv#call_static_method should return JValue")
+            .expect("Env#call_static_method should return JValue")
             .i()
             .unwrap();
 
@@ -665,7 +665,7 @@ pub fn call_static_method_unchecked_ok() {
                 &[x.as_jni()],
             )
         }
-        .expect("JNIEnv#call_static_method_unchecked should return JValue")
+        .expect("Env#call_static_method_unchecked should return JValue")
         .i()
         .unwrap();
 
@@ -692,7 +692,7 @@ pub fn call_new_object_unchecked_ok() {
                 &[JValue::from(&test_str).as_jni()],
             )
         }
-        .expect("JNIEnv#new_object_unchecked should return JValue");
+        .expect("Env#new_object_unchecked should return JValue");
 
         let jstr = env.cast_local::<JString>(val).unwrap();
         let javastr = jstr.mutf8_chars(env).unwrap();
@@ -712,7 +712,7 @@ pub fn call_new_object_with_bad_args_errs() {
         let is_bad_typ = env
             .new_object(&string_class, c"(Ljava/lang/String;)V", &[JValue::Int(2)])
             .map_err(|error| matches!(error, Error::InvalidArgList(_)))
-            .expect_err("JNIEnv#new_object with bad arg type should err");
+            .expect_err("Env#new_object with bad arg type should err");
 
         assert!(
             is_bad_typ,
@@ -728,7 +728,7 @@ pub fn call_new_object_with_bad_args_errs() {
                 &[JValue::from(&s), JValue::Int(2)],
             )
             .map_err(|error| matches!(error, Error::InvalidArgList(_)))
-            .expect_err("JNIEnv#new_object with bad arg type should err");
+            .expect_err("Env#new_object with bad arg type should err");
 
         assert!(
             is_bad_len,
@@ -744,7 +744,7 @@ pub fn call_new_object_with_bad_args_errs() {
 ///
 /// Although the JNI spec for `NewObjectA` states that the class "must not refer to an array class"
 /// (and could therefor potentially trigger undefined behaviour if that rule is violated) we
-/// expect that `JNIEnv::new_object()` shouldn't ever get as far as calling `NewObjectA` since
+/// expect that `Env::new_object()` shouldn't ever get as far as calling `NewObjectA` since
 /// it will first fail (with a safe, runtime error) to lookup a method ID for any constructor.
 /// (consistent with how [getConstructors()](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Class.html#getConstructors())
 /// doesn't expose constructors for array classes)
@@ -775,7 +775,7 @@ pub fn call_static_method_throws() {
                 &[x],
             )
             .map_err(|error| matches!(error, Error::JavaException))
-            .expect_err("JNIEnv#call_static_method_unsafe should return error");
+            .expect_err("Env#call_static_method_unsafe should return error");
 
         // Throws a java.lang.ArithmeticException: integer overflow
         assert!(
@@ -801,7 +801,7 @@ pub fn call_static_method_with_bad_args_errs() {
                 &[x],
             )
             .map_err(|error| matches!(error, Error::InvalidArgList(_)))
-            .expect_err("JNIEnv#call_static_method with bad arg type should err");
+            .expect_err("Env#call_static_method with bad arg type should err");
 
         assert!(
             is_bad_typ,
@@ -816,7 +816,7 @@ pub fn call_static_method_with_bad_args_errs() {
                 &[JValue::Int(2), JValue::Int(3)],
             )
             .map_err(|error| matches!(error, Error::InvalidArgList(_)))
-            .expect_err("JNIEnv#call_static_method with bad arg lengths should err");
+            .expect_err("Env#call_static_method with bad arg lengths should err");
 
         assert!(
             is_bad_len,
@@ -910,7 +910,7 @@ pub fn java_byte_array_from_slice() {
         let buf: &[u8] = &[1, 2, 3];
         let java_array = env
             .byte_array_from_slice(buf)
-            .expect("JNIEnv#byte_array_from_slice must create a java array from slice")
+            .expect("Env#byte_array_from_slice must create a java array from slice")
             .auto();
 
         assert!(!java_array.is_null());
@@ -934,7 +934,7 @@ macro_rules! test_auto_array_read_write {
                 let buf: &[$jni_type] = &[$value_a as $jni_type, $value_b as $jni_type];
                 let java_array = env
                     .$new_array(2)
-                    .expect(stringify!(JNIEnv #$new_array must create a Java $jni_type array with given size));
+                    .expect(stringify!(Env #$new_array must create a Java $jni_type array with given size));
 
                 // Insert array elements
                 let _ = java_array.set_region(env, 0, buf);
@@ -1047,7 +1047,7 @@ pub fn get_long_array_elements_commit() {
         let buf: &[i64] = &[1, 2, 3];
         let java_array = env
             .new_long_array(3)
-            .expect("JNIEnv#new_long_array must create a java array with given size");
+            .expect("Env#new_long_array must create a java array with given size");
 
         // Insert array elements
         let _ = java_array.set_region(env, 0, buf);
@@ -1098,7 +1098,7 @@ pub fn get_array_elements_critical() {
         let buf: &[u8] = &[1, 2, 3];
         let java_array = env
             .byte_array_from_slice(buf)
-            .expect("JNIEnv#byte_array_from_slice must create a java array from slice");
+            .expect("Env#byte_array_from_slice must create a java array from slice");
 
         // Use a scope to test Drop
         {
@@ -1168,7 +1168,7 @@ pub fn get_object_class_null_arg() {
         let result = env
             .get_object_class(null_obj)
             .map_err(|error| matches!(error, Error::NullPtr(_)))
-            .expect_err("JNIEnv#get_object_class should return error for null argument");
+            .expect_err("Env#get_object_class should return error for null argument");
         assert!(result, "ErrorKind::NullPtr expected as error");
 
         Ok(())
@@ -1345,35 +1345,35 @@ pub fn new_primitive_array_wrong() {
         const WRONG_SIZE: jsize = -1;
 
         let result = env.new_boolean_array(WRONG_SIZE).map(|arr| arr.as_raw());
-        assert_exception(&result, "JNIEnv#new_boolean_array should throw exception");
+        assert_exception(&result, "Env#new_boolean_array should throw exception");
         assert_pending_java_exception(env);
 
         let result = env.new_byte_array(WRONG_SIZE).map(|arr| arr.as_raw());
-        assert_exception(&result, "JNIEnv#new_byte_array should throw exception");
+        assert_exception(&result, "Env#new_byte_array should throw exception");
         assert_pending_java_exception(env);
 
         let result = env.new_char_array(WRONG_SIZE).map(|arr| arr.as_raw());
-        assert_exception(&result, "JNIEnv#new_char_array should throw exception");
+        assert_exception(&result, "Env#new_char_array should throw exception");
         assert_pending_java_exception(env);
 
         let result = env.new_short_array(WRONG_SIZE).map(|arr| arr.as_raw());
-        assert_exception(&result, "JNIEnv#new_short_array should throw exception");
+        assert_exception(&result, "Env#new_short_array should throw exception");
         assert_pending_java_exception(env);
 
         let result = env.new_int_array(WRONG_SIZE).map(|arr| arr.as_raw());
-        assert_exception(&result, "JNIEnv#new_int_array should throw exception");
+        assert_exception(&result, "Env#new_int_array should throw exception");
         assert_pending_java_exception(env);
 
         let result = env.new_long_array(WRONG_SIZE).map(|arr| arr.as_raw());
-        assert_exception(&result, "JNIEnv#new_long_array should throw exception");
+        assert_exception(&result, "Env#new_long_array should throw exception");
         assert_pending_java_exception(env);
 
         let result = env.new_float_array(WRONG_SIZE).map(|arr| arr.as_raw());
-        assert_exception(&result, "JNIEnv#new_float_array should throw exception");
+        assert_exception(&result, "Env#new_float_array should throw exception");
         assert_pending_java_exception(env);
 
         let result = env.new_double_array(WRONG_SIZE).map(|arr| arr.as_raw());
-        assert_exception(&result, "JNIEnv#new_double_array should throw exception");
+        assert_exception(&result, "Env#new_double_array should throw exception");
         assert_pending_java_exception(env);
 
         Ok(())
@@ -1527,7 +1527,7 @@ fn short_lifetime_with_local_frame() {
 }
 
 fn short_lifetime_with_local_frame_sub_fn<'local>(
-    env: &'_ mut JNIEnv<'local>,
+    env: &'_ mut Env<'local>,
 ) -> Result<JObject<'local>, Error> {
     env.with_local_frame_returning_local::<_, JObject, _>(16, |env| {
         env.new_object(INTEGER_CLASS, c"(I)V", &[JValue::from(5)])
@@ -1546,9 +1546,7 @@ fn short_lifetime_list() {
     .unwrap();
 }
 
-fn short_lifetime_list_sub_fn<'local>(
-    env: &'_ mut JNIEnv<'local>,
-) -> Result<JObject<'local>, Error> {
+fn short_lifetime_list_sub_fn<'local>(env: &'_ mut Env<'local>) -> Result<JObject<'local>, Error> {
     let list_object = env.new_object(ARRAYLIST_CLASS, c"()V", &[])?;
     let list = env.as_cast::<JList>(&list_object)?;
     let element = env.new_object(INTEGER_CLASS, c"(I)V", &[JValue::from(1)])?;
@@ -1558,7 +1556,7 @@ fn short_lifetime_list_sub_fn<'local>(
 
 fn short_lifetime_list_sub_fn_get_first_element<'list_local, 'env_local>(
     list: &'_ JList<'list_local>,
-    env: &'_ mut JNIEnv<'env_local>,
+    env: &'_ mut Env<'env_local>,
 ) -> Result<JObject<'env_local>, Error> {
     let iterator = list.iter(env)?;
     Ok(iterator.next(env)?.unwrap())
@@ -1689,7 +1687,7 @@ pub fn test_null_string_mutf8_chars() {
     .unwrap();
 }
 
-fn test_throwable_descriptor_with_default_type<'local, D>(env: &mut JNIEnv<'local>, descriptor: D)
+fn test_throwable_descriptor_with_default_type<'local, D>(env: &mut Env<'local>, descriptor: D)
 where
     D: Desc<'local, JThrowable<'local>>,
 {
@@ -1713,14 +1711,14 @@ fn assert_exception(res: &Result<jobject, Error>, expect_message: &str) {
 
 // Shortcut to `assert_pending_java_exception_detailed()` without checking for expected  type and
 // message of exception.
-fn assert_pending_java_exception(env: &mut JNIEnv) {
+fn assert_pending_java_exception(env: &mut Env) {
     assert_pending_java_exception_detailed(env, None, None)
 }
 
 // Helper method that asserts there is a pending Java exception of `expected_type` with
 // `expected_message` and clears it if any.
 fn assert_pending_java_exception_detailed(
-    env: &mut JNIEnv,
+    env: &mut Env,
     expected_type: Option<&JNIStr>,
     expected_message: Option<&JNIStr>,
 ) {
@@ -1738,12 +1736,12 @@ fn assert_pending_java_exception_detailed(
 }
 
 // Asserts that exception is of `expected_type` type.
-fn assert_exception_type(env: &mut JNIEnv, exception: &JThrowable, expected_type: &JNIStr) {
+fn assert_exception_type(env: &mut Env, exception: &JThrowable, expected_type: &JNIStr) {
     assert!(env.is_instance_of(exception, expected_type).unwrap());
 }
 
 // Asserts that exception's message is `expected_message`.
-fn assert_exception_message(env: &mut JNIEnv, exception: &JThrowable, expected_message: &JNIStr) {
+fn assert_exception_message(env: &mut Env, exception: &JThrowable, expected_message: &JNIStr) {
     let message = env
         .call_method(exception, c"getMessage", c"()Ljava/lang/String;", &[])
         .unwrap()

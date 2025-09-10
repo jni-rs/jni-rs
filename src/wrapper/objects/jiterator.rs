@@ -3,7 +3,7 @@ use std::ops::Deref;
 use once_cell::sync::OnceCell;
 
 use crate::{
-    env::JNIEnv,
+    env::Env,
     errors::{Error, Result},
     objects::{GlobalRef, JClass, JMethodID, JObject, LoaderContext},
     signature::{Primitive, ReturnType},
@@ -103,25 +103,25 @@ impl<'local> JIterator<'local> {
     /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.util.Iterator`.
     ///
     /// Also see these other options for casting local or global references to a `JIterator`:
-    /// - [JNIEnv::new_cast_local_ref]
-    /// - [JNIEnv::cast_local]
-    /// - [JNIEnv::as_cast_local]
-    /// - [JNIEnv::new_cast_global_ref]
-    /// - [JNIEnv::cast_global]
-    /// - [JNIEnv::as_cast_global]
+    /// - [Env::new_cast_local_ref]
+    /// - [Env::cast_local]
+    /// - [Env::as_cast_local]
+    /// - [Env::new_cast_global_ref]
+    /// - [Env::cast_global]
+    /// - [Env::as_cast_global]
     ///
     /// # Errors
     ///
     /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
     pub fn cast_local<'any_local>(
         obj: impl JObjectRef + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
-        env: &mut JNIEnv<'_>,
+        env: &mut Env<'_>,
     ) -> Result<JIterator<'any_local>> {
         env.cast_local::<JIterator>(obj)
     }
 
     /// Returns true if the iteration has more elements.
-    pub fn has_next(&self, env: &mut JNIEnv<'_>) -> Result<bool> {
+    pub fn has_next(&self, env: &mut Env<'_>) -> Result<bool> {
         let vm = env.get_java_vm();
         let api = JIteratorAPI::get(&vm, &LoaderContext::None)?;
         unsafe {
@@ -141,7 +141,7 @@ impl<'local> JIterator<'local> {
     /// it has reached the end.
     ///
     /// This is like [`std::iter::Iterator::next`], but requires a parameter of
-    /// type `&mut JNIEnv` in order to call into Java.
+    /// type `&mut Env` in order to call into Java.
     ///
     /// Any exceptions thrown are assumed to be a `NoSuchElementException` and
     /// are caught + cleared before returning `None`.
@@ -150,14 +150,14 @@ impl<'local> JIterator<'local> {
     ///
     /// This method creates a new local reference. To prevent excessive memory
     /// usage or overflow errors (when called repeatedly in a loop), the local
-    /// reference should be deleted using [`JNIEnv::delete_local_ref`] or
-    /// [`JNIEnv::auto_local`] before the next loop iteration. Alternatively, if
+    /// reference should be deleted using [`Env::delete_local_ref`] or
+    /// [`Env::auto_local`] before the next loop iteration. Alternatively, if
     /// the collection is known to have a small, predictable size, the loop could be
-    /// wrapped in [`JNIEnv::with_local_frame`] to delete all of the local
+    /// wrapped in [`Env::with_local_frame`] to delete all of the local
     /// references at once.
     pub fn next<'env_local>(
         &self,
-        env: &mut JNIEnv<'env_local>,
+        env: &mut Env<'env_local>,
     ) -> Result<Option<JObject<'env_local>>> {
         let vm = env.get_java_vm();
         let api = JIteratorAPI::get(&vm, &LoaderContext::None)?;
@@ -182,7 +182,7 @@ impl<'local> JIterator<'local> {
     ///
     /// - `UnsupportedOperationException` if the operation is not supported.
     /// - `IllegalStateException` if the iterator is in an invalid state (i.e [Self::next] has not been called).
-    pub fn remove(&self, env: &mut JNIEnv<'_>) -> Result<()> {
+    pub fn remove(&self, env: &mut Env<'_>) -> Result<()> {
         let vm = env.get_java_vm();
         let api = JIteratorAPI::get(&vm, &LoaderContext::None)?;
         unsafe {

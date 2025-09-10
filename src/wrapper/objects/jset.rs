@@ -3,7 +3,7 @@ use std::ops::Deref;
 use once_cell::sync::OnceCell;
 
 use crate::{
-    env::JNIEnv,
+    env::Env,
     errors::Result,
     objects::{Cast, GlobalRef, JClass, JCollection, JIterator, JObject, LoaderContext},
     strings::JNIStr,
@@ -97,19 +97,19 @@ impl<'local> JSet<'local> {
     /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.util.Set`.
     ///
     /// Also see these other options for casting local or global references to a `JSet`:
-    /// - [JNIEnv::new_cast_local_ref]
-    /// - [JNIEnv::cast_local]
-    /// - [JNIEnv::as_cast_local]
-    /// - [JNIEnv::new_cast_global_ref]
-    /// - [JNIEnv::cast_global]
-    /// - [JNIEnv::as_cast_global]
+    /// - [Env::new_cast_local_ref]
+    /// - [Env::cast_local]
+    /// - [Env::as_cast_local]
+    /// - [Env::new_cast_global_ref]
+    /// - [Env::cast_global]
+    /// - [Env::as_cast_global]
     ///
     /// # Errors
     ///
     /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
     pub fn cast_local<'any_local>(
         obj: impl JObjectRef + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
-        env: &mut JNIEnv<'_>,
+        env: &mut Env<'_>,
     ) -> Result<JSet<'any_local>> {
         env.cast_local::<JSet>(obj)
     }
@@ -135,7 +135,7 @@ impl<'local> JSet<'local> {
     pub fn add<'any_local>(
         &self,
         element: impl AsRef<JObject<'any_local>>,
-        env: &mut JNIEnv<'_>,
+        env: &mut Env<'_>,
     ) -> Result<bool> {
         self.as_collection().add(element, env)
     }
@@ -152,7 +152,7 @@ impl<'local> JSet<'local> {
     pub fn remove<'any_local>(
         &self,
         element: impl AsRef<JObject<'any_local>>,
-        env: &mut JNIEnv<'_>,
+        env: &mut Env<'_>,
     ) -> Result<bool> {
         self.as_collection().remove(element, env)
     }
@@ -162,7 +162,7 @@ impl<'local> JSet<'local> {
     /// # Throws
     ///
     /// - `UnsupportedOperationException` - if the clear operation is not supported
-    pub fn clear(&self, env: &mut JNIEnv<'_>) -> Result<()> {
+    pub fn clear(&self, env: &mut Env<'_>) -> Result<()> {
         self.as_collection().clear(env)
     }
 
@@ -174,25 +174,22 @@ impl<'local> JSet<'local> {
     ///
     /// - `ClassCastException` - if the element type isn't compatible with the set
     /// - `NullPointerException` - if the given element is null and the set does not allow null values
-    pub fn contains(&self, element: &JObject, env: &mut JNIEnv<'_>) -> Result<bool> {
+    pub fn contains(&self, element: &JObject, env: &mut Env<'_>) -> Result<bool> {
         self.as_collection().contains(element, env)
     }
 
     /// Returns the number of elements in this set.
-    pub fn size(&self, env: &mut JNIEnv<'_>) -> Result<i32> {
+    pub fn size(&self, env: &mut Env<'_>) -> Result<i32> {
         self.as_collection().size(env)
     }
 
     /// Returns `true` if this set contains no elements.
-    pub fn is_empty(&self, env: &mut JNIEnv<'_>) -> Result<bool> {
+    pub fn is_empty(&self, env: &mut Env<'_>) -> Result<bool> {
         self.as_collection().is_empty(env)
     }
 
     /// Returns an iterator (`java.util.Iterator`) over the elements in this set.
-    pub fn iterator<'env_local>(
-        &self,
-        env: &mut JNIEnv<'env_local>,
-    ) -> Result<JIterator<'env_local>> {
+    pub fn iterator<'env_local>(&self, env: &mut Env<'env_local>) -> Result<JIterator<'env_local>> {
         self.as_collection().iterator(env)
     }
 }

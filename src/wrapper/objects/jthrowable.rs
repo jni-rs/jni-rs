@@ -3,7 +3,7 @@ use std::ops::Deref;
 use once_cell::sync::OnceCell;
 
 use crate::{
-    env::JNIEnv,
+    env::Env,
     errors::Result,
     objects::{GlobalRef, JClass, JMethodID, JObject, JString, LoaderContext},
     strings::JNIStr,
@@ -97,7 +97,7 @@ impl JThrowable<'_> {
     }
 
     /// Get the message of the throwable by calling the `getMessage` method.
-    pub fn get_message(&self, env: &mut JNIEnv<'_>) -> Result<JString<'_>> {
+    pub fn get_message(&self, env: &mut Env<'_>) -> Result<JString<'_>> {
         let vm = env.get_java_vm();
         let api = JThrowableAPI::get(&vm, &LoaderContext::None)?;
 
@@ -117,7 +117,7 @@ impl JThrowable<'_> {
     }
 
     /// Get the cause of the throwable by calling the `getCause` method.
-    pub fn get_cause(&self, env: &mut JNIEnv<'_>) -> Result<JThrowable<'_>> {
+    pub fn get_cause(&self, env: &mut Env<'_>) -> Result<JThrowable<'_>> {
         let vm = env.get_java_vm();
         let api = JThrowableAPI::get(&vm, &LoaderContext::None)?;
 

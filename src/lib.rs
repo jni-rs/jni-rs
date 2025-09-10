@@ -68,7 +68,7 @@
 //!  * Signature: (Ljava/lang/String;)Ljava/lang/String;
 //!  */
 //! JNIEXPORT jstring JNICALL Java_HelloWorld_hello
-//!   (JNIEnv *, jclass, jstring);
+//!   (Env *, jclass, jstring);
 //!
 //! #ifdef __cplusplus
 //! }
@@ -102,11 +102,11 @@
 //! //
 //! // This is an FFI-safe type that lets us capture the pointer and also
 //! // associate it with the caller's JNI stack frame with a lifetime.
-//! use jni::env::JNIEnvUnowned;
+//! use jni::EnvUnowned;
 //!
 //! // This is the interface to the JVM that we'll call the majority of our
 //! // methods on.
-//! use jni::env::JNIEnv;
+//! use jni::Env;
 //!
 //! // These objects are what you should use as arguments to your native
 //! // function. They carry extra lifetime information to prevent them escaping
@@ -119,7 +119,7 @@
 //! // This keeps Rust from "mangling" the name and making it unique for this
 //! // crate.
 //! #[no_mangle]
-//! pub extern "system" fn Java_HelloWorld_hello<'caller>(mut unowned_env: JNIEnvUnowned<'caller>,
+//! pub extern "system" fn Java_HelloWorld_hello<'caller>(mut unowned_env: EnvUnowned<'caller>,
 //! // This is the class that owns our static method. It's not going to be used,
 //! // but still must be present to match the expected signature of a static
 //! // native method.
@@ -131,9 +131,9 @@
 //!     //
 //!     // Within a native method we we can assume the JVM attaches the thread
 //!     // before calling our implementation, and this is represented
-//!     // by the JNIEnvUnowned type.
+//!     // by the EnvUnowned type.
 //!     //
-//!     // We upgrade the JNIEnvUnowned to a JNIEnv, which gives us access to
+//!     // We upgrade the EnvUnowned to a Env, which gives us access to
 //!     // the full JNI API.
 //!     //
 //!     // Internally this creates a hidden AttachGuard to track the thread attachment
@@ -241,43 +241,48 @@ mod wrapper {
     pub mod strings;
 
     mod jnienv;
-    pub use self::jnienv::{MonitorGuard, NativeMethod};
+    pub use jnienv::*;
 
-    // Note: we stopped exporting `jni::JNIEnv` directly due to a breaking change
-    // that was introduced in 0.22 that meant it was no longer safe to directly
-    // use with native methods. Since there's no way to make it a compiler error
-    // to use an existing Rust type with FFI (can just generate a warning) the
-    // safest option was to move the export so existing code won't compile
-    // without some manual changes.
-
-    /// Bindings for the `JNIEnv` APIs
-    pub mod env {
-        pub use super::jnienv::{JNIEnv, JNIEnvUnowned};
+    // TODO: rename mod jnienv to mod env
+    /// Bindings for the `Env` APIs
+    #[allow(unused)]
+    pub(crate) mod env {
+        pub use super::jnienv::{Env, EnvUnowned};
     }
 
-    mod compat {
-        #[deprecated(
-            since = "0.22.0",
-            note = r#"Since 0.22, `JNIEnv` is not an FFI safe pointer wrapper any more.
+    #[deprecated(
+        since = "0.22.0",
+        note = r#"Since 0.22, `JNIEnv` (renamed `Env`) is not an FFI safe pointer wrapper any more.
 
-For safety, `jni::JNIEnv` is now an alias for `JNIEnvUnowned` (which is FFI safe).
+To remain safe by default, `jni::JNIEnv` is now an alias for `EnvUnowned` (which is FFI safe).
 
-The real `JNIEnv` is now exported as `jni::env::JNIEnv` _BUT_ it's rare that you should need to refer to it directly.
+Use `EnvUnowned` to capture a raw `jni_sys::JNIEnv` pointer in native methods, like:
+`pub extern "system" fn Java_HelloWorld_hello<'frame>(unowned_env: EnvUnowned<'frame>, ...)`
+Then use `unowned_env.with_env()` to upgrade it to an `Env` reference.
 
-Use `JNIEnvUnowned` to capture a `JNIEnv` pointer in native methods, like:
-    `pub extern "system" fn Java_HelloWorld_hello<'frame>(unowned_env: JNIEnvUnowned<'frame>, ...)`
-Then use `unowned_env.with_env()` to upgrade it to a `JNIEnv` reference.
+Most of the time you should temporarily acquire a `Env` reference using:
+- `JavaVM::attach_current_thread` (preferred) or `JavaVM::attach_current_thread_for_scope`
+- `JavaVM::with_env` (if certain that the thread is already attached)
+- `UnownedEnv::with_env()` in native methods
 
-Most of the time you should temporarily acquire a `JNIEnv` reference using:
-  - `JavaVM::attach_current_thread` (preferred) or `JavaVM::attach_current_thread_for_scope`
-  - `JavaVM::with_env` (if certain that the thread is already attached)
+When migrating to 0.22, if you have a mixture of FFI/non-FFI usage of JNIEnv then err on the side
+of renaming `JNIEnv` to `EnvUnowned` because that's safe for FFI and for non-FFI usage there will be
+clear compiler errors if trying to access the real `Env` API through the `EnvUnowned` type.
 "#
-        )]
-        /// An FFI safe alias for `JNIEnvUnowned` for (safer) compatibility with existing code.
-        pub type JNIEnv<'frame> = super::env::JNIEnvUnowned<'frame>;
-    }
-    #[allow(deprecated)]
-    pub use compat::JNIEnv;
+    )]
+    /// An FFI safe alias for `EnvUnowned` for (safer) compatibility with
+    /// existing code.
+    ///
+    /// Since 0.22 ([#570](https://github.com/jni-rs/jni-rs/pull/570)) the
+    /// `JNIEnv` type was renamed to [Env], which is no longer an FFI safe
+    /// pointer wrapper.
+    ///
+    /// FFI usage of `JNIEnv`, within native method arguments, should be
+    /// migrated to [EnvUnowned], followed by [`EnvUnowned::with_env`].
+    ///
+    /// To help make this clear and sign post how to safely migrate to the [Env]
+    /// and [EnvUnowned] types, we export this deprecated alias with a warning.
+    pub type JNIEnv<'frame> = super::EnvUnowned<'frame>;
 
     /// Java VM interface.
     mod java_vm;

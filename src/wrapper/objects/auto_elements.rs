@@ -5,7 +5,7 @@ use std::ptr::NonNull;
 use crate::objects::{JObjectRef, TypeArray};
 use crate::sys::jboolean;
 use crate::wrapper::objects::ReleaseMode;
-use crate::{env::JNIEnv, errors::*, sys, JavaVM};
+use crate::{env::Env, errors::*, sys, JavaVM};
 
 use super::JPrimitiveArray;
 
@@ -34,9 +34,9 @@ where
     _lifetime: PhantomData<&'array_local ()>,
 }
 
-// Note: since we require a JNIEnv reference to construct AutoElements, that
+// Note: since we require a Env reference to construct AutoElements, that
 // means we can assume JavaVM::singleton() is initialized later when we need to
-// release the array (so we don't need to somehow save a JNIEnv reference).
+// release the array (so we don't need to somehow save a Env reference).
 impl<'array_local, T, TArrayRef> AutoElements<'array_local, T, TArrayRef>
 where
     T: TypeArray + 'array_local,
@@ -46,7 +46,7 @@ where
     ///
     /// `len` must be the correct length (number of elements) of the given `array`
     unsafe fn new_with_len(
-        env: &JNIEnv<'_>,
+        env: &Env<'_>,
         array: TArrayRef,
         len: usize,
         mode: ReleaseMode,
@@ -63,7 +63,7 @@ where
         })
     }
 
-    pub(crate) fn new(env: &JNIEnv<'_>, array: TArrayRef, mode: ReleaseMode) -> Result<Self> {
+    pub(crate) fn new(env: &Env<'_>, array: TArrayRef, mode: ReleaseMode) -> Result<Self> {
         let len = array.as_ref().len(env)?;
         unsafe { Self::new_with_len(env, array, len, mode) }
     }
@@ -87,7 +87,7 @@ where
     ///
     /// If `mode` is not [`sys::JNI_COMMIT`], then `self.ptr` must not have already been released.
     unsafe fn release_array_elements(&self, mode: i32) -> Result<()> {
-        // Panic: Since we can't construct `AutoElements` without a valid `JNIEnv` reference
+        // Panic: Since we can't construct `AutoElements` without a valid `Env` reference
         // we know we can call `JavaVM::singleton()` without a panic.
         JavaVM::singleton()?.with_env_current_frame(|env| {
             T::release_elements(env, self.array.as_ref().as_raw(), self.ptr, mode)

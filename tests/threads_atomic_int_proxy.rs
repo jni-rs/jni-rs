@@ -105,7 +105,7 @@ fn test_destroy() {
         let jvm = jvm.clone();
         let atomic = atomic.clone();
         let jh = spawn(move || {
-            // Safety: there is no other mutable `JNIEnv` in scope, so we aren't
+            // Safety: there is no other mutable `Env` in scope, so we aren't
             // creating an opportunity for local references to be created
             // in association with the wrong stack frame.
             jvm.attach_current_thread(|env| -> jni::errors::Result<()> {
@@ -154,7 +154,7 @@ fn test_destroy() {
             // JavaVM before it gets destroyed, including dropping the AutoLocal
             // for the `MATH_CLASS`
             {
-                // Safety: there is no other mutable `JNIEnv` in scope, so we aren't
+                // Safety: there is no other mutable `Env` in scope, so we aren't
                 // creating an opportunity for local references to be created
                 // in association with the wrong stack frame.
                 let mut guard = unsafe { attach_current_thread_as_daemon(&jvm).unwrap() };
@@ -178,7 +178,7 @@ fn test_destroy() {
             // threads exit and they try to automatically detach from the `JavaVM`
             //
             // # Safety
-            // We won't be accessing any (invalid) `JNIEnv` once we have detached this
+            // We won't be accessing any (invalid) `Env` once we have detached this
             // thread
             unsafe {
                 // Note: jni-rs doesn't directly support 'daemon' threads so we're

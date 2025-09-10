@@ -43,7 +43,7 @@ use super::JObjectRef;
 ///
 /// If you aren't sure whether it's OK to create new local references in the
 /// current JNI frame (perhaps because you don't know when it will unwind)
-/// you can also consider using APIs like `JNIEnv::with_local_frame()` which
+/// you can also consider using APIs like `Env::with_local_frame()` which
 /// can run your code in a temporary stack frame that will release all local
 /// references in bulk, without needing to use `AutoLocal`.
 ///
@@ -96,7 +96,7 @@ where
     /// the Java VM then the local JNI stack frame will unwind and delete all
     /// local references.
     ///
-    /// Another option can be to use `JNIEnv::with_local_frame` or similar APIs
+    /// Another option can be to use `Env::with_local_frame` or similar APIs
     /// that create a temporary JNI local frame where you can assume that all
     /// local references will be deleted when that local frame is unwound, after
     /// the given closure is called.
@@ -155,11 +155,11 @@ where
             let Ok(vm) = JavaVM::singleton() else {
                 // Since we wrap a non-null reference with a lifetime associated with a JNI stack
                 // frame we can (mostly) assume that JavaVM::singleton() must have been initialized
-                // in order to get a JNIEnv reference.
+                // in order to get a Env reference.
                 //
                 // The only (remote) exception to this is that the reference came from a native
                 // method argument and for some reason an AutoLocal wrapper was created before an
-                // AttachGuard was created to access a JNIEnv reference (which would initialize the
+                // AttachGuard was created to access a Env reference (which would initialize the
                 // JavaVM singleton).
                 //
                 // This would be a redundant thing to try, but just to err on the side of caution we

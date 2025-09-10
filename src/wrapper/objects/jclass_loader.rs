@@ -3,7 +3,7 @@ use std::ops::Deref;
 use once_cell::sync::OnceCell;
 
 use crate::{
-    env::JNIEnv,
+    env::Env,
     errors::Result,
     objects::{GlobalRef, JClass, JMethodID, JObject, JValue, LoaderContext},
     signature::JavaType,
@@ -107,7 +107,7 @@ impl JClassLoader<'_> {
     pub fn load_class<'local>(
         &self,
         name: &JNIStr,
-        env: &mut JNIEnv<'local>,
+        env: &mut Env<'local>,
     ) -> Result<JClass<'local>> {
         let vm = env.get_java_vm();
         let api = JClassLoaderAPI::get(&vm)?;

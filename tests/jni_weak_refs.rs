@@ -6,9 +6,9 @@ use std::{
 };
 
 use jni::{
-    env::JNIEnv,
     objects::{IntoAutoLocal as _, JObject, JValue, WeakRef},
     sys::jint,
+    Env,
 };
 
 mod util;
@@ -104,7 +104,7 @@ fn weak_ref_is_actually_weak() {
     attach_current_thread(|env| {
         // This test uses `with_local_frame` to work around issue #109.
 
-        fn run_gc(env: &mut JNIEnv) {
+        fn run_gc(env: &mut Env) {
             unwrap(
                 env.with_local_frame(1, |env| {
                     env.call_static_method(c"java/lang/System", c"gc", c"()V", &[])?;

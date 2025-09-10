@@ -35,8 +35,8 @@ pub enum Error {
     FieldNotFound { name: String, sig: String },
     #[error("Java exception was thrown")]
     JavaException,
-    #[error("JNIEnv null method pointer for {0}")]
-    JNIEnvMethodNotFound(&'static str),
+    #[error("Env null method pointer for {0}")]
+    EnvMethodNotFound(&'static str),
     #[error("Null pointer in {0}")]
     NullPtr(&'static str),
     #[error("Mutex already locked")]

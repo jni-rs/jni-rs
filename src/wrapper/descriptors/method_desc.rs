@@ -1,6 +1,6 @@
 use crate::{
     descriptors::Desc,
-    env::JNIEnv,
+    env::Env,
     errors::*,
     objects::{JClass, JMethodID, JStaticMethodID},
     strings::JNIStr,
@@ -14,7 +14,7 @@ where
 {
     type Output = JMethodID;
 
-    fn lookup(self, env: &mut JNIEnv<'local>) -> Result<Self::Output> {
+    fn lookup(self, env: &mut Env<'local>) -> Result<Self::Output> {
         env.get_method_id(self.0, self.1, self.2)
     }
 }
@@ -26,7 +26,7 @@ where
 {
     type Output = JMethodID;
 
-    fn lookup(self, env: &mut JNIEnv<'local>) -> Result<Self::Output> {
+    fn lookup(self, env: &mut Env<'local>) -> Result<Self::Output> {
         Desc::<JMethodID>::lookup((self.0, c"<init>", self.1.as_ref()), env)
     }
 }
@@ -39,7 +39,7 @@ where
 {
     type Output = JStaticMethodID;
 
-    fn lookup(self, env: &mut JNIEnv<'local>) -> Result<Self::Output> {
+    fn lookup(self, env: &mut Env<'local>) -> Result<Self::Output> {
         env.get_static_method_id(self.0, self.1, self.2)
     }
 }

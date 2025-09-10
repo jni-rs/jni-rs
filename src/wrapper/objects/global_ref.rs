@@ -4,7 +4,7 @@ use jni_sys::jobject;
 use log::{debug, warn};
 
 use crate::{
-    env::JNIEnv,
+    env::Env,
     errors::Result,
     objects::{JClass, JObject, LoaderContext},
     strings::JNIStr,
@@ -25,7 +25,7 @@ use super::JObjectRef;
 /// Global references are slower to create and delete than ordinary local
 /// references, but have several properties that distinguish them:
 ///
-/// * Global references are not bound to the lifetime of a [`JNIEnv`].
+/// * Global references are not bound to the lifetime of a [`Env`].
 ///
 /// * Global references are not bound to any particular thread; they have the
 ///   [`Send`] and [`Sync`] traits.
@@ -59,7 +59,7 @@ use super::JObjectRef;
 ///
 /// # Creating and Deleting
 ///
-/// To create a global reference, use the [`JNIEnv::new_global_ref`] method. To
+/// To create a global reference, use the [`Env::new_global_ref`] method. To
 /// delete it, simply drop the `GlobalRef` (but be sure to do so on an attached
 /// thread if possible; see the warning below).
 ///
@@ -179,17 +179,17 @@ where
 {
     /// Creates a new auto-delete wrapper for the `'static` global reference
     ///
-    /// Note: It's more likely that you want to look at the [`JNIEnv::new_global_ref`] API instead
+    /// Note: It's more likely that you want to look at the [`Env::new_global_ref`] API instead
     /// of this, since you can't get `'static` reference types through safe APIs.
     ///
-    /// The [`JNIEnv`] reference here serves as proof that the current thread is attached, which
+    /// The [`Env`] reference here serves as proof that the current thread is attached, which
     /// implies [`JavaVM::singleton()`] is initialized, which is required by the `Drop`
     /// implementation.
     ///
     /// # Safety
     ///
     /// If the given reference is non-null, it must represent a global JNI reference.
-    pub unsafe fn new(_env: &JNIEnv, obj: T) -> Self {
+    pub unsafe fn new(_env: &Env, obj: T) -> Self {
         Self { obj }
     }
 
@@ -271,11 +271,11 @@ where
         // assume that a JavaVM has been initialized if we only wrap a 'static null pointer
         if !obj.is_null() {
             // Panic: If we have a non-null reference, we know JavaVM::singleton() must have been
-            // initialized (and can't return an error) because ::new() takes a JNIEnv reference.
+            // initialized (and can't return an error) because ::new() takes a Env reference.
             let vm = JavaVM::singleton().expect("JavaVM singleton uninitialized");
             let res = vm.attach_current_thread_for_scope(
                 |env| -> Result<()> {
-                    // If the JNIEnv is borrowing from an AttachGuard that owns the current thread
+                    // If the Env is borrowing from an AttachGuard that owns the current thread
                     // attachment that means the thread was not already attached
                     if env.guard().owns_attachment() {
                         warn!("A JNI global reference was dropped on a thread that is not attached. This will cause a performance problem if it happens frequently. For more information, see the documentation for `jni::objects::GlobalRef`.");

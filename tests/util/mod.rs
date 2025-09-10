@@ -1,8 +1,6 @@
 use std::sync::{Arc, Once};
 
-use jni::{
-    env::JNIEnv, errors::Result, objects::JValue, sys::jint, InitArgsBuilder, JNIVersion, JavaVM,
-};
+use jni::{errors::Result, objects::JValue, sys::jint, Env, InitArgsBuilder, JNIVersion, JavaVM};
 
 mod example_proxy;
 
@@ -34,7 +32,7 @@ pub fn jvm() -> &'static Arc<JavaVM> {
 }
 
 #[allow(dead_code)]
-pub fn call_java_abs(env: &mut JNIEnv, value: i32) -> i32 {
+pub fn call_java_abs(env: &mut Env, value: i32) -> i32 {
     env.call_static_method(
         c"java/lang/Math",
         c"abs",
@@ -49,7 +47,7 @@ pub fn call_java_abs(env: &mut JNIEnv, value: i32) -> i32 {
 #[allow(dead_code)]
 pub fn attach_current_thread<F, T>(callback: F) -> jni::errors::Result<T>
 where
-    F: FnOnce(&mut JNIEnv) -> jni::errors::Result<T>,
+    F: FnOnce(&mut Env) -> jni::errors::Result<T>,
 {
     jvm().attach_current_thread(|env| callback(env))
 }
@@ -57,7 +55,7 @@ where
 #[allow(dead_code)]
 pub fn attach_current_thread_for_scope<F, T>(callback: F) -> jni::errors::Result<T>
 where
-    F: FnOnce(&mut JNIEnv) -> jni::errors::Result<T>,
+    F: FnOnce(&mut Env) -> jni::errors::Result<T>,
 {
     jvm().attach_current_thread_for_scope(|env| callback(env))
 }
@@ -74,7 +72,7 @@ pub fn detach_current_thread() -> Result<()> {
     jvm().detach_current_thread()
 }
 
-pub fn print_exception(env: &JNIEnv) {
+pub fn print_exception(env: &Env) {
     let exception_occurred = env.exception_check();
     if exception_occurred {
         env.exception_describe();
@@ -82,7 +80,7 @@ pub fn print_exception(env: &JNIEnv) {
 }
 
 #[allow(dead_code)]
-pub fn unwrap<T>(res: Result<T>, env: &JNIEnv) -> T {
+pub fn unwrap<T>(res: Result<T>, env: &Env) -> T {
     res.unwrap_or_else(|e| {
         print_exception(env);
         panic!("{:#?}", e);

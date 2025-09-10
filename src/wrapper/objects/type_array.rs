@@ -4,7 +4,7 @@ pub(crate) mod type_array_sealed {
     use jni_sys::jsize;
 
     use crate::sys::{jarray, jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jshort};
-    use crate::{env::JNIEnv, errors::*};
+    use crate::{env::Env, errors::*};
     use paste::paste;
     use std::ptr::NonNull;
 
@@ -12,8 +12,8 @@ pub(crate) mod type_array_sealed {
     ///
     /// # Safety
     ///
-    /// The methods of this trait must uphold the invariants described in [`JNIEnv::unsafe_clone`] when
-    /// using the provided [`JNIEnv`].
+    /// The methods of this trait must uphold the invariants described in [`Env::unsafe_clone`] when
+    /// using the provided [`Env`].
     ///
     /// The `get` method must return a valid pointer to the beginning of the JNI array.
     ///
@@ -28,7 +28,7 @@ pub(crate) mod type_array_sealed {
         /// The caller is responsible for passing the returned pointer to [`release`], along
         /// with the same `env` and `array` reference (which needs to still be valid)
         unsafe fn get_elements(
-            env: &JNIEnv,
+            env: &Env,
             array: jarray,
             is_copy: &mut jboolean,
         ) -> Result<*mut Self>;
@@ -44,7 +44,7 @@ pub(crate) mod type_array_sealed {
         /// If `mode` is not [`sys::JNI_COMMIT`], `ptr` must not be used again after calling this
         /// function.
         unsafe fn release_elements(
-            env: &JNIEnv,
+            env: &Env,
             array: jarray,
             ptr: NonNull<Self>,
             mode: i32,
@@ -64,7 +64,7 @@ pub(crate) mod type_array_sealed {
         /// `array` must be a valid pointer to a primitive JNI array object, matching the type of
         /// `Self`, or `null`.
         unsafe fn get_region(
-            env: &JNIEnv,
+            env: &Env,
             array: jarray,
             start: jsize,
             buf: &mut [Self],
@@ -77,8 +77,7 @@ pub(crate) mod type_array_sealed {
         ///
         /// `array` must be a valid pointer to a primitive JNI array object, matching the type of
         /// `Self`, or `null`.
-        unsafe fn set_region(env: &JNIEnv, array: jarray, start: jsize, buf: &[Self])
-            -> Result<()>;
+        unsafe fn set_region(env: &Env, array: jarray, start: jsize, buf: &[Self]) -> Result<()>;
     }
 
     // TypeArray builder
@@ -89,7 +88,7 @@ pub(crate) mod type_array_sealed {
                 unsafe impl TypeArraySealed for $jni_type {
                     /// Get Java $jni_type array
                     unsafe fn get_elements(
-                        env: &JNIEnv,
+                        env: &Env,
                         array: jarray,
                         is_copy: &mut jboolean,
                     ) -> Result<*mut Self> {
@@ -101,7 +100,7 @@ pub(crate) mod type_array_sealed {
 
                     /// Release Java $jni_type array
                     unsafe fn release_elements(
-                        env: &JNIEnv,
+                        env: &Env,
                         array: jarray,
                         ptr: NonNull<Self>,
                         mode: i32,
@@ -112,7 +111,7 @@ pub(crate) mod type_array_sealed {
                     }
 
                     unsafe fn get_region(
-                        env: &JNIEnv,
+                        env: &Env,
                         array: jarray,
                         start: jsize,
                         buf: &mut [Self],
@@ -133,7 +132,7 @@ pub(crate) mod type_array_sealed {
                     }
 
                     unsafe fn set_region(
-                        env: &JNIEnv,
+                        env: &Env,
                         array: jarray,
                         start: jsize,
                         buf: &[Self],

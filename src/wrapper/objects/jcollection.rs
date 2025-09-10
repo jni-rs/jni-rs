@@ -3,7 +3,7 @@ use std::ops::Deref;
 use once_cell::sync::OnceCell;
 
 use crate::{
-    env::JNIEnv,
+    env::Env,
     errors::Result,
     objects::{GlobalRef, JClass, JIterator, JMethodID, JObject, JValue, LoaderContext},
     signature::{Primitive, ReturnType},
@@ -118,19 +118,19 @@ impl<'local> JCollection<'local> {
     /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.util.Collection`.
     ///
     /// Also see these other options for casting local or global references to a `JCollection`:
-    /// - [JNIEnv::new_cast_local_ref]
-    /// - [JNIEnv::cast_local]
-    /// - [JNIEnv::as_cast_local]
-    /// - [JNIEnv::new_cast_global_ref]
-    /// - [JNIEnv::cast_global]
-    /// - [JNIEnv::as_cast_global]
+    /// - [Env::new_cast_local_ref]
+    /// - [Env::cast_local]
+    /// - [Env::as_cast_local]
+    /// - [Env::new_cast_global_ref]
+    /// - [Env::cast_global]
+    /// - [Env::as_cast_global]
     ///
     /// # Errors
     ///
     /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
     pub fn cast_local<'any_local>(
         obj: impl JObjectRef + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
-        env: &mut JNIEnv<'_>,
+        env: &mut Env<'_>,
     ) -> Result<JCollection<'any_local>> {
         env.cast_local::<JCollection>(obj)
     }
@@ -150,7 +150,7 @@ impl<'local> JCollection<'local> {
     pub fn add<'any_local>(
         &self,
         element: impl AsRef<JObject<'any_local>>,
-        env: &mut JNIEnv<'_>,
+        env: &mut Env<'_>,
     ) -> Result<bool> {
         let api = JCollectionAPI::get(&env.get_java_vm(), &LoaderContext::default())?;
         let result = unsafe {
@@ -176,7 +176,7 @@ impl<'local> JCollection<'local> {
     pub fn remove<'any_local>(
         &self,
         element: impl AsRef<JObject<'any_local>>,
-        env: &mut JNIEnv<'_>,
+        env: &mut Env<'_>,
     ) -> Result<bool> {
         let api = JCollectionAPI::get(&env.get_java_vm(), &LoaderContext::default())?;
         let result = unsafe {
@@ -195,7 +195,7 @@ impl<'local> JCollection<'local> {
     /// # Throws
     ///
     /// - `UnsupportedOperationException` - if the clear operation is not supported
-    pub fn clear(&self, env: &mut JNIEnv<'_>) -> Result<()> {
+    pub fn clear(&self, env: &mut Env<'_>) -> Result<()> {
         let api = JCollectionAPI::get(&env.get_java_vm(), &LoaderContext::default())?;
         unsafe {
             env.call_method_unchecked(
@@ -216,7 +216,7 @@ impl<'local> JCollection<'local> {
     ///
     /// - `ClassCastException` - if the element type isn't compatible with the set
     /// - `NullPointerException` - if the given element is null and the set does not allow null values
-    pub fn contains(&self, element: &JObject, env: &mut JNIEnv<'_>) -> Result<bool> {
+    pub fn contains(&self, element: &JObject, env: &mut Env<'_>) -> Result<bool> {
         let api = JCollectionAPI::get(&env.get_java_vm(), &LoaderContext::default())?;
         let result = unsafe {
             env.call_method_unchecked(
@@ -232,7 +232,7 @@ impl<'local> JCollection<'local> {
     /// Returns the number of elements in this collection.
     ///
     /// Returns [i32::MAX] if the collection size is too large to be represented as an i32.
-    pub fn size(&self, env: &mut JNIEnv<'_>) -> Result<i32> {
+    pub fn size(&self, env: &mut Env<'_>) -> Result<i32> {
         let api = JCollectionAPI::get(&env.get_java_vm(), &LoaderContext::default())?;
         let result = unsafe {
             env.call_method_unchecked(
@@ -246,7 +246,7 @@ impl<'local> JCollection<'local> {
     }
 
     /// Returns `true` if this collection contains no elements.
-    pub fn is_empty(&self, env: &mut JNIEnv<'_>) -> Result<bool> {
+    pub fn is_empty(&self, env: &mut Env<'_>) -> Result<bool> {
         let api = JCollectionAPI::get(&env.get_java_vm(), &LoaderContext::default())?;
         let result = unsafe {
             env.call_method_unchecked(
@@ -260,10 +260,7 @@ impl<'local> JCollection<'local> {
     }
 
     /// Returns an iterator (`java.util.Iterator`) over the elements in this collection.
-    pub fn iterator<'env_local>(
-        &self,
-        env: &mut JNIEnv<'env_local>,
-    ) -> Result<JIterator<'env_local>> {
+    pub fn iterator<'env_local>(&self, env: &mut Env<'env_local>) -> Result<JIterator<'env_local>> {
         let api = JCollectionAPI::get(&env.get_java_vm(), &LoaderContext::default())?;
         unsafe {
             let iterator = env

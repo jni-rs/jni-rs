@@ -3,7 +3,7 @@ use std::ops::Deref;
 use once_cell::sync::OnceCell;
 
 use crate::{
-    env::JNIEnv,
+    env::Env,
     errors::Result,
     objects::{
         GlobalRef, JClass, JClassLoader, JMethodID, JObject, JStaticMethodID, JValue, LoaderContext,
@@ -110,7 +110,7 @@ impl JThread<'_> {
     }
 
     /// Get the message of the throwable by calling the `getMessage` method.
-    pub fn current_thread<'local>(env: &mut JNIEnv<'_>) -> Result<JThread<'local>> {
+    pub fn current_thread<'local>(env: &mut Env<'_>) -> Result<JThread<'local>> {
         let vm = env.get_java_vm();
         let api = JThreadAPI::get(&vm)?;
 
@@ -138,7 +138,7 @@ impl JThread<'_> {
     /// Throws `SecurityException` if the current thread can't access its context class loader.
     pub fn get_context_class_loader<'local>(
         &self,
-        env: &mut JNIEnv<'local>,
+        env: &mut Env<'local>,
     ) -> Result<JClassLoader<'local>> {
         let vm = env.get_java_vm();
         let api = JThreadAPI::get(&vm)?;
@@ -170,7 +170,7 @@ impl JThread<'_> {
     pub fn set_context_class_loader<'loader_local, 'env_local>(
         &self,
         loader: &JClassLoader<'loader_local>,
-        env: &mut JNIEnv<'env_local>,
+        env: &mut Env<'env_local>,
     ) -> Result<JClassLoader<'env_local>> {
         let vm = env.get_java_vm();
         let api = JThreadAPI::get(&vm)?;

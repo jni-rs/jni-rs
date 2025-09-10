@@ -1,6 +1,6 @@
 use crate::{
     descriptors::Desc,
-    env::JNIEnv,
+    env::Env,
     errors::*,
     objects::{JClass, JFieldID, JStaticFieldID},
     strings::JNIStr,
@@ -14,7 +14,7 @@ where
 {
     type Output = JFieldID;
 
-    fn lookup(self, env: &mut JNIEnv<'local>) -> Result<Self::Output> {
+    fn lookup(self, env: &mut Env<'local>) -> Result<Self::Output> {
         env.get_field_id(self.0, self.1, self.2)
     }
 }
@@ -27,7 +27,7 @@ where
 {
     type Output = JStaticFieldID;
 
-    fn lookup(self, env: &mut JNIEnv<'local>) -> Result<Self::Output> {
+    fn lookup(self, env: &mut Env<'local>) -> Result<Self::Output> {
         env.get_static_field_id(self.0, self.1, self.2)
     }
 }

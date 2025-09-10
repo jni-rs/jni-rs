@@ -23,7 +23,7 @@ use super::JObjectRef;
 /// representation.
 ///
 /// The lifetime `'local` represents the local reference frame that this
-/// reference belongs to. See the [`JNIEnv`] documentation for more information
+/// reference belongs to. See the [`Env`] documentation for more information
 /// about local reference frames. If `'local` is `'static`, then this reference
 /// does not belong to a local reference frame, that is, it is either null or a
 /// [global reference][GlobalRef].
