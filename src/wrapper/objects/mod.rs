@@ -64,8 +64,8 @@ mod weak;
 pub use self::weak::*;
 
 // For automatic local ref deletion
-mod auto_local;
-pub use self::auto_local::*;
+mod auto;
+pub use self::auto::*;
 
 mod release_mode;
 pub use self::release_mode::*;

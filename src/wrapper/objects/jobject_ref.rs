@@ -10,22 +10,22 @@ use crate::{
 };
 
 #[cfg(doc)]
-use crate::objects::{AutoLocal, JString};
+use crate::objects::{Auto, JString};
 
 /// A trait for types that represents a JNI reference (could be local, global or
-/// weak global as well as wrapper types like [`AutoLocal`] and [`Global`])
+/// weak global as well as wrapper types like [`Auto`] and [`Global`])
 ///
 ///
-/// This makes it possible for APIs like [`Env::new_global_ref`] to be given
-/// a non-static local reference type like [`JString<'local>`] (or an
-/// [`AutoLocal`] wrapper) and return a [`Global`] that is instead
-/// parameterized by [`JString<'static>`].
+/// This makes it possible for APIs like [`Env::new_global_ref`] to be given a
+/// non-static local reference type like [`JString<'local>`] (or an [`Auto`]
+/// wrapper) and return a [`Global`] that is instead parameterized by
+/// [`JString<'static>`].
 ///
 /// # Safety
 ///
-/// The associated `Kind` and `GlobalKind` types must be transparent wrappers around
-/// the underlying JNI object reference types (such as `JObject` or `jobject`) and
-/// must not have any `Drop` side effects.
+/// The associated `Kind` and `GlobalKind` types must be transparent wrappers
+/// around the underlying JNI object reference types (such as `JObject` or
+/// `jobject`) and must not have any `Drop` side effects.
 pub unsafe trait JObjectRef: Sized {
     /// The fully qualified class name of the Java class represented by this
     /// reference.

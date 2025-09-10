@@ -98,7 +98,7 @@ static JAVA_VM_SINGLETON: once_cell::sync::OnceCell<JavaVM> = once_cell::sync::O
 ///
 /// A common approach is to push appropriately-sized local frames for larger
 /// code fragments (see [`Env::with_local_frame`] or [`JavaVM::with_env`])
-/// and [`objects::AutoLocal`] for temporary references in loops.
+/// and [`objects::Auto`] for temporary references in loops.
 ///
 /// See also the [JNI specification][spec-references] for details on referencing Java objects.
 ///
@@ -914,11 +914,11 @@ impl JavaVM {
     /// - `AttachGuard`
     /// - `AutoElements`
     /// - `AutoElementsCritical`
-    /// - `AutoLocal`
+    /// - `Auto`
     /// - `Global`
+    /// - `Weak`
     /// - `MUTF8Chars`
     /// - `JMap`
-    /// - `Weak`
     ///
     /// ## Invalid `JavaVM` on return
     ///

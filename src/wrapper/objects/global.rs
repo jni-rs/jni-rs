@@ -17,7 +17,7 @@ use crate::objects::Weak;
 use super::JObjectRef;
 
 // Note: `Global` must not implement `Into<JObject>`! If it did, then it would be possible to
-// wrap it in `AutoLocal`, which would cause undefined behavior upon drop as a result of calling
+// wrap it in `Auto`, which would cause undefined behavior upon drop as a result of calling
 // the wrong JNI function to delete the reference.
 
 /// A global reference to a Java object.
@@ -229,7 +229,7 @@ where
     /// lifetime bounds for trait implementations.
     ///
     /// For example the returned type will implement `Into<JObject>` which means
-    /// it could be wrapped by `AutoLocal`, which would lead to undefined behavior.
+    /// it could be wrapped by [`Auto`], which would lead to undefined behavior.
     ///
     /// Reference types with a `'static` lifetime are an unsafe liability that
     /// should not be exposed by-value in the public API because they will implement

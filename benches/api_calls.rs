@@ -5,7 +5,7 @@ use jni_sys::jvalue;
 use lazy_static::lazy_static;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use jni::objects::{Global, IntoAutoLocal as _};
+use jni::objects::{Global, IntoAuto as _};
 use jni::{
     descriptors::Desc,
     objects::{JClass, JMethodID, JObject, JStaticMethodID, JValue},

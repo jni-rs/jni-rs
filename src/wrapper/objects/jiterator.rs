@@ -150,11 +150,11 @@ impl<'local> JIterator<'local> {
     ///
     /// This method creates a new local reference. To prevent excessive memory
     /// usage or overflow errors (when called repeatedly in a loop), the local
-    /// reference should be deleted using [`Env::delete_local_ref`] or
-    /// [`Env::auto_local`] before the next loop iteration. Alternatively, if
-    /// the collection is known to have a small, predictable size, the loop could be
-    /// wrapped in [`Env::with_local_frame`] to delete all of the local
-    /// references at once.
+    /// reference should be deleted using [`Env::delete_local_ref`] or wrapped
+    /// with [`crate::objects::IntoAuto::auto`] before the next loop iteration.
+    /// Alternatively, if the collection is known to have a small, predictable
+    /// size, the loop could be wrapped in [`Env::with_local_frame`] to delete
+    /// all of the local references at once.
     pub fn next<'env_local>(
         &self,
         env: &mut Env<'env_local>,

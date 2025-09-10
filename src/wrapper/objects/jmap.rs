@@ -256,18 +256,18 @@ impl<'local> JMap<'local> {
     /// `EntrySet` from java and iterating over it.
     ///
     /// The returned iterator does not implement [`std::iter::Iterator`] and
-    /// cannot be used with a `for` loop. This is because its `next` method
-    /// uses a `&mut Env` to call the Java iterator. Use a `while let` loop
-    /// instead:
+    /// cannot be used with a `for` loop. This is because its `next` method uses
+    /// a `&mut Env` to call the Java iterator. Use a `while let` loop instead:
     ///
     /// ```rust,no_run
-    /// # use jni::{errors::Result, Env, objects::{IntoAutoLocal as _, JMap, JObject}};
+    /// # use jni::{errors::Result, Env, objects::{JMap, JObject}};
     /// #
     /// # fn example(env: &mut Env, map: JMap) -> Result<()> {
+    /// use jni::objects::IntoAuto as _; // for .auto()
     /// let mut iterator = map.iter(env)?;
     ///
     /// while let Some(entry) = iterator.next(env)? {
-    ///     // Wrap as AutoLocals to avoid leaking while iterating
+    ///     // Wrap as Auto<T> to avoid leaking while iterating
     ///     let key = entry.key(env)?.auto();
     ///     let value = entry.value(env)?.auto();
     ///
@@ -278,12 +278,12 @@ impl<'local> JMap<'local> {
     /// ```
     ///
     /// Each call to `next` creates two new local references. To prevent
-    /// excessive memory usage or overflow error, the local references should
-    /// be deleted using [`Env::delete_local_ref`] or [`Env::auto_local`]
-    /// before the next loop iteration. Alternatively, if the map is known to
-    /// have a small, predictable size, the loop could be wrapped in
-    /// [`Env::with_local_frame`] to delete all of the local references at
-    /// once.
+    /// excessive memory usage or overflow error, the local references should be
+    /// deleted using [`Env::delete_local_ref`] or wrapped with
+    /// [`crate::objects::IntoAuto::auto`] before the next loop iteration.
+    /// Alternatively, if the map is known to have a small, predictable size,
+    /// the loop could be wrapped in [`Env::with_local_frame`] to delete all of
+    /// the local references at once.
     pub fn iter<'env_local>(&self, env: &mut Env<'env_local>) -> Result<JMapIter<'env_local>> {
         let set = self.entry_set(env)?;
         let iterator = set.iterator(env)?;
@@ -544,18 +544,18 @@ impl<'local> JMapIter<'local> {
     ///
     /// This method creates two new local references. To prevent excessive
     /// memory usage or overflow error, the local references should be deleted
-    /// using [`Env::delete_local_ref`] or [`Env::auto_local`] before the
-    /// next loop iteration. Alternatively, if the map is known to have a
-    /// small, predictable size, the loop could be wrapped in
-    /// [`Env::with_local_frame`] to delete all of the local references at
-    /// once.
+    /// using [`Env::delete_local_ref`] or wrapped with
+    /// [`crate::objects::IntoAuto::auto`] before the next loop iteration.
+    /// Alternatively, if the map is known to have a small, predictable size,
+    /// the loop could be wrapped in [`Env::with_local_frame`] to delete all of
+    /// the local references at once.
     ///
     /// This method returns:
     ///
     /// * `Ok(Some(_))`: if there was another key-value pair in the map.
     /// * `Ok(None)`: if there are no more key-value pairs in the map.
-    /// * `Err(_)`: if there was an error calling the Java method to
-    ///   get the next key-value pair.
+    /// * `Err(_)`: if there was an error calling the Java method to get the
+    ///   next key-value pair.
     ///
     /// This is like [`std::iter::Iterator::next`], but requires a parameter of
     /// type `&mut Env` in order to call into Java.

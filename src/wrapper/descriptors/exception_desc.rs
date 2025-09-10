@@ -2,7 +2,7 @@ use crate::{
     descriptors::Desc,
     env::Env,
     errors::*,
-    objects::{AutoLocal, IntoAutoLocal as _, JClass, JObject, JThrowable, JValue},
+    objects::{Auto, IntoAuto as _, JClass, JObject, JThrowable, JValue},
     strings::{JNIStr, JNIString},
 };
 
@@ -13,7 +13,7 @@ where
     C: Desc<'local, JClass<'other_local>>,
     M: AsRef<JNIStr>,
 {
-    type Output = AutoLocal<'local, JThrowable<'local>>;
+    type Output = Auto<'local, JThrowable<'local>>;
 
     fn lookup(self, env: &mut Env<'local>) -> Result<Self::Output> {
         let jmsg = env.new_string(self.1.as_ref())?.auto();
@@ -25,7 +25,7 @@ where
 }
 
 unsafe impl<'local> Desc<'local, JThrowable<'local>> for Exception {
-    type Output = AutoLocal<'local, JThrowable<'local>>;
+    type Output = Auto<'local, JThrowable<'local>>;
 
     fn lookup(self, env: &mut Env<'local>) -> Result<Self::Output> {
         let jni_class: JNIString = self.class.into();
@@ -35,7 +35,7 @@ unsafe impl<'local> Desc<'local, JThrowable<'local>> for Exception {
 }
 
 unsafe impl<'local> Desc<'local, JThrowable<'local>> for &str {
-    type Output = AutoLocal<'local, JThrowable<'local>>;
+    type Output = Auto<'local, JThrowable<'local>>;
 
     fn lookup(self, env: &mut Env<'local>) -> Result<Self::Output> {
         let jni_msg: JNIString = self.into();
@@ -44,7 +44,7 @@ unsafe impl<'local> Desc<'local, JThrowable<'local>> for &str {
 }
 
 unsafe impl<'local> Desc<'local, JThrowable<'local>> for String {
-    type Output = AutoLocal<'local, JThrowable<'local>>;
+    type Output = Auto<'local, JThrowable<'local>>;
 
     fn lookup(self, env: &mut Env<'local>) -> Result<Self::Output> {
         let jni_msg: JNIString = self.into();
@@ -56,7 +56,7 @@ unsafe impl<'local, T> Desc<'local, JThrowable<'local>> for T
 where
     T: AsRef<JNIStr>,
 {
-    type Output = AutoLocal<'local, JThrowable<'local>>;
+    type Output = Auto<'local, JThrowable<'local>>;
 
     fn lookup(self, env: &mut Env<'local>) -> Result<Self::Output> {
         Desc::<JThrowable>::lookup((DEFAULT_EXCEPTION_CLASS, self.as_ref()), env)
