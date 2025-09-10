@@ -82,6 +82,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `JNIEnv::get_array_elements_critical` is deprecated in favor of `JPrimitiveArray::get_elements_critical`
 - `JNIEnv::get_*_array_region` and `JNIEnv::set_*_array_region` are deprecated in favor of `JPrimitiveArray::get/set_region`
 - `JNIEnv::get_array_length` is deprecated in favor of `JPrimitiveArray::len` and `JObjectArray::len`
+- `JNIEnv::new_object_unchecked` now takes a `Desc<JMethodID>` for consistency/flexibility instead of directly taking a `JMethodID`
 
 ### Removed
 - `JavaVM::attach_current_thread_as_daemon` (and general support for 'daemon' threads) has been removed, since their semantics are inherently poorly defined and unsafe (the distinction relates to the poorly defined limbo state after calling `JavaDestroyVM`, where it becomes undefined to touch the JVM) ([#593](https://github.com/jni-rs/jni-rs/pull/593))

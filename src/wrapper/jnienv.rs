@@ -2239,19 +2239,22 @@ impl<'local> JNIEnv<'local> {
     /// The provided JMethodID must be valid, and match the types and number of arguments, as well as return type
     /// (always an Object for a constructor). If these are incorrect, the JVM may crash.  The JMethodID must also match
     /// the passed type.
-    pub unsafe fn new_object_unchecked<'other_local, T>(
+    pub unsafe fn new_object_unchecked<'other_local, C, M>(
         &mut self,
-        class: T,
-        ctor_id: JMethodID,
+        class: C,
+        ctor_id: M,
         ctor_args: &[jvalue],
     ) -> Result<JObject<'local>>
     where
-        T: Desc<'local, JClass<'other_local>>,
+        C: Desc<'local, JClass<'other_local>>,
+        M: Desc<'local, JMethodID>,
     {
         // Runtime check that the 'local reference lifetime will be tied to
         // JNIEnv lifetime for the top JNI stack frame
         assert_eq!(self.level, JavaVM::thread_attach_guard_level());
         let class = class.lookup(self)?;
+
+        let ctor_id: JMethodID = *ctor_id.lookup(self)?.as_ref();
 
         let jni_args = ctor_args.as_ptr();
 
