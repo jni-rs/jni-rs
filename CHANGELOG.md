@@ -53,14 +53,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `set_static_field` takes a field name and signature as strings so the ID is looked up internally to ensure it's valid. ([#629](https://github.com/jni-rs/jni-rs/pull/629))
 - `JNIEnv::get/set/take_rust_field` no longer require a mutable `JNIEnv` reference since they don't return any new local references to the caller ([#455](https://github.com/jni-rs/jni-rs/issues/455))
 - `JNIEnv::is_assignable_from` and `is_instance_of` no longer requires a mutable `JNIEnv` reference, since they doesn't return an new local references to the caller
-- `JavaStr` has been renamed `MUTF8Chars` and intended to be got via `JString::mutf8_chars()`
+- `JavaStr` has been renamed `MUTF8Chars` (with a deprecated `JavaStr` alias) and intended to be got via `JString::mutf8_chars()`
 - `JavaStr/MUTF8Chars::from_env` has been removed because it was unsound (it could cause undefined behavior and was not marked `unsafe`). Use `JString::mutf8_chars` instead. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
 - `JavaStr/MUTF8Chars::get_raw` has been renamed to `as_ptr`. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
 - `JavaStr/MUTF8Chars`, `JNIStr`, and `JNIString` no longer coerce to `CStr`, because using `CStr::to_str` will often have incorrect results. You can still get a `CStr`, but must use the new `as_cstr` method to do so. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
 - All APIs that were accepting modified-utf8 string args via `Into<JNIString>`, now take `AsRef<JNIStr>` to avoid string copies every call. Considering that these strings are often literals for signatures or class names, most code can rely on `AsRef<JNIStr>` for `CStr` and pass `CStr` literals like `env.find_class(c"java/lang/Foo")`. ([#617](https://github.com/jni-rs/jni-rs/pull/617))
+- `JavaStr/MUTF8Chars` and `JString` both implement `Display` and therefore `ToString`, making it even easier to get a Rust `String`.
 - `JNIEnv::get_string` performance was optimized by caching an expensive class lookup, and using a faster instanceof check. ([#531](https://github.com/jni-rs/jni-rs/pull/531))
 - `JNIEnv::get_string` performance was later further optimized to avoid the need for runtime type checking ([#612](https://github.com/jni-rs/jni-rs/pull/612))
-- `JNIEnv::get_string` has been deprecated in favor of `JString::mutf8_chars` and `JString::to_string`
+- `JNIEnv::get_string` has been deprecated in favor of `JString::mutf8_chars` and `JString::to_string()` or `JString::try_to_string(env)`
 - `GlobalRef` and `WeakRef` are parameterized, transparent wrappers over `'static` reference types like `GlobalRef<JClass<'static>>` (no longer an `Arc` holding a reference and VM pointer) ([#596](https://github.com/jni-rs/jni-rs/pull/596))
   - `GlobalRef` and `WeakRef` no longer implement `Clone`, since JNI is required to create new reference (you'll need to explicitly use `env.new_global_ref`)
   - `GlobalRef` and `WeakRef` both implement `Default`, which will represent `::null()` references (equivalent to `JObject::null()`)

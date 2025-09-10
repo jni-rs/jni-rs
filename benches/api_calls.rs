@@ -374,7 +374,7 @@ fn jni_get_string(c: &mut Criterion) {
 
         c.bench_function("jni_get_string", |b| {
             b.iter(|| {
-                let s: String = string.to_string(env).unwrap();
+                let s: String = string.try_to_string(env).unwrap();
                 assert_eq!(s, TEST_STRING_UNICODE);
             })
         });
@@ -391,7 +391,7 @@ fn jni_get_string_unchecked(c: &mut Criterion) {
 
         c.bench_function("jni_get_string_unchecked", |b| {
             b.iter(|| {
-                let s: String = string.to_string(env).unwrap();
+                let s: String = string.try_to_string(env).unwrap();
                 assert_eq!(s, TEST_STRING_UNICODE);
             })
         });

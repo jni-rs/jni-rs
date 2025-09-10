@@ -187,6 +187,16 @@ where
     }
 }
 
+impl<'local, StringRef> std::fmt::Display for MUTF8Chars<'local, StringRef>
+where
+    StringRef: AsRef<JString<'local>> + JObjectRef,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let jni_str: &JNIStr = self;
+        jni_str.fmt(f)
+    }
+}
+
 impl<'local, StringRef> ::std::ops::Deref for MUTF8Chars<'local, StringRef>
 where
     StringRef: AsRef<JString<'local>> + JObjectRef,

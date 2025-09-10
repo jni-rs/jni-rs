@@ -1,6 +1,7 @@
 use std::ops::Deref;
 
 use once_cell::sync::OnceCell;
+use thiserror::Error;
 
 use crate::{
     env::JNIEnv,
@@ -45,6 +46,82 @@ impl<'local> ::std::ops::Deref for JString<'local> {
 impl<'local> From<JString<'local>> for JObject<'local> {
     fn from(other: JString) -> JObject {
         other.0
+    }
+}
+
+/// Display the contents of a `JString`
+///
+/// This implementation relies on JNI (GetStringUTFChars) to retrieve the string contents for
+/// display.
+///
+/// If you try and format a null reference this will output "<NULL>"
+///
+/// In case you attempt to format a JString before [`JavaVM::singleton`] has been initialized then
+/// this will simply output "<JNI Not Initialized>" and log an error.
+///
+/// In case of any other unexpected JNI error, this will output "<JNI Error>" and log the error
+/// details.
+impl<'local> std::fmt::Display for JString<'local> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        #[derive(Error, Debug)]
+        #[error(transparent)]
+        enum FmtOrJniError {
+            Fmt(#[from] std::fmt::Error),
+            Jni(#[from] crate::errors::Error),
+        }
+
+        if self.is_null() {
+            return write!(f, "<NULL>");
+        }
+
+        // The only way it's possible to have a `JString` while `JavaVM::singleton` is
+        // not initialized would be if the `JString` was used to capture a native method
+        // argument and `JNIEnvUnowned::with_env` has not been called yet (and nothing
+        // else has initialized this crate already)
+        //
+        // I.e. it's highly unlikely that this should return an error.
+        JavaVM::singleton()
+            .map_err(FmtOrJniError::Jni)
+            .and_then(|vm| {
+                // In the common case we expect this attachment will be a NOOP.
+                //
+                // In the (unlikely) case that a `Global<JString>` is being formatted from an
+                // arbitrary thread that's not attached to the JVM then we create a scoped
+                // attachment so we avoid the side effect of attaching the current thread
+                // permanently.
+                vm.attach_current_thread_for_scope(
+                    |env| -> std::result::Result<(), FmtOrJniError> {
+                        // Since we have already checked for a null reference it should be highly
+                        // unlikely for there to be any JNI errors.
+                        //
+                        // Note: there won't be any local reference created as a side effect.
+                        // Note: there's no risk of side effects from an exception being thrown.
+                        // A `GetStringUTFChars` failure may result in a `NullPtr` error that
+                        // is handled below as a general JNI error.
+                        let mutf8_chars = self.mutf8_chars(env)?;
+                        let s = mutf8_chars.to_str();
+                        write!(f, "{}", s)?;
+                        Ok(())
+                    },
+                )
+            })
+            .or_else(|err| {
+                match err {
+                    FmtOrJniError::Fmt(err) => Err(err),
+                    FmtOrJniError::Jni(crate::errors::Error::UninitializedJavaVM) => {
+                        log::error!(
+                            "error getting JavaVM singleton to format JString: {:#?}",
+                            err
+                        );
+                        write!(f, "<JNI Not Initialized>")
+                    }
+                    FmtOrJniError::Jni(err) => {
+                        // If we failed to get the string contents, just print the error
+                        log::error!("error getting JString contents: {:#?}", err);
+                        write!(f, "<JNI Error>")
+                    }
+                }
+            })
     }
 }
 
@@ -160,7 +237,7 @@ impl JString<'_> {
     /// #
     /// # fn f(env: &mut JNIEnv) -> Result<()> {
     /// let jstring = env.new_string(c"Hello, world!")?;
-    /// let rust_string = jstring.to_string(&env)?;
+    /// let rust_string = jstring.try_to_string(&env)?;
     /// assert_eq!(rust_string, "Hello, world!");
     /// # ; Ok(())
     /// # }
@@ -182,7 +259,7 @@ impl JString<'_> {
     /// # Errors
     ///
     /// Returns an [Error::NullPtr] if this [`JString`] is null.
-    pub fn to_string(&self, env: &JNIEnv<'_>) -> Result<String> {
+    pub fn try_to_string(&self, env: &JNIEnv<'_>) -> Result<String> {
         let mutf8_chars = self.mutf8_chars(env)?;
         Ok(mutf8_chars.to_string())
     }

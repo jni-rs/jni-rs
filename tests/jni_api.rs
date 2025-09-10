@@ -1649,6 +1649,34 @@ pub fn test_conversion() {
     .unwrap();
 }
 
+rusty_fork_test! {
+#[test]
+fn test_jstring_conversion() {
+    // Even while JNI is not initialized a nul should be formatted as "<NULL>"
+    let null = JString::null();
+    assert_eq!(null.to_string(), "<NULL>");
+
+    // XXX: this is highly unsafe but the expectation here is that the implementation
+    // will not get as far as attempting to dereference the invalid pointer because
+    // JavaVM::singleton is not yet initialized.
+    //
+    // Alternatively the only other way we could test this case would be with a
+    // native method callback which is hard to reproduce here.
+    let invalid = unsafe { JString::from_raw(1 as _) };
+    assert_eq!(invalid.to_string(), "<JNI Not Initialized>");
+
+    attach_current_thread(|env| {
+        let hello: JString = env.new_string(c"Hello, world!").unwrap();
+
+        assert_eq!(hello.to_string(), "Hello, world!");
+        assert_eq!(hello.to_string(), hello.try_to_string(env).unwrap());
+
+        Ok(())
+    })
+    .unwrap();
+}
+}
+
 #[test]
 pub fn test_null_string_mutf8_chars() {
     attach_current_thread(|env| {
