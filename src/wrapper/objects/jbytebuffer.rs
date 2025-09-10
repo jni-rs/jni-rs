@@ -4,7 +4,7 @@ use once_cell::sync::OnceCell;
 
 use crate::{
     errors::Result,
-    objects::{GlobalRef, JClass, JObject, JObjectRef, LoaderContext},
+    objects::{Global, JClass, JObject, JObjectRef, LoaderContext},
     strings::JNIStr,
     sys::jobject,
     JavaVM,
@@ -43,7 +43,7 @@ impl<'local> From<JByteBuffer<'local>> for JObject<'local> {
 }
 
 struct JByteBufferAPI {
-    class: GlobalRef<JClass<'static>>,
+    class: Global<JClass<'static>>,
 }
 
 impl JByteBufferAPI {
@@ -92,7 +92,7 @@ unsafe impl JObjectRef for JByteBuffer<'_> {
     fn lookup_class<'vm>(
         vm: &'vm JavaVM,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
         let api = JByteBufferAPI::get(vm, &loader_context)?;
         Ok(&api.class)
     }

@@ -4,7 +4,7 @@ use once_cell::sync::OnceCell;
 use crate::{
     errors::*,
     objects::{
-        GlobalRef, JClass, JIterator, JMethodID, JObject, JObjectRef, JSet, JValue, LoaderContext,
+        Global, JClass, JIterator, JMethodID, JObject, JObjectRef, JSet, JValue, LoaderContext,
     },
     signature::{Primitive, ReturnType},
     strings::JNIStr,
@@ -46,7 +46,7 @@ impl<'local> From<JMap<'local>> for JObject<'local> {
 }
 
 struct JMapAPI {
-    class: GlobalRef<JClass<'static>>,
+    class: Global<JClass<'static>>,
     get_method: JMethodID,
     put_method: JMethodID,
     remove_method: JMethodID,
@@ -306,7 +306,7 @@ unsafe impl JObjectRef for JMap<'_> {
     fn lookup_class<'vm>(
         vm: &'vm JavaVM,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
         let api = JMapAPI::get(vm, &loader_context)?;
         Ok(&api.class)
     }
@@ -352,7 +352,7 @@ impl<'local> From<JMapEntry<'local>> for JObject<'local> {
 }
 
 struct JMapEntryAPI {
-    class: GlobalRef<JClass<'static>>,
+    class: Global<JClass<'static>>,
     get_key_method: JMethodID,
     get_value_method: JMethodID,
     set_value_method: JMethodID,
@@ -501,7 +501,7 @@ unsafe impl JObjectRef for JMapEntry<'_> {
     fn lookup_class<'vm>(
         vm: &'vm JavaVM,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
         let api = JMapEntryAPI::get(vm, &loader_context)?;
         Ok(&api.class)
     }

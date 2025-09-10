@@ -5,7 +5,7 @@ use jni_sys::jobject;
 use crate::{
     env::Env,
     errors::{Error, Result},
-    objects::{GlobalRef, JClass, JObject, JObjectRef, LoaderContext},
+    objects::{Global, JClass, JObject, JObjectRef, LoaderContext},
     strings::JNIStr,
     JavaVM,
 };
@@ -129,7 +129,7 @@ unsafe impl<'any, 'from, To: JObjectRef> JObjectRef for Cast<'any, 'from, To> {
     fn lookup_class<'vm>(
         vm: &'vm JavaVM,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
         To::lookup_class(vm, loader_context)
     }
 

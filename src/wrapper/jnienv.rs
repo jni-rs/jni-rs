@@ -18,9 +18,9 @@ use crate::{
     descriptors::Desc,
     errors::*,
     objects::{
-        AutoElements, AutoElementsCritical, AutoLocal, GlobalRef, IntoAutoLocal as _, JByteBuffer,
+        AutoElements, AutoElementsCritical, AutoLocal, Global, IntoAutoLocal as _, JByteBuffer,
         JClass, JFieldID, JList, JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID,
-        JString, JThrowable, JValue, JValueOwned, ReleaseMode, TypeArray, WeakRef,
+        JString, JThrowable, JValue, JValueOwned, ReleaseMode, TypeArray, Weak,
     },
     signature::{JavaType, Primitive, TypeSignature},
     strings::{JNIStr, JNIString, MUTF8Chars},
@@ -50,10 +50,10 @@ use super::{objects::JObjectRef, AttachGuard};
 /// # References and Lifetimes
 ///
 /// As in C JNI, interactions with Java objects happen through <dfn>references</dfn>, either local
-/// or global, represented by [`JObject`] and [`GlobalRef`] respectively. So long as there is at
+/// or global, represented by [`JObject`] and [`Global`] respectively. So long as there is at
 /// least one such reference to a Java object, the JVM garbage collector will not reclaim it.
 ///
-/// <dfn>Global references</dfn> exist until deleted. Deletion occurs when the `GlobalRef` is
+/// <dfn>Global references</dfn> exist until deleted. Deletion occurs when the `Global` is
 /// dropped.
 ///
 /// <dfn>Local references</dfn> belong to a local reference frame, and exist until
@@ -87,7 +87,7 @@ use super::{objects::JObjectRef, AttachGuard};
 ///   `'other_local` and creates a new local reference to the same object in `'local`.
 ///
 /// * `'obj_ref` is the lifetime of a borrow of a JNI reference, like <code>&amp;[JObject]</code>
-///   or <code>&amp;[GlobalRef]</code>. For example, [`Env::get_list`] constructs a new
+///   or <code>&amp;[Global]</code>. For example, [`Env::get_list`] constructs a new
 ///   [`JList`] that borrows a `&'obj_ref JObject`.
 ///
 /// ## `null` Java references
@@ -802,17 +802,17 @@ impl<'local> Env<'local> {
     ///
     /// Global references take more time to create or delete than ordinary
     /// local references do, but have several properties that make them useful
-    /// in certain situations. See [`GlobalRef`] for more information.
+    /// in certain situations. See [`Global`] for more information.
     ///
-    /// If you use this API to try and upgrade a [`WeakRef`] then it may return
+    /// If you use this API to try and upgrade a [`Weak`] then it may return
     /// [`Error::ObjectFreed`] if the object has been garbage collected.
-    pub fn new_global_ref<'any_local, O>(&self, obj: O) -> Result<GlobalRef<O::GlobalKind>>
+    pub fn new_global_ref<'any_local, O>(&self, obj: O) -> Result<Global<O::GlobalKind>>
     where
         O: JObjectRef + AsRef<JObject<'any_local>>,
     {
         // Avoid passing null to `NewGlobalRef` so that we can recognise out-of-memory errors
         if obj.is_null() {
-            return Ok(GlobalRef::null());
+            return Ok(Global::null());
         }
 
         // Safety:
@@ -823,11 +823,11 @@ impl<'local> Env<'local> {
         let global_ref = unsafe {
             let global_ref =
                 O::from_global_raw(jni_call_unchecked!(self, v1_1, NewGlobalRef, obj.as_raw()));
-            GlobalRef::new(self, global_ref)
+            Global::new(self, global_ref)
         };
 
         // Per JNI spec, `NewGlobalRef` will return a null pointer if the object was GC'd
-        // (which could happen if `obj` is a `WeakRef`):
+        // (which could happen if `obj` is a `Weak`):
         //
         //  > it is recommended that a (strong) local or global reference to the
         //  > underlying object be acquired using one of the JNI functions
@@ -868,7 +868,7 @@ impl<'local> Env<'local> {
     /// # fn example(env: &mut Env) -> Result<()> {
     /// let local_obj: JObject = env.new_object(c"java/lang/String", c"(Ljava/lang/String;)V", &[])?;
     /// let global_string = env.new_cast_global_ref::<JString>(local_obj)?;
-    /// // global_string is now a `GlobalRef<JString>` that persists beyond local frames
+    /// // global_string is now a `Global<JString>` that persists beyond local frames
     ///
     /// // For upcasting, the `AsRef` trait is more efficient:
     /// let as_obj_again: &JObject = global_string.as_ref(); // No runtime check needed
@@ -883,7 +883,7 @@ impl<'local> Env<'local> {
     pub fn new_cast_global_ref<'any_local, To>(
         &self,
         obj: impl JObjectRef + AsRef<JObject<'any_local>>,
-    ) -> Result<GlobalRef<To::GlobalKind>>
+    ) -> Result<Global<To::GlobalKind>>
     where
         To: JObjectRef,
     {
@@ -897,7 +897,7 @@ impl<'local> Env<'local> {
             // - we have just checked that `new` is an instance of `To`
             unsafe {
                 let cast = To::from_global_raw(new.into_raw());
-                Ok(GlobalRef::new(self, cast))
+                Ok(Global::new(self, cast))
             }
         } else {
             Err(Error::WrongObjectType)
@@ -917,7 +917,7 @@ impl<'local> Env<'local> {
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
     /// let local_obj: JObject = env.new_object(c"java/lang/String", c"(Ljava/lang/String;)V", &[])?;
-    /// let global_obj: GlobalRef<JObject<'static>> = env.new_global_ref(&local_obj)?;
+    /// let global_obj: Global<JObject<'static>> = env.new_global_ref(&local_obj)?;
     /// let global_string = env.cast_global::<JString>(global_obj)?;
     ///
     /// // For upcasting, the `AsRef` trait is more efficient:
@@ -932,7 +932,7 @@ impl<'local> Env<'local> {
     /// Returns [`Error::ClassNotFound`] if the target class cannot be found.
     pub fn cast_global<To>(
         &self,
-        obj: GlobalRef<
+        obj: Global<
             impl Into<JObject<'static>>
                 + AsRef<JObject<'static>>
                 + Default
@@ -941,7 +941,7 @@ impl<'local> Env<'local> {
                 + Sync
                 + 'static,
         >,
-    ) -> Result<GlobalRef<To::GlobalKind>>
+    ) -> Result<Global<To::GlobalKind>>
     where
         To: JObjectRef,
     {
@@ -955,7 +955,7 @@ impl<'local> Env<'local> {
             // - there won't be multiple wrappers since we are creating one from the other
             unsafe {
                 let cast = To::from_global_raw(obj.into_raw());
-                Ok(GlobalRef::new(self, cast))
+                Ok(Global::new(self, cast))
             }
         } else {
             Err(Error::WrongObjectType)
@@ -966,15 +966,15 @@ impl<'local> Env<'local> {
     ///
     /// Weak global references are a special kind of Java object reference that
     /// doesn't prevent the Java object from being garbage collected. See
-    /// [`WeakRef`] for more information.
+    /// [`Weak`] for more information.
     ///
-    /// If you use this API to create a [`WeakRef`] from another [`WeakRef`]
+    /// If you use this API to create a [`Weak`] from another [`Weak`]
     /// then it may return [`Error::ObjectFreed`] if the object has been garbage
     /// collected.
     ///
-    /// Attempting to create a [`WeakRef`] for a `null` reference will return an
+    /// Attempting to create a [`Weak`] for a `null` reference will return an
     /// [`Error::ObjectFreed`] error.
-    pub fn new_weak_ref<O>(&self, obj: O) -> Result<WeakRef<O::GlobalKind>>
+    pub fn new_weak_ref<O>(&self, obj: O) -> Result<Weak<O::GlobalKind>>
     where
         O: JObjectRef,
     {
@@ -1000,7 +1000,7 @@ impl<'local> Env<'local> {
                 NewWeakGlobalRef,
                 obj.as_raw()
             )?);
-            WeakRef::new(self, weak)
+            Weak::new(self, weak)
         };
 
         // Unlike for NewLocalRef and NewGlobalRef, the JNI spec doesn't seem to
@@ -1020,7 +1020,7 @@ impl<'local> Env<'local> {
     ///
     /// Specifically, this calls the JNI function [`NewLocalRef`], which creates a reference in the
     /// current local reference frame, regardless of whether the original reference belongs to the
-    /// same local reference frame, a different one, or is a [global reference][GlobalRef]. In Rust
+    /// same local reference frame, a different one, or is a [global reference][Global]. In Rust
     /// terms, this method accepts a JNI reference with any valid lifetime and produces a clone of
     /// that reference with the lifetime of this `Env`. The returned reference can outlive the
     /// original.
@@ -1060,9 +1060,9 @@ impl<'local> Env<'local> {
     /// enum ExampleError {
     ///     /// This variant represents a Java exception.
     ///     ///
-    ///     /// The enclosed `GlobalRef` points to a Java object of class `java.lang.Throwable`
+    ///     /// The enclosed `Global` points to a Java object of class `java.lang.Throwable`
     ///     /// (or one of its many subclasses).
-    ///     Exception(GlobalRef<JObject<'static>>),
+    ///     Exception(Global<JObject<'static>>),
     ///
     ///     /// This variant represents an error in Rust code, not a Java exception.
     ///     Other(SomeOtherErrorType),
@@ -1080,10 +1080,10 @@ impl<'local> Env<'local> {
     ///             ExampleError::Exception(exception) => {
     ///                 // The error was caused by a Java exception.
     ///
-    ///                 // Here, `exception` is a `GlobalRef` pointing to a Java `Throwable`. It
+    ///                 // Here, `exception` is a `Global` pointing to a Java `Throwable`. It
     ///                 // will be dropped at the end of this `match` arm. We'll use
     ///                 // `new_local_ref` to create a local reference that will outlive the
-    ///                 // `GlobalRef`.
+    ///                 // `Global`.
     ///
     ///                 env.new_local_ref(&exception)?
     ///             }
@@ -1135,7 +1135,7 @@ impl<'local> Env<'local> {
             unsafe { O::from_raw(jni_call_unchecked!(self, v1_2, NewLocalRef, obj.as_raw())) };
 
         // Per JNI spec, `NewLocalRef` will return a null pointer if the object was GC'd
-        // (which could happen if `obj` is a `WeakRef`):
+        // (which could happen if `obj` is a `Weak`):
         //
         //  > it is recommended that a (strong) local or global reference to the
         //  > underlying object be acquired using one of the JNI functions
@@ -1399,7 +1399,7 @@ impl<'local> Env<'local> {
     ///
     /// Since local references created within this frame won't be accessible to the calling
     /// frame then if you need to pass an object back to the caller then you can do that via a
-    /// [`GlobalRef`] / [`Self::make_global`].
+    /// [`Global`] / [`Self::make_global`].
     pub fn with_local_frame<F, T, E>(&mut self, capacity: usize, f: F) -> std::result::Result<T, E>
     where
         F: FnOnce(&mut Env) -> std::result::Result<T, E>,
@@ -1443,7 +1443,7 @@ impl<'local> Env<'local> {
     /// Since the low-level JNI interface has support for passing back a single local reference
     /// from a local frame as special-case optimization, this alternative to `with_local_frame`
     /// exposes that capability to return a local reference without needing to create a
-    /// temporary [`GlobalRef`].
+    /// temporary [`Global`].
     pub fn with_local_frame_returning_local<F, T, E>(
         &mut self,
         capacity: usize,

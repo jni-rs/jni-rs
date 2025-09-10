@@ -6,7 +6,7 @@ use jni::EnvUnowned;
 // They carry extra lifetime information to prevent them escaping from the
 // current local frame (which is the scope within which local (temporary)
 // references to Java objects remain valid)
-use jni::objects::{GlobalRef, JClass, JObject, JString};
+use jni::objects::{Global, JClass, JObject, JString};
 
 use jni::objects::JByteArray;
 
@@ -118,11 +118,11 @@ pub extern "system" fn Java_HelloWorld_factAndCallMeBack(
 
 struct Counter {
     count: i32,
-    callback: GlobalRef<JObject<'static>>,
+    callback: Global<JObject<'static>>,
 }
 
 impl Counter {
-    pub fn new(callback: GlobalRef<JObject<'static>>) -> Counter {
+    pub fn new(callback: Global<JObject<'static>>) -> Counter {
         Counter {
             count: 0,
             callback: callback,

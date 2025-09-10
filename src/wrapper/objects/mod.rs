@@ -57,11 +57,11 @@ mod jthread;
 pub use self::jthread::*;
 
 // For storing a reference to a java object
-mod global_ref;
-pub use self::global_ref::*;
+mod global;
+pub use self::global::*;
 
-mod weak_ref;
-pub use self::weak_ref::*;
+mod weak;
+pub use self::weak::*;
 
 // For automatic local ref deletion
 mod auto_local;

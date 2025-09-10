@@ -4,7 +4,7 @@ use once_cell::sync::OnceCell;
 
 use crate::{
     errors::Result,
-    objects::{GlobalRef, JClass, LoaderContext},
+    objects::{Global, JClass, LoaderContext},
     strings::JNIStr,
     sys::jobject,
     JavaVM,
@@ -26,10 +26,10 @@ use super::JObjectRef;
 /// reference belongs to. See the [`Env`] documentation for more information
 /// about local reference frames. If `'local` is `'static`, then this reference
 /// does not belong to a local reference frame, that is, it is either null or a
-/// [global reference][GlobalRef].
+/// [global reference][Global].
 ///
 /// Note that an *owned* `JObject` is always a local reference and will never
-/// have the `'static` lifetime. [`GlobalRef`] does implement
+/// have the `'static` lifetime. [`Global`] does implement
 /// <code>[AsRef]&lt;JObject&lt;'static>></code>, but this only yields a
 /// *borrowed* `&JObject<'static>`, never an owned `JObject<'static>`.
 ///
@@ -67,7 +67,7 @@ impl ::std::ops::Deref for JObject<'_> {
 }
 
 struct JObjectAPI {
-    class: GlobalRef<JClass<'static>>,
+    class: Global<JClass<'static>>,
     // no methods cached for now
 }
 impl JObjectAPI {
@@ -140,7 +140,7 @@ unsafe impl JObjectRef for JObject<'_> {
     fn lookup_class<'vm>(
         vm: &'vm JavaVM,
         _loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = GlobalRef<JClass<'static>>> + 'vm> {
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
         // As a special-case; we ignore loader_context just to be clear that there's no risk of
         // recursion. (`LoaderContext::load_class` depends on the `JObjectAPI`)
         let api = JObjectAPI::get(vm)?;
