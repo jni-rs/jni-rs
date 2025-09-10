@@ -4,12 +4,11 @@ use once_cell::sync::OnceCell;
 use thiserror::Error;
 
 use crate::{
-    env::JNIEnv,
     errors::Result,
     objects::{GlobalRef, JClass, JMethodID, JObject, LoaderContext},
     strings::{JNIStr, MUTF8Chars},
     sys::{jobject, jstring},
-    JavaVM,
+    Env, JavaVM,
 };
 
 use super::JObjectRef;
@@ -76,7 +75,7 @@ impl<'local> std::fmt::Display for JString<'local> {
 
         // The only way it's possible to have a `JString` while `JavaVM::singleton` is
         // not initialized would be if the `JString` was used to capture a native method
-        // argument and `JNIEnvUnowned::with_env` has not been called yet (and nothing
+        // argument and `EnvUnowned::with_env` has not been called yet (and nothing
         // else has initialized this crate already)
         //
         // I.e. it's highly unlikely that this should return an error.
@@ -174,7 +173,7 @@ impl JString<'_> {
     }
 
     /// Returns a canonical, interned version of this string.
-    pub fn intern<'local>(&self, env: &mut JNIEnv<'local>) -> Result<JString<'local>> {
+    pub fn intern<'local>(&self, env: &mut Env<'local>) -> Result<JString<'local>> {
         let vm = env.get_java_vm();
         let api = JStringAPI::get(&vm, &LoaderContext::None)?;
 
@@ -202,9 +201,9 @@ impl JString<'_> {
     /// For example:
     ///
     /// ```rust,no_run
-    /// # use jni::{errors::Result, env::JNIEnv, objects::*};
+    /// # use jni::{errors::Result, Env, objects::*};
     /// #
-    /// # fn f(env: &mut JNIEnv) -> Result<()> {
+    /// # fn f(env: &mut Env) -> Result<()> {
     /// let my_jstring = env.new_string(c"Hello, world!")?;
     /// let mutf8_chars = my_jstring.mutf8_chars(env)?;
     /// let rust_string = mutf8_chars.to_string();
@@ -224,7 +223,7 @@ impl JString<'_> {
     /// # Errors
     ///
     /// Returns an [Error::NullPtr] if this [`JString`] is null.
-    pub fn mutf8_chars(&self, env: &JNIEnv<'_>) -> Result<MUTF8Chars<'_, &JString<'_>>> {
+    pub fn mutf8_chars(&self, env: &Env<'_>) -> Result<MUTF8Chars<'_, &JString<'_>>> {
         MUTF8Chars::from_get_string_utf_chars(env, self)
     }
 
@@ -233,9 +232,9 @@ impl JString<'_> {
     /// For example:
     ///
     /// ```rust,no_run
-    /// # use jni::{errors::Result, env::JNIEnv, objects::*};
+    /// # use jni::{errors::Result, Env, objects::*};
     /// #
-    /// # fn f(env: &mut JNIEnv) -> Result<()> {
+    /// # fn f(env: &mut Env) -> Result<()> {
     /// let jstring = env.new_string(c"Hello, world!")?;
     /// let rust_string = jstring.try_to_string(&env)?;
     /// assert_eq!(rust_string, "Hello, world!");
@@ -246,9 +245,9 @@ impl JString<'_> {
     /// This is equivalent to calling [`mutf8_chars`] and then converting that to a `String`, like:
     ///
     /// ```rust,no_run
-    /// # use jni::{errors::Result, env::JNIEnv, objects::*};
+    /// # use jni::{errors::Result, Env, objects::*};
     /// #
-    /// # fn f(env: &mut JNIEnv) -> Result<()> {
+    /// # fn f(env: &mut Env) -> Result<()> {
     /// let jstring = env.new_string(c"Hello, world!")?;
     /// let mutf8_chars = jstring.mutf8_chars(&env)?;
     /// let rust_string = mutf8_chars.to_string();
@@ -259,7 +258,7 @@ impl JString<'_> {
     /// # Errors
     ///
     /// Returns an [Error::NullPtr] if this [`JString`] is null.
-    pub fn try_to_string(&self, env: &JNIEnv<'_>) -> Result<String> {
+    pub fn try_to_string(&self, env: &Env<'_>) -> Result<String> {
         let mutf8_chars = self.mutf8_chars(env)?;
         Ok(mutf8_chars.to_string())
     }

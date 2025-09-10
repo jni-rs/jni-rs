@@ -1,6 +1,6 @@
 #![deny(improper_ctypes_definitions)]
 
-use jni::env::JNIEnvUnowned;
+use jni::EnvUnowned;
 
 // These objects are what you should use as arguments to your native function.
 // They carry extra lifetime information to prevent them escaping from the
@@ -40,27 +40,24 @@ pub extern "system" fn Java_HelloWorld_hello<'caller_frame>(
     // attached the current thread to the JVM (so you don't need to call
     // `JavaVM::attach_current_thread` before using JNI)
     //
-    // Always use `JNIEnvUnowned` to capture raw `jni::sys::JNIEnv` pointers passed
+    // Always use `EnvUnowned` to capture raw `jni::sys::JNIEnv` pointers passed
     // to native methods, so that you can associate the pointer with a JNI stack
-    // frame lifetime and safely use `JNIEnvUnowned::with_env`.
-    mut unowned_env: JNIEnvUnowned<'caller_frame>,
+    // frame lifetime and safely use `EnvUnowned::with_env`.
+    mut unowned_env: EnvUnowned<'caller_frame>,
     // this is the class that owns our static method. Not going to be used, but
     // still needs to have an argument slot
     _class: JClass<'caller_frame>,
     input: JString<'caller_frame>,
 ) -> JString<'caller_frame> {
-    // Before we can start using the [`JNIEnv`] API we need to tell `jni-rs`
+    // Before we can start using the [`Env`] API we need to tell `jni-rs`
     // about the "unowned" thread attachment and map the raw pointer into a
-    // non-transparent [`JNIEnv`] that is (internally) associated with a thread
+    // non-transparent [`Env`] that is (internally) associated with a thread
     // attachment guard.
     unowned_env
         .with_env(|env| -> jni::errors::Result<_> {
             // First, we have to get the string out of java. Check out the `strings`
             // module for more info on how this works.
-            let input: String = env
-                .get_string(&input)
-                .expect("Couldn't get java string!")
-                .into();
+            let input: String = input.to_string();
 
             // Then we have to create a new java string to return. Again, more info
             // in the `strings` module.
@@ -77,7 +74,7 @@ pub extern "system" fn Java_HelloWorld_hello<'caller_frame>(
 
 #[no_mangle]
 pub extern "system" fn Java_HelloWorld_helloByte<'caller_frame>(
-    mut unowned_env: JNIEnvUnowned<'caller_frame>,
+    mut unowned_env: EnvUnowned<'caller_frame>,
     _class: JClass,
     input: JByteArray,
 ) -> JByteArray<'caller_frame> {
@@ -99,7 +96,7 @@ pub extern "system" fn Java_HelloWorld_helloByte<'caller_frame>(
 
 #[no_mangle]
 pub extern "system" fn Java_HelloWorld_factAndCallMeBack(
-    mut unowned_env: JNIEnvUnowned,
+    mut unowned_env: EnvUnowned,
     _class: JClass,
     n: jint,
     callback: JObject,
@@ -132,7 +129,7 @@ impl Counter {
         }
     }
 
-    pub fn increment(&mut self, env: &mut jni::env::JNIEnv) {
+    pub fn increment(&mut self, env: &mut jni::Env) {
         self.count = self.count + 1;
         env.call_method(
             &self.callback,
@@ -146,7 +143,7 @@ impl Counter {
 
 #[no_mangle]
 pub unsafe extern "system" fn Java_HelloWorld_counterNew(
-    mut unowned_env: JNIEnvUnowned,
+    mut unowned_env: EnvUnowned,
     _class: JClass,
     callback: JObject,
 ) -> jlong {
@@ -165,7 +162,7 @@ pub unsafe extern "system" fn Java_HelloWorld_counterNew(
 
 #[no_mangle]
 pub unsafe extern "system" fn Java_HelloWorld_counterIncrement(
-    mut unowned_env: JNIEnvUnowned,
+    mut unowned_env: EnvUnowned,
     _class: JClass,
     counter_ptr: jlong,
 ) {
@@ -184,7 +181,7 @@ pub unsafe extern "system" fn Java_HelloWorld_counterIncrement(
 
 #[no_mangle]
 pub unsafe extern "system" fn Java_HelloWorld_counterDestroy(
-    _unowned_env: JNIEnvUnowned,
+    _unowned_env: EnvUnowned,
     _class: JClass,
     counter_ptr: jlong,
 ) {
@@ -193,15 +190,15 @@ pub unsafe extern "system" fn Java_HelloWorld_counterDestroy(
 
 #[no_mangle]
 pub extern "system" fn Java_HelloWorld_asyncComputation(
-    mut unowned_env: JNIEnvUnowned,
+    mut unowned_env: EnvUnowned,
     _class: JClass,
     callback: JObject,
 ) {
     unowned_env
         .with_env(|env| -> jni::errors::Result<_> {
-            // `JNIEnv` cannot be sent across thread boundaries. To be able to use JNI
+            // `Env` cannot be sent across thread boundaries. To be able to use JNI
             // functions in other threads, we must first obtain the `JavaVM` interface
-            // which, unlike `JNIEnv` is `Send`.
+            // which, unlike `Env` is `Send`.
             let jvm = env.get_java_vm();
 
             // We need to obtain global reference to the `callback` object before sending
@@ -216,11 +213,11 @@ pub extern "system" fn Java_HelloWorld_asyncComputation(
                 // Signal that the thread has started.
                 tx.send(()).unwrap();
 
-                // Use the `JavaVM` interface to attach a `JNIEnv` to the current thread.
+                // Use the `JavaVM` interface to attach a `Env` to the current thread.
                 jvm.attach_current_thread(|env| -> jni::errors::Result<()> {
                     for i in 0..11 {
                         let progress = (i * 10) as jint;
-                        // Now we can use all available `JNIEnv` functionality normally.
+                        // Now we can use all available `Env` functionality normally.
                         env.call_method(&callback, c"asyncCallback", c"(I)V", &[progress.into()])
                             .unwrap();
                         thread::sleep(Duration::from_millis(100));

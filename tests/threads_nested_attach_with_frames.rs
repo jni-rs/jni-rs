@@ -33,7 +33,7 @@ fn check_nested_attach(vm: &Arc<JavaVM>) {
     vm.attach_current_thread(|_env| -> jni::errors::Result<()> {
         check_attached(vm);
 
-        // Alias the outer _env so we avoid having more than one mutable JNIEnv in scope
+        // Alias the outer _env so we avoid having more than one mutable Env in scope
         vm.attach_current_thread(|_env| -> jni::errors::Result<()> {
             check_attached(vm);
             Ok(())

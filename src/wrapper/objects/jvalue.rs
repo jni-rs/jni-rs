@@ -8,7 +8,7 @@ use crate::signature::JavaType;
 use crate::{errors::*, objects::JObject, signature::Primitive, sys::*};
 
 #[cfg(doc)]
-use crate::JNIEnv;
+use crate::env::Env;
 
 /// A Java owned local reference or primitive value.
 ///
@@ -486,7 +486,7 @@ impl TryFrom<char> for JValue<'_> {
 ///
 /// * Use Java `int`s containing UTF-32. You can encode a Java `String` as a sequence of UTF-32 `int`s using its [`codePoints`] method, then use [`char_from_java_int`] to convert each one to a Rust `char`.
 ///
-/// * Convert a Java `String` using [`JNIEnv::get_string`].
+/// * Convert a Java `String` using [`Env::get_string`].
 ///
 /// * Convert multiple Java `char`s at a time (such as in a Java `char[]` array) using [`char::decode_utf16`] (which this function is a simple wrapper around). That will properly convert any surrogate pairs among the Java `char`s.
 ///
@@ -512,7 +512,7 @@ pub fn char_from_java(char: jchar) -> std::result::Result<char, DecodeUtf16Error
 ///
 /// * Use Java `int`s containing UTF-32. You can convert a Rust `char` to a Java `int` containing UTF-32 using [`char_to_java_int`], which never fails.
 ///
-/// * Convert a Rust [`str`] to a Java `String` using [`JNIEnv::new_string`].
+/// * Convert a Rust [`str`] to a Java `String` using [`Env::new_string`].
 ///
 /// * Convert a Rust `char` to multiple Java `char`s at a time using [`char::encode_utf16`] (which this function is a wrapper around). That will properly generate surrogate pairs as needed.
 ///

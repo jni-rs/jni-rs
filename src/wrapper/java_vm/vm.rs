@@ -9,7 +9,7 @@ use std::{
 use log::{debug, error};
 
 use crate::{
-    env::JNIEnv,
+    env::Env,
     errors::*,
     objects::{GlobalRef, JObject, JObjectRef},
     strings::JNIString,
@@ -35,7 +35,7 @@ pub const DEFAULT_LOCAL_FRAME_CAPACITY: usize = 32;
 ///
 /// This allows us to save a global pointer for the JavaVM.
 ///
-/// We also guarantee that if you currently have an [`AttachGuard`] thread attachment (or a `JNIEnv`
+/// We also guarantee that if you currently have an [`AttachGuard`] thread attachment (or a `Env`
 /// reference), that implies that [`JavaVM::singleton()`] has been initialized and will return a
 /// valid [`JavaVM`].
 ///
@@ -45,7 +45,7 @@ static JAVA_VM_SINGLETON: once_cell::sync::OnceCell<JavaVM> = once_cell::sync::O
 
 /// The Java VM API, including (optional) [Invocation API][invocation-api] support.
 ///
-/// An existing JavaVM can be obtained either via [`JavaVM::singleton`], or [`JNIEnv::get_java_vm`]
+/// An existing JavaVM can be obtained either via [`JavaVM::singleton`], or [`Env::get_java_vm`]
 /// in an already attached thread, or a new VM can be [launched](#launching-jvm-from-rust) via
 /// [`JavaVM::new`].
 ///
@@ -56,30 +56,30 @@ static JAVA_VM_SINGLETON: once_cell::sync::OnceCell<JavaVM> = once_cell::sync::O
 /// The implementation wouldn't be able to call `ExceptionCheck` without JNI 1.2 and requiring >=
 /// 1.4 means we don't need any runtime version checks for the direct byte buffer APIs.
 ///
-/// Since `GetVersion` requires a [`JNIEnv`] and is not one of the JNI APIs that is safe to use with
+/// Since `GetVersion` requires a [`Env`] and is not one of the JNI APIs that is safe to use with
 /// pending exceptions then the implementation is not always able to explicitly assert the supported
 /// version.
 ///
 /// ## Attaching Native Threads
 ///
 /// Your application always needs to explicitly attach `jni-rs` to the current thread before it can
-/// access the [`JNIEnv`] API (most of the interesting APIs are under [`JNIEnv`]).
+/// access the [`Env`] API (most of the interesting APIs are under [`Env`]).
 ///
 /// If you're implementing a native/foreign method then JNI will pass a thread attachment (in the
 /// form of a raw [`sys::JNIEnv`] pointer that should be captured using the
-/// [`env::JNIEnvUnowned`] type) and converted into a [`JNIEnv`] reference via
-/// [`env::JNIEnvUnowned::with_env`])
+/// [`env::EnvUnowned`] type) and converted into a [`Env`] reference via
+/// [`env::EnvUnowned::with_env`])
 ///
-/// Note: [`JNIEnv`] is not a `#[transparent]` wrapper over a [`sys::JNIEnv`] pointer.
+/// Note: [`Env`] is not a `#[transparent]` wrapper over a [`sys::JNIEnv`] pointer.
 ///
 /// The attachment of the current thread is always represented via an [`AttachGuard`] which blocks
 /// the thread from being detached and acts as a marker for a JNI stack frame.
 ///
-/// [`JNIEnv`] is only ever exposed in the public API by-reference, and will always borrow from an
+/// [`Env`] is only ever exposed in the public API by-reference, and will always borrow from an
 /// [`AttachGuard`] such that it's lifetime is tied to a fixed JNI stack frame.
 ///
 /// Unless you are using `unsafe` APIs though, the [`AttachGuard`] itself will usually be hidden,
-/// and you will get a [`JNIEnv`] reference (that borrows from a hidden [`AttachGuard`]).
+/// and you will get a [`Env`] reference (that borrows from a hidden [`AttachGuard`]).
 ///
 /// This library supports these modes of attachment:
 /// * A permanent attachment with [`JavaVM::attach_current_thread`]. The thread will automatically
@@ -97,7 +97,7 @@ static JAVA_VM_SINGLETON: once_cell::sync::OnceCell<JavaVM> = once_cell::sync::O
 /// they are no longer needed to enable the GC to collect them.
 ///
 /// A common approach is to push appropriately-sized local frames for larger
-/// code fragments (see [`JNIEnv::with_local_frame`] or [`JavaVM::with_env`])
+/// code fragments (see [`Env::with_local_frame`] or [`JavaVM::with_env`])
 /// and [`objects::AutoLocal`] for temporary references in loops.
 ///
 /// See also the [JNI specification][spec-references] for details on referencing Java objects.
@@ -120,7 +120,7 @@ static JAVA_VM_SINGLETON: once_cell::sync::OnceCell<JavaVM> = once_cell::sync::O
 /// # // Ignore this test without invocation feature, so that simple `cargo test` works
 /// # #[cfg(feature = "invocation")]
 /// # fn main() -> errors::StartJvmResult<()> {
-/// # use jni::{AttachGuard, objects::JValue, InitArgsBuilder, JNIEnv, JNIVersion, JavaVM, sys::jint};
+/// # use jni::{AttachGuard, objects::JValue, InitArgsBuilder, Env, JNIVersion, JavaVM, sys::jint};
 /// # //
 /// // Build the VM properties
 /// let jvm_args = InitArgsBuilder::new()
@@ -169,7 +169,7 @@ static JAVA_VM_SINGLETON: once_cell::sync::OnceCell<JavaVM> = once_cell::sync::O
 /// The exact relative path to `jvm` library is version-specific.
 ///
 /// [invocation-api]: https://docs.oracle.com/en/java/javase/12/docs/specs/jni/invocation.html
-/// [get-vm]: struct.JNIEnv.html#method.get_java_vm
+/// [get-vm]: struct.Env.html#method.get_java_vm
 /// [launch-vm]: struct.JavaVM.html#method.new
 /// [act]: struct.JavaVM.html#method.attach_current_thread
 /// [actp]: struct.JavaVM.html#method.attach_current_thread_permanently
@@ -221,14 +221,14 @@ impl JavaVM {
     /// initializing a new one and so as soon as we have seen a Java VM pointer once, we know it's
     /// the only VM that will ever exist and it will always be valid in safe code.
     ///
-    /// If your code observes a [`JNIEnv`] reference or an [`AttachGuard`] (from this crate version)
+    /// If your code observes a [`Env`] reference or an [`AttachGuard`] (from this crate version)
     /// then you can assume that [`JavaVM::singleton()`] has been initialized.
     ///
     /// Beware that the observation of reference types (such as [`crate::objects::JObject`]) only
     /// imply that [`JavaVM::singleton()`] has been initialized if the references are non-null.
     ///
     /// One other caveat is that native methods may capture reference type arguments, such as
-    /// [`JObject`], where their lifetime is _not_ tied to a real `JNIEnv`. (And so at the start of
+    /// [`JObject`], where their lifetime is _not_ tied to a real `Env`. (And so at the start of
     /// a native method, [`JavaVM::singleton()`] may not be initialized even though we can observe
     /// reference types).
     ///
@@ -236,10 +236,10 @@ impl JavaVM {
     /// if you observe non-null reference types, based on the assumption that:
     ///
     /// - Before any other `jni-rs` API is used, a native method is expected to use
-    ///   [`env::JNIEnvUnowned::with_env`] to get a `JNIEnv` reference, which will initialize
+    ///   [`env::EnvUnowned::with_env`] to get a `Env` reference, which will initialize
     ///   [`JavaVM::singleton()`].
     /// - For any native method implementation to be safe, it must use `catch_unwind` (e.g. via
-    ///   [`env::JNIEnvUnowned::with_env`]) to ensure that panics can't unwind over an FFI boundary
+    ///   [`env::EnvUnowned::with_env`]) to ensure that panics can't unwind over an FFI boundary
     ///   (at least rendering an early miss-use of `JavaVM::singleton()` "safe").
     ///
     /// Note: that other versions of `jni-rs` within the same application aren't able to share this
@@ -377,7 +377,7 @@ impl JavaVM {
         self.0
     }
 
-    pub(crate) fn from_env(env: &JNIEnv) -> Self {
+    pub(crate) fn from_env(env: &Env) -> Self {
         // Don't use `.get_or_init()` here because it would deadlock if calling `JavaVM::from_raw`
         // which also uses `.get_or_init()`
         if let Some(jvm) = JAVA_VM_SINGLETON.get() {
@@ -387,12 +387,12 @@ impl JavaVM {
             let res = unsafe { jni_call_unchecked!(env, v1_1, GetJavaVM, &mut raw) };
             let res = jni_error_code_to_result(res);
 
-            // If we have a JNIEnv reference then we can assume we have a valid, non-null JNIEnv
+            // If we have a Env reference then we can assume we have a valid, non-null Env
             // pointer and there should be no reason for GetJavaVM to fail.
             //
             // If it would fail, we assume that would be breaking fundamental invariants we
             // rely on within jni-rs so we wouldn't consider it safe in any case.
-            res.expect("Spurious failure to get JavaVM from JNIEnv");
+            res.expect("Spurious failure to get JavaVM from Env");
 
             // Safety: The pointer from GetJavaVM should be valid
             unsafe { JavaVM::from_raw(raw) }
@@ -400,7 +400,7 @@ impl JavaVM {
     }
 
     /// Attaches the current thread to the Java VM and calls the provided callback with a mutable
-    /// [`JNIEnv`] reference.
+    /// [`Env`] reference.
     ///
     /// If the thread was not already attached then a new attachment is made which will be
     /// automatically detached when the current thread terminates.
@@ -420,34 +420,34 @@ impl JavaVM {
     /// [`Self::attach_current_thread_for_scope`], then you should probably use this API because it
     /// increases the chance that future attachment calls will be cheap.
     ///
-    /// # One mutable JNIEnv per scope rule
+    /// # One mutable Env per scope rule
     ///
     /// Remember:
-    /// - Each [JNIEnv] has a lifetime that ties it to a JNI stack frame that holds local
+    /// - Each [Env] has a lifetime that ties it to a JNI stack frame that holds local
     ///   references.
-    /// - A mutable [JNIEnv] allows you to create new local references that would have a lifetime
+    /// - A mutable [Env] allows you to create new local references that would have a lifetime
     ///   for the associated stack frame.
     /// - Since new local references can only be created in the top JNI stack frame; you should only
-    ///   ever have one mutable [JNIEnv] in scope at a time, which is associated with the top JNI
+    ///   ever have one mutable [Env] in scope at a time, which is associated with the top JNI
     ///   stack frame.
     ///
-    /// Although the `jni-rs` API tries to constrain access to mutable [JNIEnv] references through
+    /// Although the `jni-rs` API tries to constrain access to mutable [Env] references through
     /// the borrow checker, at compile time, a Java VM is a global resource that can be accessed in
     /// a myriad of ways that Rust can't limit.
     ///
     /// `jni-rs` also cannot differentiate (at runtime or compile time) whether some scope already
-    /// has access to a mutable [JNIEnv] because `jni-rs` may be used across multiple orthogonal
+    /// has access to a mutable [Env] because `jni-rs` may be used across multiple orthogonal
     /// crates that may work at different levels of the stack.
     ///
     /// So, in addition to the compile-time borrow checker, `jni-rs` also implements runtime checks
-    /// that will `panic` if you try to create a new local reference with a mutable [JNIEnv] that is
+    /// that will `panic` if you try to create a new local reference with a mutable [Env] that is
     /// not associated with the top JNI stack frame.
     ///
     /// To avoid being exposed to runtime borrow checking for the JNI stack frames, this API should
-    /// never be used to materialize access to a mutable [JNIEnv] if you already have a mutable
-    /// [JNIEnv] in scope.
+    /// never be used to materialize access to a mutable [Env] if you already have a mutable
+    /// [Env] in scope.
     ///
-    /// As long as you only ever have one mutable [JNIEnv] then you can rely on the compile-time
+    /// As long as you only ever have one mutable [Env] then you can rely on the compile-time
     /// borrow checker making sure you can only create new local references that are associated with
     /// the top of the JNI stack.
     ///
@@ -456,7 +456,7 @@ impl JavaVM {
     /// with the middle of the stack.
     pub fn attach_current_thread<F, T, E>(&self, callback: F) -> std::result::Result<T, E>
     where
-        F: FnOnce(&mut JNIEnv) -> std::result::Result<T, E>,
+        F: FnOnce(&mut Env) -> std::result::Result<T, E>,
         E: From<Error>,
     {
         self.attach_current_thread_with_config(
@@ -467,7 +467,7 @@ impl JavaVM {
     }
 
     /// Attaches the current thread to the Java VM and calls the provided callback with a mutable
-    /// [`JNIEnv`] reference.
+    /// [`Env`] reference.
     ///
     /// If the thread was not already attached, the thread will be detached when the callback
     /// returns.
@@ -481,12 +481,12 @@ impl JavaVM {
     /// increase the chance that you incur the cost of repeatedly attaching and detaching the same
     /// thread.
     ///
-    /// # One mutable JNIEnv per scope rule
+    /// # One mutable Env per scope rule
     ///
     /// See [`JavaVM::attach_current_thread`](#one-mutable-jnienv-per-scope-rule) for details.
     pub fn attach_current_thread_for_scope<F, T, E>(&self, callback: F) -> std::result::Result<T, E>
     where
-        F: FnOnce(&mut JNIEnv) -> std::result::Result<T, E>,
+        F: FnOnce(&mut Env) -> std::result::Result<T, E>,
         E: From<Error>,
     {
         self.attach_current_thread_with_config(
@@ -497,7 +497,7 @@ impl JavaVM {
     }
 
     /// Attaches the current thread to the Java VM and calls the provided callback with a mutable
-    /// [`JNIEnv`] reference.
+    /// [`Env`] reference.
     ///
     /// This function allows you to customize the attachment process and choose whether to create
     /// a new local frame (with a given capacity) or use the current one.
@@ -510,7 +510,7 @@ impl JavaVM {
     /// # use jni::{JavaVM, AttachConfig, DEFAULT_LOCAL_FRAME_CAPACITY};
     /// # fn jni_example(vm: &JavaVM) -> jni::errors::Result<()> {
     ///      vm.attach_current_thread_with_config(AttachConfig::default, Some(DEFAULT_LOCAL_FRAME_CAPACITY), |env| {
-    ///          // Use the JNIEnv reference
+    ///          // Use the Env reference
     ///          Ok(())
     ///      })
     /// # }
@@ -521,7 +521,7 @@ impl JavaVM {
     /// # use jni::{JavaVM, AttachConfig, DEFAULT_LOCAL_FRAME_CAPACITY};
     /// # fn jni_example(vm: &JavaVM) -> jni::errors::Result<()> {
     ///      vm.attach_current_thread_with_config(|| AttachConfig::default().scoped(true), Some(DEFAULT_LOCAL_FRAME_CAPACITY), |env| {
-    ///          // Use the JNIEnv reference
+    ///          // Use the Env reference
     ///          Ok(())
     ///      })
     /// # }
@@ -529,7 +529,7 @@ impl JavaVM {
     ///
     /// See [`Self::attach_current_thread`], [`Self::attach_current_thread_for_scope`] and [`AttachConfig`] for more details.
     ///
-    /// # One mutable JNIEnv per scope rule
+    /// # One mutable Env per scope rule
     ///
     /// See [`JavaVM::attach_current_thread`](#one-mutable-jnienv-per-scope-rule) for details.
     pub fn attach_current_thread_with_config<'config, F, C, T, E>(
@@ -539,7 +539,7 @@ impl JavaVM {
         callback: F,
     ) -> std::result::Result<T, E>
     where
-        F: FnOnce(&mut JNIEnv) -> std::result::Result<T, E>,
+        F: FnOnce(&mut Env) -> std::result::Result<T, E>,
         E: From<Error>,
         C: FnOnce() -> AttachConfig<'config>,
     {
@@ -559,7 +559,7 @@ impl JavaVM {
     /// This is a low-level (unsafe) building block for [`Self::attach_current_thread`],
     /// [`Self::attach_current_thread_for_scope`] and [`Self::attach_current_thread_with_config`]
     /// that allows for more fine-grained control over the attachment process and how you borrow an
-    /// `JNIEnv` reference from the guard.
+    /// `Env` reference from the guard.
     ///
     /// The given `config` callback is only lazily called if the thread was not already attached and
     /// returns a [`AttachConfig`] that you can use to customize the attachment.
@@ -579,7 +579,7 @@ impl JavaVM {
     ///
     ///     pub fn my_attach_current_thread<F, T, E>(&self, callback: F) -> std::result::Result<T, E>
     ///     where
-    ///         F: FnOnce(&mut jni::env::JNIEnv) -> std::result::Result<T, E>,
+    ///         F: FnOnce(&mut jni::Env) -> std::result::Result<T, E>,
     ///         E: From<jni::errors::Error>,
     ///     {
     ///         // Safety: The guard will remain fixed on the stack by keeping the guard
@@ -600,7 +600,7 @@ impl JavaVM {
     /// See the 'Safety' rules for [`AttachGuard`]
     ///
     /// The main concern is that you must keep the [`AttachGuard`] on the stack and it must not
-    /// move. This can be achieved by hiding it from safe code, only exposing a temporary [`JNIEnv`]
+    /// move. This can be achieved by hiding it from safe code, only exposing a temporary [`Env`]
     /// reference that borrows from the guard (as in the example above).
     ///
     pub unsafe fn attach_current_thread_guard<'config, F>(&self, config: F) -> Result<AttachGuard>
@@ -635,7 +635,7 @@ impl JavaVM {
 
     /// Explicitly detaches the current thread from the JVM, **IFF** it was previously attached
     /// using [`JavaVM::attach_current_thread`] **AND** if there is no [`AttachGuard`] also keeping
-    /// the current thread attached (I.e. you have no [`JNIEnv`] reference in scope).
+    /// the current thread attached (I.e. you have no [`Env`] reference in scope).
     ///
     /// This will always return an error if there are currently any active [`AttachGuard`]s
     /// (detaching the thread in this case would effectively turn guards into invalid, dangling
@@ -677,7 +677,7 @@ impl JavaVM {
         THREAD_GUARD_NEST_LEVEL.get()
     }
 
-    /// Get an [`AttachGuard`] for the [`JNIEnv`] associated with the current thread or, if JNI is
+    /// Get an [`AttachGuard`] for the [`Env`] associated with the current thread or, if JNI is
     /// not attached to the Java VM, this will return [`Error::JniCall()`] with
     /// [`JniError::ThreadDetached`].
     ///
@@ -686,7 +686,7 @@ impl JavaVM {
     /// supported).
     ///
     /// Hypothetically the JNI spec allows for the possibility for an implementation to return a
-    /// different JNIEnv pointer that nulls out functions that aren't valid for that version (or
+    /// different Env pointer that nulls out functions that aren't valid for that version (or
     /// dispatches calls differently).
     ///
     /// If we ever find a JVM implementation that in fact returns a different pointer then we could
@@ -725,7 +725,7 @@ impl JavaVM {
         }
     }
 
-    /// Returns an [`AttachGuard`] for the [`JNIEnv`] associated with the current thread or, `None`
+    /// Returns an [`AttachGuard`] for the [`Env`] associated with the current thread or, `None`
     /// if JNI is not attached to the Java VM.
     ///
     /// This serves a similar purpose to [`sys::JNIInvokeInterface__1_2::GetEnv`] in that it
@@ -751,7 +751,7 @@ impl JavaVM {
         }
     }
 
-    /// Returns an [`AttachGuard`] for the [`JNIEnv`] associated with the current thread.
+    /// Returns an [`AttachGuard`] for the [`Env`] associated with the current thread.
     ///
     /// If JNI is not attached to the Java VM, this will return [`Error::JniCall()`] with
     /// [`JniError::ThreadDetached`].
@@ -776,7 +776,7 @@ impl JavaVM {
         }
     }
 
-    /// Runs a closure with a borrowed [`JNIEnv`] associated with a new JNI stack frame that will be
+    /// Runs a closure with a borrowed [`Env`] associated with a new JNI stack frame that will be
     /// unwound to release all local references created within the given closure.
     ///
     /// If JNI is not attached to the Java VM, this will return [`Error::JniCall()`] with
@@ -790,7 +790,7 @@ impl JavaVM {
     /// `capacity`, to create a new JNI stack frame, and calls
     /// [`sys::JNINativeInterface__1_2::PopLocalFrame`] after the closure is executed.
     ///
-    /// # One mutable JNIEnv per scope rule
+    /// # One mutable Env per scope rule
     ///
     /// See [`JavaVM::attach_current_thread`](#one-mutable-jnienv-per-scope-rule) for details.
     pub fn with_env_with_capacity<F, T, E>(
@@ -799,7 +799,7 @@ impl JavaVM {
         f: F,
     ) -> std::result::Result<T, E>
     where
-        F: FnOnce(&mut JNIEnv) -> std::result::Result<T, E>,
+        F: FnOnce(&mut Env) -> std::result::Result<T, E>,
         E: From<Error>,
     {
         unsafe {
@@ -808,7 +808,7 @@ impl JavaVM {
         }
     }
 
-    /// Runs a closure with a borrowed [`JNIEnv`] associated with a new JNI stack frame that will be
+    /// Runs a closure with a borrowed [`Env`] associated with a new JNI stack frame that will be
     /// unwound to release all local references created within the given closure.
     ///
     /// If JNI is not attached to the Java VM, this will return [`Error::JniCall()`] with
@@ -822,18 +822,18 @@ impl JavaVM {
     /// of [`DEFAULT_LOCAL_FRAME_CAPACITY`] to create a new JNI stack frame and calls
     /// [`sys::JNINativeInterface__1_2::PopLocalFrame`] after the closure is executed.
     ///
-    /// # One mutable JNIEnv per scope rule
+    /// # One mutable Env per scope rule
     ///
     /// See [`JavaVM::attach_current_thread`](#one-mutable-jnienv-per-scope-rule) for details.
     pub fn with_env<F, T, E>(&self, f: F) -> std::result::Result<T, E>
     where
-        F: FnOnce(&mut JNIEnv) -> std::result::Result<T, E>,
+        F: FnOnce(&mut Env) -> std::result::Result<T, E>,
         E: From<Error>,
     {
         self.with_env_with_capacity(DEFAULT_LOCAL_FRAME_CAPACITY, f)
     }
 
-    /// Runs a closure with a borrowed [`JNIEnv`] associated with the current (top) JNI stack frame.
+    /// Runs a closure with a borrowed [`Env`] associated with the current (top) JNI stack frame.
     ///
     /// Unlike [`Self::with_env()`], this API does not push a new JNI stack frame.
     ///
@@ -848,7 +848,7 @@ impl JavaVM {
     /// likely to have a higher cost than pushing/popping a JNI stack frame.
     pub fn with_env_current_frame<F, T, E>(&self, f: F) -> std::result::Result<T, E>
     where
-        F: FnOnce(&mut JNIEnv) -> std::result::Result<T, E>,
+        F: FnOnce(&mut Env) -> std::result::Result<T, E>,
         E: From<Error>,
     {
         unsafe {
@@ -1028,17 +1028,17 @@ unsafe fn sys_attach_current_thread(
     Ok(env_ptr as *mut sys::JNIEnv)
 }
 
-/// Detach a thread, asserting that we own the current attachment and have a valid `JNIEnv` pointer
+/// Detach a thread, asserting that we own the current attachment and have a valid `Env` pointer
 ///
 /// Although `DetachCurrentThread` is part of the `JavaVM` "invocation" API and doesn't require a
-/// `JNIEnv` pointer, we want to constrain this code to only ever detach threads if we own the
+/// `Env` pointer, we want to constrain this code to only ever detach threads if we own the
 /// current attachment.
 unsafe fn sys_detach_current_thread(env_ptr: *mut jni_sys::JNIEnv, thread: &Thread) -> Result<()> {
     assert_eq!(JavaVM::thread_attach_guard_level(), 0);
 
     unsafe {
         let mut guard = AttachGuard::from_unowned(env_ptr);
-        let env = JNIEnv::new(&mut guard);
+        let env = Env::new(&mut guard);
         let vm = env.get_java_vm();
 
         let vm_get_env_guard = vm.sys_get_env_attachment()?;
@@ -1068,7 +1068,7 @@ thread_local! {
 }
 
 /// Represents a JNI attachment of the current thread to a Java VM, which is
-/// required before you can access the [`JNIEnv`] API.
+/// required before you can access the [`Env`] API.
 ///
 /// If the [`AttachGuard`] "owns" the underlying JNI thread attachment, that
 /// means the guard will automatically detach the current thread from the Java
@@ -1099,7 +1099,7 @@ thread_local! {
 /// # JavaVM::singleton() guarantee
 ///
 /// If you know that at least one [`AttachGuard`] has ever existed (which is
-/// implied if you have a `JNIEnv` reference or any non-null reference type
+/// implied if you have a `Env` reference or any non-null reference type
 /// (like `JObject` or `GlobalRef`) you can assume that [`JavaVM::singleton()`]
 /// will return `Some(JavaVM)`.
 ///
@@ -1115,22 +1115,22 @@ thread_local! {
 ///
 /// 1. You must never materialise a thread attachment guard into any scope where
 ///    you already have an accessible [`AttachGuard`] or where you have some
-///    safe way of accessing a mutable [`JNIEnv`].
+///    safe way of accessing a mutable [`Env`].
 ///
 ///    It _is_ OK to create a redundant [`AttachGuard`] in case there may
 ///    already be a guard for an attachment lower on the stack (owned by some
 ///    function that has called you) but it's not safe if the code in your
 ///    current scope can directly access a pre-existing guard or mutable
-///    [`JNIEnv`].
+///    [`Env`].
 ///
 /// 2. You must treat a guard as an immovable type that needs to live on the
 ///    stack and can't be given a `'static` lifetime (e.g. by boxing or moving
 ///    into a `static` variable) or re-ordered relative to other guards on the
 ///    stack.
 ///
-///    When a guard is borrowed to access a [`JNIEnv`] reference, it would not
-///    be safe if you could give yourself access to a `'static` `JNIEnv`
-///    reference, because the lifetime associated with a `JNIEnv` is used to
+///    When a guard is borrowed to access a [`Env`] reference, it would not
+///    be safe if you could give yourself access to a `'static` `Env`
+///    reference, because the lifetime associated with a `Env` is used to
 ///    associate JNI local references with a JNI stack frame.
 ///
 /// # Panics
@@ -1182,7 +1182,7 @@ impl AttachGuard {
     ///
     /// # Safety
     ///
-    /// The pointer must be non-null and correspond to a valid [`JNIEnv`]
+    /// The pointer must be non-null and correspond to a valid [`Env`]
     /// pointer that is attached to the current thread.
     ///
     /// The returned guard must be managed according to the general
@@ -1199,7 +1199,7 @@ impl AttachGuard {
         };
 
         unsafe {
-            let env = JNIEnv::new(&mut guard);
+            let env = Env::new(&mut guard);
             // Guarantee that if you have an `AttachGuard` then
             // `JavaVM::singleton()` will always return `Some(JavaVM)`
             let _vm = env.get_java_vm();
@@ -1213,11 +1213,11 @@ impl AttachGuard {
     /// current thread on drop.
     ///
     /// This can be use when implementing native JNI methods (that are passed an
-    /// attached [`sys::JNIEnv`] pointer) as a way to access the [`JNIEnv`] API.
+    /// attached [`sys::JNIEnv`] pointer) as a way to access the [`Env`] API.
     ///
     /// # Safety
     ///
-    /// The pointer must be non-null and correspond to a valid [`JNIEnv`]
+    /// The pointer must be non-null and correspond to a valid [`Env`]
     /// pointer that is attached to the current thread.
     ///
     /// The returned guard must be managed according to the general
@@ -1233,7 +1233,7 @@ impl AttachGuard {
         };
 
         unsafe {
-            let env = JNIEnv::new(&mut guard);
+            let env = Env::new(&mut guard);
             // Guarantee that if you have an `AttachGuard` then `JavaVM::singleton()` will
             // always return `Some(JavaVM)`
             let _vm = env.get_java_vm();
@@ -1253,7 +1253,7 @@ impl AttachGuard {
         self.should_detach
     }
 
-    /// Runs a closure with a borrowed [`JNIEnv`] associated with a new JNI stack
+    /// Runs a closure with a borrowed [`Env`] associated with a new JNI stack
     /// frame that will be unwound to release all local references created within
     /// the given closure.
     ///
@@ -1263,7 +1263,7 @@ impl AttachGuard {
     /// top JNI stack frame.
     pub fn with_env<F, T, E>(&mut self, capacity: usize, f: F) -> std::result::Result<T, E>
     where
-        F: FnOnce(&mut JNIEnv) -> std::result::Result<T, E>,
+        F: FnOnce(&mut Env) -> std::result::Result<T, E>,
         E: From<Error>,
     {
         // Assuming that the application doesn't break the safety rules for
@@ -1271,11 +1271,11 @@ impl AttachGuard {
         // we can assert that we will only ever borrow from the top-most
         // guard on the stack
         assert_eq!(THREAD_GUARD_NEST_LEVEL.get(), self.level + 1);
-        let mut env = unsafe { JNIEnv::new(self) };
+        let mut env = unsafe { Env::new(self) };
         env.with_local_frame(capacity, |jni_env| f(jni_env))
     }
 
-    /// Runs a closure with a borrowed [`JNIEnv`] associated with a new JNI stack
+    /// Runs a closure with a borrowed [`Env`] associated with a new JNI stack
     /// frame that will be unwound to release all local references created within
     /// the given closure, except for a single return value reference.
     ///
@@ -1290,7 +1290,7 @@ impl AttachGuard {
     ) -> std::result::Result<T::Kind<'local>, E>
     where
         F: for<'new_local> FnOnce(
-            &mut JNIEnv<'new_local>,
+            &mut Env<'new_local>,
         ) -> std::result::Result<T::Kind<'new_local>, E>,
         T: JObjectRef,
         E: From<Error>,
@@ -1300,11 +1300,11 @@ impl AttachGuard {
         // we can assert that we will only ever borrow from the top-most
         // guard on the stack
         assert_eq!(THREAD_GUARD_NEST_LEVEL.get(), self.level + 1);
-        let mut env = unsafe { JNIEnv::new(self) };
+        let mut env = unsafe { Env::new(self) };
         env.with_local_frame_returning_local::<_, T, E>(capacity, |jni_env| f(jni_env))
     }
 
-    /// Runs a closure with a borrowed [`JNIEnv`] associated with the guard's
+    /// Runs a closure with a borrowed [`Env`] associated with the guard's
     /// JNI stack frame (which must currently be the top stack frame)
     ///
     /// Most of the time this API should probably be avoided (see
@@ -1323,7 +1323,7 @@ impl AttachGuard {
     /// top JNI stack frame.
     pub fn with_env_current_frame<F, T, E>(&mut self, f: F) -> std::result::Result<T, E>
     where
-        F: FnOnce(&mut JNIEnv) -> std::result::Result<T, E>,
+        F: FnOnce(&mut Env) -> std::result::Result<T, E>,
         E: From<Error>,
     {
         // Assuming that the application doesn't break the safety rules for
@@ -1334,8 +1334,8 @@ impl AttachGuard {
 
         // Assuming that the application doesn't break the safety rules for
         // keeping the `AttachGuard` on the stack, we know we won't create
-        // a 'static JNIEnv here.
-        let mut env = unsafe { JNIEnv::new(self) };
+        // a 'static Env here.
+        let mut env = unsafe { Env::new(self) };
         f(&mut env)
     }
 

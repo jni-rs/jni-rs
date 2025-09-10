@@ -4,7 +4,7 @@ use std::ops::Deref;
 use once_cell::sync::OnceCell;
 
 use crate::{
-    env::JNIEnv,
+    env::Env,
     errors::Result,
     objects::{
         AutoElements, AutoElementsCritical, GlobalRef, JClass, JObject, JObjectRef, LoaderContext,
@@ -98,7 +98,7 @@ impl<'local, T: TypeArray> JPrimitiveArray<'local, T> {
     }
 
     /// Returns the length of the array.
-    pub fn len(&self, env: &JNIEnv) -> Result<usize> {
+    pub fn len(&self, env: &Env) -> Result<usize> {
         let array = null_check!(self.as_raw(), "JPrimitiveArray::len self argument")?;
         let len = unsafe { jni_call_unchecked!(env, v1_1, GetArrayLength, array) } as usize;
         Ok(len)
@@ -157,12 +157,12 @@ impl<'local, T: TypeArray> JPrimitiveArray<'local, T> {
     /// behaviour within the JVM.
     ///
     /// Also see
-    /// [`JNIEnv::get_array_elements_critical`] which
+    /// [`Env::get_array_elements_critical`] which
     /// imposes additional restrictions that make it less likely to incur the
     /// cost of copying the array elements.
     pub unsafe fn get_elements(
         &self,
-        env: &JNIEnv,
+        env: &Env,
         mode: ReleaseMode,
     ) -> Result<AutoElements<'local, T, &Self>> {
         AutoElements::new(env, self, mode)
@@ -263,7 +263,7 @@ impl<'local, T: TypeArray> JPrimitiveArray<'local, T> {
     /// the array elements.
     pub unsafe fn get_elements_critical(
         &self,
-        env: &JNIEnv<'_>,
+        env: &Env<'_>,
         mode: ReleaseMode,
     ) -> Result<AutoElementsCritical<'local, T, &Self>> {
         AutoElementsCritical::new(env, self, mode)
@@ -277,14 +277,14 @@ impl<'local, T: TypeArray> JPrimitiveArray<'local, T> {
     /// then no elements are copied, an `ArrayIndexOutOfBoundsException` is thrown,
     /// and `Err` is returned.
     ///
-    /// [`array.length`]: struct.JNIEnv.html#method.get_array_length
-    pub fn get_region(&self, env: &JNIEnv, start: crate::sys::jsize, buf: &mut [T]) -> Result<()> {
+    /// [`array.length`]: struct.Env.html#method.get_array_length
+    pub fn get_region(&self, env: &Env, start: crate::sys::jsize, buf: &mut [T]) -> Result<()> {
         unsafe { T::get_region(env, self.as_raw() as jarray, start, buf) }
     }
 
     /// Copy the contents of the `buf` slice to the java byte array at the
     /// `start` index.
-    pub fn set_region(&self, env: &JNIEnv, start: crate::sys::jsize, buf: &[T]) -> Result<()> {
+    pub fn set_region(&self, env: &Env, start: crate::sys::jsize, buf: &[T]) -> Result<()> {
         unsafe { T::set_region(env, self.as_raw() as jarray, start, buf) }
     }
 }
@@ -317,7 +317,7 @@ pub type JDoubleArray<'local> = JPrimitiveArray<'local, crate::sys::jdouble>;
 ///
 /// # Safety
 ///
-/// Implementing this trait will allow a type to be passed to [`JNIEnv::get_array_length()`]
+/// Implementing this trait will allow a type to be passed to [`Env::get_array_length()`]
 /// or other JNI APIs that only work with a valid reference to an array (or `null`)
 ///
 pub unsafe trait AsJArrayRaw<'local>: AsRef<JObject<'local>> {

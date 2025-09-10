@@ -3,7 +3,7 @@ use std::ops::Deref;
 use once_cell::sync::OnceCell;
 
 use crate::{
-    env::JNIEnv,
+    env::Env,
     errors::Result,
     objects::{
         GlobalRef, JClassLoader, JMethodID, JObject, JStaticMethodID, JValue, LoaderContext,
@@ -119,10 +119,7 @@ impl JClass<'_> {
     /// # Throws
     ///
     /// `SecurityException` if the class loader cannot be accessed.
-    pub fn get_class_loader<'local>(
-        &self,
-        env: &mut JNIEnv<'local>,
-    ) -> Result<JClassLoader<'local>> {
+    pub fn get_class_loader<'local>(&self, env: &mut Env<'local>) -> Result<JClassLoader<'local>> {
         let vm = env.get_java_vm();
         let api = JClassAPI::get(&vm)?;
 
@@ -149,7 +146,7 @@ impl JClass<'_> {
     /// # Throws
     ///
     /// This method may throw a `ClassNotFoundException` if the class cannot be found.
-    pub fn for_name<'local, C>(class_name: C, env: &mut JNIEnv<'local>) -> Result<JClass<'local>>
+    pub fn for_name<'local, C>(class_name: C, env: &mut Env<'local>) -> Result<JClass<'local>>
     where
         C: AsRef<JNIStr>,
     {
@@ -193,7 +190,7 @@ impl JClass<'_> {
         class_name: C,
         initialize: bool,
         loader: L,
-        env: &mut JNIEnv<'env_local>,
+        env: &mut Env<'env_local>,
     ) -> Result<JClass<'env_local>>
     where
         C: AsRef<JNIStr>,

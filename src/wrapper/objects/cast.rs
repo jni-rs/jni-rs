@@ -3,7 +3,7 @@ use std::{marker::PhantomData, ops::Deref};
 use jni_sys::jobject;
 
 use crate::{
-    env::JNIEnv,
+    env::Env,
     errors::{Error, Result},
     objects::{GlobalRef, JClass, JObject, JObjectRef, LoaderContext},
     strings::JNIStr,
@@ -16,7 +16,7 @@ use crate::{
 ///
 /// This can be used to cast global or local references.
 ///
-/// See: [JNIEnv::as_cast]
+/// See: [Env::as_cast]
 ///
 #[repr(transparent)]
 pub struct Cast<'any, 'from, To: JObjectRef> {
@@ -35,7 +35,7 @@ impl<'any, 'from, To: JObjectRef> Cast<'any, 'from, To> {
     /// Returns [Error::WrongObjectType] if the object is not of the expected type.
     pub(crate) fn new<'env_local, From: JObjectRef + AsRef<JObject<'any>>>(
         from: &'from From,
-        env: &JNIEnv<'env_local>,
+        env: &Env<'env_local>,
     ) -> Result<Self>
     where
         'any: 'from,

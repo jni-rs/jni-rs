@@ -2,7 +2,6 @@ use jni_sys::jobject;
 use once_cell::sync::OnceCell;
 
 use crate::{
-    env::JNIEnv,
     errors::*,
     objects::{
         Cast, GlobalRef, JClass, JCollection, JIterator, JMethodID, JObject, JObjectRef, JValue,
@@ -11,7 +10,7 @@ use crate::{
     signature::{Primitive, ReturnType},
     strings::JNIStr,
     sys::jint,
-    JavaVM,
+    Env, JavaVM,
 };
 
 use std::ops::Deref;
@@ -115,19 +114,19 @@ impl<'local> JList<'local> {
     /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.util.List`.
     ///
     /// Also see these other options for casting local or global references to a `JList`:
-    /// - [JNIEnv::new_cast_local_ref]
-    /// - [JNIEnv::cast_local]
-    /// - [JNIEnv::as_cast_local]
-    /// - [JNIEnv::new_cast_global_ref]
-    /// - [JNIEnv::cast_global]
-    /// - [JNIEnv::as_cast_global]
+    /// - [Env::new_cast_local_ref]
+    /// - [Env::cast_local]
+    /// - [Env::as_cast_local]
+    /// - [Env::new_cast_global_ref]
+    /// - [Env::cast_global]
+    /// - [Env::as_cast_global]
     ///
     /// # Errors
     ///
     /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
     pub fn cast_local<'any_local>(
         obj: impl JObjectRef + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
-        env: &mut JNIEnv<'_>,
+        env: &mut Env<'_>,
     ) -> Result<JList<'any_local>> {
         env.cast_local::<JList>(obj)
     }
@@ -137,11 +136,11 @@ impl<'local> JList<'local> {
     /// See [`JList::cast_local`] for more information.
     #[deprecated(
         since = "0.22.0",
-        note = "use JList::cast_local instead or JNIEnv::new_cast_local_ref/cast_local/as_cast_local or JNIEnv::new_cast_global_ref/cast_global/as_cast_global"
+        note = "use JList::cast_local instead or Env::new_cast_local_ref/cast_local/as_cast_local or Env::new_cast_global_ref/cast_global/as_cast_global"
     )]
     pub fn from_env<'any_local>(
         obj: impl JObjectRef + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
-        env: &mut JNIEnv<'_>,
+        env: &mut Env<'_>,
     ) -> Result<JList<'any_local>> {
         env.cast_local::<JList>(obj)
     }
@@ -158,7 +157,7 @@ impl<'local> JList<'local> {
     /// a null pointer would be returned.
     pub fn get<'top_local>(
         &self,
-        env: &mut JNIEnv<'top_local>,
+        env: &mut Env<'top_local>,
         idx: jint,
     ) -> Result<Option<JObject<'top_local>>> {
         let vm = env.get_java_vm();
@@ -184,12 +183,12 @@ impl<'local> JList<'local> {
     }
 
     /// Append an element to the list
-    pub fn add(&self, env: &mut JNIEnv, value: &JObject) -> Result<bool> {
+    pub fn add(&self, env: &mut Env, value: &JObject) -> Result<bool> {
         self.as_collection().add(value, env)
     }
 
     /// Insert an element at a specific index
-    pub fn insert(&self, env: &mut JNIEnv, idx: jint, value: &JObject) -> Result<()> {
+    pub fn insert(&self, env: &mut Env, idx: jint, value: &JObject) -> Result<()> {
         let vm = env.get_java_vm();
         let api = JListAPI::get(&vm, &LoaderContext::None)?;
         // SAFETY: We keep the class loaded, and fetched the method ID for this function.
@@ -217,7 +216,7 @@ impl<'local> JList<'local> {
     /// - `IndexOutOfBoundsException` - if the index is out of bounds
     pub fn remove<'other_local_2>(
         &self,
-        env: &mut JNIEnv<'other_local_2>,
+        env: &mut Env<'other_local_2>,
         idx: jint,
     ) -> Result<JObject<'other_local_2>> {
         let vm = env.get_java_vm();
@@ -244,7 +243,7 @@ impl<'local> JList<'local> {
     /// - `UnsupportedOperationException` - if the remove operation is not supported
     /// - `ClassCastException` - if the element type isn't compatible with the set
     /// - `NullPointerException` - if the given element is null and the set does not allow null values
-    pub fn remove_item(&self, env: &mut JNIEnv<'_>, value: &JObject) -> Result<bool> {
+    pub fn remove_item(&self, env: &mut Env<'_>, value: &JObject) -> Result<bool> {
         self.as_collection().remove(value, env)
     }
 
@@ -253,21 +252,21 @@ impl<'local> JList<'local> {
     /// # Throws
     ///
     /// - `UnsupportedOperationException` - if the clear operation is not supported
-    pub fn clear(&self, env: &mut JNIEnv<'_>) -> Result<()> {
+    pub fn clear(&self, env: &mut Env<'_>) -> Result<()> {
         self.as_collection().clear(env)
     }
 
-    // FIXME: this shouldn't need a mutable JNIEnv reference since it doesn't create any
+    // FIXME: this shouldn't need a mutable Env reference since it doesn't create any
     // new local references that are returned to the caller. Currently it's required
     // because we don't have an alternative to `call_method_unchecked` that takes a shared
     // reference, based on the assertion that the method returns a primitive type.
     /// Get the size of the list
-    pub fn size(&self, env: &mut JNIEnv) -> Result<jint> {
+    pub fn size(&self, env: &mut Env) -> Result<jint> {
         self.as_collection().size(env)
     }
 
     /// Returns `true` if this list is empty.
-    pub fn is_empty(&self, env: &mut JNIEnv<'_>) -> Result<bool> {
+    pub fn is_empty(&self, env: &mut Env<'_>) -> Result<bool> {
         self.as_collection().is_empty(env)
     }
 
@@ -280,7 +279,7 @@ impl<'local> JList<'local> {
     )]
     pub fn pop<'other_local_2>(
         &self,
-        env: &mut JNIEnv<'other_local_2>,
+        env: &mut Env<'other_local_2>,
     ) -> Result<Option<JObject<'other_local_2>>> {
         let size = self.size(env)?;
         if size == 0 {
@@ -293,13 +292,13 @@ impl<'local> JList<'local> {
     ///
     /// The returned iterator does not implement [`std::iter::Iterator`] and
     /// cannot be used with a `for` loop. This is because its `next` method
-    /// uses a `&mut JNIEnv` to call the Java iterator. Use a `while let` loop
+    /// uses a `&mut Env` to call the Java iterator. Use a `while let` loop
     /// instead:
     ///
     /// ```rust,no_run
-    /// # use jni::{errors::Result, env::JNIEnv, objects::{IntoAutoLocal as _, JList, JObject}};
+    /// # use jni::{errors::Result, Env, objects::{IntoAutoLocal as _, JList, JObject}};
     /// #
-    /// # fn example(env: &mut JNIEnv, list: JList) -> Result<()> {
+    /// # fn example(env: &mut Env, list: JList) -> Result<()> {
     /// let mut iterator = list.iter(env)?;
     ///
     /// while let Some(obj) = iterator.next(env)? {
@@ -313,12 +312,12 @@ impl<'local> JList<'local> {
     ///
     /// Each call to `next` creates a new local reference. To prevent excessive
     /// memory usage or overflow errors, the local reference should be deleted
-    /// using [`JNIEnv::delete_local_ref`] or [`JNIEnv::auto_local`] before the
+    /// using [`Env::delete_local_ref`] or [`Env::auto_local`] before the
     /// next loop iteration. Alternatively, if the list is known to have a
     /// small, predictable size, the loop could be wrapped in
-    /// [`JNIEnv::with_local_frame`] to delete all of the local references at
+    /// [`Env::with_local_frame`] to delete all of the local references at
     /// once.
-    pub fn iter<'env_local>(&self, env: &mut JNIEnv<'env_local>) -> Result<JIterator<'env_local>> {
+    pub fn iter<'env_local>(&self, env: &mut Env<'env_local>) -> Result<JIterator<'env_local>> {
         self.as_collection().iterator(env)
     }
 }

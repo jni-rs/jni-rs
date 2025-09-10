@@ -1,7 +1,7 @@
 use crate::sys::jmethodID;
 
 /// Wrapper around [`jmethodID`] that implements `Send` + `Sync` since method IDs
-/// are valid across threads (not tied to a `JNIEnv`).
+/// are valid across threads (not tied to a `Env`).
 ///
 /// There is no lifetime associated with these since they aren't garbage
 /// collected like objects and their lifetime is not implicitly connected with
@@ -26,7 +26,7 @@ pub struct JStaticMethodID {
     internal: jmethodID,
 }
 
-// Method IDs are valid across threads (not tied to a JNIEnv)
+// Method IDs are valid across threads (not tied to a Env)
 unsafe impl Send for JStaticMethodID {}
 unsafe impl Sync for JStaticMethodID {}
 

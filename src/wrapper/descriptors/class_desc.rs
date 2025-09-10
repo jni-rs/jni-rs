@@ -1,6 +1,6 @@
 use crate::{
     descriptors::Desc,
-    env::JNIEnv,
+    env::Env,
     errors::*,
     objects::{AutoLocal, IntoAutoLocal as _, JClass},
     strings::JNIStr,
@@ -12,7 +12,7 @@ where
 {
     type Output = AutoLocal<'local, JClass<'local>>;
 
-    fn lookup(self, env: &mut JNIEnv<'local>) -> Result<Self::Output> {
+    fn lookup(self, env: &mut Env<'local>) -> Result<Self::Output> {
         Ok(env.find_class(self.as_ref())?.auto())
     }
 }

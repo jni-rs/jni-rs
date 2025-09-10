@@ -3,7 +3,7 @@ use std::ops::Deref;
 use once_cell::sync::OnceCell;
 
 use crate::{
-    env::JNIEnv,
+    env::Env,
     errors::Result,
     objects::{GlobalRef, JClass, JObject, JObjectRef, LoaderContext},
     strings::JNIStr,
@@ -92,7 +92,7 @@ impl JObjectArray<'_> {
     }
 
     /// Returns the length of the array.
-    pub fn len(&self, env: &JNIEnv) -> Result<usize> {
+    pub fn len(&self, env: &Env) -> Result<usize> {
         let array = null_check!(self.as_raw(), "JObjectArray::len self argument")?;
         let len = unsafe { jni_call_unchecked!(env, v1_1, GetArrayLength, array) } as usize;
         Ok(len)

@@ -16,7 +16,7 @@ use crate::objects::{AutoLocal, JString};
 /// weak global as well as wrapper types like [`AutoLocal`] and [`GlobalRef`])
 ///
 ///
-/// This makes it possible for APIs like [`JNIEnv::new_global_ref`] to be given
+/// This makes it possible for APIs like [`Env::new_global_ref`] to be given
 /// a non-static local reference type like [`JString<'local>`] (or an
 /// [`AutoLocal`] wrapper) and return a [`GlobalRef`] that is instead
 /// parameterized by [`JString<'static>`].
@@ -113,7 +113,7 @@ pub unsafe trait JObjectRef: Sized {
     /// (as an exception it can be OK to create a temporary, hidden wrapper while borrowing an
     /// original, owning wrapper - e.g. as part of a type cast)
     ///
-    /// Local references must have a lifetime that's associated with an AttachGuard or a JNIEnv that
+    /// Local references must have a lifetime that's associated with an AttachGuard or a Env that
     /// limits them to a single JNI stack frame.
     ///
     /// This can also be used to create a borrowed view of a global reference (e.g. as part of a
@@ -169,7 +169,7 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
     /// `name` should be a binary name like `"java.lang.String"` or an array descriptor like
     /// `"[Ljava.lang.String;"`.
     ///
-    /// **Note:** that unlike [crate::env::JNIEnv::find_class], the name uses **dots instead of
+    /// **Note:** that unlike [crate::env::Env::find_class], the name uses **dots instead of
     /// slashes** and should conform to the format that `Class.getName()` returns and that
     /// `Class.forName()` expects.
     ///
@@ -184,7 +184,7 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
         &self,
         name: &'static JNIStr,
         initialize: bool,
-        env: &mut crate::env::JNIEnv<'env_local>,
+        env: &mut crate::env::Env<'env_local>,
     ) -> crate::errors::Result<JClass<'env_local>> {
         /// Convert a binary name or array descriptor (like `"java.lang.String"` or
         /// `"[Ljava.lang.String;"`) into an internal name like `"java/lang/String"` or
@@ -206,7 +206,7 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
         }
 
         fn lookup_tccl_with_catch<'local>(
-            env: &mut crate::env::JNIEnv<'local>,
+            env: &mut crate::env::Env<'local>,
         ) -> crate::errors::Result<Option<JClassLoader<'local>>> {
             let current_thread = JThread::current_thread(env)?;
             match current_thread.get_context_class_loader(env) {
@@ -224,7 +224,7 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
             name: &'static JNIStr,
             initialize: bool,
             loader: &JClassLoader<'any_loader>,
-            env: &mut crate::env::JNIEnv<'any_local>,
+            env: &mut crate::env::Env<'any_local>,
         ) -> crate::errors::Result<JClass<'any_local>> {
             // May throw ClassNotFoundException
             match JClass::for_name_with_loader(name, initialize, loader, env) {
@@ -240,7 +240,7 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
 
         fn find_class<'local>(
             name: &'static JNIStr,
-            env: &mut crate::env::JNIEnv<'local>,
+            env: &mut crate::env::Env<'local>,
         ) -> crate::errors::Result<JClass<'local>> {
             let internal_name = internal_find_class_name(name);
             match env.find_class(&internal_name) {
@@ -254,7 +254,7 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
             name: &'static JNIStr,
             initialize: bool,
             candidate: Option<&JObject>,
-            env: &mut crate::env::JNIEnv<'local>,
+            env: &mut crate::env::Env<'local>,
         ) -> crate::errors::Result<JClass<'local>> {
             if let Some(tccl) = lookup_tccl_with_catch(env)? {
                 match load_class_with_catch(name, initialize, &tccl, env) {
@@ -306,7 +306,7 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
     pub fn load_class_for_type<'env_local, T: JObjectRef>(
         &self,
         initialize: bool,
-        env: &mut crate::env::JNIEnv<'env_local>,
+        env: &mut crate::env::Env<'env_local>,
     ) -> crate::errors::Result<JClass<'env_local>> {
         self.load_class(T::CLASS_NAME, initialize, env)
     }

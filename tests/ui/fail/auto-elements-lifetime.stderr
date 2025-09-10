@@ -1,4 +1,4 @@
-warning: use of deprecated method `jni::env::JNIEnv::<'local>::get_array_elements`: use JPrimitiveArray::get_elements instead. This API will be removed in a future version
+warning: use of deprecated method `jni::Env::<'local>::get_array_elements`: use JPrimitiveArray::get_elements instead. This API will be removed in a future version
   --> tests/ui/fail/auto-elements-lifetime.rs:19:30
    |
 19 |                         env2.get_array_elements(java_array, ReleaseMode::CopyBack)
@@ -12,7 +12,7 @@ error: lifetime may not live long enough
 10 |             .with_local_frame(10, |env1| -> jni::errors::Result<_> {
    |                                    ----     ---------------------- return type of closure is std::result::Result<AutoElements<'2, i32, JPrimitiveArray<'_, i32>>, jni::errors::Error>
    |                                    |
-   |                                    has type `&mut JNIEnv<'1>`
+   |                                    has type `&mut Env<'1>`
 ...
 26 |                 Ok(elems1)
    |                 ^^^^^^^^^^ returning this value requires that `'1` must outlive `'2`

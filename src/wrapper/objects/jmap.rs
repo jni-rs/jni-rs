@@ -2,14 +2,13 @@ use jni_sys::jobject;
 use once_cell::sync::OnceCell;
 
 use crate::{
-    env::JNIEnv,
     errors::*,
     objects::{
         GlobalRef, JClass, JIterator, JMethodID, JObject, JObjectRef, JSet, JValue, LoaderContext,
     },
     signature::{Primitive, ReturnType},
     strings::JNIStr,
-    JavaVM,
+    Env, JavaVM,
 };
 
 use std::ops::Deref;
@@ -117,19 +116,19 @@ impl<'local> JMap<'local> {
     /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.util.Map`.
     ///
     /// Also see these other options for casting local or global references to a `JMap`:
-    /// - [JNIEnv::new_cast_local_ref]
-    /// - [JNIEnv::cast_local]
-    /// - [JNIEnv::as_cast_local]
-    /// - [JNIEnv::new_cast_global_ref]
-    /// - [JNIEnv::cast_global]
-    /// - [JNIEnv::as_cast_global]
+    /// - [Env::new_cast_local_ref]
+    /// - [Env::cast_local]
+    /// - [Env::as_cast_local]
+    /// - [Env::new_cast_global_ref]
+    /// - [Env::cast_global]
+    /// - [Env::as_cast_global]
     ///
     /// # Errors
     ///
     /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
     pub fn cast_local<'any_local>(
         obj: impl JObjectRef + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
-        env: &mut JNIEnv<'_>,
+        env: &mut Env<'_>,
     ) -> Result<JMap<'any_local>> {
         env.cast_local::<JMap>(obj)
     }
@@ -139,11 +138,11 @@ impl<'local> JMap<'local> {
     /// See [`JMap::cast_local`] for more information.
     #[deprecated(
         since = "0.22.0",
-        note = "use JMap::cast_local instead or JNIEnv::new_cast_local_ref/cast_local/as_cast_local or JNIEnv::new_cast_global_ref/cast_global/as_cast_global"
+        note = "use JMap::cast_local instead or Env::new_cast_local_ref/cast_local/as_cast_local or Env::new_cast_global_ref/cast_global/as_cast_global"
     )]
     pub fn from_env<'any_local>(
         obj: impl JObjectRef + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
-        env: &mut JNIEnv<'_>,
+        env: &mut Env<'_>,
     ) -> Result<JMap<'any_local>> {
         env.cast_local::<JMap>(obj)
     }
@@ -152,7 +151,7 @@ impl<'local> JMap<'local> {
     /// a null pointer would be returned.
     pub fn get<'top_local>(
         &self,
-        env: &mut JNIEnv<'top_local>,
+        env: &mut Env<'top_local>,
         key: &JObject,
     ) -> Result<Option<JObject<'top_local>>> {
         let vm = env.get_java_vm();
@@ -181,7 +180,7 @@ impl<'local> JMap<'local> {
     /// key already existed and `None` if it's a new key.
     pub fn put<'other_local_2>(
         &self,
-        env: &mut JNIEnv<'other_local_2>,
+        env: &mut Env<'other_local_2>,
         key: &JObject,
         value: &JObject,
     ) -> Result<Option<JObject<'other_local_2>>> {
@@ -211,7 +210,7 @@ impl<'local> JMap<'local> {
     /// `None` if there was no value for the key.
     pub fn remove<'other_local_2>(
         &self,
-        env: &mut JNIEnv<'other_local_2>,
+        env: &mut Env<'other_local_2>,
         key: &JObject,
     ) -> Result<Option<JObject<'other_local_2>>> {
         let vm = env.get_java_vm();
@@ -241,7 +240,7 @@ impl<'local> JMap<'local> {
     /// This returns a [JSet] view of the mappings contained in the map, which can be used to iterate over the key/value pairs.
     ///
     /// Also see [JSet::iterator] and [Self::iter]
-    pub fn entry_set<'env_local>(&self, env: &mut JNIEnv<'env_local>) -> Result<JSet<'env_local>> {
+    pub fn entry_set<'env_local>(&self, env: &mut Env<'env_local>) -> Result<JSet<'env_local>> {
         let vm = env.get_java_vm();
         let api = JMapAPI::get(&vm, &LoaderContext::None)?;
         // SAFETY: We keep the class loaded, and fetched the method ID for this function. Arg list is known empty.
@@ -258,13 +257,13 @@ impl<'local> JMap<'local> {
     ///
     /// The returned iterator does not implement [`std::iter::Iterator`] and
     /// cannot be used with a `for` loop. This is because its `next` method
-    /// uses a `&mut JNIEnv` to call the Java iterator. Use a `while let` loop
+    /// uses a `&mut Env` to call the Java iterator. Use a `while let` loop
     /// instead:
     ///
     /// ```rust,no_run
-    /// # use jni::{errors::Result, env::JNIEnv, objects::{IntoAutoLocal as _, JMap, JObject}};
+    /// # use jni::{errors::Result, Env, objects::{IntoAutoLocal as _, JMap, JObject}};
     /// #
-    /// # fn example(env: &mut JNIEnv, map: JMap) -> Result<()> {
+    /// # fn example(env: &mut Env, map: JMap) -> Result<()> {
     /// let mut iterator = map.iter(env)?;
     ///
     /// while let Some(entry) = iterator.next(env)? {
@@ -280,12 +279,12 @@ impl<'local> JMap<'local> {
     ///
     /// Each call to `next` creates two new local references. To prevent
     /// excessive memory usage or overflow error, the local references should
-    /// be deleted using [`JNIEnv::delete_local_ref`] or [`JNIEnv::auto_local`]
+    /// be deleted using [`Env::delete_local_ref`] or [`Env::auto_local`]
     /// before the next loop iteration. Alternatively, if the map is known to
     /// have a small, predictable size, the loop could be wrapped in
-    /// [`JNIEnv::with_local_frame`] to delete all of the local references at
+    /// [`Env::with_local_frame`] to delete all of the local references at
     /// once.
-    pub fn iter<'env_local>(&self, env: &mut JNIEnv<'env_local>) -> Result<JMapIter<'env_local>> {
+    pub fn iter<'env_local>(&self, env: &mut Env<'env_local>) -> Result<JMapIter<'env_local>> {
         let set = self.entry_set(env)?;
         let iterator = set.iterator(env)?;
 
@@ -415,19 +414,19 @@ impl<'local> JMapEntry<'local> {
     /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.util.Map.Entry`.
     ///
     /// Also see these other options for casting local or global references to a `JMapEntry`:
-    /// - [JNIEnv::new_cast_local_ref]
-    /// - [JNIEnv::cast_local]
-    /// - [JNIEnv::as_cast_local]
-    /// - [JNIEnv::new_cast_global_ref]
-    /// - [JNIEnv::cast_global]
-    /// - [JNIEnv::as_cast_global]
+    /// - [Env::new_cast_local_ref]
+    /// - [Env::cast_local]
+    /// - [Env::as_cast_local]
+    /// - [Env::new_cast_global_ref]
+    /// - [Env::cast_global]
+    /// - [Env::as_cast_global]
     ///
     /// # Errors
     ///
     /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
     pub fn cast_local<'any_local>(
         obj: impl JObjectRef + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
-        env: &mut JNIEnv<'_>,
+        env: &mut Env<'_>,
     ) -> Result<JMapEntry<'any_local>> {
         env.cast_local::<JMapEntry>(obj)
     }
@@ -437,7 +436,7 @@ impl<'local> JMapEntry<'local> {
     /// # Throws
     ///
     /// May throw `IllegalStateException` if the entry has been removed from the map (depending on implementation)
-    pub fn key<'env_local>(&self, env: &mut JNIEnv<'env_local>) -> Result<JObject<'env_local>> {
+    pub fn key<'env_local>(&self, env: &mut Env<'env_local>) -> Result<JObject<'env_local>> {
         let vm = env.get_java_vm();
         let api = JMapEntryAPI::get(&vm, &LoaderContext::None)?;
         unsafe {
@@ -451,7 +450,7 @@ impl<'local> JMapEntry<'local> {
     /// # Throws
     ///
     /// May throw `IllegalStateException` if the entry has been removed from the map (depending on implementation)
-    pub fn value<'env_local>(&self, env: &mut JNIEnv<'env_local>) -> Result<JObject<'env_local>> {
+    pub fn value<'env_local>(&self, env: &mut Env<'env_local>) -> Result<JObject<'env_local>> {
         let vm = env.get_java_vm();
         let api = JMapEntryAPI::get(&vm, &LoaderContext::None)?;
         unsafe {
@@ -472,7 +471,7 @@ impl<'local> JMapEntry<'local> {
     pub fn set_value<'any_local, 'env_local>(
         &self,
         value: &JObject<'any_local>,
-        env: &mut JNIEnv<'env_local>,
+        env: &mut Env<'env_local>,
     ) -> Result<JObject<'env_local>> {
         let vm = env.get_java_vm();
         let api = JMapEntryAPI::get(&vm, &LoaderContext::None)?;
@@ -545,10 +544,10 @@ impl<'local> JMapIter<'local> {
     ///
     /// This method creates two new local references. To prevent excessive
     /// memory usage or overflow error, the local references should be deleted
-    /// using [`JNIEnv::delete_local_ref`] or [`JNIEnv::auto_local`] before the
+    /// using [`Env::delete_local_ref`] or [`Env::auto_local`] before the
     /// next loop iteration. Alternatively, if the map is known to have a
     /// small, predictable size, the loop could be wrapped in
-    /// [`JNIEnv::with_local_frame`] to delete all of the local references at
+    /// [`Env::with_local_frame`] to delete all of the local references at
     /// once.
     ///
     /// This method returns:
@@ -559,10 +558,10 @@ impl<'local> JMapIter<'local> {
     ///   get the next key-value pair.
     ///
     /// This is like [`std::iter::Iterator::next`], but requires a parameter of
-    /// type `&mut JNIEnv` in order to call into Java.
+    /// type `&mut Env` in order to call into Java.
     pub fn next<'env_local>(
         &mut self,
-        env: &mut JNIEnv<'env_local>,
+        env: &mut Env<'env_local>,
     ) -> Result<Option<JMapEntry<'env_local>>> {
         self.iterator.next(env)?.map_or(Ok(None), |entry| {
             // SAFETY: we know that the entrySet iterator will yield Map.Entry values

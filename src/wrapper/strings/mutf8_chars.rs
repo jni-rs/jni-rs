@@ -4,11 +4,10 @@ use std::{borrow::Cow, marker::PhantomData, os::raw::c_char};
 use log::warn;
 
 use crate::{
-    env::JNIEnv,
     errors::*,
     objects::{JObjectRef, JString},
     strings::{JNIStr, JNIString},
-    JavaVM,
+    Env, JavaVM,
 };
 
 /// Borrows the contents of a `java.lang.String` object, in Java's [modified
@@ -24,9 +23,9 @@ use crate::{
 /// For example:
 ///
 /// ```
-/// # use jni::{errors::Result, env::JNIEnv, objects::*};
+/// # use jni::{errors::Result, Env, objects::*};
 /// #
-/// # fn f(env: &mut JNIEnv) -> Result<()> {
+/// # fn f(env: &mut Env) -> Result<()> {
 /// let string = env.new_string(c"Hello, world!")?;
 /// let rust_utf8_string = string.mutf8_chars(env)?.to_string();
 /// # Ok(())
@@ -69,7 +68,7 @@ impl<'local, StringRef> MUTF8Chars<'local, StringRef>
 where
     StringRef: AsRef<JString<'local>> + JObjectRef,
 {
-    /// Constructs a [`MUTF8Chars`] from a `JNIEnv` and a `JString`.
+    /// Constructs a [`MUTF8Chars`] from a `Env` and a `JString`.
     ///
     /// The string will be `NULL` terminated and encoded as [Modified
     /// UTF-8](https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8) /
@@ -81,7 +80,7 @@ where
     ///
     /// Returns a [`MUTF8Chars`] that will automatically release the underlying
     /// character array when dropped (see [Self::release_string_utf_chars]).
-    pub(crate) fn from_get_string_utf_chars(env: &JNIEnv<'_>, obj: StringRef) -> Result<Self> {
+    pub(crate) fn from_get_string_utf_chars(env: &Env<'_>, obj: StringRef) -> Result<Self> {
         let obj = null_check!(obj, "get_string_utf_chars obj argument")?;
 
         // SAFETY:
@@ -137,7 +136,7 @@ where
 
     /// Constructs a [`MUTF8Chars`] from raw components.
     ///
-    /// The required components are, a [`JNIEnv`], a reference to a
+    /// The required components are, a [`Env`], a reference to a
     /// `java.lang.String` object, and a pointer to the characters of that
     /// `java.lang.String`.
     ///
@@ -155,9 +154,9 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{errors::Result, env::JNIEnv, strings::MUTF8Chars};
+    /// # use jni::{errors::Result, Env, strings::MUTF8Chars};
     /// #
-    /// # fn example(env: &mut JNIEnv) -> Result<()> {
+    /// # fn example(env: &mut Env) -> Result<()> {
     /// let jstring = env.new_string(c"foo")?;
     /// let java_str = env.get_string(&jstring)?;
     ///
@@ -168,7 +167,7 @@ where
     /// # }
     /// ```
     pub unsafe fn from_raw(
-        _env: &JNIEnv<'_>,
+        _env: &Env<'_>,
         obj: StringRef,
         ptr: *const c_char,
         is_copy: bool,
@@ -257,7 +256,7 @@ where
             obj: jni_sys::jobject,
             chars: *const c_char,
         ) -> Result<()> {
-            // Panic: Since we can't construct a `MUTF8Chars` without a valid `JNIEnv` reference we know
+            // Panic: Since we can't construct a `MUTF8Chars` without a valid `Env` reference we know
             // `JavaVM::singleton()` must be initialized and won't panic.
             JavaVM::singleton()?.with_env_current_frame(|env| {
                 // This method is safe to call in case of pending exceptions (see the chapter 2 of the spec)

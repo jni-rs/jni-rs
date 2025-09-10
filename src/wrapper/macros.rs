@@ -1,4 +1,4 @@
-/// Directly calls a JNIEnv FFI function, nothing else
+/// Directly calls a Env FFI function, nothing else
 ///
 /// # Safety
 ///
@@ -6,7 +6,7 @@
 /// for the current JNI version.
 macro_rules! jni_call_unchecked {
     ( $jnienv:expr, $version:tt, $name:tt $(, $args:expr )*) => {{
-        // Safety: we know that the JNIEnv pointer can't be null, since that's
+        // Safety: we know that the Env pointer can't be null, since that's
         // checked in `from_raw()`
         let env: *mut jni_sys::JNIEnv = $jnienv.get_raw();
         let interface: *const jni_sys::JNINativeInterface_ = *env;
@@ -14,7 +14,7 @@ macro_rules! jni_call_unchecked {
     }};
 }
 
-/// Calls a JNIEnv function, then checks for a pending exception
+/// Calls a Env function, then checks for a pending exception
 ///
 /// This only checks for an exception, it doesn't clear the exception and so the
 /// exception will be thrown if the native code returns to the JVM.
@@ -31,7 +31,7 @@ macro_rules! jni_call_check_ex {
     })
 }
 
-/// Calls a JNIEnv function, then checks for a pending exception, then checks for a `null` return value
+/// Calls a Env function, then checks for a pending exception, then checks for a `null` return value
 ///
 /// Returns `Err` if there is a pending exception after the call.
 /// Returns `Err(Error::NullPtr)` if the JNI function returns `null`
@@ -47,7 +47,7 @@ macro_rules! jni_call_check_ex_and_null_ret {
     })
 }
 
-/// Calls a JNIEnv function, with no check for exceptions, then checks for a `null` return value
+/// Calls a Env function, with no check for exceptions, then checks for a `null` return value
 ///
 /// Returns `Err(Error::NullPtr)` if the JNI function returns `null`
 macro_rules! jni_call_only_check_null_ret {

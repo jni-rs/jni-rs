@@ -5,7 +5,7 @@ use std::ptr::NonNull;
 use crate::sys::jboolean;
 use crate::wrapper::objects::ReleaseMode;
 use crate::JavaVM;
-use crate::{env::JNIEnv, errors::*, sys};
+use crate::{env::Env, errors::*, sys};
 
 use super::{JPrimitiveArray, TypeArray};
 
@@ -37,7 +37,7 @@ where
     ///
     /// `len` must be the correct length (number of elements) of the given `array`
     pub(crate) unsafe fn new_with_len(
-        env: &JNIEnv<'_>,
+        env: &Env<'_>,
         array: TArrayRef,
         len: usize,
         mode: ReleaseMode,
@@ -63,7 +63,7 @@ where
         })
     }
 
-    pub(crate) fn new(env: &JNIEnv<'_>, array: TArrayRef, mode: ReleaseMode) -> Result<Self> {
+    pub(crate) fn new(env: &Env<'_>, array: TArrayRef, mode: ReleaseMode) -> Result<Self> {
         let len = array.as_ref().len(env)?;
         unsafe { Self::new_with_len(env, array, len, mode) }
     }
@@ -83,7 +83,7 @@ where
     /// If `mode` is not [`sys::JNI_COMMIT`], then `self.ptr` must not have already been released.
     unsafe fn release_primitive_array_critical(&mut self, mode: i32) -> Result<()> {
         // Panic: Since we can't construct `AutoElementsCritical` without a
-        // valid `JNIEnv` reference we know we can call `JavaVM::singleton()`
+        // valid `Env` reference we know we can call `JavaVM::singleton()`
         // without a panic.
         JavaVM::singleton()?.with_env_current_frame(|env| {
             jni_call_unchecked!(

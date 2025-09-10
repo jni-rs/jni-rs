@@ -1,7 +1,7 @@
 use crate::{
-    env::JNIEnv,
     errors::*,
     objects::{AutoLocal, GlobalRef, JObject, JObjectRef},
+    Env,
 };
 
 #[cfg(doc)]
@@ -31,9 +31,9 @@ pub unsafe trait Desc<'local, T> {
     /// necessary to use turbofish syntax when calling this method:
     ///
     /// ```rust,no_run
-    /// # use jni::{descriptors::Desc, errors::Result, env::JNIEnv, objects::JClass};
+    /// # use jni::{descriptors::Desc, errors::Result, Env, objects::JClass};
     /// #
-    /// # fn example(env: &mut JNIEnv) -> Result<()> {
+    /// # fn example(env: &mut Env) -> Result<()> {
     /// // The value returned by `lookup` is not exactly `JClass`.
     /// let class/*: impl AsRef<JClass> */ =
     ///     Desc::<JClass>::lookup(c"java/lang/Object", env)?;
@@ -47,17 +47,17 @@ pub unsafe trait Desc<'local, T> {
     /// **Warning:** Many built-in implementations of this trait return
     /// [`AutoLocal`] from this method. If you then call [`JObject::as_raw`] on
     /// the returned object reference, this may result in the reference being
-    /// [deleted][JNIEnv::delete_local_ref] before it is used, causing
+    /// [deleted][Env::delete_local_ref] before it is used, causing
     /// undefined behavior.
     ///
     /// For example, don't do this:
     ///
     /// ```rust,no_run
-    /// # use jni::{descriptors::Desc, errors::Result, env::JNIEnv, objects::JClass};
+    /// # use jni::{descriptors::Desc, errors::Result, Env, objects::JClass};
     /// #
     /// # fn some_function<T>(ptr: *mut T) {}
     /// #
-    /// # fn example(env: &mut JNIEnv) -> Result<()> {
+    /// # fn example(env: &mut Env) -> Result<()> {
     /// // Undefined behavior: the `JClass` is dropped before the raw pointer
     /// // is passed to `some_function`!
     /// some_function(Desc::<JClass>::lookup(c"java/lang/Object", env)?.as_raw());
@@ -68,11 +68,11 @@ pub unsafe trait Desc<'local, T> {
     /// Instead, do this:
     ///
     /// ```rust,no_run
-    /// # use jni::{descriptors::Desc, errors::Result, env::JNIEnv, objects::JClass};
+    /// # use jni::{descriptors::Desc, errors::Result, Env, objects::JClass};
     /// #
     /// # fn some_function<T>(ptr: *mut T) {}
     /// #
-    /// # fn example(env: &mut JNIEnv) -> Result<()> {
+    /// # fn example(env: &mut Env) -> Result<()> {
     /// let class = Desc::<JClass>::lookup(c"java/lang/Object", env)?;
     ///
     /// some_function(class.as_raw());
@@ -85,7 +85,7 @@ pub unsafe trait Desc<'local, T> {
     /// This will still work without the call to `drop` at the end, but calling
     /// `drop` ensures that the reference is not accidentally dropped earlier
     /// than it should be.
-    fn lookup(self, _: &mut JNIEnv<'local>) -> Result<Self::Output>;
+    fn lookup(self, _: &mut Env<'local>) -> Result<Self::Output>;
 }
 
 unsafe impl<'local, T> Desc<'local, T> for T
@@ -94,7 +94,7 @@ where
 {
     type Output = Self;
 
-    fn lookup(self, _: &mut JNIEnv<'local>) -> Result<T> {
+    fn lookup(self, _: &mut Env<'local>) -> Result<T> {
         Ok(self)
     }
 }
@@ -105,7 +105,7 @@ where
 {
     type Output = Self;
 
-    fn lookup(self, _: &mut JNIEnv<'local>) -> Result<Self::Output> {
+    fn lookup(self, _: &mut Env<'local>) -> Result<Self::Output> {
         Ok(self)
     }
 }
@@ -116,7 +116,7 @@ where
 {
     type Output = Self;
 
-    fn lookup(self, _: &mut JNIEnv<'local>) -> Result<Self::Output> {
+    fn lookup(self, _: &mut Env<'local>) -> Result<Self::Output> {
         Ok(self)
     }
 }
@@ -127,7 +127,7 @@ where
 {
     type Output = Self;
 
-    fn lookup(self, _: &mut JNIEnv<'local>) -> Result<Self::Output> {
+    fn lookup(self, _: &mut Env<'local>) -> Result<Self::Output> {
         Ok(self)
     }
 }
@@ -145,7 +145,7 @@ where
 {
     type Output = &'obj_ref T;
 
-    fn lookup(self, _: &mut JNIEnv<'local>) -> Result<Self::Output> {
+    fn lookup(self, _: &mut Env<'local>) -> Result<Self::Output> {
         Ok(self.as_ref())
     }
 }
