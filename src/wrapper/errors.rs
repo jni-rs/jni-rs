@@ -4,8 +4,8 @@ use std::char::{CharTryFromError, DecodeUtf16Error};
 
 use thiserror::Error;
 
+use crate::sys;
 use crate::wrapper::signature::TypeSignature;
-use crate::{strings::JNIStr, sys};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -28,7 +28,7 @@ pub enum Error {
     #[error("Object behind weak reference freed")]
     ObjectFreed,
     #[error("Class not found: {name:?}")]
-    ClassNotFound { name: &'static JNIStr },
+    ClassNotFound { name: String },
     #[error("Method not found: {name} {sig}")]
     MethodNotFound { name: String, sig: String },
     #[error("Field not found: {name} {sig}")]

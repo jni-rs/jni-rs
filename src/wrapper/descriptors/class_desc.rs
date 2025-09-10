@@ -2,7 +2,7 @@ use crate::{
     descriptors::Desc,
     env::Env,
     errors::*,
-    objects::{Auto, IntoAuto as _, JClass},
+    objects::{Auto, IntoAuto as _, JClass, LoaderContext},
     strings::JNIStr,
 };
 
@@ -13,7 +13,9 @@ where
     type Output = Auto<'local, JClass<'local>>;
 
     fn lookup(self, env: &mut Env<'local>) -> Result<Self::Output> {
-        Ok(env.find_class(self.as_ref())?.auto())
+        Ok(LoaderContext::None
+            .find_class(self.as_ref(), false, env)?
+            .auto())
     }
 }
 

@@ -173,6 +173,11 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
     /// slashes** and should conform to the format that `Class.getName()` returns and that
     /// `Class.forName()` expects.
     ///
+    /// **Note**: see [Self::find_class] if you need to load a class by its internal name, with
+    /// slashes, instead of dots (compatible with [crate::env::Env::find_class]). If you have a
+    /// choice, then prefer using [Self::load_class] because in the common case `Class.forName` will
+    /// be called first, and that requires a **binary** name (so you can avoid a format conversion).
+    ///
     /// `initialize` indicates whether a newly loaded class should be initialized (has no effect on
     /// already initialized classes).
     ///
@@ -182,14 +187,14 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
     /// The strategy for loading the class depends on the loader context (See [Self]).
     pub fn load_class<'env_local>(
         &self,
-        name: &'static JNIStr,
+        name: &JNIStr,
         initialize: bool,
         env: &mut crate::env::Env<'env_local>,
     ) -> crate::errors::Result<JClass<'env_local>> {
         /// Convert a binary name or array descriptor (like `"java.lang.String"` or
         /// `"[Ljava.lang.String;"`) into an internal name like `"java/lang/String"` or
         /// `"[Ljava/lang/String;"` that can be passed to `FindClass`.
-        fn internal_find_class_name(binary_name: &'static JNIStr) -> Cow<'static, JNIStr> {
+        fn internal_find_class_name<'name>(binary_name: &'name JNIStr) -> Cow<'name, JNIStr> {
             let bytes = binary_name.to_bytes();
             if !bytes.contains(&b'.') {
                 Cow::Borrowed(binary_name)
@@ -221,7 +226,7 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
         }
 
         fn load_class_with_catch<'any_loader, 'any_local>(
-            name: &'static JNIStr,
+            name: &JNIStr,
             initialize: bool,
             loader: &JClassLoader<'any_loader>,
             env: &mut crate::env::Env<'any_local>,
@@ -232,26 +237,30 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
                 Err(Error::JavaException) => {
                     // Assume it's a ClassNotFoundException
                     env.exception_clear();
-                    Err(Error::ClassNotFound { name })
+                    Err(Error::ClassNotFound {
+                        name: name.to_string(),
+                    })
                 }
                 Err(e) => Err(e),
             }
         }
 
         fn find_class<'local>(
-            name: &'static JNIStr,
+            name: &JNIStr,
             env: &mut crate::env::Env<'local>,
         ) -> crate::errors::Result<JClass<'local>> {
             let internal_name = internal_find_class_name(name);
             match env.find_class(&internal_name) {
                 Ok(class) => Ok(class),
-                Err(Error::NullPtr(_)) => Err(Error::ClassNotFound { name }),
+                Err(Error::NullPtr(_)) => Err(Error::ClassNotFound {
+                    name: name.to_string(),
+                }),
                 Err(e) => Err(e),
             }
         }
 
         fn lookup_class_with_fallbacks<'local>(
-            name: &'static JNIStr,
+            name: &JNIStr,
             initialize: bool,
             candidate: Option<&JObject>,
             env: &mut crate::env::Env<'local>,
@@ -292,6 +301,41 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
                 }),
             LoaderContext::Loader(loader) => load_class_with_catch(name, initialize, loader, env),
         }
+    }
+
+    /// Loads the class with the given "internal" name using the loader context.
+    ///
+    /// This behaves the same as [Self::load_class] except that it uses the so-called "internal"
+    /// name format that `FindClass` or [`crate::Env::find_class`] accepts, with slashes instead of
+    /// dots.
+    ///
+    /// If possible, prefer to use [Self::load_class] to avoid a redundant name format conversion.
+    pub fn find_class<'env_local>(
+        &self,
+        name: &JNIStr,
+        initialize: bool,
+        env: &mut crate::env::Env<'env_local>,
+    ) -> crate::errors::Result<JClass<'env_local>> {
+        /// Convert an internal name or array descriptor (like `"java/lang/String"` or
+        /// `"[Ljava/lang/String;"`) into a binary name like `"java.lang.String"` or
+        /// `"[Ljava.lang.String;"` that can be passed to [LoaderContext::load_class].
+        fn internal_to_binary_class_name<'name>(internal: &'name JNIStr) -> Cow<'name, JNIStr> {
+            let bytes = internal.to_bytes();
+            if !bytes.contains(&b'/') {
+                Cow::Borrowed(internal)
+            } else {
+                // Convert from slash-notation to dot-notation
+                let owned: Vec<u8> = bytes
+                    .iter()
+                    .map(|&b| if b == b'/' { b'.' } else { b })
+                    .collect();
+                let cstring = CString::new(owned).unwrap();
+                let jni_string = unsafe { JNIString::from_cstring(cstring) };
+                Cow::Owned(jni_string)
+            }
+        }
+        let internal_name = internal_to_binary_class_name(name);
+        self.load_class(&internal_name, initialize, env)
     }
 
     /// Loads the class associated with the `JObjectRef` type `T`, using the given loader context.
