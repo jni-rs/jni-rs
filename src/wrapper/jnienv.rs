@@ -3155,7 +3155,7 @@ impl<'local> JNIEnv<'local> {
         &mut self,
         class: C,
         field: F,
-        ty: JavaType,
+        ty: ReturnType,
     ) -> Result<JValueOwned<'local>>
     where
         C: Desc<'local, JClass<'other_local>>,
