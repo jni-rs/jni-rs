@@ -110,17 +110,16 @@ impl<'local> JList<'local> {
         self.0.into_raw()
     }
 
-    /// Cast a local reference to a `JList`
+    /// Cast a local reference to a [`JList`]
     ///
     /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.util.List`.
     ///
-    /// Also see these other options for casting local or global references to a `JList`:
+    /// Also see these other options for casting local or global references to a [`JList`]:
+    /// - [Env::as_cast]
     /// - [Env::new_cast_local_ref]
     /// - [Env::cast_local]
-    /// - [Env::as_cast_local]
     /// - [Env::new_cast_global_ref]
     /// - [Env::cast_global]
-    /// - [Env::as_cast_global]
     ///
     /// # Errors
     ///

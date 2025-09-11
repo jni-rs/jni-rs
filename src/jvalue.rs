@@ -100,14 +100,16 @@ impl<'local> JValueOwned<'local> {
 
     /// Try to unwrap a Java `char` and then convert it to a Rust `char`.
     ///
-    /// **Warning:** This conversion is likely to fail. Using it is not recommended. Prefer [`JValueGen::i_char`] where possible. See [`char_from_java`] for more information.
+    /// **Warning:** This conversion is likely to fail. Using it is not recommended. Prefer
+    /// [`JValueOwned::i_char`] where possible. See [`char_from_java`] for more information.
     ///
     /// # Errors
     ///
     /// This method can fail with two kinds of errors:
     ///
     /// * [`Error::WrongJValueType`]: `self` does not contain a Java `char`.
-    /// * [`Error::InvalidUtf16`]: `self` contains a Java `char`, but it is one half of a surrogate pair.
+    /// * [`Error::InvalidUtf16`]: `self` contains a Java `char`, but it is one half of a surrogate
+    ///   pair.
     pub fn c_char(self) -> Result<char> {
         let char = self.c()?;
 
@@ -290,14 +292,16 @@ impl<'obj_ref> JValue<'obj_ref> {
 
     /// Try to unwrap a Java `char` and then convert it to a Rust `char`.
     ///
-    /// **Warning:** This conversion is likely to fail. Using it is not recommended. Prefer [`JValueGen::i_char`] where possible. See [`char_from_java`] for more information.
+    /// **Warning:** This conversion is likely to fail. Using it is not recommended. Prefer
+    /// [`JValue::i_char`] where possible. See [`char_from_java`] for more information.
     ///
     /// # Errors
     ///
     /// This method can fail with two kinds of errors:
     ///
     /// * [`Error::WrongJValueType`]: `self` does not contain a Java `char`.
-    /// * [`Error::InvalidUtf16`]: `self` contains a Java `char`, but it is one half of a surrogate pair.
+    /// * [`Error::InvalidUtf16`]: `self` contains a Java `char`, but it is one half of a surrogate
+    ///   pair.
     pub fn c_char(self) -> Result<char> {
         let char = self.c()?;
 
@@ -460,7 +464,8 @@ impl TryFrom<JValue<'_>> for jchar {
 
 /// Converts a Rust `char` to a Java `char`, if possible.
 ///
-/// **Warning:** This conversion is likely to fail. Using it is not recommended. Prefer [`JValueGen::int_from_char`] where possible. See [`char_to_java`] for more information.
+/// **Warning:** This conversion is likely to fail. Using it is not recommended. Prefer
+/// [`JValue::int_from_char`] where possible. See [`char_to_java`] for more information.
 impl TryFrom<char> for JValueOwned<'_> {
     type Error = CharToJavaError;
 
@@ -471,7 +476,8 @@ impl TryFrom<char> for JValueOwned<'_> {
 
 /// Converts a Rust `char` to a Java `char`, if possible.
 ///
-/// **Warning:** This conversion is likely to fail. Using it is not recommended. Prefer [`JValueGen::int_from_char`] where possible. See [`char_to_java`] for more information.
+/// **Warning:** This conversion is likely to fail. Using it is not recommended. Prefer
+/// [`JValue::int_from_char`] where possible. See [`char_to_java`] for more information.
 impl TryFrom<char> for JValue<'_> {
     type Error = CharToJavaError;
 
@@ -482,25 +488,35 @@ impl TryFrom<char> for JValue<'_> {
 
 /// Converts a Java `char` to a Rust `char`, if possible. (Error-prone; see warning.)
 ///
-/// **Warning:** Converting a single Java `char` to a Rust `char` is not recommended. This can only succeed for code points up to U+FFFF. Code points above that are represented in Java as *two* `char`s, each representing one half of a UTF-16 [surrogate pair], which this function cannot handle. If possible, use one of these alternatives instead:
+/// **Warning:** Converting a single Java `char` to a Rust `char` is not recommended. This can only
+/// succeed for code points up to U+FFFF. Code points above that are represented in Java as *two*
+/// `char`s, each representing one half of a UTF-16 [surrogate pair], which this function cannot
+/// handle. If possible, use one of these alternatives instead:
 ///
-/// * Use Java `int`s containing UTF-32. You can encode a Java `String` as a sequence of UTF-32 `int`s using its [`codePoints`] method, then use [`char_from_java_int`] to convert each one to a Rust `char`.
+/// * Use Java `int`s containing UTF-32. You can encode a Java `String` as a sequence of UTF-32
+///   `int`s using its [`codePoints`] method, then use [`char_from_java_int`] to convert each one to
+///   a Rust `char`.
 ///
 /// * Convert a Java `String` using [`Env::get_string`].
 ///
-/// * Convert multiple Java `char`s at a time (such as in a Java `char[]` array) using [`char::decode_utf16`] (which this function is a simple wrapper around). That will properly convert any surrogate pairs among the Java `char`s.
+/// * Convert multiple Java `char`s at a time (such as in a Java `char[]` array) using
+///   [`char::decode_utf16`] (which this function is a simple wrapper around). That will properly
+///   convert any surrogate pairs among the Java `char`s.
 ///
 /// # See Also
 ///
-/// * [`JValueGen::c_char`], a wrapper around this function that unwraps [`JValueGen::Char`]
+/// * [`JValue::c_char`], a wrapper around this function that unwraps [`JValue::Char`]
+/// * [`JValueOwned::c_char`], a wrapper around this function that unwraps [`JValueOwned::Char`]
 /// * [`char_to_java`], the opposite of this function
 /// * [`char_from_java_int`], a UTF-32 alternative to this function that is unlikely to fail
 ///
 /// # Errors
 ///
-/// This function returns an error if the provided Java `char` is part of a UTF-16 surrogate pair, which cannot be converted to a Rust `char` by itself.
+/// This function returns an error if the provided Java `char` is part of a UTF-16 surrogate pair,
+/// which cannot be converted to a Rust `char` by itself.
 ///
-/// [`codePoints`]: https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html#codePoints()
+/// [`codePoints`]:
+///     https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html#codePoints()
 /// [surrogate pair]: https://en.wikipedia.org/wiki/Surrogate_pair
 pub fn char_from_java(char: jchar) -> std::result::Result<char, DecodeUtf16Error> {
     char::decode_utf16([char]).next().unwrap()
@@ -508,23 +524,30 @@ pub fn char_from_java(char: jchar) -> std::result::Result<char, DecodeUtf16Error
 
 /// Converts a Rust `char` to a Java `char`, if possible. (Error-prone; see warning.)
 ///
-/// **Warning:** Converting a Rust `char` to a single Java `char` is not recommended. This can only succeed for code points up to U+FFFF. Code points above that are represented in Java as *two* `char`s, each representing one half of a UTF-16 [surrogate pair], which this function cannot handle. If possible, use one of these alternatives instead:
+/// **Warning:** Converting a Rust `char` to a single Java `char` is not recommended. This can only
+/// succeed for code points up to U+FFFF. Code points above that are represented in Java as *two*
+/// `char`s, each representing one half of a UTF-16 [surrogate pair], which this function cannot
+/// handle. If possible, use one of these alternatives instead:
 ///
-/// * Use Java `int`s containing UTF-32. You can convert a Rust `char` to a Java `int` containing UTF-32 using [`char_to_java_int`], which never fails.
+/// * Use Java `int`s containing UTF-32. You can convert a Rust `char` to a Java `int` containing
+///   UTF-32 using [`char_to_java_int`], which never fails.
 ///
 /// * Convert a Rust [`str`] to a Java `String` using [`Env::new_string`].
 ///
-/// * Convert a Rust `char` to multiple Java `char`s at a time using [`char::encode_utf16`] (which this function is a wrapper around). That will properly generate surrogate pairs as needed.
+/// * Convert a Rust `char` to multiple Java `char`s at a time using [`char::encode_utf16`] (which
+///   this function is a wrapper around). That will properly generate surrogate pairs as needed.
 ///
 /// # See Also
 ///
-/// * [`JValueGen`]'s implementation of `TryFrom<char>`, a wrapper for this function that produces [`JValueGen::Char`]
+/// * [`JValue`] and [`JValueOwned`]'s implementation of `TryFrom<char>`, a wrapper for this function that produces
+///   [`JValue::Char`] and [`JValueOwned::Char`]
 /// * [`char_from_java`], the opposite of this function
 /// * [`char_to_java_int`], a UTF-32 alternative to this function that never fails
 ///
 /// # Errors
 ///
-/// This function returns an error if the provided `char` cannot be represented in UTF-16 without a surrogate pair, and therefore cannot be converted to a single Java `char`.
+/// This function returns an error if the provided `char` cannot be represented in UTF-16 without a
+/// surrogate pair, and therefore cannot be converted to a single Java `char`.
 ///
 /// [surrogate pair]: https://en.wikipedia.org/wiki/Surrogate_pair
 pub fn char_to_java(char: char) -> std::result::Result<jchar, CharToJavaError> {
@@ -661,7 +684,7 @@ impl TryFrom<JValue<'_>> for jint {
 ///
 /// # See Also
 ///
-/// * [`JValueGen::int_from_char`], a wrapper for this function that returns [`JValueGen::Int`]
+/// * [`JValue::int_from_char`], a wrapper for this function that returns [`JValue::Int`]
 /// * [`char_from_java_int`], the opposite of this function
 /// * [`char_to_java`], an alternative to this function that converts to Java `char` but is likely to fail
 ///
@@ -678,7 +701,8 @@ pub fn char_to_java_int(char: char) -> jint {
 ///
 /// # See Also
 ///
-/// * [`JValueGen::i_char`], a wrapper for this function that unwraps [`JValueGen::Int`]
+/// * [`JValue::i_char`], a wrapper for this function that unwraps [`JValue::Int`]
+/// * [`JValueOwned::i_char`], a wrapper for this function that unwraps [`JValueOwned::Int`]
 /// * [`char_to_java_int`], the opposite of this function
 /// * [`char_from_java`], an alternative to this function that converts from Java `char` but is likely to fail
 ///

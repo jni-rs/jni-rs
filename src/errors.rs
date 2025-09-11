@@ -10,7 +10,10 @@ use crate::sys;
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[cfg(doc)]
-use crate::objects::{char_from_java_int, char_to_java, char_to_java_int, JValue, JValueOwned};
+use crate::{
+    strings::{char_from_java_int, char_to_java, char_to_java_int},
+    JValue, JValueOwned,
+};
 
 #[derive(Debug, Error)]
 #[non_exhaustive]
@@ -135,6 +138,9 @@ pub trait ToException {
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum StartJvmError {
+    #[error("Either the 'invocation' feature is not enabled or the JNI invocation API is not available on this platform")]
+    Unsupported,
+
     /// An attempt was made to find a JVM using [java-locator], but it failed.
     ///
     /// If this happens, give an explicit location to [`JavaVM::with_libjvm`] or set the
@@ -142,19 +148,29 @@ pub enum StartJvmError {
     ///
     /// [java-locator]: https://docs.rs/java-locator/
     /// [`JavaVM::with_libjvm`]: crate::JavaVM::with_libjvm
+    #[cfg(not(target_os = "android"))]
     #[error("Couldn't automatically discover the Java VM's location (try setting the JAVA_HOME environment variable): {0}")]
     NotFound(
         #[from]
         #[source]
         java_locator::errors::JavaLocatorError,
     ),
+    /// A place holder for the `libloading` error, when built without the `libloading` dependency
+    #[cfg(target_os = "android")]
+    #[error("Couldn't automatically discover the Java VM's location (try setting the JAVA_HOME environment variable): {0}")]
+    NotFound(String),
 
     /// An error occurred in trying to load the JVM shared library.
     ///
     /// On Windows, if this happens it may be necessary to add your `$JAVA_HOME/bin` directory
     /// to the DLL search path by adding it to the `PATH` environment variable.
+    #[cfg(not(target_os = "android"))]
     #[error("Couldn't load the Java VM shared library ({0}): {1}")]
     LoadError(String, #[source] libloading::Error),
+    /// A place holder for the `libloading` error, when built without the `libloading` dependency
+    #[cfg(target_os = "android")]
+    #[error("Couldn't load the Java VM shared library ({0}): {1}")]
+    LoadError(String, String),
 
     /// The JNI function `JNI_CreateJavaVM` returned an error.
     #[error("{0}")]
@@ -168,7 +184,7 @@ pub enum StartJvmError {
 #[cfg(feature = "invocation")]
 pub type StartJvmResult<T> = std::result::Result<T, StartJvmError>;
 
-/// Raised by `char_to_java` and the implementation of `TryFrom<char>` for [`JValueGen`] when a Rust [`char`] is not representable as a Java `char`.
+/// Raised by [`char_to_java`] and the implementation of `TryFrom<char>` for [`JValue`] / [`JValueOwned`] when a Rust [`char`] is not representable as a Java `char`.
 ///
 /// See [`char_to_java`] for more information.
 #[derive(Debug, Error)]

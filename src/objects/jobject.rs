@@ -12,7 +12,7 @@ use crate::{
 
 use super::JObjectRef;
 
-/// Wrapper around [`sys::jobject`] that adds a lifetime to ensure that
+/// Wrapper around [`jni_sys::jobject`] that adds a lifetime to ensure that
 /// the underlying JNI pointer won't be accessible to safe Rust code if the
 /// object reference is released.
 ///

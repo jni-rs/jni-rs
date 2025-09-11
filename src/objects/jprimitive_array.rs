@@ -16,6 +16,9 @@ use crate::{
 
 use super::TypeArray;
 
+#[cfg(doc)]
+use crate::{errors::Error, MonitorGuard};
+
 /// Lifetime'd representation of a [`jarray`] which wraps a [`JObject`] reference
 ///
 /// This is a wrapper type for a [`JObject`] local reference that's used to
@@ -257,7 +260,7 @@ impl<'local, T: TypeArray> JPrimitiveArray<'local, T> {
     /// values of `0` or `1` because any other value could lead to undefined
     /// behaviour within the JVM.
     ///
-    /// Also see [`get_array_elements`](Self::get_array_elements) which has
+    /// Also see [`get_elements`](Self::get_elements) which has
     /// fewer restrictions, but is more likely to incur a cost from copying
     /// the array elements.
     pub unsafe fn get_elements_critical(

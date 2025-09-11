@@ -2,6 +2,11 @@ name: CI
 
 on: [pull_request, push]
 
+env:
+  CARGO_INCREMENTAL: 0
+  RUSTFLAGS: "-C debuginfo=0 --deny warnings"
+  RUSTDOCFLAGS: -Dwarnings
+
 jobs:
   # Check code formatting.
   fmt:
@@ -40,41 +45,83 @@ jobs:
   # Tests.
   test:
     name: ${{ matrix.build }}
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.image }}
     strategy:
       fail-fast: false
       matrix:
         include:
+          - build: Linux MSRV
+            # Keep in sync with Cargo.toml
+            rust-version: 1.77.0
+            image: ubuntu-latest
+            target_os: linux
+            # Avoid --all-targets for MSRV build since we don't want to
+            # build dev-dependencies for tests / benchmarks
+            build_args: --all-features
           - build: Linux
-            os: ubuntu-latest
+            rust-version: stable
+            image: ubuntu-latest
+            target_os: linux
+            build_args: --all-targets --all-features
           - build: macOS
-            os: macOS-13
+            rust-version: stable
+            image: macOS-13
+            target_os: macOS
+            build_args: --all-targets --all-features
           - build: Windows
-            os: windows-latest
+            rust-version: stable
+            image: windows-latest
+            target_os: windows
+            build_args: --all-targets --all-features
+          - build: Android
+            rust-version: stable
+            image: ubuntu-latest
+            target_os: android
+            build_args: --target=aarch64-linux-android --all --all-features
+            target_arg: --target=aarch64-linux-android
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
+      - name: Setup nightly toolchain
+        uses: hecrj/setup-rust-action@v2
+        with:
+          rust-version: nightly
+        if: ${{ matrix.rust-version != 'stable' }}
+      - name: Downgrade dependencies
+        if: ${{ matrix.rust-version != 'stable' }}
+        run: cargo +nightly generate-lockfile -Zminimal-versions
+      - name: Setup rust toolchain
+        uses: hecrj/setup-rust-action@v2
+        with:
+          rust-version: ${{ matrix.rust-version }}
+      - name: Setup Android toolchain target
+        if: ${{ matrix.target_os == 'android' }}
+        run: rustup target add aarch64-linux-android
+      - name: Install cargo-ndk
+        if: ${{ matrix.target_os == 'android' }}
+        run: cargo +stable install cargo-ndk
       - name: Toolchain Info
         run: rustup show active-toolchain
       - name: Install java
         uses: actions/setup-java@v1
         with:
-          java-version: '1.8.0'
+          java-version: "1.8.0"
       - name: Build
-        if: ${{ !cancelled() }}
-        run: cargo build --examples --all
-      - name: Test default features
-        if: ${{ !cancelled() }}
-        run: cargo test
-      - name: Shellcheck
-        if: ${{ runner.os == 'Linux' && !cancelled() }}
-        run: .github/workflows/shellcheck.sh
-      - name: Test invocation
-        if: ${{ runner.os != 'Windows' && !cancelled() }}
-        run: .github/workflows/run_invocation_tests.sh
-      - name: Test invocation
-        if: ${{ runner.os == 'Windows' && !cancelled() }}
-        run: .github/workflows/run_windows_invocation_tests.ps1
+        run: cargo build ${{ matrix.build_args }}
+      - name: Test
+        if: ${{ matrix.rust-version == 'stable' && matrix.target_os != 'android' && !cancelled() }}
+        run: cargo test --all-targets --all-features
+      - name: Test
+        if: ${{ matrix.rust-version == 'stable' && matrix.target_os == 'android' && !cancelled() }}
+        # Intentionally don't pass --all-features so we can check building with and without the
+        # 'invocation' feature for Android
+        run: cargo ndk -t arm64-v8a test --lib --tests --no-run -- --nocapture
+      - name: Test Docs
+        if: ${{ matrix.rust-version == 'stable' && !cancelled() }}
+        run: cargo test --doc ${{ matrix.target_arg }} --all-features
+      - name: Documentation
+        if: ${{ matrix.rust-version == 'stable' && !cancelled() }}
+        run: cargo doc ${{ matrix.target_arg }} --all-features --no-deps
       - name: Abort on error
         if: ${{ failure() }}
         run: echo "test failed" && false

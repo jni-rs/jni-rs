@@ -18,9 +18,9 @@ use crate::{
     descriptors::Desc,
     errors::*,
     objects::{
-        Auto, AutoElements, AutoElementsCritical, Global, IntoAuto as _, JByteBuffer, JClass,
-        JFieldID, JList, JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID, JString,
-        JThrowable, JValue, JValueOwned, ReleaseMode, TypeArray, Weak,
+        Auto, AutoElements, AutoElementsCritical, Global, IntoAuto, JByteBuffer, JClass, JFieldID,
+        JList, JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID, JString, JThrowable,
+        JValue, JValueOwned, ReleaseMode, TypeArray, Weak,
     },
     signature::{JavaType, Primitive, TypeSignature},
     strings::{JNIStr, JNIString, MUTF8Chars},
@@ -72,7 +72,7 @@ use super::{objects::JObjectRef, AttachGuard};
 /// if the local reference frame remains entered for a long time, such as a long-lasting loop, in
 /// which case local references should be deleted explicitly. Local references can be deleted when
 /// dropped if desired; use [`Env::delete_local_ref`] or wrap with
-/// [`crate::objects::IntoAuto::auto`] to arrange that.
+/// [`IntoAuto::auto`] to arrange that.
 ///
 /// ## Lifetime Names
 ///
@@ -901,7 +901,7 @@ impl<'local> Env<'local> {
     /// # use jni::{errors::Result, Env, objects::*};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// let local_obj: JObject = env.new_object(c"java/lang/String", c"(Ljava/lang/String;)V", &[])?;
+    /// let local_obj: JObject = env.new_object(c"java/lang/String", c"()V", &[])?;
     /// let global_string = env.new_cast_global_ref::<JString>(local_obj)?;
     /// // global_string is now a `Global<JString>` that persists beyond local frames
     ///
@@ -951,7 +951,7 @@ impl<'local> Env<'local> {
     /// # use jni::{errors::Result, Env, objects::*};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// let local_obj: JObject = env.new_object(c"java/lang/String", c"(Ljava/lang/String;)V", &[])?;
+    /// let local_obj: JObject = env.new_object(c"java/lang/String", c"()V", &[])?;
     /// let global_obj: Global<JObject<'static>> = env.new_global_ref(&local_obj)?;
     /// let global_string = env.cast_global::<JString>(global_obj)?;
     ///
@@ -1208,7 +1208,7 @@ impl<'local> Env<'local> {
     /// # use jni::{errors::Result, Env, objects::*};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// let local_obj: JObject = env.new_object(c"java/lang/String", c"(Ljava/lang/String;)V", &[])?;
+    /// let local_obj: JObject = env.new_object(c"java/lang/String", c"()V", &[])?;
     /// let local_string = env.new_cast_local_ref::<JString>(&local_obj)?;
     /// // local_string is now a JString<'local> in the current frame
     /// # Ok(())
@@ -1252,7 +1252,7 @@ impl<'local> Env<'local> {
     /// # use jni::{errors::Result, Env, objects::*};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// let obj: JObject = env.new_object(c"java/lang/String", c"(Ljava/lang/String;)V", &[])?;
+    /// let obj: JObject = env.new_object(c"java/lang/String", c"()V", &[])?;
     /// let string: JString = env.cast_local::<JString>(obj)?;
     ///
     /// // For upcasting, From trait is more efficient:
@@ -1298,10 +1298,10 @@ impl<'local> Env<'local> {
     /// # use jni::{errors::Result, Env, objects::*};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// let obj: JObject = env.new_object(c"java/lang/String", c"(Ljava/lang/String;)V", &[])?;
+    /// let obj: JObject = env.new_object(c"java/lang/String", c"()V", &[])?;
     /// let string_ref = env.as_cast::<JString>(&obj)?;
     /// // obj is still valid here
-    /// let java_string = env.get_string(&string_ref)?;
+    /// let empty_string_contents = string_ref.to_string();
     /// # Ok(())
     /// # }
     /// ```
@@ -1353,7 +1353,7 @@ impl<'local> Env<'local> {
     /// method call, (e.g. while looping over a large collection), this API can be used to
     /// explicitly delete local references before the JNI stack frame unwinds.
     ///
-    /// In most cases it is better to use [`Auto`] (see [`crate::IntoAuto::auto`] method) or
+    /// In most cases it is better to use [`Auto`] (see [`IntoAuto::auto`] method) or
     /// [`Self::with_local_frame`] instead of directly calling [`Self::delete_local_ref`].
     pub fn delete_local_ref<'other_local, O>(&self, obj: O)
     where
@@ -1425,15 +1425,16 @@ impl<'local> Env<'local> {
     }
 
     /// Executes the given function in a new local reference frame, in which at least a given number
-    /// of references can be created. Once this method returns, all references allocated
-    /// in the frame are freed.
+    /// of references can be created. Once this method returns, all references allocated in the
+    /// frame are freed.
     ///
-    /// If a frame can't be allocated with the requested capacity for local
-    /// references, returns `Err` with a pending `OutOfMemoryError`.
+    /// If a frame can't be allocated with the requested capacity for local references, returns
+    /// `Err` with a pending `OutOfMemoryError`.
     ///
-    /// Since local references created within this frame won't be accessible to the calling
-    /// frame then if you need to pass an object back to the caller then you can do that via a
-    /// [`Global`] / [`Self::make_global`].
+    /// Since local references created within this frame won't be accessible to the calling frame
+    /// then if you need to pass an object back to the caller then you can do that via
+    /// [`Self::with_local_frame_returning_local`] or else return a [`Global`] with
+    /// [`Self::new_global_ref`].
     pub fn with_local_frame<F, T, E>(&mut self, capacity: usize, f: F) -> std::result::Result<T, E>
     where
         F: FnOnce(&mut Env) -> std::result::Result<T, E>,
@@ -3692,7 +3693,7 @@ impl<'local> Env<'local> {
     ///
     /// # Safety
     ///
-    /// See: [JPrimitiveArray::get_array_elements] for more details
+    /// See: [JPrimitiveArray::get_elements] for more details
     #[deprecated(
         since = "0.22.0",
         note = "use JPrimitiveArray::get_elements instead. This API will be removed in a future version"
@@ -3713,7 +3714,7 @@ impl<'local> Env<'local> {
     ///
     /// # Safety
     ///
-    /// See: [JPrimitiveArray::get_array_elements_critical] for more details
+    /// See: [JPrimitiveArray::get_elements_critical] for more details
     #[deprecated(
         since = "0.22.0",
         note = "use JPrimitiveArray::get_elements_critical instead. This API will be removed in a future version"

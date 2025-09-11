@@ -56,7 +56,7 @@ impl From<&JNIStr> for JNIString {
 /// [`JNIStr::from_cstr_unchecked`]).
 ///
 /// To convert a `JNIStr` into an ordinary Rust string, use the
-/// [`to_str`][Self::to_str] method or [JNIStr::to_string]. To get a view of the
+/// [`to_str`][Self::to_str] method or `to_string`. To get a view of the
 /// modified UTF-8 encoding of the `JNIStr`, use the [`Self::to_bytes`] method.
 ///
 /// Note that, as with `CStr`, this type is **not** `repr(C)`. See [the `CStr`
