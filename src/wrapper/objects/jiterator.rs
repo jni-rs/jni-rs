@@ -9,7 +9,6 @@ use crate::{
     signature::{Primitive, ReturnType},
     strings::JNIStr,
     sys::jobject,
-    JavaVM,
 };
 
 use super::JObjectRef;
@@ -54,11 +53,12 @@ struct JIteratorAPI {
 
 impl JIteratorAPI {
     fn get<'any_local>(
-        vm: &JavaVM,
+        env: &Env<'_>,
         loader_context: &LoaderContext<'any_local, '_>,
     ) -> Result<&'static Self> {
         static JITERATOR_API: OnceCell<JIteratorAPI> = OnceCell::new();
         JITERATOR_API.get_or_try_init(|| {
+            let vm = env.get_java_vm();
             vm.with_env_current_frame(|env| {
                 let class = loader_context.load_class_for_type::<JIterator>(true, env)?;
                 let class = env.new_global_ref(&class).unwrap();
@@ -122,8 +122,7 @@ impl<'local> JIterator<'local> {
 
     /// Returns true if the iteration has more elements.
     pub fn has_next(&self, env: &mut Env<'_>) -> Result<bool> {
-        let vm = env.get_java_vm();
-        let api = JIteratorAPI::get(&vm, &LoaderContext::None)?;
+        let api = JIteratorAPI::get(env, &LoaderContext::None)?;
         unsafe {
             env.call_method_unchecked(
                 self,
@@ -159,8 +158,7 @@ impl<'local> JIterator<'local> {
         &self,
         env: &mut Env<'env_local>,
     ) -> Result<Option<JObject<'env_local>>> {
-        let vm = env.get_java_vm();
-        let api = JIteratorAPI::get(&vm, &LoaderContext::None)?;
+        let api = JIteratorAPI::get(env, &LoaderContext::None)?;
         unsafe {
             match env.call_method_unchecked(self, api.next_method, ReturnType::Object, &[]) {
                 Ok(v) => v.l().map(Some),
@@ -183,8 +181,7 @@ impl<'local> JIterator<'local> {
     /// - `UnsupportedOperationException` if the operation is not supported.
     /// - `IllegalStateException` if the iterator is in an invalid state (i.e [Self::next] has not been called).
     pub fn remove(&self, env: &mut Env<'_>) -> Result<()> {
-        let vm = env.get_java_vm();
-        let api = JIteratorAPI::get(&vm, &LoaderContext::None)?;
+        let api = JIteratorAPI::get(env, &LoaderContext::None)?;
         unsafe {
             env.call_method_unchecked(
                 self,
@@ -208,11 +205,11 @@ unsafe impl JObjectRef for JIterator<'_> {
         self.0.as_raw()
     }
 
-    fn lookup_class<'vm>(
-        vm: &'vm JavaVM,
+    fn lookup_class<'env>(
+        env: &'env Env<'_>,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
-        let api = JIteratorAPI::get(vm, &loader_context)?;
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'env> {
+        let api = JIteratorAPI::get(env, &loader_context)?;
         Ok(&api.class)
     }
 

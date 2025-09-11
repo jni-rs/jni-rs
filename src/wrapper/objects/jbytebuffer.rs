@@ -7,7 +7,7 @@ use crate::{
     objects::{Global, JClass, JObject, JObjectRef, LoaderContext},
     strings::JNIStr,
     sys::jobject,
-    JavaVM,
+    Env,
 };
 
 /// Lifetime'd representation of a `jobject` that is an instance of the
@@ -48,11 +48,12 @@ struct JByteBufferAPI {
 
 impl JByteBufferAPI {
     fn get<'any_local>(
-        vm: &JavaVM,
+        env: &Env<'_>,
         loader_context: &LoaderContext<'any_local, '_>,
     ) -> Result<&'static Self> {
         static JBYTEBUFFER_API: OnceCell<JByteBufferAPI> = OnceCell::new();
         JBYTEBUFFER_API.get_or_try_init(|| {
+            let vm = env.get_java_vm();
             vm.with_env_current_frame(|env| {
                 let class = loader_context.load_class_for_type::<JByteBuffer>(false, env)?;
                 let class = env.new_global_ref(&class).unwrap();
@@ -89,11 +90,11 @@ unsafe impl JObjectRef for JByteBuffer<'_> {
         self.0.as_raw()
     }
 
-    fn lookup_class<'vm>(
-        vm: &'vm JavaVM,
+    fn lookup_class<'env>(
+        env: &'env Env<'_>,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
-        let api = JByteBufferAPI::get(vm, &loader_context)?;
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'env> {
+        let api = JByteBufferAPI::get(env, &loader_context)?;
         Ok(&api.class)
     }
     unsafe fn from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {

@@ -383,8 +383,7 @@ impl<'local> Env<'local> {
     /// #
     /// # fn example<'local>(env: &mut Env<'local>) -> Result<()> {
     /// use jni::objects::{JString, JObjectRef as _, LoaderContext};
-    /// let vm = env.get_java_vm();
-    /// let string_class = JString::lookup_class(&vm, LoaderContext::None)?;
+    /// let string_class = JString::lookup_class(env, LoaderContext::None)?;
     /// let string_class_ref: &JClass = string_class.as_ref();
     /// # Ok(())
     /// # }
@@ -482,8 +481,7 @@ impl<'local> Env<'local> {
 
     /// Checks if an object can be cast to a specific reference type.
     pub(crate) fn is_instance_of_cast_type<To: JObjectRef>(&self, obj: &JObject) -> Result<bool> {
-        let vm = self.get_java_vm();
-        let class = match To::lookup_class(&vm, LoaderContext::FromObject(obj)) {
+        let class = match To::lookup_class(self, LoaderContext::FromObject(obj)) {
             Ok(class) => class,
             Err(Error::ClassNotFound { name: _ }) => return Ok(false),
             Err(e) => return Err(e),

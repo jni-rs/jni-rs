@@ -6,7 +6,7 @@ use crate::{
     errors::Error,
     objects::{Global, JClass, JClassLoader, JObject, JThread},
     strings::{JNIStr, JNIString},
-    JavaVM,
+    Env,
 };
 
 #[cfg(doc)]
@@ -99,10 +99,10 @@ pub unsafe trait JObjectRef: Sized {
     /// In case no class reference is already cached then use `loader_source.lookup_class()` to
     /// lookup a class reference.
     ///
-    fn lookup_class<'vm>(
-        vm: &'vm JavaVM,
+    fn lookup_class<'env>(
+        env: &'env Env<'_>,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm>;
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'env>;
 
     /// Returns a new reference type based on [`Self::Kind`] for the given `reference` that is tied
     /// to the specified lifetime.
@@ -371,11 +371,11 @@ where
         (*self).as_raw()
     }
 
-    fn lookup_class<'vm>(
-        vm: &'vm JavaVM,
+    fn lookup_class<'env>(
+        env: &'env Env<'_>,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
-        T::lookup_class(vm, loader_context)
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'env> {
+        T::lookup_class(env, loader_context)
     }
 
     unsafe fn from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {

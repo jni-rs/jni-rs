@@ -9,7 +9,6 @@ use crate::{
     signature::JavaType,
     strings::JNIStr,
     sys::{jclass, jobject},
-    JavaVM,
 };
 
 use super::JObjectRef;
@@ -51,9 +50,10 @@ struct JClassLoaderAPI {
 }
 
 impl JClassLoaderAPI {
-    fn get(vm: &JavaVM) -> Result<&'static Self> {
+    fn get(env: &Env<'_>) -> Result<&'static Self> {
         static JCLASS_LOADER_API: OnceCell<JClassLoaderAPI> = OnceCell::new();
         JCLASS_LOADER_API.get_or_try_init(|| {
+            let vm = env.get_java_vm();
             vm.with_env_current_frame(|env| {
                 // NB: Self::CLASS_NAME is a binary name with dots, not slashes
                 let class = env.find_class(c"java/lang/ClassLoader")?;
@@ -109,8 +109,7 @@ impl JClassLoader<'_> {
         name: &JNIStr,
         env: &mut Env<'local>,
     ) -> Result<JClass<'local>> {
-        let vm = env.get_java_vm();
-        let api = JClassLoaderAPI::get(&vm)?;
+        let api = JClassLoaderAPI::get(env)?;
 
         let name = env.new_string(name)?;
 
@@ -143,13 +142,13 @@ unsafe impl JObjectRef for JClassLoader<'_> {
         self.0.as_raw()
     }
 
-    fn lookup_class<'vm>(
-        vm: &'vm JavaVM,
+    fn lookup_class<'env>(
+        env: &'env Env<'_>,
         _loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'env> {
         // As a special-case; we ignore loader_context just to be clear that there's no risk of
         // recursion. (`LoaderContext::load_class` depends on the `JClassLoaderAPI`)
-        let api = JClassLoaderAPI::get(vm)?;
+        let api = JClassLoaderAPI::get(env)?;
         Ok(&api.class)
     }
 

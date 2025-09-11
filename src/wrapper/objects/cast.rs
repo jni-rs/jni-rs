@@ -7,7 +7,6 @@ use crate::{
     errors::{Error, Result},
     objects::{Global, JClass, JObject, JObjectRef, LoaderContext},
     strings::JNIStr,
-    JavaVM,
 };
 
 /// Represents a runtime checked (via `IsInstanceOf`) cast of a reference from one type to another
@@ -126,11 +125,11 @@ unsafe impl<'any, 'from, To: JObjectRef> JObjectRef for Cast<'any, 'from, To> {
         self.to.as_raw()
     }
 
-    fn lookup_class<'vm>(
-        vm: &'vm JavaVM,
+    fn lookup_class<'env>(
+        env: &'env Env<'_>,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
-        To::lookup_class(vm, loader_context)
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'env> {
+        To::lookup_class(env, loader_context)
     }
 
     unsafe fn from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {

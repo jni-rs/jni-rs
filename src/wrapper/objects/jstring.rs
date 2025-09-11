@@ -131,11 +131,12 @@ struct JStringAPI {
 
 impl JStringAPI {
     fn get<'any_local>(
-        vm: &JavaVM,
+        env: &Env<'_>,
         loader_context: &LoaderContext<'any_local, '_>,
     ) -> Result<&'static Self> {
         static JSTRING_API: OnceCell<JStringAPI> = OnceCell::new();
         JSTRING_API.get_or_try_init(|| {
+            let vm = env.get_java_vm();
             vm.with_env_current_frame(|env| {
                 let class = loader_context.load_class_for_type::<JString>(true, env)?;
                 let class = env.new_global_ref(&class).unwrap();
@@ -174,8 +175,7 @@ impl JString<'_> {
 
     /// Returns a canonical, interned version of this string.
     pub fn intern<'local>(&self, env: &mut Env<'local>) -> Result<JString<'local>> {
-        let vm = env.get_java_vm();
-        let api = JStringAPI::get(&vm, &LoaderContext::None)?;
+        let api = JStringAPI::get(env, &LoaderContext::None)?;
 
         // Safety: We know that `intern` is a valid method on `java/lang/String` that has no
         // arguments and it returns a valid `String` instance.
@@ -275,11 +275,11 @@ unsafe impl JObjectRef for JString<'_> {
         self.0.as_raw()
     }
 
-    fn lookup_class<'vm>(
-        vm: &'vm JavaVM,
+    fn lookup_class<'env>(
+        env: &'env Env<'_>,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
-        let api = JStringAPI::get(vm, &loader_context)?;
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'env> {
+        let api = JStringAPI::get(env, &loader_context)?;
         Ok(&api.class)
     }
 

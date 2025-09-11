@@ -8,7 +8,6 @@ use crate::{
     objects::{Global, JClass, JMethodID, JObject, JString, LoaderContext},
     strings::JNIStr,
     sys::{jobject, jthrowable},
-    JavaVM,
 };
 
 use super::JObjectRef;
@@ -52,11 +51,12 @@ struct JThrowableAPI {
 }
 impl JThrowableAPI {
     fn get<'any_local>(
-        vm: &JavaVM,
+        env: &Env<'any_local>,
         loader_context: &LoaderContext<'any_local, '_>,
     ) -> Result<&'static Self> {
         static JTHROWABLE_API: OnceCell<JThrowableAPI> = OnceCell::new();
         JTHROWABLE_API.get_or_try_init(|| {
+            let vm = env.get_java_vm();
             vm.with_env_current_frame(|env| {
                 let class = loader_context.load_class_for_type::<JThrowable>(true, env)?;
                 let class = env.new_global_ref(&class).unwrap();
@@ -98,8 +98,7 @@ impl JThrowable<'_> {
 
     /// Get the message of the throwable by calling the `getMessage` method.
     pub fn get_message(&self, env: &mut Env<'_>) -> Result<JString<'_>> {
-        let vm = env.get_java_vm();
-        let api = JThrowableAPI::get(&vm, &LoaderContext::None)?;
+        let api = JThrowableAPI::get(env, &LoaderContext::None)?;
 
         // Safety: We know that `getMessage` is a valid method on `java/lang/Throwable` that has no
         // arguments and it returns a valid `String` instance.
@@ -118,8 +117,7 @@ impl JThrowable<'_> {
 
     /// Get the cause of the throwable by calling the `getCause` method.
     pub fn get_cause(&self, env: &mut Env<'_>) -> Result<JThrowable<'_>> {
-        let vm = env.get_java_vm();
-        let api = JThrowableAPI::get(&vm, &LoaderContext::None)?;
+        let api = JThrowableAPI::get(env, &LoaderContext::None)?;
 
         // Safety: We know that `getCause` is a valid method on `java/lang/Throwable` that has no
         // arguments and it returns a valid `Throwable` instance.
@@ -148,11 +146,11 @@ unsafe impl JObjectRef for JThrowable<'_> {
         self.0.as_raw()
     }
 
-    fn lookup_class<'vm>(
-        vm: &'vm JavaVM,
+    fn lookup_class<'env>(
+        env: &'env Env<'_>,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
-        let api = JThrowableAPI::get(vm, &loader_context)?;
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'env> {
+        let api = JThrowableAPI::get(env, &loader_context)?;
         Ok(&api.class)
     }
 
