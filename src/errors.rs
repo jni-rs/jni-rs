@@ -4,8 +4,8 @@ use std::char::{CharTryFromError, DecodeUtf16Error};
 
 use thiserror::Error;
 
+use crate::signature::TypeSignature;
 use crate::sys;
-use crate::wrapper::signature::TypeSignature;
 
 pub type Result<T> = std::result::Result<T, Error>;
 

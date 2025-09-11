@@ -3,5 +3,5 @@ mod init_args;
 #[cfg(feature = "invocation")]
 pub use self::init_args::*;
 
-mod vm;
-pub use self::vm::*;
+mod java_vm;
+pub use self::java_vm::*;

@@ -61,10 +61,7 @@ pub extern "system" fn Java_HelloWorld_hello<'caller_frame>(
 
             // Then we have to create a new java string to return. Again, more info
             // in the `strings` module.
-            let output = env
-                .new_string(JNIString::from(format!("Hello, {}!", input)))
-                .expect("Couldn't create java string!");
-            Ok(output)
+            env.new_string(JNIString::from(format!("Hello, {}!", input)))
         })
         .unwrap_or_else(|e| {
             eprintln!("Error: {:#?}", e);
