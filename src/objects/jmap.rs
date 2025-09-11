@@ -112,17 +112,16 @@ impl<'local> JMap<'local> {
         self.0.into_raw()
     }
 
-    /// Cast a local reference to a `JMap`
+    /// Cast a local reference to a [`JMap`]
     ///
     /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.util.Map`.
     ///
-    /// Also see these other options for casting local or global references to a `JMap`:
+    /// Also see these other options for casting local or global references to a [`JMap`]:
+    /// - [Env::as_cast]
     /// - [Env::new_cast_local_ref]
     /// - [Env::cast_local]
-    /// - [Env::as_cast_local]
     /// - [Env::new_cast_global_ref]
     /// - [Env::cast_global]
-    /// - [Env::as_cast_global]
     ///
     /// # Errors
     ///
@@ -407,17 +406,16 @@ impl<'local> JMapEntry<'local> {
         self.0.into_raw()
     }
 
-    /// Cast a local reference to a `JMapEntry`
+    /// Cast a local reference to a [`JMapEntry`]
     ///
     /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.util.Map.Entry`.
     ///
-    /// Also see these other options for casting local or global references to a `JMapEntry`:
+    /// Also see these other options for casting local or global references to a [`JMapEntry`]:
+    /// - [Env::as_cast]
     /// - [Env::new_cast_local_ref]
     /// - [Env::cast_local]
-    /// - [Env::as_cast_local]
     /// - [Env::new_cast_global_ref]
     /// - [Env::cast_global]
-    /// - [Env::as_cast_global]
     ///
     /// # Errors
     ///

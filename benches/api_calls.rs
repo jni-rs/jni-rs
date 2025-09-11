@@ -4,7 +4,7 @@ use jni::strings::{JNIStr, JNIString};
 use jni_sys::jvalue;
 use lazy_static::lazy_static;
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 use jni::objects::{Global, IntoAuto as _};
 use jni::{
     descriptors::Desc,
@@ -13,6 +13,7 @@ use jni::{
     sys::jint,
     Env, InitArgsBuilder, JNIVersion, JavaVM,
 };
+use std::hint::black_box;
 use std::rc::Rc;
 use std::sync::Arc;
 

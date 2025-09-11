@@ -98,17 +98,16 @@ impl<'local> JIterator<'local> {
         self.0.into_raw()
     }
 
-    /// Cast a local reference to a `JIterator`
+    /// Cast a local reference to a [`JIterator`]
     ///
     /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.util.Iterator`.
     ///
-    /// Also see these other options for casting local or global references to a `JIterator`:
+    /// Also see these other options for casting local or global references to a [`JIterator`]:
+    /// - [Env::as_cast]
     /// - [Env::new_cast_local_ref]
     /// - [Env::cast_local]
-    /// - [Env::as_cast_local]
     /// - [Env::new_cast_global_ref]
     /// - [Env::cast_global]
-    /// - [Env::as_cast_global]
     ///
     /// # Errors
     ///

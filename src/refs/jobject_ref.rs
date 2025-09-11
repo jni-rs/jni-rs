@@ -93,10 +93,10 @@ pub unsafe trait JObjectRef: Sized {
     /// This is used as part of downcasting checks to do a cached lookup of associated class
     /// references - avoiding the cost of repeated FindClass or loadClass calls.
     ///
-    /// The implementation is expected to use [`JavaVM::get_cached_or_insert_with`] to lookup cached
-    /// API state, including a `Global<JClass>`.
+    /// The implementation is expected to use [`once_cell::sync::OnceCell::get_or_try_init`] to
+    /// lookup cached API state, including a `Global<JClass>`.
     ///
-    /// In case no class reference is already cached then use `loader_source.lookup_class()` to
+    /// In case no class reference is already cached then use [`LoaderContext::load_class`] to
     /// lookup a class reference.
     ///
     fn lookup_class<'env>(

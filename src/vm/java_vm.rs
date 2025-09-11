@@ -16,12 +16,10 @@ use crate::{
     sys, JNIVersion,
 };
 
+#[cfg(all(feature = "invocation", not(target_os = "android")))]
+use std::{os::raw::c_void, path::PathBuf};
 #[cfg(feature = "invocation")]
-use {
-    crate::InitArgs,
-    std::os::raw::c_void,
-    std::{ffi::OsStr, path::PathBuf},
-};
+use {crate::InitArgs, std::ffi::OsStr};
 
 #[cfg(doc)]
 use {crate::env, crate::objects};
@@ -114,7 +112,7 @@ static JAVA_VM_SINGLETON: once_cell::sync::OnceCell<JavaVM> = once_cell::sync::O
 /// The application will be able to use [`JavaVM::new`] which will dynamically load a `jvm` library
 /// (which is distributed with the JVM) at runtime:
 ///
-/// ```rust
+/// ```rust,ignore-aarch64-linux-android
 /// # use jni::errors;
 /// # //
 /// # // Ignore this test without invocation feature, so that simple `cargo test` works
@@ -198,16 +196,25 @@ impl JavaVM {
     /// library (`jvm.dll`, `libjvm.so`, or `libjvm.dylib`, depending on the platform).
     #[cfg(feature = "invocation")]
     pub fn new(args: InitArgs) -> StartJvmResult<Self> {
-        Self::with_libjvm(args, || {
-            Ok([
-                java_locator::locate_jvm_dyn_library()
-                    .map_err(StartJvmError::NotFound)?
-                    .as_str(),
-                java_locator::get_jvm_dyn_lib_file_name(),
-            ]
-            .iter()
-            .collect::<PathBuf>())
-        })
+        #[cfg(not(target_os = "android"))]
+        {
+            Self::with_libjvm(args, || {
+                Ok([
+                    java_locator::locate_jvm_dyn_library()
+                        .map_err(StartJvmError::NotFound)?
+                        .as_str(),
+                    java_locator::get_jvm_dyn_lib_file_name(),
+                ]
+                .iter()
+                .collect::<PathBuf>())
+            })
+        }
+
+        #[cfg(target_os = "android")]
+        {
+            let _a = args;
+            Err(StartJvmError::Unsupported)
+        }
     }
 
     /// Get a [`JavaVM`] for the global Java VM
@@ -255,6 +262,43 @@ impl JavaVM {
             .ok_or(Error::UninitializedJavaVM)
     }
 
+    #[cfg(all(feature = "invocation", not(target_os = "android")))]
+    unsafe fn with_create_fn_ptr(
+        args: InitArgs,
+        create_fn_ptr: unsafe extern "system" fn(
+            pvm: *mut *mut sys::JavaVM,
+            penv: *mut *mut c_void,
+            args: *mut c_void,
+        ) -> sys::jint,
+    ) -> Result<Self> {
+        let mut ptr: *mut sys::JavaVM = ::std::ptr::null_mut();
+        let mut env: *mut sys::JNIEnv = ::std::ptr::null_mut();
+
+        jni_error_code_to_result(create_fn_ptr(
+            &mut ptr as *mut _,
+            &mut env as *mut *mut sys::JNIEnv as *mut *mut c_void,
+            args.inner_ptr(),
+        ))?;
+
+        let vm = Self::from_raw(ptr);
+
+        // JNI_CreateJavaVM will implicitly attach the calling thread to the JVM.
+        //
+        // Since the JVM may attribute this thread with special significance as a "main" thread, we
+        // avoid detaching it.
+        //
+        // Instead we take ownership of that attachment by creating a `TLSAttachGuard` for it.
+        //
+        // Note: This will make a redundant `AttachCurrentThread` call via
+        // `sys_attach_current_thread` and the `Default` `config` is benign here because it will be
+        // ignored while the thread is already attached.
+        //
+        // This will track the new attachment in TLS, under `THREAD_ATTACH_GUARD`
+        TLSAttachGuard::attach_current_thread(&vm, &Default::default())?;
+
+        Ok(vm)
+    }
+
     /// Launch a new JavaVM using the provided init args, loading it from the given shared library file if it's not already loaded.
     ///
     /// Unlike original JNI API, the main thread (the thread from which this method is called) will
@@ -267,8 +311,8 @@ impl JavaVM {
     /// The `libjvm_path` parameter takes a *closure* which returns the path to the JVM shared
     /// library. The closure is only called if the JVM is not already loaded. Any work that needs
     /// to be done to locate the JVM shared library should be done inside that closure.
-    #[cfg(feature = "invocation")]
-    pub fn with_libjvm<P: AsRef<OsStr>>(
+    #[cfg(all(feature = "invocation", not(target_os = "android")))]
+    fn impl_with_libjvm<P: AsRef<OsStr>>(
         args: InitArgs,
         libjvm_path: impl FnOnce() -> StartJvmResult<P>,
     ) -> StartJvmResult<Self> {
@@ -323,41 +367,34 @@ impl JavaVM {
         }
     }
 
+    /// Launch a new JavaVM using the provided init args, loading it from the given shared library file if it's not already loaded.
+    ///
+    /// Unlike original JNI API, the main thread (the thread from which this method is called) will
+    /// not be attached to JVM. You must explicitly use `attach_current_thread…` methods (refer
+    /// to [Attaching Native Threads section](#attaching-native-threads)).
+    ///
+    /// *This API requires the "invocation" feature to be enabled,
+    /// see ["Launching JVM from Rust"](struct.JavaVM.html#launching-jvm-from-rust).*
+    ///
+    /// The `libjvm_path` parameter takes a *closure* which returns the path to the JVM shared
+    /// library. The closure is only called if the JVM is not already loaded. Any work that needs
+    /// to be done to locate the JVM shared library should be done inside that closure.
     #[cfg(feature = "invocation")]
-    unsafe fn with_create_fn_ptr(
+    pub fn with_libjvm<P: AsRef<OsStr>>(
         args: InitArgs,
-        create_fn_ptr: unsafe extern "system" fn(
-            pvm: *mut *mut sys::JavaVM,
-            penv: *mut *mut c_void,
-            args: *mut c_void,
-        ) -> sys::jint,
-    ) -> Result<Self> {
-        let mut ptr: *mut sys::JavaVM = ::std::ptr::null_mut();
-        let mut env: *mut sys::JNIEnv = ::std::ptr::null_mut();
+        libjvm_path: impl FnOnce() -> StartJvmResult<P>,
+    ) -> StartJvmResult<Self> {
+        #[cfg(not(target_os = "android"))]
+        {
+            Self::impl_with_libjvm(args, libjvm_path)
+        }
 
-        jni_error_code_to_result(create_fn_ptr(
-            &mut ptr as *mut _,
-            &mut env as *mut *mut sys::JNIEnv as *mut *mut c_void,
-            args.inner_ptr(),
-        ))?;
-
-        let vm = Self::from_raw(ptr);
-
-        // JNI_CreateJavaVM will implicitly attach the calling thread to the JVM.
-        //
-        // Since the JVM may attribute this thread with special significance as a "main" thread, we
-        // avoid detaching it.
-        //
-        // Instead we take ownership of that attachment by creating a `TLSAttachGuard` for it.
-        //
-        // Note: This will make a redundant `AttachCurrentThread` call via
-        // `sys_attach_current_thread` and the `Default` `config` is benign here because it will be
-        // ignored while the thread is already attached.
-        //
-        // This will track the new attachment in TLS, under `THREAD_ATTACH_GUARD`
-        TLSAttachGuard::attach_current_thread(&vm, &Default::default())?;
-
-        Ok(vm)
+        #[cfg(target_os = "android")]
+        {
+            let _args = args;
+            let _libjvm_path = libjvm_path;
+            Err(StartJvmError::Unsupported)
+        }
     }
 
     /// Create a JavaVM from a raw pointer.
@@ -506,7 +543,7 @@ impl JavaVM {
     /// [`Self::attach_current_thread_for_scope()`] instead of this function.
     ///
     /// The semantics of [`Self::attach_current_thread`] are equivalent to:
-    /// ```rust
+    /// ```rust,ignore-aarch64-linux-android
     /// # use jni::{JavaVM, AttachConfig, DEFAULT_LOCAL_FRAME_CAPACITY};
     /// # fn jni_example(vm: &JavaVM) -> jni::errors::Result<()> {
     ///      vm.attach_current_thread_with_config(AttachConfig::default, Some(DEFAULT_LOCAL_FRAME_CAPACITY), |env| {
@@ -517,7 +554,7 @@ impl JavaVM {
     /// ```
     ///
     /// The semantics of [`Self::attach_current_thread_for_scope`] are equivalent to:
-    /// ```rust
+    /// ```rust,ignore-aarch64-linux-android
     /// # use jni::{JavaVM, AttachConfig, DEFAULT_LOCAL_FRAME_CAPACITY};
     /// # fn jni_example(vm: &JavaVM) -> jni::errors::Result<()> {
     ///      vm.attach_current_thread_with_config(|| AttachConfig::default().scoped(true), Some(DEFAULT_LOCAL_FRAME_CAPACITY), |env| {
@@ -567,7 +604,7 @@ impl JavaVM {
     /// For example, this can be used to implement your own equivalent to
     /// [`Self::attach_current_thread`] like:
     ///
-    /// ```rust
+    /// ```rust,ignore-aarch64-linux-android
     /// # use jni::{JavaVM, AttachConfig, DEFAULT_LOCAL_FRAME_CAPACITY};
     /// struct Executor {
     ///     vm: JavaVM,
@@ -678,7 +715,7 @@ impl JavaVM {
     }
 
     /// Get an [`AttachGuard`] for the [`Env`] associated with the current thread or, if JNI is
-    /// not attached to the Java VM, this will return [`Error::JniCall()`] with
+    /// not attached to the Java VM, this will return [`Error::JniCall`] with
     /// [`JniError::ThreadDetached`].
     ///
     /// Note: jni-rs is implemented based on an assumption that all real-world implementations of
@@ -753,7 +790,7 @@ impl JavaVM {
 
     /// Returns an [`AttachGuard`] for the [`Env`] associated with the current thread.
     ///
-    /// If JNI is not attached to the Java VM, this will return [`Error::JniCall()`] with
+    /// If JNI is not attached to the Java VM, this will return [`Error::JniCall`] with
     /// [`JniError::ThreadDetached`].
     ///
     /// This serves a similar purpose to [`sys::JNIInvokeInterface__1_2::GetEnv`] in that it
@@ -779,7 +816,7 @@ impl JavaVM {
     /// Runs a closure with a borrowed [`Env`] associated with a new JNI stack frame that will be
     /// unwound to release all local references created within the given closure.
     ///
-    /// If JNI is not attached to the Java VM, this will return [`Error::JniCall()`] with
+    /// If JNI is not attached to the Java VM, this will return [`Error::JniCall`] with
     /// [`JniError::ThreadDetached`].
     ///
     /// This API can recognize attachments made by other JNI language bindings but will first check
@@ -811,7 +848,7 @@ impl JavaVM {
     /// Runs a closure with a borrowed [`Env`] associated with a new JNI stack frame that will be
     /// unwound to release all local references created within the given closure.
     ///
-    /// If JNI is not attached to the Java VM, this will return [`Error::JniCall()`] with
+    /// If JNI is not attached to the Java VM, this will return [`Error::JniCall`] with
     /// [`JniError::ThreadDetached`].
     ///
     /// This API can recognize attachments made by other JNI language bindings but will first check
@@ -1062,8 +1099,11 @@ unsafe fn sys_detach_current_thread(env_ptr: *mut jni_sys::JNIEnv, thread: &Thre
     Ok(())
 }
 
+// There's a false-positive Clippy bug: https://github.com/rust-lang/rust-clippy/issues/13422
 thread_local! {
+    #[cfg_attr(target_os = "android", allow(clippy::missing_const_for_thread_local))]
     static THREAD_ATTACHMENT: Cell<*mut jni_sys::JNIEnv> = const { Cell::new(std::ptr::null_mut()) };
+    #[cfg_attr(target_os = "android", allow(clippy::missing_const_for_thread_local))]
     static THREAD_GUARD_NEST_LEVEL: Cell<usize> = const { Cell::new(0) };
 }
 
@@ -1368,7 +1408,7 @@ impl AttachGuard {
     /// Drop a guard explicitly and detach the current thread if the guard owns
     /// the current attachment.
     ///
-    /// Unlike [`AttachGuard::Drop`] this returns a `Result` that can indicate
+    /// Unlike [`AttachGuard::drop`] this returns a `Result` that can indicate
     /// potential JNI errors from attempting to detach the thread.
     ///
     /// # Panics
@@ -1399,6 +1439,8 @@ impl Drop for AttachGuard {
 }
 
 thread_local! {
+    // There's a false-positive Clippy bug: https://github.com/rust-lang/rust-clippy/issues/13422
+    #[cfg_attr(target_os = "android", allow(clippy::missing_const_for_thread_local))]
     static THREAD_ATTACH_GUARD: RefCell<Option<TLSAttachGuard>> = const { RefCell::new(None) }
 }
 

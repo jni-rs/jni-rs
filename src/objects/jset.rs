@@ -12,6 +12,9 @@ use crate::{
 
 use super::JObjectRef;
 
+#[cfg(doc)]
+use crate::errors::Error;
+
 /// Wrapper for `java.utils.Map.Entry` references. Provides methods to get the key and value.
 #[repr(transparent)]
 #[derive(Default)]
@@ -92,17 +95,16 @@ impl<'local> JSet<'local> {
         self.0.into_raw()
     }
 
-    /// Cast a local reference to a `JSet`
+    /// Cast a local reference to a [`JSet`]
     ///
     /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.util.Set`.
     ///
-    /// Also see these other options for casting local or global references to a `JSet`:
+    /// Also see these other options for casting local or global references to a [`JSet`]:
+    /// - [Env::as_cast]
     /// - [Env::new_cast_local_ref]
     /// - [Env::cast_local]
-    /// - [Env::as_cast_local]
     /// - [Env::new_cast_global_ref]
     /// - [Env::cast_global]
-    /// - [Env::as_cast_global]
     ///
     /// # Errors
     ///

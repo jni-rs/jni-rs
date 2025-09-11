@@ -14,7 +14,10 @@ mod char_encoding_generic;
 #[cfg(windows)]
 mod char_encoding_windows;
 
-/// Errors that can occur when invoking a [`JavaVM`](super::vm::JavaVM) with the
+#[cfg(doc)]
+use crate::JavaVM;
+
+/// Errors that can occur when invoking a [`JavaVM`] with the
 /// [Invocation API](https://docs.oracle.com/en/java/javase/12/docs/specs/jni/invocation.html).
 #[derive(Debug, Error)]
 #[non_exhaustive]
@@ -348,6 +351,7 @@ pub struct InitArgs<'a> {
 }
 
 impl InitArgs<'_> {
+    #[allow(dead_code)]
     pub(crate) fn inner_ptr(&self) -> *mut c_void {
         &self.inner as *const _ as _
     }

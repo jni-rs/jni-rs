@@ -10,6 +10,12 @@ use crate::{
     Env, JavaVM,
 };
 
+#[cfg(doc)]
+use ::{
+    std::ffi::{CStr, CString},
+    std::string::ToString as _,
+};
+
 /// Borrows the contents of a `java.lang.String` object, in Java's [modified
 /// UTF-8] encoding.
 ///
@@ -18,11 +24,11 @@ use crate::{
 /// released when dropped.
 ///
 /// This can be dereferenced to obtain a [`JNIStr`] which can in turn be
-/// converted to a utf8 Rust string. (See [`JNIStr::to_str`] or [`JNIStr::to_string`]).
+/// converted to a utf8 Rust string. (See [`JNIStr::to_str`] or `to_string`).
 ///
 /// For example:
 ///
-/// ```
+/// ```rust,no_run
 /// # use jni::{errors::Result, Env, objects::*};
 /// #
 /// # fn f(env: &mut Env) -> Result<()> {
@@ -36,7 +42,7 @@ use crate::{
 ///
 /// From the point of view of JNI a [JString] is merely a reference to a
 /// `java.lang.String` object and to access the underlying data, you need to use
-/// JNI ([JString::borrow_utf_chars]) to explicitly borrow the underlying bytes
+/// JNI ([JString::mutf8_chars]) to explicitly borrow the underlying bytes
 /// of the string.
 ///
 /// [JNIStr] is to [JNIString] as `str` is to `String` or `CStr` is to
@@ -158,11 +164,11 @@ where
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
     /// let jstring = env.new_string(c"foo")?;
-    /// let java_str = env.get_string(&jstring)?;
+    /// let chars = jstring.mutf8_chars(env)?;
     ///
-    /// let (ptr, is_copy) = java_str.into_raw();
+    /// let (ptr, is_copy) = chars.into_raw();
     /// // Do whatever you need with the pointer
-    /// let java_str = unsafe { MUTF8Chars::from_raw(env, &jstring, ptr, is_copy) };
+    /// let chars = unsafe { MUTF8Chars::from_raw(env, &jstring, ptr, is_copy) };
     /// # Ok(())
     /// # }
     /// ```

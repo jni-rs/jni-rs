@@ -48,6 +48,7 @@ impl<'local> From<JString<'local>> for JObject<'local> {
     }
 }
 
+#[allow(rustdoc::invalid_html_tags)]
 /// Display the contents of a `JString`
 ///
 /// This implementation relies on JNI (GetStringUTFChars) to retrieve the string contents for
@@ -195,28 +196,29 @@ impl JString<'_> {
 
     /// Gets the contents of this string, in [modified UTF-8] encoding (via `GetStringUTFChars`).
     ///
-    /// The returned [MUTF8Chars] guard can be used to access the modified UTF-8
-    /// bytes, or to convert to a Rust string (UTF-8).
+    /// The returned [MUTF8Chars] guard can be used to access the modified UTF-8 bytes, or to
+    /// convert to a Rust string (UTF-8).
     ///
     /// For example:
     ///
     /// ```rust,no_run
-    /// # use jni::{errors::Result, Env, objects::*};
+    /// # use jni::{errors::Result, Env, objects::*, strings::*};
     /// #
     /// # fn f(env: &mut Env) -> Result<()> {
     /// let my_jstring = env.new_string(c"Hello, world!")?;
     /// let mutf8_chars = my_jstring.mutf8_chars(env)?;
-    /// let rust_string = mutf8_chars.to_string();
+    /// let jni_str: &JNIStr = &mutf8_chars;
+    /// let rust_str = jni_str.to_str();
     /// # Ok(())
     /// # }
     /// ```
     ///
-    /// When the [MUTF8Chars] guard is dropped, the reference to the contents
-    /// gets released.
+    /// When the [MUTF8Chars] guard is dropped, the reference to the contents gets released.
     ///
     /// The [MUTF8Chars] guard dereferences to a [JNIStr].
     ///
-    /// For convenience, also see [Self::to_string].
+    /// Also note that [MUTF8Chars] (and also [`JString`] itself) implements `Display` and
+    /// `ToString` so it's also possible to use `.to_string()` to get a Rust String from a [JString]
     ///
     /// [modified UTF-8]: https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
     ///
@@ -242,7 +244,7 @@ impl JString<'_> {
     /// # }
     /// ```
     ///
-    /// This is equivalent to calling [`mutf8_chars`] and then converting that to a `String`, like:
+    /// This is equivalent to calling [`Self::mutf8_chars`] and then converting that to a `String`, like:
     ///
     /// ```rust,no_run
     /// # use jni::{errors::Result, Env, objects::*};
