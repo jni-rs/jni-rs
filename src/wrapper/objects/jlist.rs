@@ -10,7 +10,7 @@ use crate::{
     signature::{Primitive, ReturnType},
     strings::JNIStr,
     sys::jint,
-    Env, JavaVM,
+    Env,
 };
 
 use std::ops::Deref;
@@ -63,11 +63,12 @@ struct JListAPI {
 
 impl JListAPI {
     fn get<'any_local>(
-        vm: &JavaVM,
+        env: &Env<'_>,
         loader_context: &LoaderContext<'any_local, '_>,
     ) -> Result<&'static Self> {
         static JLIST_API: OnceCell<JListAPI> = OnceCell::new();
         JLIST_API.get_or_try_init(|| {
+            let vm = env.get_java_vm();
             vm.with_env_current_frame(|env| {
                 let class = loader_context.load_class_for_type::<JList>(true, env)?;
                 let class = env.new_global_ref(&class).unwrap();
@@ -160,8 +161,7 @@ impl<'local> JList<'local> {
         env: &mut Env<'top_local>,
         idx: jint,
     ) -> Result<Option<JObject<'top_local>>> {
-        let vm = env.get_java_vm();
-        let api = JListAPI::get(&vm, &LoaderContext::None)?;
+        let api = JListAPI::get(env, &LoaderContext::None)?;
         // SAFETY: We keep the class loaded, and fetched the method ID for this function.
         // The arguments and return type match the method signature
         let result = unsafe {
@@ -189,8 +189,7 @@ impl<'local> JList<'local> {
 
     /// Insert an element at a specific index
     pub fn insert(&self, env: &mut Env, idx: jint, value: &JObject) -> Result<()> {
-        let vm = env.get_java_vm();
-        let api = JListAPI::get(&vm, &LoaderContext::None)?;
+        let api = JListAPI::get(env, &LoaderContext::None)?;
         // SAFETY: We keep the class loaded, and fetched the method ID for this function.
         // The arguments and return type match the method signature
         let result = unsafe {
@@ -219,8 +218,7 @@ impl<'local> JList<'local> {
         env: &mut Env<'other_local_2>,
         idx: jint,
     ) -> Result<JObject<'other_local_2>> {
-        let vm = env.get_java_vm();
-        let api = JListAPI::get(&vm, &LoaderContext::None)?;
+        let api = JListAPI::get(env, &LoaderContext::None)?;
         // SAFETY: We keep the class loaded, and fetched the method ID for this function.
         // The arguments and return type match the method signature
         unsafe {
@@ -334,11 +332,11 @@ unsafe impl JObjectRef for JList<'_> {
         self.0.as_raw()
     }
 
-    fn lookup_class<'vm>(
-        vm: &'vm JavaVM,
+    fn lookup_class<'env>(
+        env: &'env Env<'_>,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
-        let api = JListAPI::get(vm, &loader_context)?;
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'env> {
+        let api = JListAPI::get(env, &loader_context)?;
         Ok(&api.class)
     }
 

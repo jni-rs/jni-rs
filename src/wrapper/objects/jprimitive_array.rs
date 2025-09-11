@@ -12,7 +12,6 @@ use crate::{
     },
     strings::JNIStr,
     sys::{jarray, jobject},
-    JavaVM,
 };
 
 use super::TypeArray;
@@ -341,11 +340,12 @@ macro_rules! impl_ref_for_jprimitive_array {
 
             impl [<JPrimitiveArrayAPI _ $type>] {
                 fn get<'any_local>(
-                    vm: &JavaVM,
+                    env: &Env<'_>,
                     loader_context: &LoaderContext<'any_local, '_>,
                 ) -> Result<&'static Self> {
                     static JPRIMITIVE_ARRAY_API: OnceCell<[<JPrimitiveArrayAPI _ $type>]> = OnceCell::new();
                     JPRIMITIVE_ARRAY_API.get_or_try_init(|| {
+                        let vm = env.get_java_vm();
                         vm.with_env_current_frame(|env| {
                             let class =
                                 loader_context.load_class_for_type::<JPrimitiveArray::<crate::sys::$type>>(false, env)?;
@@ -369,11 +369,11 @@ macro_rules! impl_ref_for_jprimitive_array {
                     self.obj.as_raw()
                 }
 
-                fn lookup_class<'vm>(
-                    vm: &'vm JavaVM,
+                fn lookup_class<'env>(
+                    env: &'env Env<'_>,
                     loader_context: LoaderContext,
-                ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
-                    let api = [<JPrimitiveArrayAPI _ $type>]::get(vm, &loader_context)?;
+                ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'env> {
+                    let api = [<JPrimitiveArrayAPI _ $type>]::get(env, &loader_context)?;
                     Ok(&api.class)
                 }
 

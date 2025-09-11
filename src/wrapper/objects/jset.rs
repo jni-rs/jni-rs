@@ -8,7 +8,6 @@ use crate::{
     objects::{Cast, Global, JClass, JCollection, JIterator, JObject, LoaderContext},
     strings::JNIStr,
     sys::jobject,
-    JavaVM,
 };
 
 use super::JObjectRef;
@@ -57,11 +56,12 @@ struct JSetAPI {
 
 impl JSetAPI {
     fn get<'any_local>(
-        vm: &JavaVM,
+        env: &Env<'_>,
         loader_context: &LoaderContext<'any_local, '_>,
     ) -> Result<&'static Self> {
         static JSET_API: OnceCell<JSetAPI> = OnceCell::new();
         JSET_API.get_or_try_init(|| {
+            let vm = env.get_java_vm();
             vm.with_env_current_frame(|env| {
                 let class = loader_context.load_class_for_type::<JSet>(true, env)?;
                 let class = env.new_global_ref(&class).unwrap();
@@ -205,11 +205,11 @@ unsafe impl JObjectRef for JSet<'_> {
         self.0.as_raw()
     }
 
-    fn lookup_class<'vm>(
-        vm: &'vm JavaVM,
+    fn lookup_class<'env>(
+        env: &'env Env<'_>,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
-        let api = JSetAPI::get(vm, &loader_context)?;
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'env> {
+        let api = JSetAPI::get(env, &loader_context)?;
         Ok(&api.class)
     }
 

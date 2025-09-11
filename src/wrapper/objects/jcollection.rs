@@ -9,7 +9,6 @@ use crate::{
     signature::{Primitive, ReturnType},
     strings::JNIStr,
     sys::jobject,
-    JavaVM,
 };
 
 use super::JObjectRef;
@@ -58,11 +57,12 @@ struct JCollectionAPI {
 
 impl JCollectionAPI {
     fn get<'any_local>(
-        vm: &JavaVM,
+        env: &Env<'_>,
         loader_context: &LoaderContext<'any_local, '_>,
     ) -> Result<&'static Self> {
         static JCOLLECTION_API: OnceCell<JCollectionAPI> = OnceCell::new();
         JCOLLECTION_API.get_or_try_init(|| {
+            let vm = env.get_java_vm();
             vm.with_env_current_frame(|env| {
                 let class = loader_context.load_class_for_type::<JCollection>(true, env)?;
                 let class = env.new_global_ref(&class).unwrap();
@@ -152,7 +152,7 @@ impl<'local> JCollection<'local> {
         element: impl AsRef<JObject<'any_local>>,
         env: &mut Env<'_>,
     ) -> Result<bool> {
-        let api = JCollectionAPI::get(&env.get_java_vm(), &LoaderContext::default())?;
+        let api = JCollectionAPI::get(env, &LoaderContext::default())?;
         let result = unsafe {
             env.call_method_unchecked(
                 self,
@@ -178,7 +178,7 @@ impl<'local> JCollection<'local> {
         element: impl AsRef<JObject<'any_local>>,
         env: &mut Env<'_>,
     ) -> Result<bool> {
-        let api = JCollectionAPI::get(&env.get_java_vm(), &LoaderContext::default())?;
+        let api = JCollectionAPI::get(env, &LoaderContext::default())?;
         let result = unsafe {
             env.call_method_unchecked(
                 self,
@@ -196,7 +196,7 @@ impl<'local> JCollection<'local> {
     ///
     /// - `UnsupportedOperationException` - if the clear operation is not supported
     pub fn clear(&self, env: &mut Env<'_>) -> Result<()> {
-        let api = JCollectionAPI::get(&env.get_java_vm(), &LoaderContext::default())?;
+        let api = JCollectionAPI::get(env, &LoaderContext::default())?;
         unsafe {
             env.call_method_unchecked(
                 self,
@@ -217,7 +217,7 @@ impl<'local> JCollection<'local> {
     /// - `ClassCastException` - if the element type isn't compatible with the set
     /// - `NullPointerException` - if the given element is null and the set does not allow null values
     pub fn contains(&self, element: &JObject, env: &mut Env<'_>) -> Result<bool> {
-        let api = JCollectionAPI::get(&env.get_java_vm(), &LoaderContext::default())?;
+        let api = JCollectionAPI::get(env, &LoaderContext::default())?;
         let result = unsafe {
             env.call_method_unchecked(
                 self,
@@ -233,7 +233,7 @@ impl<'local> JCollection<'local> {
     ///
     /// Returns [i32::MAX] if the collection size is too large to be represented as an i32.
     pub fn size(&self, env: &mut Env<'_>) -> Result<i32> {
-        let api = JCollectionAPI::get(&env.get_java_vm(), &LoaderContext::default())?;
+        let api = JCollectionAPI::get(env, &LoaderContext::default())?;
         let result = unsafe {
             env.call_method_unchecked(
                 self,
@@ -247,7 +247,7 @@ impl<'local> JCollection<'local> {
 
     /// Returns `true` if this collection contains no elements.
     pub fn is_empty(&self, env: &mut Env<'_>) -> Result<bool> {
-        let api = JCollectionAPI::get(&env.get_java_vm(), &LoaderContext::default())?;
+        let api = JCollectionAPI::get(env, &LoaderContext::default())?;
         let result = unsafe {
             env.call_method_unchecked(
                 self,
@@ -261,7 +261,7 @@ impl<'local> JCollection<'local> {
 
     /// Returns an iterator (`java.util.Iterator`) over the elements in this collection.
     pub fn iterator<'env_local>(&self, env: &mut Env<'env_local>) -> Result<JIterator<'env_local>> {
-        let api = JCollectionAPI::get(&env.get_java_vm(), &LoaderContext::default())?;
+        let api = JCollectionAPI::get(env, &LoaderContext::default())?;
         unsafe {
             let iterator = env
                 .call_method_unchecked(self, api.iterator_method, ReturnType::Object, &[])?
@@ -282,11 +282,11 @@ unsafe impl JObjectRef for JCollection<'_> {
         self.0.as_raw()
     }
 
-    fn lookup_class<'vm>(
-        vm: &'vm JavaVM,
+    fn lookup_class<'env>(
+        env: &'env Env<'_>,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
-        let api = JCollectionAPI::get(vm, &loader_context)?;
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'env> {
+        let api = JCollectionAPI::get(env, &loader_context)?;
         Ok(&api.class)
     }
 

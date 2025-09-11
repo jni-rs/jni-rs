@@ -7,7 +7,7 @@ use crate::{
     objects::{Global, JClass, LoaderContext},
     strings::JNIStr,
     sys::jobject,
-    JavaVM,
+    Env,
 };
 
 use super::JObjectRef;
@@ -71,9 +71,10 @@ struct JObjectAPI {
     // no methods cached for now
 }
 impl JObjectAPI {
-    fn get(vm: &JavaVM) -> Result<&'static Self> {
+    fn get(env: &Env<'_>) -> Result<&'static Self> {
         static JOBJECT_API: OnceCell<JObjectAPI> = OnceCell::new();
         JOBJECT_API.get_or_try_init(|| {
+            let vm = env.get_java_vm();
             vm.with_env_current_frame(|env| {
                 // NB: Self::CLASS_NAME is a binary name with dots, not slashes
                 let class = env.find_class(JNIStr::from_cstr(c"java/lang/Object"))?;
@@ -137,13 +138,13 @@ unsafe impl JObjectRef for JObject<'_> {
         self.as_raw()
     }
 
-    fn lookup_class<'vm>(
-        vm: &'vm JavaVM,
+    fn lookup_class<'env>(
+        env: &'env Env<'_>,
         _loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'env> {
         // As a special-case; we ignore loader_context just to be clear that there's no risk of
         // recursion. (`LoaderContext::load_class` depends on the `JObjectAPI`)
-        let api = JObjectAPI::get(vm)?;
+        let api = JObjectAPI::get(env)?;
         Ok(&api.class)
     }
 

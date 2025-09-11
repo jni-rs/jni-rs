@@ -8,7 +8,6 @@ use crate::{
     objects::{Global, JClass, JObject, JObjectRef, LoaderContext},
     strings::JNIStr,
     sys::{jobject, jobjectArray},
-    JavaVM,
 };
 
 use super::AsJArrayRaw;
@@ -52,11 +51,12 @@ struct JObjectArrayAPI {
 
 impl JObjectArrayAPI {
     fn get<'any_local>(
-        vm: &JavaVM,
+        env: &Env<'_>,
         loader_context: &LoaderContext<'any_local, '_>,
     ) -> Result<&'static Self> {
         static JOBJECT_ARRAY_API: OnceCell<JObjectArrayAPI> = OnceCell::new();
         JOBJECT_ARRAY_API.get_or_try_init(|| {
+            let vm = env.get_java_vm();
             vm.with_env_current_frame(|env| {
                 let class = loader_context.load_class_for_type::<JObjectArray>(false, env)?;
                 let class = env.new_global_ref(&class).unwrap();
@@ -110,11 +110,11 @@ unsafe impl JObjectRef for JObjectArray<'_> {
         self.0.as_raw()
     }
 
-    fn lookup_class<'vm>(
-        vm: &'vm JavaVM,
+    fn lookup_class<'env>(
+        env: &'env Env<'_>,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
-        let api = JObjectArrayAPI::get(vm, &loader_context)?;
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'env> {
+        let api = JObjectArrayAPI::get(env, &loader_context)?;
         Ok(&api.class)
     }
 

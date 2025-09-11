@@ -8,7 +8,7 @@ use crate::{
     },
     signature::{Primitive, ReturnType},
     strings::JNIStr,
-    Env, JavaVM,
+    Env,
 };
 
 use std::ops::Deref;
@@ -55,11 +55,12 @@ struct JMapAPI {
 
 impl JMapAPI {
     fn get<'any_local>(
-        vm: &JavaVM,
+        env: &Env<'_>,
         loader_context: &LoaderContext<'any_local, '_>,
     ) -> Result<&'static Self> {
         static JMAP_API: OnceCell<JMapAPI> = OnceCell::new();
         JMAP_API.get_or_try_init(|| {
+            let vm = env.get_java_vm();
             vm.with_env_current_frame(|env| {
                 let class = loader_context.load_class_for_type::<JMap>(true, env)?;
                 let class = env.new_global_ref(&class).unwrap();
@@ -154,8 +155,7 @@ impl<'local> JMap<'local> {
         env: &mut Env<'top_local>,
         key: &JObject,
     ) -> Result<Option<JObject<'top_local>>> {
-        let vm = env.get_java_vm();
-        let api = JMapAPI::get(&vm, &LoaderContext::None)?;
+        let api = JMapAPI::get(env, &LoaderContext::None)?;
         // SAFETY: We keep the class loaded, and fetched the method ID for this function.
         // Provided argument is statically known as a JObject/null, rather than another primitive type.
         let result = unsafe {
@@ -184,8 +184,7 @@ impl<'local> JMap<'local> {
         key: &JObject,
         value: &JObject,
     ) -> Result<Option<JObject<'other_local_2>>> {
-        let vm = env.get_java_vm();
-        let api = JMapAPI::get(&vm, &LoaderContext::None)?;
+        let api = JMapAPI::get(env, &LoaderContext::None)?;
         // SAFETY: We keep the class loaded, and fetched the method ID for this function.
         // Provided argument is statically known as a JObject/null, rather than another primitive type.
         let result = unsafe {
@@ -213,8 +212,7 @@ impl<'local> JMap<'local> {
         env: &mut Env<'other_local_2>,
         key: &JObject,
     ) -> Result<Option<JObject<'other_local_2>>> {
-        let vm = env.get_java_vm();
-        let api = JMapAPI::get(&vm, &LoaderContext::None)?;
+        let api = JMapAPI::get(env, &LoaderContext::None)?;
         // SAFETY: We keep the class loaded, and fetched the method ID for this function.
         // Provided argument is statically known as a JObject/null, rather than another primitive type.
         let result = unsafe {
@@ -241,8 +239,7 @@ impl<'local> JMap<'local> {
     ///
     /// Also see [JSet::iterator] and [Self::iter]
     pub fn entry_set<'env_local>(&self, env: &mut Env<'env_local>) -> Result<JSet<'env_local>> {
-        let vm = env.get_java_vm();
-        let api = JMapAPI::get(&vm, &LoaderContext::None)?;
+        let api = JMapAPI::get(env, &LoaderContext::None)?;
         // SAFETY: We keep the class loaded, and fetched the method ID for this function. Arg list is known empty.
         let entry_set = unsafe {
             env.call_method_unchecked(self, api.entry_set_method, ReturnType::Object, &[])
@@ -303,11 +300,11 @@ unsafe impl JObjectRef for JMap<'_> {
         self.0.as_raw()
     }
 
-    fn lookup_class<'vm>(
-        vm: &'vm JavaVM,
+    fn lookup_class<'env>(
+        env: &'env Env<'_>,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
-        let api = JMapAPI::get(vm, &loader_context)?;
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'env> {
+        let api = JMapAPI::get(env, &loader_context)?;
         Ok(&api.class)
     }
 
@@ -360,11 +357,12 @@ struct JMapEntryAPI {
 
 impl JMapEntryAPI {
     fn get<'any_local>(
-        vm: &JavaVM,
+        env: &Env<'_>,
         loader_context: &LoaderContext<'any_local, '_>,
     ) -> Result<&'static Self> {
         static JMAPENTRY_API: OnceCell<JMapEntryAPI> = OnceCell::new();
         JMAPENTRY_API.get_or_try_init(|| {
+            let vm = env.get_java_vm();
             vm.with_env_current_frame(|env| {
                 let class = loader_context.load_class_for_type::<JMapEntry>(true, env)?;
                 let class = env.new_global_ref(&class).unwrap();
@@ -437,8 +435,7 @@ impl<'local> JMapEntry<'local> {
     ///
     /// May throw `IllegalStateException` if the entry has been removed from the map (depending on implementation)
     pub fn key<'env_local>(&self, env: &mut Env<'env_local>) -> Result<JObject<'env_local>> {
-        let vm = env.get_java_vm();
-        let api = JMapEntryAPI::get(&vm, &LoaderContext::None)?;
+        let api = JMapEntryAPI::get(env, &LoaderContext::None)?;
         unsafe {
             env.call_method_unchecked(self, api.get_key_method, ReturnType::Object, &[])?
                 .l()
@@ -451,8 +448,7 @@ impl<'local> JMapEntry<'local> {
     ///
     /// May throw `IllegalStateException` if the entry has been removed from the map (depending on implementation)
     pub fn value<'env_local>(&self, env: &mut Env<'env_local>) -> Result<JObject<'env_local>> {
-        let vm = env.get_java_vm();
-        let api = JMapEntryAPI::get(&vm, &LoaderContext::None)?;
+        let api = JMapEntryAPI::get(env, &LoaderContext::None)?;
         unsafe {
             env.call_method_unchecked(self, api.get_value_method, ReturnType::Object, &[])?
                 .l()
@@ -473,8 +469,7 @@ impl<'local> JMapEntry<'local> {
         value: &JObject<'any_local>,
         env: &mut Env<'env_local>,
     ) -> Result<JObject<'env_local>> {
-        let vm = env.get_java_vm();
-        let api = JMapEntryAPI::get(&vm, &LoaderContext::None)?;
+        let api = JMapEntryAPI::get(env, &LoaderContext::None)?;
         unsafe {
             env.call_method_unchecked(
                 self,
@@ -498,11 +493,11 @@ unsafe impl JObjectRef for JMapEntry<'_> {
         self.0.as_raw()
     }
 
-    fn lookup_class<'vm>(
-        vm: &'vm JavaVM,
+    fn lookup_class<'env>(
+        env: &'env Env<'_>,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'vm> {
-        let api = JMapEntryAPI::get(vm, &loader_context)?;
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'env> {
+        let api = JMapEntryAPI::get(env, &loader_context)?;
         Ok(&api.class)
     }
 
