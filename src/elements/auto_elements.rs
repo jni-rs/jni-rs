@@ -2,15 +2,12 @@ use log::error;
 use std::marker::PhantomData;
 use std::ptr::NonNull;
 
-use crate::objects::{JObjectRef, TypeArray};
+use crate::objects::{JObjectRef, JPrimitiveArray, ReleaseMode, TypeArray};
 use crate::sys::jboolean;
-use crate::wrapper::objects::ReleaseMode;
 use crate::{env::Env, errors::*, sys, JavaVM};
 
-use super::JPrimitiveArray;
-
 #[cfg(doc)]
-use super::JByteArray;
+use crate::objects::JByteArray;
 
 /// Auto-release wrapper for a mutable pointer to the elements of a [`JPrimitiveArray`]
 /// (such as [`JByteArray`])

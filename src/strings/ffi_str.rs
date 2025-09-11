@@ -8,7 +8,7 @@ use cesu8::{from_java_cesu8, to_java_cesu8};
 use log::debug;
 
 #[cfg(doc)]
-use crate::wrapper::strings::MUTF8Chars;
+use crate::strings::MUTF8Chars;
 
 /// An owned null-terminated string (like [`CString`]) encoded in Java's
 /// [modified UTF-8].
