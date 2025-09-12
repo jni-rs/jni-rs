@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::{borrow::Cow, ops::Deref};
 
 use once_cell::sync::OnceCell;
 
@@ -275,13 +275,15 @@ impl<'local> JCollection<'local> {
 
 // SAFETY: JCollection is a transparent JObject wrapper with no Drop side effects
 unsafe impl Reference for JCollection<'_> {
-    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.util.Collection");
-
     type Kind<'env> = JCollection<'env>;
     type GlobalKind = JCollection<'static>;
 
     fn as_raw(&self) -> jobject {
         self.0.as_raw()
+    }
+
+    fn class_name() -> Cow<'static, JNIStr> {
+        Cow::Borrowed(JNIStr::from_cstr(c"java.util.Collection"))
     }
 
     fn lookup_class<'caller>(

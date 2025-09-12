@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::ops::Deref;
 
@@ -363,13 +364,15 @@ macro_rules! impl_ref_for_jprimitive_array {
 
             // SAFETY: JPrimitiveArray is a transparent JObject wrapper with no Drop side effects
             unsafe impl Reference for JPrimitiveArray<'_, crate::sys::$type> {
-                const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr($class_name);
-
                 type Kind<'env> = JPrimitiveArray<'env, crate::sys::$type>;
                 type GlobalKind = JPrimitiveArray<'static, crate::sys::$type>;
 
                 fn as_raw(&self) -> jobject {
                     self.obj.as_raw()
+                }
+
+                fn class_name() -> Cow<'static, JNIStr> {
+                    Cow::Borrowed(JNIStr::from_cstr($class_name))
                 }
 
                 fn lookup_class<'caller>(

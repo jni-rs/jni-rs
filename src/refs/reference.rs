@@ -27,21 +27,6 @@ use crate::objects::{Auto, JString};
 /// around the underlying JNI object reference types (such as `JObject` or
 /// `jobject`) and must not have any `Drop` side effects.
 pub unsafe trait Reference: Sized {
-    /// The fully qualified class name of the Java class represented by this
-    /// reference.
-    ///
-    /// The class name is expected to be dot-separated, in the same format as
-    /// `Class.getName()` and suitable for passing to `Class.forName()`
-    ///
-    /// For example: `"com.example.MyClass"`
-    ///
-    /// Note: this format is very similar to the FindClass naming conventions,
-    /// except for the use of dots instead of slashes.
-    ///
-    /// An array of objects would look like: "[Ljava.lang.Object;" An array of
-    /// integers would look like: "[I"
-    const CLASS_NAME: &'static JNIStr;
-
     /// The generic associated [`Self::Kind`] type corresponds to the underlying
     /// class type (such as [`JObject`] or [`JString`]), parameterized by the
     /// lifetime that indicates whether the type holds a global reference
@@ -87,6 +72,29 @@ pub unsafe trait Reference: Sized {
     fn null<'any>() -> Self::Kind<'any> {
         Self::Kind::default()
     }
+
+    /// The fully qualified class name of the Java class represented by this
+    /// reference.
+    ///
+    /// The class name is expected to be dot-separated, in the same format as
+    /// `Class.getName()` and suitable for passing to `Class.forName()`
+    ///
+    /// For example: `"com.example.MyClass"`
+    ///
+    /// Note: this format is very similar to the FindClass naming conventions,
+    /// except for the use of dots instead of slashes.
+    ///
+    /// An array of objects would look like: "[Ljava.lang.Object;" An array of
+    /// integers would look like: "[I"
+    ///
+    /// This returns a `Cow` so that in the common case a `&'static JNIStr`
+    /// literal can be returned but for Array types they may compose the name
+    /// dynamically.
+    ///
+    /// There's no guarantee that the name is interned / cached, so it's not
+    /// recommended to call this in any fast path, it's mainly intended for use
+    /// when first loading a class, or for debugging.
+    fn class_name() -> Cow<'static, JNIStr>;
 
     /// Borrows a global reference to the class implemented by this reference.
     ///
@@ -352,7 +360,8 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
         initialize: bool,
         env: &mut crate::env::Env<'env_local>,
     ) -> crate::errors::Result<JClass<'env_local>> {
-        self.load_class(T::CLASS_NAME, initialize, env)
+        let class_name = T::class_name();
+        self.load_class(&class_name, initialize, env)
     }
 }
 
@@ -362,13 +371,15 @@ unsafe impl<T> Reference for &T
 where
     T: Reference,
 {
-    const CLASS_NAME: &'static JNIStr = T::CLASS_NAME;
-
     type Kind<'local> = T::Kind<'local>;
     type GlobalKind = T::GlobalKind;
 
     fn as_raw(&self) -> jobject {
         (*self).as_raw()
+    }
+
+    fn class_name() -> Cow<'static, JNIStr> {
+        T::class_name()
     }
 
     fn lookup_class<'caller>(

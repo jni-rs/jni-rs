@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::{borrow::Cow, ops::Deref};
 
 use once_cell::sync::OnceCell;
 use thiserror::Error;
@@ -268,13 +268,15 @@ impl JString<'_> {
 
 // SAFETY: JString is a transparent JObject wrapper with no Drop side effects
 unsafe impl Reference for JString<'_> {
-    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.String");
-
     type Kind<'env> = JString<'env>;
     type GlobalKind = JString<'static>;
 
     fn as_raw(&self) -> jobject {
         self.0.as_raw()
+    }
+
+    fn class_name() -> Cow<'static, JNIStr> {
+        Cow::Borrowed(JNIStr::from_cstr(c"java.lang.String"))
     }
 
     fn lookup_class<'caller>(

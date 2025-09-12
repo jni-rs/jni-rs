@@ -11,7 +11,7 @@ use crate::{
     Env,
 };
 
-use std::ops::Deref;
+use std::{borrow::Cow, ops::Deref};
 
 /// Wrapper for `java.utils.Map` references. Provides methods to get, add, and
 /// set entries and a way to iterate over key/value pairs.
@@ -290,13 +290,15 @@ impl<'local> JMap<'local> {
 
 // SAFETY: JMap is a transparent JObject wrapper with no Drop side effects
 unsafe impl Reference for JMap<'_> {
-    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.util.Map");
-
     type Kind<'env> = JMap<'env>;
     type GlobalKind = JMap<'static>;
 
     fn as_raw(&self) -> jobject {
         self.0.as_raw()
+    }
+
+    fn class_name() -> Cow<'static, JNIStr> {
+        Cow::Borrowed(JNIStr::from_cstr(c"java.util.Map"))
     }
 
     fn lookup_class<'caller>(
@@ -482,13 +484,15 @@ impl<'local> JMapEntry<'local> {
 
 // SAFETY: JMapEntry is a transparent JObject wrapper with no Drop side effects
 unsafe impl Reference for JMapEntry<'_> {
-    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.util.Map$Entry");
-
     type Kind<'env> = JMapEntry<'env>;
     type GlobalKind = JMapEntry<'static>;
 
     fn as_raw(&self) -> jobject {
         self.0.as_raw()
+    }
+
+    fn class_name() -> Cow<'static, JNIStr> {
+        Cow::Borrowed(JNIStr::from_cstr(c"java.util.Map$Entry"))
     }
 
     fn lookup_class<'caller>(

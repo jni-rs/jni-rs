@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, ops::Deref};
+use std::{borrow::Cow, marker::PhantomData, ops::Deref};
 
 use once_cell::sync::OnceCell;
 
@@ -129,13 +129,15 @@ impl std::default::Default for JObject<'_> {
 
 // SAFETY: JObject is a transparent jobject wrapper with no Drop side effects
 unsafe impl Reference for JObject<'_> {
-    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.Object");
-
     type Kind<'env> = JObject<'env>;
     type GlobalKind = JObject<'static>;
 
     fn as_raw(&self) -> jobject {
         self.as_raw()
+    }
+
+    fn class_name() -> Cow<'static, JNIStr> {
+        Cow::Borrowed(JNIStr::from_cstr(c"java.lang.Object"))
     }
 
     fn lookup_class<'caller>(

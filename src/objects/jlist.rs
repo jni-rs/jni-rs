@@ -13,7 +13,7 @@ use crate::{
     Env,
 };
 
-use std::ops::Deref;
+use std::{borrow::Cow, ops::Deref};
 
 /// Wrapper for `java.utils.List` references. Provides methods to get, add, and
 /// remove elements.
@@ -322,13 +322,15 @@ impl<'local> JList<'local> {
 
 // SAFETY: JList is a transparent JObject wrapper with no Drop side effects
 unsafe impl Reference for JList<'_> {
-    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.util.List");
-
     type Kind<'env> = JList<'env>;
     type GlobalKind = JList<'static>;
 
     fn as_raw(&self) -> jobject {
         self.0.as_raw()
+    }
+
+    fn class_name() -> Cow<'static, JNIStr> {
+        Cow::Borrowed(JNIStr::from_cstr(c"java.util.List"))
     }
 
     fn lookup_class<'caller>(

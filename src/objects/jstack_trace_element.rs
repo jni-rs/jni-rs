@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::{borrow::Cow, ops::Deref};
 
 use once_cell::sync::OnceCell;
 
@@ -246,13 +246,15 @@ impl JStackTraceElement<'_> {
 
 // SAFETY: JStackTraceElement is a transparent JObject wrapper with no Drop side effects
 unsafe impl Reference for JStackTraceElement<'_> {
-    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.StackTraceElement");
-
     type Kind<'env> = JStackTraceElement<'env>;
     type GlobalKind = JStackTraceElement<'static>;
 
     fn as_raw(&self) -> jobject {
         self.0.as_raw()
+    }
+
+    fn class_name() -> Cow<'static, JNIStr> {
+        Cow::Borrowed(JNIStr::from_cstr(c"java.lang.StackTraceElement"))
     }
 
     fn lookup_class<'caller>(

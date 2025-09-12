@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, mem::ManuallyDrop, ops::Deref, ptr};
+use std::{borrow::Cow, marker::PhantomData, mem::ManuallyDrop, ops::Deref, ptr};
 
 use jni_sys::jobject;
 
@@ -272,13 +272,15 @@ unsafe impl<'local, T> Reference for Auto<'local, T>
 where
     T: Reference + Into<JObject<'local>>,
 {
-    const CLASS_NAME: &'static JNIStr = T::CLASS_NAME;
-
     type Kind<'env> = T::Kind<'env>;
     type GlobalKind = T::GlobalKind;
 
     fn as_raw(&self) -> jobject {
         self.obj.as_raw()
+    }
+
+    fn class_name() -> Cow<'static, JNIStr> {
+        T::class_name()
     }
 
     fn lookup_class<'caller>(

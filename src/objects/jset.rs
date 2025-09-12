@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::{borrow::Cow, ops::Deref};
 
 use once_cell::sync::OnceCell;
 
@@ -198,13 +198,15 @@ impl<'local> JSet<'local> {
 
 // SAFETY: JSet is a transparent JObject wrapper with no Drop side effects
 unsafe impl Reference for JSet<'_> {
-    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.util.Set");
-
     type Kind<'env> = JSet<'env>;
     type GlobalKind = JSet<'static>;
 
     fn as_raw(&self) -> jobject {
         self.0.as_raw()
+    }
+
+    fn class_name() -> Cow<'static, JNIStr> {
+        Cow::Borrowed(JNIStr::from_cstr(c"java.util.Set"))
     }
 
     fn lookup_class<'caller>(

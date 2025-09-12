@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::{borrow::Cow, ops::Deref};
 
 use once_cell::sync::OnceCell;
 
@@ -81,13 +81,15 @@ impl JByteBuffer<'_> {
 
 // SAFETY: JByteBuffer is a transparent JObject wrapper with no Drop side effects
 unsafe impl Reference for JByteBuffer<'_> {
-    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"[Ljava.nio.ByteBuffer;");
-
     type Kind<'env> = JByteBuffer<'env>;
     type GlobalKind = JByteBuffer<'static>;
 
     fn as_raw(&self) -> jobject {
         self.0.as_raw()
+    }
+
+    fn class_name() -> Cow<'static, JNIStr> {
+        Cow::Borrowed(JNIStr::from_cstr(c"[Ljava.nio.ByteBuffer;"))
     }
 
     fn lookup_class<'caller>(

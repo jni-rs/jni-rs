@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::{borrow::Cow, ops::Deref};
 
 use jni_sys::jobject;
 use log::{debug, warn};
@@ -284,13 +284,15 @@ unsafe impl<T> Reference for Weak<T>
 where
     T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + Reference + Send + Sync,
 {
-    const CLASS_NAME: &'static JNIStr = T::CLASS_NAME;
-
     type Kind<'env> = T::Kind<'env>;
     type GlobalKind = T::GlobalKind;
 
     fn as_raw(&self) -> jobject {
         self.obj.as_raw()
+    }
+
+    fn class_name() -> Cow<'static, JNIStr> {
+        T::class_name()
     }
 
     fn lookup_class<'caller>(
