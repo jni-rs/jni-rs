@@ -6,8 +6,10 @@ use crate::{
     env::Env,
     errors::Result,
     objects::{
-        Global, JClass, JClassLoader, JMethodID, JObject, JStaticMethodID, JValue, LoaderContext,
+        Global, JClass, JClassLoader, JMethodID, JObject, JStaticMethodID, JString, JValue,
+        LoaderContext,
     },
+    signature::{Primitive, ReturnType},
     strings::JNIStr,
     sys::{jobject, jthrowable},
 };
@@ -49,6 +51,9 @@ impl<'local> From<JThread<'local>> for JObject<'local> {
 struct JThreadAPI {
     class: Global<JClass<'static>>,
     current_thread_method: JStaticMethodID,
+    get_name_method: JMethodID,
+    set_name_method: JMethodID,
+    get_id_method: JMethodID,
     get_context_class_loader_method: JMethodID,
     set_context_class_loader_method: JMethodID,
 }
@@ -64,6 +69,15 @@ impl JThreadAPI {
                 let current_thread_method = env
                     .get_static_method_id(&class, c"currentThread", c"()Ljava/lang/Thread;")
                     .expect("Thread.currentThread method not found");
+                let get_name_method = env
+                    .get_method_id(&class, c"getName", c"()Ljava/lang/String;")
+                    .expect("Thread.getName method not found");
+                let set_name_method = env
+                    .get_method_id(&class, c"setName", c"(Ljava/lang/String;)V")
+                    .expect("Thread.setName method not found");
+                let get_id_method = env
+                    .get_method_id(&class, c"getId", c"()J")
+                    .expect("Thread.getId method not found");
                 let get_context_class_loader_method = env
                     .get_method_id(
                         &class,
@@ -81,6 +95,9 @@ impl JThreadAPI {
                 Ok(Self {
                     class,
                     current_thread_method,
+                    get_name_method,
+                    set_name_method,
+                    get_id_method,
                     get_context_class_loader_method,
                     set_context_class_loader_method,
                 })
@@ -120,11 +137,65 @@ impl JThread<'_> {
                 .call_static_method_unchecked(
                     &api.class,
                     api.current_thread_method,
-                    crate::signature::ReturnType::Object,
+                    ReturnType::Object,
                     &[],
                 )?
                 .l()?;
             Ok(JThread::from_raw(message.into_raw()))
+        }
+    }
+
+    /// Gets the name of this thread.
+    pub fn get_name(&self, env: &mut Env<'_>) -> Result<JString<'_>> {
+        let api = JThreadAPI::get(env)?;
+
+        // Safety: We know that `getName` is a valid method on `java/lang/Thread` that has no
+        // arguments and it returns a valid `String` instance.
+        unsafe {
+            let name = env
+                .call_method_unchecked(self, api.get_name_method, ReturnType::Object, &[])?
+                .l()?;
+            Ok(JString::from_raw(name.into_raw()))
+        }
+    }
+
+    /// Sets the name of this thread.
+    ///
+    /// # Throws
+    ///
+    /// - `SecurityException` if the current thread is not allowed to modify this thread's name
+    pub fn set_name(&self, name: &JString<'_>, env: &mut Env<'_>) -> Result<()> {
+        let api = JThreadAPI::get(env)?;
+
+        // Safety: We know that `setName` is a valid method on `java/lang/Thread` that takes a
+        // single String argument and returns void.
+        unsafe {
+            env.call_method_unchecked(
+                self,
+                api.set_name_method,
+                ReturnType::Primitive(Primitive::Void),
+                &[JValue::Object(name.as_ref()).as_jni()],
+            )?;
+            Ok(())
+        }
+    }
+
+    /// Gets the ID of this thread.
+    pub fn get_id(&self, env: &mut Env<'_>) -> Result<i64> {
+        let api = JThreadAPI::get(env)?;
+
+        // Safety: We know that `getId` is a valid method on `java/lang/Thread` that has no
+        // arguments and it returns a valid `long` value.
+        unsafe {
+            let id = env
+                .call_method_unchecked(
+                    self,
+                    api.get_id_method,
+                    ReturnType::Primitive(Primitive::Long),
+                    &[],
+                )?
+                .j()?;
+            Ok(id)
         }
     }
 
@@ -148,7 +219,7 @@ impl JThread<'_> {
                 .call_method_unchecked(
                     self,
                     api.get_context_class_loader_method,
-                    crate::signature::ReturnType::Object,
+                    ReturnType::Object,
                     &[],
                 )?
                 .l()?;
@@ -179,7 +250,7 @@ impl JThread<'_> {
                 .call_method_unchecked(
                     self,
                     api.set_context_class_loader_method,
-                    crate::signature::ReturnType::Object,
+                    ReturnType::Object,
                     &[JValue::Object(loader.as_ref()).as_jni()],
                 )?
                 .l()?;
