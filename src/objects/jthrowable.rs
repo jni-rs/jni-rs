@@ -10,7 +10,7 @@ use crate::{
     sys::{jobject, jthrowable},
 };
 
-use super::JObjectRef;
+use super::Reference;
 
 /// Lifetime'd representation of a `jthrowable`. Just a `JObject` wrapped in a
 /// new class.
@@ -136,7 +136,7 @@ impl JThrowable<'_> {
 }
 
 // SAFETY: JThrowable is a transparent JObject wrapper with no Drop side effects
-unsafe impl JObjectRef for JThrowable<'_> {
+unsafe impl Reference for JThrowable<'_> {
     const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.Throwable");
 
     type Kind<'env> = JThrowable<'env>;

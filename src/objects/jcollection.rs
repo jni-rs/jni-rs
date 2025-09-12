@@ -11,7 +11,7 @@ use crate::{
     sys::jobject,
 };
 
-use super::JObjectRef;
+use super::Reference;
 
 #[cfg(doc)]
 use crate::errors::Error;
@@ -131,7 +131,7 @@ impl<'local> JCollection<'local> {
     ///
     /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
     pub fn cast_local<'any_local>(
-        obj: impl JObjectRef + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
+        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
         env: &mut Env<'_>,
     ) -> Result<JCollection<'any_local>> {
         env.cast_local::<JCollection>(obj)
@@ -274,7 +274,7 @@ impl<'local> JCollection<'local> {
 }
 
 // SAFETY: JCollection is a transparent JObject wrapper with no Drop side effects
-unsafe impl JObjectRef for JCollection<'_> {
+unsafe impl Reference for JCollection<'_> {
     const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.util.Collection");
 
     type Kind<'env> = JCollection<'env>;

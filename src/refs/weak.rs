@@ -11,7 +11,7 @@ use crate::{
     sys, JavaVM,
 };
 
-use super::JObjectRef;
+use super::Reference;
 
 // Note: `Weak` must not implement `Into<JObject>`! If it did, then it would be possible to
 // wrap it in `Auto`, which would cause undefined behavior upon drop as a result of calling
@@ -72,7 +72,7 @@ use super::JObjectRef;
 #[derive(Debug)]
 pub struct Weak<T>
 where
-    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
+    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + Reference + Send + Sync,
 {
     obj: T,
 }
@@ -85,18 +85,18 @@ where
 pub type WeakRef<T> = Weak<T>;
 
 unsafe impl<T> Send for Weak<T> where
-    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync
+    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + Reference + Send + Sync
 {
 }
 
 unsafe impl<T> Sync for Weak<T> where
-    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync
+    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + Reference + Send + Sync
 {
 }
 
 impl<T> Default for Weak<T>
 where
-    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
+    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + Reference + Send + Sync,
 {
     fn default() -> Self {
         Self::null()
@@ -109,7 +109,7 @@ where
         + Into<JObject<'static>>
         + AsRef<JObject<'static>>
         + Default
-        + JObjectRef
+        + Reference
         + Send
         + Sync,
 {
@@ -120,7 +120,7 @@ where
 
 impl<T> Deref for Weak<T>
 where
-    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
+    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + Reference + Send + Sync,
 {
     type Target = T;
 
@@ -131,7 +131,7 @@ where
 
 impl<T> Weak<T>
 where
-    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
+    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + Reference + Send + Sync,
 {
     /// Creates a new auto-delete wrapper for the `'static` weak global reference
     ///
@@ -244,7 +244,7 @@ where
 
 impl<T> Drop for Weak<T>
 where
-    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
+    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + Reference + Send + Sync,
 {
     fn drop(&mut self) {
         let obj = std::mem::take(&mut self.obj);
@@ -280,9 +280,9 @@ where
 
 // SAFETY: Kind and GlobalKind are implicitly transparent wrappers if T is
 // implemented correctly / safely.
-unsafe impl<T> JObjectRef for Weak<T>
+unsafe impl<T> Reference for Weak<T>
 where
-    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
+    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + Reference + Send + Sync,
 {
     const CLASS_NAME: &'static JNIStr = T::CLASS_NAME;
 

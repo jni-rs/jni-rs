@@ -26,7 +26,7 @@ use crate::objects::{Auto, JString};
 /// The associated `Kind` and `GlobalKind` types must be transparent wrappers
 /// around the underlying JNI object reference types (such as `JObject` or
 /// `jobject`) and must not have any `Drop` side effects.
-pub unsafe trait JObjectRef: Sized {
+pub unsafe trait Reference: Sized {
     /// The fully qualified class name of the Java class represented by this
     /// reference.
     ///
@@ -51,7 +51,7 @@ pub unsafe trait JObjectRef: Sized {
     ///
     /// This must be a transparent `JObject` or `jobject` wrapper type that
     /// has no `Drop` side effects.
-    type Kind<'local>: JObjectRef + Default + Into<JObject<'local>> + AsRef<JObject<'local>>;
+    type Kind<'local>: Reference + Default + Into<JObject<'local>> + AsRef<JObject<'local>>;
     // XXX: the compiler blows up if we try and specify a Send + Sync bound
     // here: "overflow evaluating the requirement..."
     //where
@@ -67,7 +67,7 @@ pub unsafe trait JObjectRef: Sized {
     ///
     /// This must be a transparent `JObject` or `jobject` wrapper type that
     /// has no `Drop` side effects.
-    type GlobalKind: JObjectRef
+    type GlobalKind: Reference
         + Default
         + Into<JObject<'static>>
         + AsRef<JObject<'static>>
@@ -347,7 +347,7 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
     /// class could not be found.
     ///
     /// The strategy for loading the class depends on the loader context (See [Self]).
-    pub fn load_class_for_type<'env_local, T: JObjectRef>(
+    pub fn load_class_for_type<'env_local, T: Reference>(
         &self,
         initialize: bool,
         env: &mut crate::env::Env<'env_local>,
@@ -358,9 +358,9 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
 
 // SAFETY: Kind and GlobalKind are implicitly transparent wrappers if T is
 // implemented correctly / safely.
-unsafe impl<T> JObjectRef for &T
+unsafe impl<T> Reference for &T
 where
-    T: JObjectRef,
+    T: Reference,
 {
     const CLASS_NAME: &'static JNIStr = T::CLASS_NAME;
 

@@ -5,7 +5,7 @@ use jni_sys::jobject;
 use crate::{
     env::Env,
     errors::{Error, Result},
-    objects::{Global, JClass, JObject, JObjectRef, LoaderContext},
+    objects::{Global, JClass, JObject, LoaderContext, Reference},
     strings::JNIStr,
 };
 
@@ -19,21 +19,21 @@ use crate::{
 ///
 #[repr(transparent)]
 #[derive(Debug)]
-pub struct Cast<'any, 'from, To: JObjectRef> {
+pub struct Cast<'any, 'from, To: Reference> {
     _from: PhantomData<&'from JObject<'any>>,
 
     // SAFETY: We know that this hidden wrapper has no `Drop` side effects,
-    // since that's a pre-condition for implementing `JObjectRef`
+    // since that's a pre-condition for implementing `Reference`
     to: To::Kind<'any>,
 }
 
-impl<'any, 'from, To: JObjectRef> Cast<'any, 'from, To> {
+impl<'any, 'from, To: Reference> Cast<'any, 'from, To> {
     /// Creates a new cast from one object type to another.
     ///
     /// This can be used to cast global or local references.
     ///
     /// Returns [Error::WrongObjectType] if the object is not of the expected type.
-    pub(crate) fn new<'env_local, From: JObjectRef + AsRef<JObject<'any>>>(
+    pub(crate) fn new<'env_local, From: Reference + AsRef<JObject<'any>>>(
         from: &'from From,
         env: &Env<'env_local>,
     ) -> Result<Self>
@@ -54,7 +54,7 @@ impl<'any, 'from, To: JObjectRef> Cast<'any, 'from, To> {
             // - Although we are creating a second wrapper for the raw reference, we will be
             //   borrowing the original wrapper (so the caller won't own two wrappers around the
             //   same reference) and this wrapper will be hidden.
-            // - A pre-condition of `JObjectRef` is that `T::Kind` must not have any `Drop` side
+            // - A pre-condition of `Reference` is that `T::Kind` must not have any `Drop` side
             //   effects so we don't have to worry that creating a second wrapper could lead to a
             //   double free when dropped.
             // - We're allowed to potentially create a `JObject::Kind` wrapper for a `'static`
@@ -76,7 +76,7 @@ impl<'any, 'from, To: JObjectRef> Cast<'any, 'from, To> {
     /// # Safety
     ///
     /// The caller must ensure that `from` is an instance of `To`.
-    pub unsafe fn new_unchecked<'env_local, From: JObjectRef + AsRef<JObject<'any>>>(
+    pub unsafe fn new_unchecked<'env_local, From: Reference + AsRef<JObject<'any>>>(
         from: &'from From,
     ) -> Self
     where
@@ -87,7 +87,7 @@ impl<'any, 'from, To: JObjectRef> Cast<'any, 'from, To> {
         // - Although we are creating a second wrapper for the raw reference, we will be
         //   borrowing the original wrapper (so the caller won't own two wrappers around the
         //   same reference) and this wrapper will be hidden.
-        // - A pre-condition of `JObjectRef` is that `T::Kind` must not have any `Drop` side
+        // - A pre-condition of `Reference` is that `T::Kind` must not have any `Drop` side
         //   effects so we don't have to worry that creating a second wrapper could lead to a
         //   double free when dropped.
         // - We're allowed to potentially create a `JObject::Kind` wrapper for a `'static`
@@ -102,7 +102,7 @@ impl<'any, 'from, To: JObjectRef> Cast<'any, 'from, To> {
     }
 }
 
-impl<'local, 'from, To: JObjectRef> Deref for Cast<'local, 'from, To> {
+impl<'local, 'from, To: Reference> Deref for Cast<'local, 'from, To> {
     type Target = To::Kind<'local>;
 
     fn deref(&self) -> &Self::Target {
@@ -110,13 +110,13 @@ impl<'local, 'from, To: JObjectRef> Deref for Cast<'local, 'from, To> {
     }
 }
 
-impl<'local, 'from, To: JObjectRef> AsRef<To::Kind<'local>> for Cast<'local, 'from, To> {
+impl<'local, 'from, To: Reference> AsRef<To::Kind<'local>> for Cast<'local, 'from, To> {
     fn as_ref(&self) -> &To::Kind<'local> {
         &self.to
     }
 }
 
-unsafe impl<'any, 'from, To: JObjectRef> JObjectRef for Cast<'any, 'from, To> {
+unsafe impl<'any, 'from, To: Reference> Reference for Cast<'any, 'from, To> {
     const CLASS_NAME: &'static JNIStr = To::CLASS_NAME;
 
     type Kind<'local> = To::Kind<'local>;
