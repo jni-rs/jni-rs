@@ -228,10 +228,10 @@ unsafe impl Reference for JClass<'_> {
         self.0.as_raw()
     }
 
-    fn lookup_class<'env>(
-        env: &'env Env<'_>,
+    fn lookup_class<'caller>(
+        env: &Env<'_>,
         _loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'env> {
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'caller> {
         // As a special-case; we ignore loader_context just to be clear that there's no risk of
         // recursion. (`LoaderContext::load_class` depends on the `JClassAPI`)
         let api = JClassAPI::get(env)?;
