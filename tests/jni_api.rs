@@ -1582,13 +1582,45 @@ fn get_object_array_element() {
 #[test]
 pub fn throw_new() {
     attach_current_thread(|env| {
-        let result = env.throw_new(RUNTIME_EXCEPTION_CLASS, c"Test Exception");
-        assert!(result.is_ok());
+        env.throw_new(RUNTIME_EXCEPTION_CLASS, c"Test Exception")
+            .unwrap();
         assert_pending_java_exception_detailed(
             env,
             Some(RUNTIME_EXCEPTION_CLASS),
             Some(JNIStr::from_cstr(c"Test Exception")),
         );
+
+        Ok(())
+    })
+    .unwrap();
+}
+
+#[test]
+pub fn throw_new_void() {
+    attach_current_thread(|env| {
+        env.throw_new_void(RUNTIME_EXCEPTION_CLASS).unwrap();
+
+        assert!(env.exception_check());
+        let exception = env.exception_occurred().expect("Unable to get exception");
+        env.exception_clear();
+
+        assert_exception_type(env, &exception, RUNTIME_EXCEPTION_CLASS);
+
+        let message = exception.get_message(env).unwrap();
+        assert!(message.is_null());
+
+        Ok(())
+    })
+    .unwrap();
+}
+
+#[test]
+#[should_panic(expected = "WrongObjectType")]
+pub fn throw_new_non_throwable_class() {
+    attach_current_thread(|env| {
+        let string_class = env.find_class(c"java/lang/String").unwrap();
+
+        env.throw_new(string_class, c"Test Exception").unwrap();
 
         Ok(())
     })
@@ -1742,12 +1774,7 @@ fn assert_exception_type(env: &mut Env, exception: &JThrowable, expected_type: &
 
 // Asserts that exception's message is `expected_message`.
 fn assert_exception_message(env: &mut Env, exception: &JThrowable, expected_message: &JNIStr) {
-    let message = env
-        .call_method(exception, c"getMessage", c"()Ljava/lang/String;", &[])
-        .unwrap()
-        .l()
-        .unwrap();
-    let message = env.cast_local::<JString>(message).unwrap();
+    let message = exception.get_message(env).unwrap();
     let msg_rust: JNIString = message.mutf8_chars(env).unwrap().into();
     assert_eq!(msg_rust, expected_message);
 }
