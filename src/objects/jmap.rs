@@ -16,7 +16,7 @@ use std::ops::Deref;
 /// Wrapper for `java.utils.Map` references. Provides methods to get, add, and
 /// set entries and a way to iterate over key/value pairs.
 #[repr(transparent)]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct JMap<'local>(JObject<'local>);
 
 impl<'local> AsRef<JMap<'local>> for JMap<'local> {
@@ -318,7 +318,7 @@ unsafe impl JObjectRef for JMap<'_> {
 
 /// Wrapper for `java.utils.Map.Entry` references. Provides methods to get the key and value.
 #[repr(transparent)]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct JMapEntry<'local>(JObject<'local>);
 
 impl<'local> AsRef<JMapEntry<'local>> for JMapEntry<'local> {
@@ -517,6 +517,7 @@ unsafe impl JObjectRef for JMapEntry<'_> {
 /// [JIterator::next] followed by [`JMapEntry::cast_local`]).
 ///
 /// This derefs to [`JIterator`].
+#[derive(Debug)]
 pub struct JMapIter<'iter_local> {
     iterator: JIterator<'iter_local>,
 }

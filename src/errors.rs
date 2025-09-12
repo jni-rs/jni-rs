@@ -122,6 +122,7 @@ pub fn jni_error_code_to_result(code: sys::jint) -> Result<()> {
     .map_err(Error::JniCall)
 }
 
+#[derive(Debug)]
 pub struct Exception {
     pub class: String,
     pub msg: String,

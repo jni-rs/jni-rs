@@ -2,6 +2,7 @@
 #![allow(clippy::upper_case_acronyms)]
 // TODO: https://github.com/jni-rs/jni-rs/issues/348
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
+#![deny(missing_debug_implementations)]
 
 //! # Safe JNI Bindings in Rust
 //!

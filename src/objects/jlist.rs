@@ -18,7 +18,7 @@ use std::ops::Deref;
 /// Wrapper for `java.utils.List` references. Provides methods to get, add, and
 /// remove elements.
 #[repr(transparent)]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct JList<'local>(JObject<'local>);
 
 impl<'local> AsRef<JList<'local>> for JList<'local> {

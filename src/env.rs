@@ -3758,6 +3758,7 @@ impl<'local> Env<'local> {
 /// }
 /// ```
 #[repr(transparent)]
+#[derive(Debug)]
 pub struct EnvUnowned<'unowned_frame> {
     ptr: *mut jni_sys::JNIEnv,
     _lifetime: std::marker::PhantomData<&'unowned_frame ()>,
@@ -3912,6 +3913,7 @@ impl<'unowned_frame> EnvUnowned<'unowned_frame> {
     }
 }
 
+#[derive(Debug)]
 /// Native method descriptor.
 pub struct NativeMethod {
     /// Name of method.
@@ -3928,6 +3930,7 @@ pub struct NativeMethod {
 
 /// Guard for a lock on a java object. This gets returned from the `lock_obj`
 /// method.
+#[derive(Debug)]
 pub struct MonitorGuard<'local> {
     obj: sys::jobject,
     life: PhantomData<&'local ()>,

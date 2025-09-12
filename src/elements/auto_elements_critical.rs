@@ -15,6 +15,7 @@ use crate::objects::JByteArray;
 ///
 /// This type is used to wrap pointers returned by `GetPrimitiveArrayCritical`
 /// and ensure the pointer is released via `ReleasePrimitiveArrayCritical` when dropped.
+#[derive(Debug)]
 pub struct AutoElementsCritical<'array_local, T: TypeArray, TArrayRef>
 where
     TArrayRef: AsRef<JPrimitiveArray<'array_local, T>>,

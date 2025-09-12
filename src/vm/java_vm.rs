@@ -983,7 +983,7 @@ impl JavaVM {
 }
 
 /// Configuration options for attaching the current thread to a Java VM.
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct AttachConfig<'a> {
     scoped: bool,
     name: Option<JNIString>,
