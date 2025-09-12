@@ -127,7 +127,7 @@ impl JThread<'_> {
     }
 
     /// Get the message of the throwable by calling the `getMessage` method.
-    pub fn current_thread<'local>(env: &mut Env<'_>) -> Result<JThread<'local>> {
+    pub fn current_thread<'env_local>(env: &mut Env<'env_local>) -> Result<JThread<'env_local>> {
         let api = JThreadAPI::get(env)?;
 
         // Safety: We know that `currentThread` is a valid method on `java/lang/Thread` that has no
@@ -146,7 +146,7 @@ impl JThread<'_> {
     }
 
     /// Gets the name of this thread.
-    pub fn get_name(&self, env: &mut Env<'_>) -> Result<JString<'_>> {
+    pub fn get_name<'env_local>(&self, env: &mut Env<'env_local>) -> Result<JString<'env_local>> {
         let api = JThreadAPI::get(env)?;
 
         // Safety: We know that `getName` is a valid method on `java/lang/Thread` that has no

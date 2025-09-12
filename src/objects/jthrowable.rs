@@ -5,7 +5,7 @@ use once_cell::sync::OnceCell;
 use crate::{
     env::Env,
     errors::Result,
-    objects::{Global, JClass, JMethodID, JObject, JString, LoaderContext},
+    objects::{Global, JClass, JMethodID, JObject, JObjectArray, JString, LoaderContext},
     strings::JNIStr,
     sys::{jobject, jthrowable},
 };
@@ -48,6 +48,7 @@ struct JThrowableAPI {
     class: Global<JClass<'static>>,
     get_message_method: JMethodID,
     get_cause_method: JMethodID,
+    get_stack_trace_method: JMethodID,
 }
 impl JThrowableAPI {
     fn get<'any_local>(
@@ -66,10 +67,18 @@ impl JThrowableAPI {
                 let get_cause_method = env
                     .get_method_id(&class, c"getCause", c"()Ljava/lang/Throwable;")
                     .expect("JThrowable.getCause method not found");
+                let get_stack_trace_method = env
+                    .get_method_id(
+                        &class,
+                        c"getStackTrace",
+                        c"()[Ljava/lang/StackTraceElement;",
+                    )
+                    .expect("JThrowable.getStackTrace method not found");
                 Ok(Self {
                     class,
-                    get_cause_method,
                     get_message_method,
+                    get_cause_method,
+                    get_stack_trace_method,
                 })
             })
         })
@@ -97,7 +106,10 @@ impl JThrowable<'_> {
     }
 
     /// Get the message of the throwable by calling the `getMessage` method.
-    pub fn get_message(&self, env: &mut Env<'_>) -> Result<JString<'_>> {
+    pub fn get_message<'env_local>(
+        &self,
+        env: &mut Env<'env_local>,
+    ) -> Result<JString<'env_local>> {
         let api = JThrowableAPI::get(env, &LoaderContext::None)?;
 
         // Safety: We know that `getMessage` is a valid method on `java/lang/Throwable` that has no
@@ -116,7 +128,10 @@ impl JThrowable<'_> {
     }
 
     /// Get the cause of the throwable by calling the `getCause` method.
-    pub fn get_cause(&self, env: &mut Env<'_>) -> Result<JThrowable<'_>> {
+    pub fn get_cause<'env_local>(
+        &self,
+        env: &mut Env<'env_local>,
+    ) -> Result<JThrowable<'env_local>> {
         let api = JThrowableAPI::get(env, &LoaderContext::None)?;
 
         // Safety: We know that `getCause` is a valid method on `java/lang/Throwable` that has no
@@ -131,6 +146,31 @@ impl JThrowable<'_> {
                 )?
                 .l()?;
             Ok(JThrowable::from_raw(cause.into_raw() as _))
+        }
+    }
+
+    // TODO: it would be nice if we had a generic `JObjectArray<T: Reference>` type so we could
+    // create a `JStackTraceElement` `Reference` type.
+    /// Gets the stack trace of the throwable by calling the `getStackTrace` method.
+    pub fn get_stack_trace<'env_local>(
+        &self,
+        env: &mut Env<'env_local>,
+    ) -> Result<JObjectArray<'env_local>> {
+        let api = JThrowableAPI::get(env, &LoaderContext::None)?;
+
+        // Safety: We know that `getStackTrace` is a valid method on `java/lang/Throwable` that has no
+        // arguments and it returns a valid `StackTraceElement` array, which we can
+        // safely cast as a `JObjectArray`.
+        unsafe {
+            let stack_trace = env
+                .call_method_unchecked(
+                    self,
+                    api.get_stack_trace_method,
+                    crate::signature::ReturnType::Array,
+                    &[],
+                )?
+                .l()?;
+            Ok(JObjectArray::from_raw(stack_trace.into_raw() as _))
         }
     }
 }
