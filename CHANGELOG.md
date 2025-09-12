@@ -136,6 +136,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `JList::clear` allows a list to be cleared.
 - `JList::is_empty` checks if a list is empty.
 - `JList::as_collection` casts a list into a `JCollection`
+- `Env::throw_new_void` provides an easy way to throw an exception that's constructed with no message argument
 
 ### Fixed
 - `Env::get_string` no longer leaks local references. ([#528](https://github.com/jni-rs/jni-rs/pull/528), [#557](https://github.com/jni-rs/jni-rs/pull/557))

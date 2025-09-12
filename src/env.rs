@@ -447,6 +447,26 @@ impl<'local> Env<'local> {
         Ok((!superclass.is_null()).then_some(superclass))
     }
 
+    // Like is_assignable_from but it doesn't need a mutable Env reference because it doesn't do any
+    // descriptor lookups.
+    fn is_assignable_from_class(&self, class1: &JClass, class2: &JClass) -> Result<bool> {
+        let class1 = null_check!(class1, "is_assignable_from class1")?;
+        let class2 = null_check!(class2, "is_assignable_from class2")?;
+
+        // Safety:
+        // - IsAssignableFrom is 1.1 API that must be valid
+        // - We make sure class1 and class2 can't be null
+        unsafe {
+            Ok(jni_call_unchecked!(
+                self,
+                v1_1,
+                IsAssignableFrom,
+                class1.as_raw(), // MUST not be null
+                class2.as_raw()  // MUST not be null
+            ))
+        }
+    }
+
     // FIXME: this API shouldn't need a `&mut self` reference since it doesn't return a local reference
     // (currently it just needs the `&mut self` for the sake of `Desc<JClass>::lookup`)
     //
@@ -465,18 +485,7 @@ impl<'local> Env<'local> {
         let class2 = class2.lookup(self)?;
         let class2 = null_check!(class2.as_ref(), "is_assignable_from class2")?;
 
-        // Safety:
-        // - IsAssignableFrom is 1.1 API that must be valid
-        // - We make sure class1 and class2 can't be null
-        unsafe {
-            Ok(jni_call_unchecked!(
-                self,
-                v1_1,
-                IsAssignableFrom,
-                class1.as_raw(), // MUST not be null
-                class2.as_raw()  // MUST not be null
-            ))
-        }
+        self.is_assignable_from_class(class1, class2)
     }
 
     /// Checks if an object can be cast to a specific reference type.
@@ -616,6 +625,39 @@ impl<'local> Env<'local> {
 
     // FIXME: this API shouldn't need a `&mut self` reference since it doesn't return a local reference
     // (currently it just needs the `&mut self` for the sake of `Desc<JClass>::lookup`)
+    fn throw_new_optional(&self, class: &JClass, msg: Option<&JNIStr>) -> Result<()> {
+        let throwable_class = JThrowable::lookup_class(self, LoaderContext::None)?;
+        let throwable_class: &JClass = throwable_class.as_ref();
+
+        if !self.is_assignable_from_class(class.as_ref(), throwable_class)? {
+            return Err(Error::WrongObjectType);
+        }
+        let msg = msg.as_ref().map(|m| m.as_ref());
+
+        // Safety:
+        // ThrowNew is 1.1 API that must be valid
+        //
+        // We are careful to ensure that we don't drop the reference
+        // to `class` or `msg` after converting to raw pointers.
+        let res: i32 = unsafe {
+            jni_call_unchecked!(
+                self,
+                v1_1,
+                ThrowNew,
+                class.as_raw(),
+                msg.map(|m| m.as_ptr()).unwrap_or(std::ptr::null())
+            )
+        };
+
+        if res == 0 {
+            Ok(())
+        } else {
+            Err(Error::ThrowFailed(res))
+        }
+    }
+
+    // FIXME: this API shouldn't need a `&mut self` reference since it doesn't return a local reference
+    // (currently it just needs the `&mut self` for the sake of `Desc<JClass>::lookup`)
     //
     /// Create and throw a new exception from a class descriptor and an error
     /// message.
@@ -629,31 +671,42 @@ impl<'local> Env<'local> {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// Alternatively, see [Env::throw_new_void] if you want to construct an exception
+    /// with no message argument.
     pub fn throw_new<'other_local, S, T>(&mut self, class: T, msg: S) -> Result<()>
     where
         S: AsRef<JNIStr>,
         T: Desc<'local, JClass<'other_local>>,
     {
         let class = class.lookup(self)?;
-        let msg = msg.as_ref();
+        let msg: &JNIStr = msg.as_ref();
+        self.throw_new_optional(class.as_ref(), Some(msg))
+    }
 
-        // Safety:
-        // ThrowNew is 1.1 API that must be valid
-        //
-        // We are careful to ensure that we don't drop the reference
-        // to `class` or `msg` after converting to raw pointers.
-        let res: i32 = unsafe {
-            jni_call_unchecked!(self, v1_1, ThrowNew, class.as_ref().as_raw(), msg.as_ptr())
-        };
-
-        // Ensure that `class` isn't dropped before the JNI call returns.
-        drop(class);
-
-        if res == 0 {
-            Ok(())
-        } else {
-            Err(Error::ThrowFailed(res))
-        }
+    /// Create and throw a new exception from a class descriptor and no error
+    /// message.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use jni::{errors::Result, Env};
+    /// #
+    /// # fn example(env: &mut Env) -> Result<()> {
+    /// env.throw_new_void(c"java/lang/Exception")?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// This will expect to find a constructor for the given `class` that takes no arguments.
+    ///
+    /// Alternatively, see [Env::throw_new] if you want to construct an exception
+    /// with a message.
+    pub fn throw_new_void<'other_local, T>(&mut self, class: T) -> Result<()>
+    where
+        T: Desc<'local, JClass<'other_local>>,
+    {
+        let class = class.lookup(self)?;
+        self.throw_new_optional(class.as_ref(), None)
     }
 
     /// Returns true if an exception is currently in the process of being thrown.
