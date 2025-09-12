@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, ops::Deref};
+use std::{borrow::Cow, marker::PhantomData, ops::Deref};
 
 use jni_sys::jobject;
 
@@ -117,13 +117,15 @@ impl<'local, 'from, To: Reference> AsRef<To::Kind<'local>> for Cast<'local, 'fro
 }
 
 unsafe impl<'any, 'from, To: Reference> Reference for Cast<'any, 'from, To> {
-    const CLASS_NAME: &'static JNIStr = To::CLASS_NAME;
-
     type Kind<'local> = To::Kind<'local>;
     type GlobalKind = To::GlobalKind;
 
     fn as_raw(&self) -> jobject {
         self.to.as_raw()
+    }
+
+    fn class_name() -> Cow<'static, JNIStr> {
+        To::class_name()
     }
 
     fn lookup_class<'caller>(

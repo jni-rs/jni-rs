@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::{borrow::Cow, ops::Deref};
 
 use once_cell::sync::OnceCell;
 
@@ -261,13 +261,15 @@ impl JThread<'_> {
 
 // SAFETY: JThread is a transparent JObject wrapper with no Drop side effects
 unsafe impl Reference for JThread<'_> {
-    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.Thread");
-
     type Kind<'env> = JThread<'env>;
     type GlobalKind = JThread<'static>;
 
     fn as_raw(&self) -> jobject {
         self.0.as_raw()
+    }
+
+    fn class_name() -> Cow<'static, JNIStr> {
+        Cow::Borrowed(JNIStr::from_cstr(c"java.lang.Thread"))
     }
 
     fn lookup_class<'caller>(

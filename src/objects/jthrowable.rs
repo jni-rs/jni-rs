@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::{borrow::Cow, ops::Deref};
 
 use once_cell::sync::OnceCell;
 
@@ -177,13 +177,15 @@ impl JThrowable<'_> {
 
 // SAFETY: JThrowable is a transparent JObject wrapper with no Drop side effects
 unsafe impl Reference for JThrowable<'_> {
-    const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.Throwable");
-
     type Kind<'env> = JThrowable<'env>;
     type GlobalKind = JThrowable<'static>;
 
     fn as_raw(&self) -> jobject {
         self.0.as_raw()
+    }
+
+    fn class_name() -> Cow<'static, JNIStr> {
+        Cow::Borrowed(JNIStr::from_cstr(c"java.lang.Throwable"))
     }
 
     fn lookup_class<'caller>(
