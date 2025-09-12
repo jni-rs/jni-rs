@@ -7,7 +7,7 @@ use crate::{
     env::Env,
     errors::Result,
     objects::{
-        AutoElements, AutoElementsCritical, Global, JClass, JObject, JObjectRef, LoaderContext,
+        AutoElements, AutoElementsCritical, Global, JClass, JObject, LoaderContext, Reference,
         ReleaseMode,
     },
     strings::JNIStr,
@@ -362,7 +362,7 @@ macro_rules! impl_ref_for_jprimitive_array {
             }
 
             // SAFETY: JPrimitiveArray is a transparent JObject wrapper with no Drop side effects
-            unsafe impl JObjectRef for JPrimitiveArray<'_, crate::sys::$type> {
+            unsafe impl Reference for JPrimitiveArray<'_, crate::sys::$type> {
                 const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr($class_name);
 
                 type Kind<'env> = JPrimitiveArray<'env, crate::sys::$type>;

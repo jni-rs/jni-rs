@@ -10,7 +10,7 @@ use crate::{
     Env,
 };
 
-use super::JObjectRef;
+use super::Reference;
 
 /// Wrapper around [`jni_sys::jobject`] that adds a lifetime to ensure that
 /// the underlying JNI pointer won't be accessible to safe Rust code if the
@@ -128,7 +128,7 @@ impl std::default::Default for JObject<'_> {
 }
 
 // SAFETY: JObject is a transparent jobject wrapper with no Drop side effects
-unsafe impl JObjectRef for JObject<'_> {
+unsafe impl Reference for JObject<'_> {
     const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.Object");
 
     type Kind<'env> = JObject<'env>;

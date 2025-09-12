@@ -10,7 +10,7 @@ use crate::{
     sys::jobject,
 };
 
-use super::JObjectRef;
+use super::Reference;
 
 #[cfg(doc)]
 use crate::errors::Error;
@@ -110,7 +110,7 @@ impl<'local> JSet<'local> {
     ///
     /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
     pub fn cast_local<'any_local>(
-        obj: impl JObjectRef + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
+        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
         env: &mut Env<'_>,
     ) -> Result<JSet<'any_local>> {
         env.cast_local::<JSet>(obj)
@@ -197,7 +197,7 @@ impl<'local> JSet<'local> {
 }
 
 // SAFETY: JSet is a transparent JObject wrapper with no Drop side effects
-unsafe impl JObjectRef for JSet<'_> {
+unsafe impl Reference for JSet<'_> {
     const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.util.Set");
 
     type Kind<'env> = JSet<'env>;

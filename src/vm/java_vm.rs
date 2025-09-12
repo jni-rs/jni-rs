@@ -11,7 +11,7 @@ use log::{debug, error};
 use crate::{
     env::Env,
     errors::*,
-    objects::{Global, JObject, JObjectRef},
+    objects::{Global, JObject, Reference},
     strings::JNIString,
     sys, JNIVersion,
 };
@@ -1332,7 +1332,7 @@ impl AttachGuard {
         F: for<'new_local> FnOnce(
             &mut Env<'new_local>,
         ) -> std::result::Result<T::Kind<'new_local>, E>,
-        T: JObjectRef,
+        T: Reference,
         E: From<Error>,
     {
         // Assuming that the application doesn't break the safety rules for

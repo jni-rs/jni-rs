@@ -14,7 +14,7 @@ use crate::{
 #[cfg(doc)]
 use crate::objects::Weak;
 
-use super::JObjectRef;
+use super::Reference;
 
 // Note: `Global` must not implement `Into<JObject>`! If it did, then it would be possible to
 // wrap it in `Auto`, which would cause undefined behavior upon drop as a result of calling
@@ -90,7 +90,7 @@ where
     T: Into<JObject<'static>>
         + AsRef<JObject<'static>>
         + Default
-        + JObjectRef
+        + Reference
         + Send
         + Sync
         + 'static,
@@ -109,7 +109,7 @@ unsafe impl<T> Send for Global<T> where
     T: Into<JObject<'static>>
         + AsRef<JObject<'static>>
         + Default
-        + JObjectRef
+        + Reference
         + Send
         + Sync
         + 'static
@@ -120,7 +120,7 @@ unsafe impl<T> Sync for Global<T> where
     T: Into<JObject<'static>>
         + AsRef<JObject<'static>>
         + Default
-        + JObjectRef
+        + Reference
         + Send
         + Sync
         + 'static
@@ -132,7 +132,7 @@ where
     T: Into<JObject<'static>>
         + AsRef<JObject<'static>>
         + Default
-        + JObjectRef
+        + Reference
         + Send
         + Sync
         + 'static,
@@ -148,7 +148,7 @@ where
         + Into<JObject<'static>>
         + AsRef<JObject<'static>>
         + Default
-        + JObjectRef
+        + Reference
         + Send
         + Sync,
 {
@@ -162,7 +162,7 @@ where
     T: Into<JObject<'static>>
         + AsRef<JObject<'static>>
         + Default
-        + JObjectRef
+        + Reference
         + Send
         + Sync
         + 'static,
@@ -179,7 +179,7 @@ where
     T: Into<JObject<'static>>
         + AsRef<JObject<'static>>
         + Default
-        + JObjectRef
+        + Reference
         + Send
         + Sync
         + 'static,
@@ -266,7 +266,7 @@ where
     T: Into<JObject<'static>>
         + AsRef<JObject<'static>>
         + Default
-        + JObjectRef
+        + Reference
         + Send
         + Sync
         + 'static,
@@ -304,9 +304,9 @@ where
 
 // SAFETY: Kind and GlobalKind are implicitly transparent wrappers if T is
 // implemented correctly / safely.
-unsafe impl<T> JObjectRef for Global<T>
+unsafe impl<T> Reference for Global<T>
 where
-    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + JObjectRef + Send + Sync,
+    T: Into<JObject<'static>> + AsRef<JObject<'static>> + Default + Reference + Send + Sync,
 {
     const CLASS_NAME: &'static JNIStr = T::CLASS_NAME;
 

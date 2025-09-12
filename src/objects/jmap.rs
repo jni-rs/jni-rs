@@ -4,7 +4,7 @@ use once_cell::sync::OnceCell;
 use crate::{
     errors::*,
     objects::{
-        Global, JClass, JIterator, JMethodID, JObject, JObjectRef, JSet, JValue, LoaderContext,
+        Global, JClass, JIterator, JMethodID, JObject, JSet, JValue, LoaderContext, Reference,
     },
     signature::{Primitive, ReturnType},
     strings::JNIStr,
@@ -127,7 +127,7 @@ impl<'local> JMap<'local> {
     ///
     /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
     pub fn cast_local<'any_local>(
-        obj: impl JObjectRef + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
+        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
         env: &mut Env<'_>,
     ) -> Result<JMap<'any_local>> {
         env.cast_local::<JMap>(obj)
@@ -141,7 +141,7 @@ impl<'local> JMap<'local> {
         note = "use JMap::cast_local instead or Env::new_cast_local_ref/cast_local/as_cast_local or Env::new_cast_global_ref/cast_global/as_cast_global"
     )]
     pub fn from_env<'any_local>(
-        obj: impl JObjectRef + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
+        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
         env: &mut Env<'_>,
     ) -> Result<JMap<'any_local>> {
         env.cast_local::<JMap>(obj)
@@ -289,7 +289,7 @@ impl<'local> JMap<'local> {
 }
 
 // SAFETY: JMap is a transparent JObject wrapper with no Drop side effects
-unsafe impl JObjectRef for JMap<'_> {
+unsafe impl Reference for JMap<'_> {
     const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.util.Map");
 
     type Kind<'env> = JMap<'env>;
@@ -421,7 +421,7 @@ impl<'local> JMapEntry<'local> {
     ///
     /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
     pub fn cast_local<'any_local>(
-        obj: impl JObjectRef + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
+        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
         env: &mut Env<'_>,
     ) -> Result<JMapEntry<'any_local>> {
         env.cast_local::<JMapEntry>(obj)
@@ -481,7 +481,7 @@ impl<'local> JMapEntry<'local> {
 }
 
 // SAFETY: JMapEntry is a transparent JObject wrapper with no Drop side effects
-unsafe impl JObjectRef for JMapEntry<'_> {
+unsafe impl Reference for JMapEntry<'_> {
     const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.util.Map$Entry");
 
     type Kind<'env> = JMapEntry<'env>;

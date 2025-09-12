@@ -2,7 +2,7 @@ use log::error;
 use std::marker::PhantomData;
 use std::ptr::NonNull;
 
-use crate::objects::{JObjectRef, JPrimitiveArray, ReleaseMode, TypeArray};
+use crate::objects::{JPrimitiveArray, Reference, ReleaseMode, TypeArray};
 use crate::sys::jboolean;
 use crate::{env::Env, errors::*, sys, JavaVM};
 
@@ -123,7 +123,7 @@ impl<'array_local, T, TArrayRef> AsRef<AutoElements<'array_local, T, TArrayRef>>
     for AutoElements<'array_local, T, TArrayRef>
 where
     T: TypeArray + 'array_local,
-    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>> + JObjectRef,
+    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>> + Reference,
 {
     fn as_ref(&self) -> &AutoElements<'array_local, T, TArrayRef> {
         self
@@ -149,7 +149,7 @@ where
 impl<'array_local, T, TArrayRef> From<&AutoElements<'array_local, T, TArrayRef>> for *mut T
 where
     T: TypeArray,
-    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>> + JObjectRef,
+    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>> + Reference,
 {
     fn from(other: &AutoElements<'array_local, T, TArrayRef>) -> *mut T {
         other.as_ptr()
@@ -159,7 +159,7 @@ where
 impl<'array_local, T, TArrayRef> std::ops::Deref for AutoElements<'array_local, T, TArrayRef>
 where
     T: TypeArray,
-    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>> + JObjectRef,
+    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>> + Reference,
 {
     type Target = [T];
 
@@ -171,7 +171,7 @@ where
 impl<'array_local, T, TArrayRef> std::ops::DerefMut for AutoElements<'array_local, T, TArrayRef>
 where
     T: TypeArray,
-    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>> + JObjectRef,
+    TArrayRef: AsRef<JPrimitiveArray<'array_local, T>> + Reference,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { std::slice::from_raw_parts_mut(self.ptr.as_mut(), self.len) }

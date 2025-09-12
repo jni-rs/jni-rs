@@ -9,7 +9,7 @@ use crate::{
     Env, JavaVM,
 };
 
-use super::JObjectRef;
+use super::Reference;
 
 /// A wrapper to `Auto` delete local references early (before the JNI stack
 /// frame unwinds).
@@ -268,9 +268,9 @@ where
 
 // SAFETY: Kind and GlobalKind are implicitly transparent wrappers if T is
 // implemented correctly / safely.
-unsafe impl<'local, T> JObjectRef for Auto<'local, T>
+unsafe impl<'local, T> Reference for Auto<'local, T>
 where
-    T: JObjectRef + Into<JObject<'local>>,
+    T: Reference + Into<JObject<'local>>,
 {
     const CLASS_NAME: &'static JNIStr = T::CLASS_NAME;
 

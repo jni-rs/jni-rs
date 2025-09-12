@@ -1,8 +1,8 @@
 mod cast;
 pub use cast::*;
 
-mod jobject_ref;
-pub use jobject_ref::*;
+mod reference;
+pub use reference::*;
 
 // For storing a reference to a java object
 mod global;

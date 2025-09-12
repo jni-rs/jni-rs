@@ -11,7 +11,7 @@ use crate::{
     Env, JavaVM,
 };
 
-use super::JObjectRef;
+use super::Reference;
 
 #[cfg(doc)]
 use crate::errors::Error;
@@ -267,7 +267,7 @@ impl JString<'_> {
 }
 
 // SAFETY: JString is a transparent JObject wrapper with no Drop side effects
-unsafe impl JObjectRef for JString<'_> {
+unsafe impl Reference for JString<'_> {
     const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.String");
 
     type Kind<'env> = JString<'env>;

@@ -11,7 +11,7 @@ use crate::{
     sys::{jclass, jobject},
 };
 
-use super::JObjectRef;
+use super::Reference;
 
 /// A `java.lang.ClassLoader` reference
 #[repr(transparent)]
@@ -132,7 +132,7 @@ impl JClassLoader<'_> {
 }
 
 // SAFETY: JClassLoader is a transparent JObject wrapper with no Drop side effects
-unsafe impl JObjectRef for JClassLoader<'_> {
+unsafe impl Reference for JClassLoader<'_> {
     const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.ClassLoader");
 
     type Kind<'env> = JClassLoader<'env>;

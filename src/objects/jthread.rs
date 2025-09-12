@@ -12,7 +12,7 @@ use crate::{
     sys::{jobject, jthrowable},
 };
 
-use super::JObjectRef;
+use super::Reference;
 
 /// Lifetime'd representation of a `jthrowable`. Just a `JObject` wrapped in a
 /// new class.
@@ -189,7 +189,7 @@ impl JThread<'_> {
 }
 
 // SAFETY: JThread is a transparent JObject wrapper with no Drop side effects
-unsafe impl JObjectRef for JThread<'_> {
+unsafe impl Reference for JThread<'_> {
     const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.Thread");
 
     type Kind<'env> = JThread<'env>;

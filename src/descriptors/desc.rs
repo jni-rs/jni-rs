@@ -1,6 +1,6 @@
 use crate::{
     errors::*,
-    objects::{Auto, Global, JObject, JObjectRef},
+    objects::{Auto, Global, JObject, Reference},
     Env,
 };
 
@@ -134,7 +134,7 @@ where
 
 unsafe impl<'local, 'obj_ref, T> Desc<'local, T> for &'obj_ref Global<T>
 where
-    T: JObjectRef
+    T: Reference
         + AsRef<T>
         + AsRef<JObject<'static>>
         + Into<JObject<'static>>

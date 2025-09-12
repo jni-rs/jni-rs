@@ -4,8 +4,8 @@ use once_cell::sync::OnceCell;
 use crate::{
     errors::*,
     objects::{
-        Cast, Global, JClass, JCollection, JIterator, JMethodID, JObject, JObjectRef, JValue,
-        LoaderContext,
+        Cast, Global, JClass, JCollection, JIterator, JMethodID, JObject, JValue, LoaderContext,
+        Reference,
     },
     signature::{Primitive, ReturnType},
     strings::JNIStr,
@@ -125,7 +125,7 @@ impl<'local> JList<'local> {
     ///
     /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
     pub fn cast_local<'any_local>(
-        obj: impl JObjectRef + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
+        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
         env: &mut Env<'_>,
     ) -> Result<JList<'any_local>> {
         env.cast_local::<JList>(obj)
@@ -139,7 +139,7 @@ impl<'local> JList<'local> {
         note = "use JList::cast_local instead or Env::new_cast_local_ref/cast_local/as_cast_local or Env::new_cast_global_ref/cast_global/as_cast_global"
     )]
     pub fn from_env<'any_local>(
-        obj: impl JObjectRef + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
+        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
         env: &mut Env<'_>,
     ) -> Result<JList<'any_local>> {
         env.cast_local::<JList>(obj)
@@ -321,7 +321,7 @@ impl<'local> JList<'local> {
 }
 
 // SAFETY: JList is a transparent JObject wrapper with no Drop side effects
-unsafe impl JObjectRef for JList<'_> {
+unsafe impl Reference for JList<'_> {
     const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.util.List");
 
     type Kind<'env> = JList<'env>;

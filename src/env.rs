@@ -32,7 +32,7 @@ use crate::{
 };
 use crate::{objects::AsJArrayRaw, signature::ReturnType};
 
-use super::{objects::JObjectRef, AttachGuard};
+use super::{objects::Reference, AttachGuard};
 
 /// FFI-compatible Env struct. You can safely use this as the Env argument to exported methods that
 /// will be called by java. This is where most of the magic happens. All methods on this object are
@@ -366,14 +366,14 @@ impl<'local> Env<'local> {
     ///
     /// Returns the loaded class, or a [`Error::NullPtr`] error if the class could not be found.
     ///
-    /// ## Use [JObjectRef::lookup_class], instead of [Env::find_class] where possible
+    /// ## Use [Reference::lookup_class], instead of [Env::find_class] where possible
     ///
     /// Whenever you need the class associated with some reference wrapper type (e.g. [`JObject`],
-    /// [`JClass`], [`JString`] etc), prefer using [JObjectRef::lookup_class] instead of this method.
+    /// [`JClass`], [`JString`] etc), prefer using [Reference::lookup_class] instead of this method.
     ///
-    /// [JObjectRef] is a trait that all of these reference wrapper types implement.
+    /// [Reference] is a trait that all of these reference wrapper types implement.
     ///
-    /// All implementations of [JObjectRef::lookup_class] will maintain a static cache holding a
+    /// All implementations of [Reference::lookup_class] will maintain a static cache holding a
     /// `Global<JClass>` that is cheap to lookup and doesn't require a JNI call or creating any new
     /// references.
     ///
@@ -382,7 +382,7 @@ impl<'local> Env<'local> {
     /// # use jni::{errors::Result, Env, objects::JClass};
     /// #
     /// # fn example<'local>(env: &mut Env<'local>) -> Result<()> {
-    /// use jni::objects::{JString, JObjectRef as _, LoaderContext};
+    /// use jni::objects::{JString, Reference as _, LoaderContext};
     /// let string_class = JString::lookup_class(env, LoaderContext::None)?;
     /// let string_class_ref: &JClass = string_class.as_ref();
     /// # Ok(())
@@ -489,7 +489,7 @@ impl<'local> Env<'local> {
     }
 
     /// Checks if an object can be cast to a specific reference type.
-    pub(crate) fn is_instance_of_cast_type<To: JObjectRef>(&self, obj: &JObject) -> Result<bool> {
+    pub(crate) fn is_instance_of_cast_type<To: Reference>(&self, obj: &JObject) -> Result<bool> {
         let class = match To::lookup_class(self, LoaderContext::FromObject(obj)) {
             Ok(class) => class,
             Err(Error::ClassNotFound { name: _ }) => return Ok(false),
@@ -896,7 +896,7 @@ impl<'local> Env<'local> {
     /// [`Error::ObjectFreed`] if the object has been garbage collected.
     pub fn new_global_ref<'any_local, O>(&self, obj: O) -> Result<Global<O::GlobalKind>>
     where
-        O: JObjectRef + AsRef<JObject<'any_local>>,
+        O: Reference + AsRef<JObject<'any_local>>,
     {
         // Avoid passing null to `NewGlobalRef` so that we can recognise out-of-memory errors
         if obj.is_null() {
@@ -970,10 +970,10 @@ impl<'local> Env<'local> {
     /// Returns [`Error::ClassNotFound`] if the target class cannot be found.
     pub fn new_cast_global_ref<'any_local, To>(
         &self,
-        obj: impl JObjectRef + AsRef<JObject<'any_local>>,
+        obj: impl Reference + AsRef<JObject<'any_local>>,
     ) -> Result<Global<To::GlobalKind>>
     where
-        To: JObjectRef,
+        To: Reference,
     {
         if obj.is_null() {
             return Ok(Default::default());
@@ -1024,14 +1024,14 @@ impl<'local> Env<'local> {
             impl Into<JObject<'static>>
                 + AsRef<JObject<'static>>
                 + Default
-                + JObjectRef
+                + Reference
                 + Send
                 + Sync
                 + 'static,
         >,
     ) -> Result<Global<To::GlobalKind>>
     where
-        To: JObjectRef,
+        To: Reference,
     {
         if obj.is_null() {
             return Ok(Default::default());
@@ -1064,7 +1064,7 @@ impl<'local> Env<'local> {
     /// [`Error::ObjectFreed`] error.
     pub fn new_weak_ref<O>(&self, obj: O) -> Result<Weak<O::GlobalKind>>
     where
-        O: JObjectRef,
+        O: Reference,
     {
         // Check if the pointer is null *before* calling `NewWeakGlobalRef`.
         //
@@ -1200,7 +1200,7 @@ impl<'local> Env<'local> {
     /// [`NewLocalRef`]: https://docs.oracle.com/en/java/javase/11/docs/specs/jni/functions.html#newlocalref
     pub fn new_local_ref<'any_local, O>(&mut self, obj: O) -> Result<O::Kind<'local>>
     where
-        O: JObjectRef + AsRef<JObject<'any_local>>,
+        O: Reference + AsRef<JObject<'any_local>>,
     {
         // Runtime check that the 'local reference lifetime will be tied to
         // Env lifetime for the top JNI stack frame
@@ -1274,10 +1274,10 @@ impl<'local> Env<'local> {
     /// Returns [`Error::ClassNotFound`] if the target class cannot be found.
     pub fn new_cast_local_ref<'any_local, To>(
         &mut self,
-        obj: impl JObjectRef + AsRef<JObject<'any_local>>,
+        obj: impl Reference + AsRef<JObject<'any_local>>,
     ) -> Result<To::Kind<'local>>
     where
-        To: JObjectRef,
+        To: Reference,
     {
         if obj.is_null() {
             return Ok(To::null());
@@ -1320,10 +1320,10 @@ impl<'local> Env<'local> {
     /// Returns [`Error::ClassNotFound`] if the target class cannot be found.
     pub fn cast_local<'any_local, To>(
         &self,
-        obj: impl JObjectRef + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
+        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
     ) -> Result<To::Kind<'any_local>>
     where
-        To: JObjectRef,
+        To: Reference,
     {
         if obj.is_null() {
             return Ok(To::null::<'any_local>());
@@ -1365,10 +1365,10 @@ impl<'local> Env<'local> {
     /// Returns [`Error::ClassNotFound`] if the target class cannot be found.
     pub fn as_cast<'from, 'any_local, To>(
         &self,
-        obj: &'from (impl JObjectRef + AsRef<JObject<'any_local>>),
+        obj: &'from (impl Reference + AsRef<JObject<'any_local>>),
     ) -> Result<Cast<'from, 'any_local, To>>
     where
-        To: JObjectRef,
+        To: Reference,
         'any_local: 'from,
     {
         Cast::new(obj, self)
@@ -1465,7 +1465,7 @@ impl<'local> Env<'local> {
     ///
     /// The `AttachGuard` created before calling `push_local_frame` must be
     /// dropped after calling `pop_local_frame`.
-    unsafe fn pop_local_frame<'frame_local, T: JObjectRef>(
+    unsafe fn pop_local_frame<'frame_local, T: Reference>(
         &self,
         result: T::Kind<'frame_local>,
     ) -> Result<T::Kind<'local>> {
@@ -1541,7 +1541,7 @@ impl<'local> Env<'local> {
         F: for<'new_local> FnOnce(
             &mut Env<'new_local>,
         ) -> std::result::Result<T::Kind<'new_local>, E>,
-        T: JObjectRef,
+        T: Reference,
         E: From<Error>,
     {
         // Runtime check that the 'local reference lifetime will be tied to
@@ -2373,7 +2373,7 @@ impl<'local> Env<'local> {
     )]
     pub fn get_list<'any_local>(
         &mut self,
-        obj: impl JObjectRef + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
+        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
     ) -> Result<JList<'any_local>> {
         JList::cast_local(obj, self)
     }
@@ -2387,7 +2387,7 @@ impl<'local> Env<'local> {
     )]
     pub fn get_map<'any_local>(
         &mut self,
-        obj: impl JObjectRef + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
+        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
     ) -> Result<JMap<'any_local>> {
         JMap::cast_local(obj, self)
     }
@@ -2413,7 +2413,7 @@ impl<'local> Env<'local> {
         obj: StringRef,
     ) -> Result<MUTF8Chars<'any_local, StringRef>>
     where
-        StringRef: AsRef<JString<'any_local>> + JObjectRef,
+        StringRef: AsRef<JString<'any_local>> + Reference,
     {
         MUTF8Chars::from_get_string_utf_chars(self, obj)
     }
@@ -2439,7 +2439,7 @@ impl<'local> Env<'local> {
         obj: StringRef,
     ) -> Result<MUTF8Chars<'any_local, StringRef>>
     where
-        StringRef: AsRef<JString<'any_local>> + JObjectRef,
+        StringRef: AsRef<JString<'any_local>> + Reference,
     {
         MUTF8Chars::from_get_string_utf_chars(self, obj)
     }
@@ -3758,7 +3758,7 @@ impl<'local> Env<'local> {
     ) -> Result<AutoElements<'array_local, T, TArrayRef>>
     where
         T: TypeArray,
-        TArrayRef: AsRef<JPrimitiveArray<'array_local, T>> + JObjectRef,
+        TArrayRef: AsRef<JPrimitiveArray<'array_local, T>> + Reference,
     {
         AutoElements::new(self, array, mode)
     }
@@ -3779,7 +3779,7 @@ impl<'local> Env<'local> {
     ) -> Result<AutoElementsCritical<'array_local, T, TArrayRef>>
     where
         T: TypeArray,
-        TArrayRef: AsRef<JPrimitiveArray<'array_local, T>> + JObjectRef,
+        TArrayRef: AsRef<JPrimitiveArray<'array_local, T>> + Reference,
     {
         AutoElementsCritical::new(self, array, mode)
     }

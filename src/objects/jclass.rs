@@ -11,7 +11,7 @@ use crate::{
     sys::{jclass, jobject},
 };
 
-use super::JObjectRef;
+use super::Reference;
 
 /// Lifetime'd representation of a `jclass`. Just a `JObject` wrapped in a new
 /// class.
@@ -218,7 +218,7 @@ impl JClass<'_> {
 }
 
 // SAFETY: JClass is a transparent JObject wrapper with no Drop side effects
-unsafe impl JObjectRef for JClass<'_> {
+unsafe impl Reference for JClass<'_> {
     const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.lang.Class");
 
     type Kind<'env> = JClass<'env>;

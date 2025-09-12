@@ -74,8 +74,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Env::define_class_bytearray` was renamed to `Env::define_class_jbyte` and is identical to `define_class` except for taking a `&[jbyte]` slice instead of `&[u8]`, which is a convenience if you have a `JByteArray` or `AutoElements<JByteArray>`.
 - `AutoElements` was simplified to only be parameterized by one lifetime for the array reference, and accepts any `AsRef<JPrimitiveArray<T>>` as a reference. ([#508](https://github.com/jni-rs/jni-rs/pull/508))
 - `JavaType` was simplified to not capture object names or array details (like `ReturnType`) since these details don't affect `JValue` type checks and had a hidden cost that was redundant.
-- `Env::with_local_frame_returning_local` can now return any kind of `JObjectRef` local reference, not just `JObject`
-- `JList` is a simpler, transparent reference wrapper implementing `JObjectRef`, like `JObject`, `JClass`, `JString` etc
+- `Env::with_local_frame_returning_local` can now return any kind of local `Reference`, not just `JObject`
+- `JList` is a simpler, transparent reference wrapper implementing `Reference`, like `JObject`, `JClass`, `JString` etc
 - `JList::add` returns the boolean returned by the Java API
 - `JList::remove` no longer returns an `Option` since there's nothing special about getting a `null` from the Java `remove` API.
 - `JList::pop` is deprecated since this doesn't map to standard Java `List` method.
@@ -100,6 +100,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Env::define_unnamed_class` was removed in favor of having the `define_class[_jbyte]` APIs take a `name: Option` instead.
 
 ### Added
+- A `Reference` trait for all reference types like `JObject`, `JClass`, `JString`, enabling `Global` and `Weak` to be generic over `Reference` and enabling safe casting and global caching of `JClass` references. ([#596](https://github.com/jni-rs/jni-rs/pull/596))
 - New functions for converting Rust `char` to and from Java `char` and `int` ([#427](https://github.com/jni-rs/jni-rs/issues/427) / [#434](https://github.com/jni-rs/jni-rs/pull/434))
 - `Env::call_nonvirtual_method` and `Env::call_nonvirtual_method_unchecked` to call non-virtual method. ([#454](https://github.com/jni-rs/jni-rs/issues/454))
 - `JavaStr/MUTF8Chars`, `JNIStr`, and `JNIString` have several new methods and traits, most notably a `to_str` method that converts to a regular Rust string. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
@@ -122,15 +123,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `JNIStr::from_cstr` safely does a zero-copy cast of a `CStr` to a `JNIStr` after a `const` modified-utf8 encoding validation (with a panic on failure)
 - `AsRef<JNIStr>` is implemented for `CStr` (based on `JNIStr::from_cstr`) allows use of literals like `c"java/lang/Foo"` to be passed to JNI APIs without needing to be copied. ([#615](https://github.com/jni-rs/jni-rs/pull/615))
 - `JNIStr::to_bytes` gives access to a `&[u8]` slice over the bytes of a JNI string (like `CStr::to_bytes`) ([#615](https://github.com/jni-rs/jni-rs/pull/615))
-- `JThread` as a `JObjectRef` wrapper for `java.lang.Thread` references ([#612](https://github.com/jni-rs/jni-rs/pull/612))
-- `JClassLoader` as a `JObjectRef` wrapper for `java.lang.ClassLoader` references ([#612](https://github.com/jni-rs/jni-rs/pull/612))
+- `JThread` as a `Reference` wrapper for `java.lang.Thread` references ([#612](https://github.com/jni-rs/jni-rs/pull/612))
+- `JClassLoader` as a `Reference` wrapper for `java.lang.ClassLoader` references ([#612](https://github.com/jni-rs/jni-rs/pull/612))
 - `LoaderContext` + `LoaderContext::load_class` for loading classes, depending on available context ([#612](https://github.com/jni-rs/jni-rs/pull/612))
-- `JObjectRef::load_class` exposes a cached `Global<JClass>` for all `JObjectRef` implementations ([#612](https://github.com/jni-rs/jni-rs/pull/612))
+- `Reference::lookup_class` exposes a cached `Global<JClass>` for all `Reference` implementations ([#612](https://github.com/jni-rs/jni-rs/pull/612))
 - `Env::new_cast_global_ref` acts like `new_global_ref` with a type cast ([#612](https://github.com/jni-rs/jni-rs/pull/612))
 - `Env::cast_global` takes an owned `Global<From>` and returns a `Global<To>` ([#612](https://github.com/jni-rs/jni-rs/pull/612))
 - `Env::new_cast_local_ref` acts like `new_local_ref` with a type cast ([#612](https://github.com/jni-rs/jni-rs/pull/612))
 - `Env::cast_local` takes an owned local reference and returns a newly type cast wrapper ([#612](https://github.com/jni-rs/jni-rs/pull/612))
-- `Env::as_cast` borrows any `From: JObjectRef` (global or local) reference and returns  a `Cast<To>` that will Deref into `&To` ([#612](https://github.com/jni-rs/jni-rs/pull/612))
+- `Env::as_cast` borrows any `From: Reference` (global or local) reference and returns  a `Cast<To>` that will Deref into `&To` ([#612](https://github.com/jni-rs/jni-rs/pull/612))
 - `JCollection`, `JSet` and `JIterator` reference wrappers for `java.util.Collection`, `java.util.Set` and `java.util.Iterator` interfaces.
 - `JList::remove_item` for removing a given value, by-reference, from the list (instead of by index).
 - `JList::clear` allows a list to be cleared.

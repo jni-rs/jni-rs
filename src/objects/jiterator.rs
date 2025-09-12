@@ -11,7 +11,7 @@ use crate::{
     sys::jobject,
 };
 
-use super::JObjectRef;
+use super::Reference;
 
 /// Wrapper for `java.utils.Map.Entry` references. Provides methods to get the key and value.
 #[repr(transparent)]
@@ -113,7 +113,7 @@ impl<'local> JIterator<'local> {
     ///
     /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
     pub fn cast_local<'any_local>(
-        obj: impl JObjectRef + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
+        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
         env: &mut Env<'_>,
     ) -> Result<JIterator<'any_local>> {
         env.cast_local::<JIterator>(obj)
@@ -194,7 +194,7 @@ impl<'local> JIterator<'local> {
 }
 
 // SAFETY: JIterator is a transparent JObject wrapper with no Drop side effects
-unsafe impl JObjectRef for JIterator<'_> {
+unsafe impl Reference for JIterator<'_> {
     const CLASS_NAME: &'static JNIStr = JNIStr::from_cstr(c"java.util.Iterator");
 
     type Kind<'env> = JIterator<'env>;

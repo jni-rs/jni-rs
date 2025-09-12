@@ -7,8 +7,8 @@ use jni::{
     descriptors::Desc,
     errors::{CharToJavaError, Error},
     objects::{
-        AutoElements, IntoAuto as _, JByteBuffer, JList, JObject, JObjectRef as _, JString,
-        JThrowable, JValue, ReleaseMode, Weak,
+        AutoElements, IntoAuto as _, JByteBuffer, JList, JObject, JString, JThrowable, JValue,
+        Reference as _, ReleaseMode, Weak,
     },
     signature::{JavaType, Primitive, ReturnType},
     strings::{JNIStr, JNIString},

@@ -5,7 +5,7 @@ use log::warn;
 
 use crate::{
     errors::*,
-    objects::{JObjectRef, JString},
+    objects::{JString, Reference},
     strings::{JNIStr, JNIString},
     Env, JavaVM,
 };
@@ -57,7 +57,7 @@ use ::{
 /// [modified UTF-8]: https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
 pub struct MUTF8Chars<'local, StringRef>
 where
-    StringRef: AsRef<JString<'local>> + JObjectRef,
+    StringRef: AsRef<JString<'local>> + Reference,
 {
     obj: StringRef,
     chars: *const c_char,
@@ -67,7 +67,7 @@ where
 
 impl<'local, StringRef> std::fmt::Debug for MUTF8Chars<'local, StringRef>
 where
-    StringRef: AsRef<JString<'local>> + JObjectRef,
+    StringRef: AsRef<JString<'local>> + Reference,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MUTF8Chars")
@@ -85,7 +85,7 @@ pub type JavaStr<'local, StringRef> = MUTF8Chars<'local, StringRef>;
 
 impl<'local, StringRef> MUTF8Chars<'local, StringRef>
 where
-    StringRef: AsRef<JString<'local>> + JObjectRef,
+    StringRef: AsRef<JString<'local>> + Reference,
 {
     /// Constructs a [`MUTF8Chars`] from a `Env` and a `JString`.
     ///
@@ -207,7 +207,7 @@ where
 
 impl<'local, StringRef> std::fmt::Display for MUTF8Chars<'local, StringRef>
 where
-    StringRef: AsRef<JString<'local>> + JObjectRef,
+    StringRef: AsRef<JString<'local>> + Reference,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let jni_str: &JNIStr = self;
@@ -217,7 +217,7 @@ where
 
 impl<'local, StringRef> ::std::ops::Deref for MUTF8Chars<'local, StringRef>
 where
-    StringRef: AsRef<JString<'local>> + JObjectRef,
+    StringRef: AsRef<JString<'local>> + Reference,
 {
     type Target = JNIStr;
     fn deref(&self) -> &Self::Target {
@@ -228,7 +228,7 @@ where
 impl<'local, 'java_str, StringRef> From<&'java_str MUTF8Chars<'local, StringRef>>
     for &'java_str JNIStr
 where
-    StringRef: AsRef<JString<'local>> + JObjectRef,
+    StringRef: AsRef<JString<'local>> + Reference,
 {
     fn from(other: &'java_str MUTF8Chars<'local, StringRef>) -> &'java_str JNIStr {
         unsafe { JNIStr::from_ptr(other.chars) }
@@ -237,7 +237,7 @@ where
 
 impl<'local, StringRef> From<MUTF8Chars<'local, StringRef>> for JNIString
 where
-    StringRef: AsRef<JString<'local>> + JObjectRef,
+    StringRef: AsRef<JString<'local>> + Reference,
 {
     fn from(other: MUTF8Chars<'local, StringRef>) -> JNIString {
         let jni_str: &JNIStr = &other;
@@ -248,7 +248,7 @@ where
 impl<'local, 'java_str, StringRef> From<&'java_str MUTF8Chars<'local, StringRef>>
     for Cow<'java_str, str>
 where
-    StringRef: AsRef<JString<'local>> + JObjectRef,
+    StringRef: AsRef<JString<'local>> + Reference,
 {
     fn from(other: &'java_str MUTF8Chars<'local, StringRef>) -> Cow<'java_str, str> {
         let jni_str: &JNIStr = other;
@@ -258,7 +258,7 @@ where
 
 impl<'local, StringRef> From<MUTF8Chars<'local, StringRef>> for String
 where
-    StringRef: AsRef<JString<'local>> + JObjectRef,
+    StringRef: AsRef<JString<'local>> + Reference,
 {
     fn from(other: MUTF8Chars<'local, StringRef>) -> String {
         let cow: Cow<str> = (&other).into();
@@ -268,7 +268,7 @@ where
 
 impl<'local, StringRef> Drop for MUTF8Chars<'local, StringRef>
 where
-    StringRef: AsRef<JString<'local>> + JObjectRef,
+    StringRef: AsRef<JString<'local>> + Reference,
 {
     fn drop(&mut self) {
         unsafe fn release_string_utf_chars(
@@ -294,7 +294,7 @@ where
 
 impl<'local, StringRef> AsRef<JNIStr> for MUTF8Chars<'local, StringRef>
 where
-    StringRef: AsRef<JString<'local>> + JObjectRef,
+    StringRef: AsRef<JString<'local>> + Reference,
 {
     fn as_ref(&self) -> &JNIStr {
         self
