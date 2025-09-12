@@ -89,6 +89,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `AutoLocal` has been renamed to `Auto` with a deprecated type alias for `AutoLocal` to sign post the rename.
 - The documentation for `Env::find_class` now recommends considering `LoaderContext::load_class` instead.
 - `Desc<JClass>::lookup()` is now based on `LoaderContext::load_class` (instead of `Env::find_class`), which checks for a thread context class loader by default.
+- `AutoElements[Critical]::discard()` now takes ownership of the elements and drops them to release the pointer after setting the mode to `NoCopyBack` ([#645](https://github.com/jni-rs/jni-rs/pull/645))
 
 ### Removed
 - `JavaVM::attach_current_thread_as_daemon` (and general support for 'daemon' threads) has been removed, since their semantics are inherently poorly defined and unsafe (the distinction relates to the poorly defined limbo state after calling `JavaDestroyVM`, where it becomes undefined to touch the JVM) ([#593](https://github.com/jni-rs/jni-rs/pull/593))
