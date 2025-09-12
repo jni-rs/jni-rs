@@ -19,7 +19,7 @@ use crate::errors::Error;
 /// Lifetime'd representation of a `jstring`. Just a `JObject` wrapped in a new
 /// class.
 #[repr(transparent)]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct JString<'local>(JObject<'local>);
 
 impl<'local> AsRef<JString<'local>> for JString<'local> {

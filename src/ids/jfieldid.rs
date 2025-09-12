@@ -21,7 +21,7 @@ use crate::sys::jfieldID;
 /// responsibility to ensure they hold some class reference for the lifetime of
 /// cached method IDs.
 #[repr(transparent)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct JFieldID {
     internal: jfieldID,
 }

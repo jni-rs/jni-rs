@@ -15,7 +15,7 @@ use super::JObjectRef;
 /// Lifetime'd representation of a `jthrowable`. Just a `JObject` wrapped in a
 /// new class.
 #[repr(transparent)]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct JThrowable<'local>(JObject<'local>);
 
 impl<'local> AsRef<JThrowable<'local>> for JThrowable<'local> {

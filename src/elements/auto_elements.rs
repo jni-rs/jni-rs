@@ -18,6 +18,7 @@ use crate::objects::JByteArray;
 /// The wrapper is tied to the lifetime of the array reference that becomes
 /// owned by the struct (the reference needs to be retained in order to call
 /// `Release<Type>ArrayElements` later).
+#[derive(Debug)]
 pub struct AutoElements<'array_local, T, TArrayRef>
 where
     T: TypeArray + 'array_local,

@@ -18,7 +18,7 @@ use crate::errors::Error;
 
 /// Wrapper for `java.utils.Map.Entry` references. Provides methods to get the key and value.
 #[repr(transparent)]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct JCollection<'local>(JObject<'local>);
 
 impl<'local> AsRef<JCollection<'local>> for JCollection<'local> {

@@ -18,6 +18,7 @@ use crate::{
 /// See: [Env::as_cast]
 ///
 #[repr(transparent)]
+#[derive(Debug)]
 pub struct Cast<'any, 'from, To: JObjectRef> {
     _from: PhantomData<&'from JObject<'any>>,
 

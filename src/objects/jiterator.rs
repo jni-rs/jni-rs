@@ -15,7 +15,7 @@ use super::JObjectRef;
 
 /// Wrapper for `java.utils.Map.Entry` references. Provides methods to get the key and value.
 #[repr(transparent)]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct JIterator<'local>(JObject<'local>);
 
 impl<'local> AsRef<JIterator<'local>> for JIterator<'local> {

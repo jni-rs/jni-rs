@@ -338,6 +338,7 @@ impl<'a> InitArgsBuilder<'a> {
 ///
 /// *This API requires "invocation" feature to be enabled,
 /// see ["Launching JVM from Rust"](struct.JavaVM.html#launching-jvm-from-rust).*
+#[derive(Debug)]
 pub struct InitArgs<'a> {
     inner: JavaVMInitArgs,
 
