@@ -1881,3 +1881,21 @@ fn test_java_char_conversion() {
     })
     .unwrap();
 }
+
+#[test]
+fn test_throwable_get_stack_trace() {
+    attach_current_thread(|env| {
+        env.throw("Test exception").unwrap();
+        let exception = env.exception_occurred().unwrap();
+        env.exception_clear();
+
+        let stack_trace = exception.get_stack_trace(env).unwrap();
+        let len = stack_trace.len(env).unwrap();
+
+        // XXX: we can't actually test walking the stack trace without some Java code
+        assert_eq!(len, 0);
+
+        Ok(())
+    })
+    .unwrap();
+}

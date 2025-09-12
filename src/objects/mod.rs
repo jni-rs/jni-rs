@@ -4,6 +4,9 @@ pub use self::jobject::*;
 mod jthrowable;
 pub use self::jthrowable::*;
 
+mod jstack_trace_element;
+pub use self::jstack_trace_element::*;
+
 mod jclass;
 pub use self::jclass::*;
 
