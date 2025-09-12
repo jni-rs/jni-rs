@@ -103,8 +103,9 @@ where
     ///
     /// This method is useful to change the release mode of an array originally created
     /// with `ReleaseMode::CopyBack`.
-    pub fn discard(&mut self) {
+    pub fn discard(mut self) {
         self.mode = ReleaseMode::NoCopyBack;
+        // drop
     }
 
     /// Indicates if the array is a copy or not
