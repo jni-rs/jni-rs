@@ -196,7 +196,7 @@ pub struct Env<'local> {
     /// The current [`jni::AttachGuard`] nesting level, which we assert matches
     /// the top/current nesting level whenever some API will return a new local
     /// reference
-    level: usize,
+    pub(crate) level: usize,
     guard: &'local AttachGuard,
 }
 
@@ -2514,40 +2514,30 @@ impl<'local> Env<'local> {
     }
 
     /// Returns a local reference to an element of the [`JObjectArray`] `array`.
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JObjectArray::get_element instead. This method will be removed in a future version"
+    )]
     pub fn get_object_array_element<'other_local>(
         &mut self,
         array: impl AsRef<JObjectArray<'other_local>>,
-        index: jsize,
+        index: usize,
     ) -> Result<JObject<'local>> {
-        // Runtime check that the 'local reference lifetime will be tied to
-        // Env lifetime for the top JNI stack frame
-        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
-        let array = null_check!(array.as_ref(), "get_object_array_element array argument")?;
-        unsafe {
-            jni_call_check_ex!(self, v1_1, GetObjectArrayElement, array.as_raw(), index)
-                .map(|obj| JObject::from_raw(obj))
-        }
+        array.as_ref().get_element(index, self)
     }
 
     /// Sets an element of the [`JObjectArray`] `array`.
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JObjectArray::set_element instead. This method will be removed in a future version"
+    )]
     pub fn set_object_array_element<'other_local_1, 'other_local_2>(
         &self,
         array: impl AsRef<JObjectArray<'other_local_1>>,
-        index: jsize,
+        index: usize,
         value: impl AsRef<JObject<'other_local_2>>,
     ) -> Result<()> {
-        let array = null_check!(array.as_ref(), "set_object_array_element array argument")?;
-        unsafe {
-            jni_call_check_ex!(
-                self,
-                v1_1,
-                SetObjectArrayElement,
-                array.as_raw(),
-                index,
-                value.as_ref().as_raw()
-            )?;
-        }
-        Ok(())
+        array.as_ref().set_element(index, value, self)
     }
 
     /// Create a new java byte array from a rust byte slice.
