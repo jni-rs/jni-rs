@@ -7,9 +7,10 @@ use jni::{
     descriptors::Desc,
     errors::{CharToJavaError, Error},
     objects::{
-        AutoElements, IntoAuto as _, JByteBuffer, JList, JObject, JString, JThrowable, JValue,
-        Reference as _, ReleaseMode, Weak,
+        AutoElements, IntoAuto as _, JByteBuffer, JList, JObject, JObjectArray, JStackTraceElement,
+        JString, JThrowable, JValue, ReleaseMode, Weak,
     },
+    refs::Reference,
     signature::{JavaType, Primitive, ReturnType},
     strings::{JNIStr, JNIString},
     sys::{jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jobject, jshort, jsize},
@@ -1568,6 +1569,7 @@ fn get_object_array_element() {
         let array = env
             .new_object_array(1, STRING_CLASS, JObject::null())
             .unwrap();
+
         assert!(!array.is_null());
         assert!(array.get_element(0, env).unwrap().is_null());
         let test_str = env.new_string(c"test").unwrap();
@@ -1890,10 +1892,30 @@ fn test_throwable_get_stack_trace() {
         env.exception_clear();
 
         let stack_trace = exception.get_stack_trace(env).unwrap();
+        let _len = stack_trace.len(env).unwrap();
+
+        // Test conversion to JObjectArray<JObject> and back
+        let obj_arr = env.cast_local::<JObjectArray>(stack_trace).unwrap();
+
+        let stack_trace = env
+            .as_cast::<JObjectArray<JStackTraceElement>>(&obj_arr)
+            .unwrap();
+        let stack_trace = stack_trace.as_ref();
         let len = stack_trace.len(env).unwrap();
 
         // XXX: we can't actually test walking the stack trace without some Java code
         assert_eq!(len, 0);
+
+        for i in 0..len {
+            let element = stack_trace.get_element(i, env).unwrap();
+            let _class_name = element.get_class_name(env).unwrap();
+            let _method_name = element.get_method_name(env).unwrap();
+            let _file_name = element.get_file_name(env).unwrap();
+            let _line_number = element.get_line_number(env).unwrap();
+            let _s = element.try_to_string(env).unwrap();
+
+            // Do something with the stack trace element
+        }
 
         Ok(())
     })

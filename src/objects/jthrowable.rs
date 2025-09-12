@@ -5,7 +5,10 @@ use once_cell::sync::OnceCell;
 use crate::{
     env::Env,
     errors::Result,
-    objects::{Global, JClass, JMethodID, JObject, JObjectArray, JString, LoaderContext},
+    objects::{
+        Global, JClass, JMethodID, JObject, JObjectArray, JStackTraceElement, JString,
+        LoaderContext,
+    },
     strings::JNIStr,
     sys::{jobject, jthrowable},
 };
@@ -155,7 +158,7 @@ impl JThrowable<'_> {
     pub fn get_stack_trace<'env_local>(
         &self,
         env: &mut Env<'env_local>,
-    ) -> Result<JObjectArray<'env_local>> {
+    ) -> Result<JObjectArray<'env_local, JStackTraceElement<'env_local>>> {
         let api = JThrowableAPI::get(env, &LoaderContext::None)?;
 
         // Safety: We know that `getStackTrace` is a valid method on `java/lang/Throwable` that has no

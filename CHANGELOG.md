@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Env::call_nonvirtual_method` and `Env::call_nonvirtual_method_unchecked` to call non-virtual method. ([#454](https://github.com/jni-rs/jni-rs/issues/454))
 - `Env::to_reflected_method` and `Env::to_reflected_static_method` for retrieving the Java reflection API instance for a method or constructor. ([#579](https://github.com/jni-rs/jni-rs/pull/579))
 - `Env::throw_new_void` provides an easy way to throw an exception that's constructed with no message argument
+- `Env::new_object_type_array<E>` lets you you instantiate a `JObjectArray` with a given element type like `new_object_type_array::<JString>`
 
 #### String APIs
 
@@ -73,7 +74,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `JList::clear` allows a list to be cleared.
 - `JList::is_empty` checks if a list is empty.
 - `JList::as_collection` casts a list into a `JCollection`
+- `JObjectArray::get/set_element` let you get and set array elements as methods on the array.
 - `JThrowable::get_message` is a binding for `getMessage()` and gives easy access to an exception message
+- `JThrowable::get_stack_trace` is a binding for `getStackTrace()`, returning a `JObjectArray<JStackTraceElement>`
+- `JStackTraceElement` gives access to stack frame info within a stack trace, like filename, line number etc
+
 
 ### Changed
 
@@ -145,7 +150,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Env::get_array_elements_critical` is deprecated in favor of `JPrimitiveArray::get_elements_critical`
 - `Env::get_*_array_region` and `Env::set_*_array_region` are deprecated in favor of `JPrimitiveArray::get/set_region`
 - `Env::get_array_length` is deprecated in favor of `JPrimitiveArray::len` and `JObjectArray::len`
+- `Env::get/set_object_array_element` are deprecated in favor of `JObjectArray::get/set_element`
 - `Env::new_object_unchecked` now takes a `Desc<JMethodID>` for consistency/flexibility instead of directly taking a `JMethodID`
+- `JObjectArray` supports generic element types like `JObjectArray<JString>`
 - `AutoLocal` has been renamed to `Auto` with a deprecated type alias for `AutoLocal` to sign post the rename.
 - The documentation for `Env::find_class` now recommends considering `LoaderContext::load_class` instead.
 - `Desc<JClass>::lookup()` is now based on `LoaderContext::load_class` (instead of `Env::find_class`), which checks for a thread context class loader by default.

@@ -36,7 +36,7 @@ pub unsafe trait Reference: Sized {
     ///
     /// This must be a transparent `JObject` or `jobject` wrapper type that
     /// has no `Drop` side effects.
-    type Kind<'local>: Reference + Default + Into<JObject<'local>> + AsRef<JObject<'local>>;
+    type Kind<'local>: Reference + Default + Into<JObject<'local>> + AsRef<JObject<'local>> + 'local;
     // XXX: the compiler blows up if we try and specify a Send + Sync bound
     // here: "overflow evaluating the requirement..."
     //where

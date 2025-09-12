@@ -2473,13 +2473,8 @@ impl<'local> Env<'local> {
     }
 
     /// Construct a new array holding objects in class `element_class`.
+    ///
     /// All elements are initially set to `initial_element`.
-    ///
-    /// This function returns a local reference, that must not be allocated
-    /// excessively.
-    /// See [Java documentation][1] for details.
-    ///
-    /// [1]: https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/design.html#global_and_local_references
     pub fn new_object_array<'other_local_1, 'other_local_2, T, U>(
         &mut self,
         length: jsize,
@@ -2513,16 +2508,50 @@ impl<'local> Env<'local> {
         Ok(array)
     }
 
+    /// Construct a new array holding objects with of type `E`.
+    ///
+    /// All elements are initially set to `initial_element`.
+    pub fn new_object_type_array<'any_local, E>(
+        &mut self,
+        length: jsize,
+        initial_element: impl AsRef<E::Kind<'any_local>>,
+    ) -> Result<JObjectArray<'local, E::Kind<'local>>>
+    where
+        E: Reference,
+    {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // Env lifetime for the top JNI stack frame
+        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
+        let class = E::lookup_class(self, LoaderContext::None)?;
+
+        let array = unsafe {
+            jni_call_check_ex_and_null_ret!(
+                self,
+                v1_1,
+                NewObjectArray,
+                length,
+                class.as_raw(),
+                initial_element.as_ref().as_raw()
+            )
+            .map(|array| JObjectArray::from_raw(array))?
+        };
+
+        // Ensure that `class` isn't dropped before the JNI call returns.
+        drop(class);
+
+        Ok(array)
+    }
+
     /// Returns a local reference to an element of the [`JObjectArray`] `array`.
     #[deprecated(
         since = "0.22.0",
         note = "use JObjectArray::get_element instead. This method will be removed in a future version"
     )]
-    pub fn get_object_array_element<'other_local>(
+    pub fn get_object_array_element<'other_local, E: Reference + 'other_local>(
         &mut self,
-        array: impl AsRef<JObjectArray<'other_local>>,
+        array: impl AsRef<JObjectArray<'other_local, E>>,
         index: usize,
-    ) -> Result<JObject<'local>> {
+    ) -> Result<E::Kind<'local>> {
         array.as_ref().get_element(index, self)
     }
 
@@ -2531,11 +2560,11 @@ impl<'local> Env<'local> {
         since = "0.22.0",
         note = "use JObjectArray::set_element instead. This method will be removed in a future version"
     )]
-    pub fn set_object_array_element<'other_local_1, 'other_local_2>(
+    pub fn set_object_array_element<'any_local_1, 'any_local_2, E: Reference + 'any_local_1>(
         &self,
-        array: impl AsRef<JObjectArray<'other_local_1>>,
+        array: impl AsRef<JObjectArray<'any_local_1, E>>,
         index: usize,
-        value: impl AsRef<JObject<'other_local_2>>,
+        value: impl AsRef<E::Kind<'any_local_2>>,
     ) -> Result<()> {
         array.as_ref().set_element(index, value, self)
     }
