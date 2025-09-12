@@ -8,6 +8,7 @@ use crate::{
     objects::{Global, JClass, JObject, LoaderContext, Reference},
     strings::JNIStr,
     sys::{jobject, jobjectArray},
+    JavaVM,
 };
 
 use super::AsJArrayRaw;
@@ -96,6 +97,53 @@ impl JObjectArray<'_> {
         let array = null_check!(self.as_raw(), "JObjectArray::len self argument")?;
         let len = unsafe { jni_call_unchecked!(env, v1_1, GetArrayLength, array) } as usize;
         Ok(len)
+    }
+
+    /// Returns a local reference to an element of the [`JObjectArray`] `array`.
+    pub fn get_element<'env_local>(
+        &self,
+        index: usize,
+        env: &mut Env<'env_local>,
+    ) -> Result<JObject<'env_local>> {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // Env lifetime for the top JNI stack frame
+        assert_eq!(env.level, JavaVM::thread_attach_guard_level());
+        let array = null_check!(self.as_raw(), "get_object_array_element array argument")?;
+        if index > i32::MAX as usize {
+            return Err(crate::errors::Error::JniCall(
+                crate::errors::JniError::InvalidArguments,
+            ));
+        }
+        unsafe {
+            jni_call_check_ex!(env, v1_1, GetObjectArrayElement, array, index as i32)
+                .map(|obj| JObject::from_raw(obj))
+        }
+    }
+
+    /// Sets an element of the [`JObjectArray`] `array`.
+    pub fn set_element<'any_local>(
+        &self,
+        index: usize,
+        value: impl AsRef<JObject<'any_local>>,
+        env: &Env<'_>,
+    ) -> Result<()> {
+        let array = null_check!(self.as_raw(), "set_object_array_element array argument")?;
+        if index > i32::MAX as usize {
+            return Err(crate::errors::Error::JniCall(
+                crate::errors::JniError::InvalidArguments,
+            ));
+        }
+        unsafe {
+            jni_call_check_ex!(
+                env,
+                v1_1,
+                SetObjectArrayElement,
+                array,
+                index as i32,
+                value.as_ref().as_raw()
+            )?;
+        }
+        Ok(())
     }
 }
 

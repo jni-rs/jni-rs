@@ -1569,10 +1569,10 @@ fn get_object_array_element() {
             .new_object_array(1, STRING_CLASS, JObject::null())
             .unwrap();
         assert!(!array.is_null());
-        assert!(env.get_object_array_element(&array, 0).unwrap().is_null());
+        assert!(array.get_element(0, env).unwrap().is_null());
         let test_str = env.new_string(c"test").unwrap();
-        env.set_object_array_element(&array, 0, test_str).unwrap();
-        assert!(!env.get_object_array_element(&array, 0).unwrap().is_null());
+        array.set_element(0, test_str, env).unwrap();
+        assert!(!array.get_element(0, env).unwrap().is_null());
 
         Ok(())
     })
