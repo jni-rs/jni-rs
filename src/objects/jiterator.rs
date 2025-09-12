@@ -204,10 +204,10 @@ unsafe impl Reference for JIterator<'_> {
         self.0.as_raw()
     }
 
-    fn lookup_class<'env>(
-        env: &'env Env<'_>,
+    fn lookup_class<'caller>(
+        env: &Env<'_>,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'env> {
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'caller> {
         let api = JIteratorAPI::get(env, &loader_context)?;
         Ok(&api.class)
     }

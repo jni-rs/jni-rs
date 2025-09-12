@@ -317,10 +317,10 @@ where
         self.obj.as_raw()
     }
 
-    fn lookup_class<'env>(
-        env: &'env Env<'_>,
+    fn lookup_class<'caller>(
+        env: &Env<'_>,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'env> {
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'caller> {
         T::lookup_class(env, loader_context)
     }
 

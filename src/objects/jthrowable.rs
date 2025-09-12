@@ -146,10 +146,10 @@ unsafe impl Reference for JThrowable<'_> {
         self.0.as_raw()
     }
 
-    fn lookup_class<'env>(
-        env: &'env Env<'_>,
+    fn lookup_class<'caller>(
+        env: &Env<'_>,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'env> {
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'caller> {
         let api = JThrowableAPI::get(env, &loader_context)?;
         Ok(&api.class)
     }

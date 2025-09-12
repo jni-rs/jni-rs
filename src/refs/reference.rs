@@ -99,10 +99,10 @@ pub unsafe trait Reference: Sized {
     /// In case no class reference is already cached then use [`LoaderContext::load_class`] to
     /// lookup a class reference.
     ///
-    fn lookup_class<'env>(
-        env: &'env Env<'_>,
+    fn lookup_class<'caller>(
+        env: &Env<'_>,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'env>;
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'caller>;
 
     /// Returns a new reference type based on [`Self::Kind`] for the given `reference` that is tied
     /// to the specified lifetime.
@@ -371,10 +371,10 @@ where
         (*self).as_raw()
     }
 
-    fn lookup_class<'env>(
-        env: &'env Env<'_>,
+    fn lookup_class<'caller>(
+        env: &Env<'_>,
         loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'env> {
+    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'caller> {
         T::lookup_class(env, loader_context)
     }
 
