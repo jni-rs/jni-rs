@@ -9,7 +9,7 @@ license = "MIT OR Apache-2.0"
 name = "jni"
 repository = "https://github.com/jni-rs/jni-rs"
 # ¡When bumping version please also update it in examples and documentation!
-version = "0.21.1"
+version = "0.22.0"
 edition = "2021"
 # Keep in sync with ci.yml
 rust-version = "1.77.0"
