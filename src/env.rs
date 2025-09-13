@@ -4008,8 +4008,6 @@ pub struct MonitorGuard<'local> {
     life: PhantomData<&'local ()>,
 }
 
-static_assertions::assert_not_impl_any!(MonitorGuard: Send);
-
 impl Drop for MonitorGuard<'_> {
     fn drop(&mut self) {
         // Panics:
@@ -4043,3 +4041,6 @@ impl Drop for MonitorGuard<'_> {
             .expect("MonitorGuard dropped on detached thread");
     }
 }
+
+#[cfg(test)]
+static_assertions::assert_not_impl_any!(MonitorGuard: Send);
