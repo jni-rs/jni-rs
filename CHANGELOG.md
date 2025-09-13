@@ -39,10 +39,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Reference::lookup_class` exposes a cached `Global<JClass>` for all `Reference` implementations ([#612](https://github.com/jni-rs/jni-rs/pull/612))
 - `LoaderContext` + `LoaderContext::load_class` for loading classes, depending on available context ([#612](https://github.com/jni-rs/jni-rs/pull/612))
 - `Env::new_cast_global_ref` acts like `new_global_ref` with a type cast ([#612](https://github.com/jni-rs/jni-rs/pull/612))
-- `Env::cast_global` takes an owned `Global<From>` and returns a `Global<To>` ([#612](https://github.com/jni-rs/jni-rs/pull/612))
+- `Env::cast_global` takes an owned `Global<From>` and returns an owned `Global<To>` ([#612](https://github.com/jni-rs/jni-rs/pull/612))
 - `Env::new_cast_local_ref` acts like `new_local_ref` with a type cast ([#612](https://github.com/jni-rs/jni-rs/pull/612))
-- `Env::cast_local` takes an owned local reference and returns a newly type cast wrapper ([#612](https://github.com/jni-rs/jni-rs/pull/612))
-- `Env::as_cast` borrows any `From: Reference` (global or local) reference and returns  a `Cast<To>` that will Deref into `&To` ([#612](https://github.com/jni-rs/jni-rs/pull/612))
+- `Env::cast_local` takes an owned local reference and returns a new type-cast wrapper (owned) ([#612](https://github.com/jni-rs/jni-rs/pull/612))
+- `Env::as_cast` or `Cast::new` borrows any `From: Reference` (global or local) reference and returns  a `Cast<To>` that will Deref into `&To` ([#612](https://github.com/jni-rs/jni-rs/pull/612))
+- `Env::as_cast_raw` or `Cast::from_raw` borrows a raw `jobject` reference and returns a `Cast<To>` that will Deref into `&To`
+- `Cast::new_unchecked` and `Cast::from_raw_unchecked` let you borrow a reference with an (`unsafe`) type cast, with no runtime check
 
 #### JNI Environment APIs
 

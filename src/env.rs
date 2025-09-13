@@ -1340,11 +1340,12 @@ impl<'local> Env<'local> {
         }
     }
 
-    /// Attempts to cast a reference to a different type without consuming it.
+    /// Attempts to cast a reference (local or global) to a different type
+    /// without consuming it.
     ///
-    /// This method borrows the input reference and returns a wrapper that derefs to
-    /// the target type. The original reference remains valid and can be used after
-    /// the cast operation.
+    /// This method borrows the input reference and returns a wrapper that
+    /// derefs to the target type. The original reference remains valid and can
+    /// be used after the cast operation.
     ///
     /// # Example
     /// ```rust,no_run
@@ -1361,17 +1362,68 @@ impl<'local> Env<'local> {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::WrongObjectType`] if the object is not an instance of the target type.
-    /// Returns [`Error::ClassNotFound`] if the target class cannot be found.
-    pub fn as_cast<'from, 'any_local, To>(
+    /// Returns [`Error::WrongObjectType`] if the object is not an instance of
+    /// the target type. Returns [`Error::ClassNotFound`] if the target class
+    /// cannot be found.
+    pub fn as_cast<'from, 'any, To>(
         &self,
-        obj: &'from (impl Reference + AsRef<JObject<'any_local>>),
-    ) -> Result<Cast<'from, 'any_local, To>>
+        obj: &'from (impl Reference + AsRef<JObject<'any>>),
+    ) -> Result<Cast<'from, 'any, To>>
     where
         To: Reference,
-        'any_local: 'from,
+        'any: 'from,
     {
-        Cast::new(obj, self)
+        Cast::new(self, obj)
+    }
+
+    /// Attempts to cast a raw [`jobject`] reference without taking ownership.
+    ///
+    /// This method borrows the input reference and returns a wrapper that
+    /// derefs to the target type. The original reference remains valid and can
+    /// continue to be used.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use jni::{errors::Result, Env, objects::*, sys::jobject};
+    /// #
+    /// # fn example(env: &mut Env, raw_global: jobject) -> Result<()> {
+    /// // SAFETY: we know that raw_global is a valid java.lang.String reference
+    /// let string_ref = unsafe { env.as_cast_raw::<Global<JString>>(&raw_global)? };
+    /// let string_contents = string_ref.to_string();
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::WrongObjectType`] if the object is not an instance of
+    /// the target type. Returns [`Error::ClassNotFound`] if the target class
+    /// cannot be found.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `from` is a valid reference (local or
+    /// global) - which may be `null`.
+    ///
+    /// The caller must ensure the `from` reference will not be deleted while
+    /// the `Cast` exists.
+    ///
+    /// Note: even though this API is `unsafe`, it will still do a runtime check
+    /// that `from` is a valid instance of `To`, so you are not required to know
+    /// this.
+    ///
+    /// Note: this API is agnostic about whether the reference is local or
+    /// global because the returned [`Cast`] wrapper doesn't give ownership over
+    /// the reference and so you can't accidentally attempt to delete it using
+    /// the wrong JNI API.
+    pub unsafe fn as_cast_raw<'from, To>(
+        &self,
+        from: &'from jobject,
+    ) -> Result<Cast<'from, 'from, To>>
+    where
+        To: Reference,
+    {
+        Cast::from_raw(self, from)
     }
 
     /// Creates a new auto-deleted local reference.
