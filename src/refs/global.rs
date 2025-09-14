@@ -284,7 +284,7 @@ where
                 |env| -> Result<()> {
                     // If the Env is borrowing from an AttachGuard that owns the current thread
                     // attachment that means the thread was not already attached
-                    if env.guard().owns_attachment() {
+                    if env.owns_attachment() {
                         warn!("A JNI global reference was dropped on a thread that is not attached. This will cause a performance problem if it happens frequently. For more information, see the documentation for `jni::objects::Global`.");
                     }
                     // Safety: This method is safe to call in case of pending exceptions (see chapter 2 of the spec)

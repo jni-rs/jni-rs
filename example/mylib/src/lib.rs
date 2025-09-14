@@ -21,8 +21,8 @@ use std::{sync::mpsc, thread, time::Duration};
 // implementation will be able to automatically find the implementation of a
 // native method based on its name.
 //
-// The `'caller_frame` lifetime here represents the fact that the given local
-// reference arguments belong to the callers JNI stack frame. By explicitly
+// The `'local` lifetime here represents the JNI local reference frame that was
+// setup by the JVM before calling this native method. By explicitly
 // naming this lifetime it's possible to associate new local references with the
 // same lifetime and return those to the caller.
 //
@@ -35,7 +35,7 @@ use std::{sync::mpsc, thread, time::Duration};
 //
 // The lifetime of the caller frame must not be declared as `'static`
 #[no_mangle]
-pub extern "system" fn Java_HelloWorld_hello<'caller_frame>(
+pub extern "system" fn Java_HelloWorld_hello<'local>(
     // This `unowned_env` represents the fact that the JVM has implicitly
     // attached the current thread to the JVM (so you don't need to call
     // `JavaVM::attach_current_thread` before using JNI)
@@ -43,38 +43,52 @@ pub extern "system" fn Java_HelloWorld_hello<'caller_frame>(
     // Always use `EnvUnowned` to capture raw `jni::sys::JNIEnv` pointers passed
     // to native methods, so that you can associate the pointer with a JNI stack
     // frame lifetime and safely use `EnvUnowned::with_env`.
-    mut unowned_env: EnvUnowned<'caller_frame>,
-    // this is the class that owns our static method. Not going to be used, but
-    // still needs to have an argument slot
-    _class: JClass<'caller_frame>,
-    input: JString<'caller_frame>,
-) -> JString<'caller_frame> {
+    mut unowned_env: EnvUnowned<'local>,
+    // This is the class that owns our static method. Not going to be used, but
+    // still needs to have an argument slot.
+    // If this were a non-static method, this argument would be `this: JObject<'local>`
+    _class: JClass<'local>,
+    input: JString<'local>,
+) -> JString<'local> {
     // Before we can start using the [`Env`] API we need to tell `jni-rs`
     // about the "unowned" thread attachment and map the raw pointer into a
     // non-transparent [`Env`] that is (internally) associated with a thread
     // attachment guard.
-    unowned_env
-        .with_env(|env| -> jni::errors::Result<_> {
-            // First, we have to get the string out of java. Check out the `strings`
-            // module for more info on how this works.
-            let input: String = input.to_string();
+    let outcome = unowned_env.with_env(|env| -> jni::errors::Result<_> {
+        // First, we have to get the string out of java. Check out the `strings`
+        // module for more info on how this works.
+        let input: String = input.to_string();
 
-            // Then we have to create a new java string to return. Again, more info
-            // in the `strings` module.
-            env.new_string(JNIString::from(format!("Hello, {}!", input)))
-        })
-        .unwrap_or_else(|e| {
-            eprintln!("Error: {:#?}", e);
-            Default::default()
-        })
+        // Then we have to create a new java string to return. Again, more info
+        // in the `strings` module.
+        env.new_string(JNIString::from(format!("Hello, {}!", input)))
+    });
+
+    // Finally, we have to resolve the `Outcome` into a concrete return value.
+    //
+    // Our code above may have failed with a JNI error, or some other
+    // application-specific error, or it may have panicked. None of these things
+    // can pass over the FFI boundary back into the JVM.
+    //
+    // Mapping of errors and panics is done according to the selected
+    // `ErrorPolicy` trait implementation which is able to use JNI for throwing
+    // Java exceptions if necessary.
+    //
+    // This design lets you encapsulate your own approach to forwarding errors
+    // and panics to Java code and then easily reuse it across multiple native
+    // methods.
+    //
+    // In this case we use a built-in policy that throws a Java
+    // `RuntimeException` with a message containing the error/panic details.
+    outcome.resolve::<jni::errors::ThrowRuntimeExAndDefault>()
 }
 
 #[no_mangle]
-pub extern "system" fn Java_HelloWorld_helloByte<'caller_frame>(
-    mut unowned_env: EnvUnowned<'caller_frame>,
+pub extern "system" fn Java_HelloWorld_helloByte<'local>(
+    mut unowned_env: EnvUnowned<'local>,
     _class: JClass,
     input: JByteArray,
-) -> JByteArray<'caller_frame> {
+) -> JByteArray<'local> {
     unowned_env
         .with_env(|env| -> jni::errors::Result<_> {
             // First, we have to get the byte[] out of java.
@@ -85,10 +99,7 @@ pub extern "system" fn Java_HelloWorld_helloByte<'caller_frame>(
             let output = env.byte_array_from_slice(&buf).unwrap();
             Ok(output)
         })
-        .unwrap_or_else(|e| {
-            eprintln!("Error: {:#?}", e);
-            Default::default()
-        })
+        .resolve::<jni::errors::ThrowRuntimeExAndDefault>()
 }
 
 #[no_mangle]
@@ -107,10 +118,7 @@ pub extern "system" fn Java_HelloWorld_factAndCallMeBack(
                 .unwrap();
             Ok(())
         })
-        .unwrap_or_else(|e| {
-            eprintln!("Error: {:#?}", e);
-            Default::default()
-        })
+        .resolve::<jni::errors::ThrowRuntimeExAndDefault>()
 }
 
 struct Counter {
@@ -151,10 +159,7 @@ pub unsafe extern "system" fn Java_HelloWorld_counterNew(
 
             Ok(Box::into_raw(Box::new(counter)) as jlong)
         })
-        .unwrap_or_else(|e| {
-            eprintln!("Error: {:#?}", e);
-            Default::default()
-        })
+        .resolve::<jni::errors::ThrowRuntimeExAndDefault>()
 }
 
 #[no_mangle]
@@ -170,10 +175,7 @@ pub unsafe extern "system" fn Java_HelloWorld_counterIncrement(
             counter.increment(env);
             Ok(())
         })
-        .unwrap_or_else(|e| {
-            eprintln!("Error: {:#?}", e);
-            Default::default()
-        })
+        .resolve::<jni::errors::ThrowRuntimeExAndDefault>()
 }
 
 #[no_mangle]
@@ -231,8 +233,5 @@ pub extern "system" fn Java_HelloWorld_asyncComputation(
 
             Ok(())
         })
-        .unwrap_or_else(|e| {
-            eprintln!("Error: {:#?}", e);
-            Default::default()
-        })
+        .resolve::<jni::errors::ThrowRuntimeExAndDefault>()
 }

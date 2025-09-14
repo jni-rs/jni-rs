@@ -142,27 +142,42 @@
 //!     // before calling our implementation, and this is represented
 //!     // by the EnvUnowned type.
 //!     //
-//!     // We upgrade the EnvUnowned to a Env, which gives us access to
-//!     // the full JNI API.
+//!     // We use `with_env` to upgrade the EnvUnowned to a Env, which gives us
+//!     // access to the full JNI API.
 //!     //
 //!     // IMPORTANT: Don't use `jni-rs` in any other way within a native method
 //!     // until you call `unowned_env.with_env` or `AttachGuard::from_unowned`.
 //!     //
-//!     // Internally `with_env()` creates a hidden AttachGuard to track the thread
+//!     // Internally `with_env()` creates a hidden `AttachGuard`` to track the thread
 //!     // attachment explicitly and this will also wrap the given closure with
 //!     // `catch_unwind` to ensure that your code can't panic and unwind across
 //!     // FFI boundaries.
-//!     unowned_env.with_env(|env| -> Result<_, jni::errors::Error> {
+//!     let outcome = unowned_env.with_env(|env| -> Result<_, jni::errors::Error> {
 //!         // First, we have to get the string out of Java. Check out the `strings`
 //!         // module for more info on how this works.
 //!         let input: String = input.to_string();
 //!         // Then we have to create a new Java string to return. Again, more info
 //!         // in the `strings` module.
 //!         env.new_string(JNIString::from(format!("Hello, {}!", input)))
-//!     }).unwrap_or_else(|err| {
-//!         eprintln!("Error occurred: {}", err);
-//!         Default::default()
-//!     })
+//!     });
+//!
+//!    // Finally, we have to resolve the `EnvOutcome` into a concrete return value.
+//!    //
+//!    // Our code above may have failed with a JNI error, or some other
+//!    // application-specific error, or it may have panicked. None of these things
+//!    // can pass over the FFI boundary back into the JVM.
+//!    //
+//!    // Mapping of errors and panics is done according to the selected
+//!    // `ErrorPolicy` trait implementation which is able to use JNI for throwing
+//!    // Java exceptions if necessary.
+//!    //
+//!    // This design lets you encapsulate your own approach to forwarding errors
+//!    // and panics to Java code and then easily reuse it across multiple native
+//!    // methods.
+//!    //
+//!    // In this case we use a built-in policy that throws a Java
+//!    // `RuntimeException` with a message containing the error/panic details.
+//!     outcome.resolve::<jni::errors::ThrowRuntimeExAndDefault>()
 //! }
 //! ```
 //!

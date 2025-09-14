@@ -127,7 +127,7 @@ fn test_destroy() {
         threads.push(jh);
     }
 
-    unsafe fn attach_current_thread_as_daemon(vm: &jni::JavaVM) -> jni::errors::Result<AttachGuard> {
+    unsafe fn attach_current_thread_as_daemon<'local>(vm: &jni::JavaVM) -> jni::errors::Result<AttachGuard<'local>> {
         let mut env_ptr = std::ptr::null_mut();
         let jvm: *mut jni_sys::JavaVM = vm.get_raw();
         let res = ((*(*jvm)).v1_4.AttachCurrentThreadAsDaemon)(
@@ -158,7 +158,7 @@ fn test_destroy() {
                 // creating an opportunity for local references to be created
                 // in association with the wrong stack frame.
                 let mut guard = unsafe { attach_current_thread_as_daemon(&jvm).unwrap() };
-                guard.with_env(DEFAULT_LOCAL_FRAME_CAPACITY, |env|-> errors::Result<()> {
+                guard.borrow_env_mut().with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env|-> errors::Result<()> {
                     println!("daemon thread attach");
                     attach_barrier.wait();
                     println!("daemon thread run");
