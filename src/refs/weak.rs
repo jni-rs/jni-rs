@@ -259,7 +259,7 @@ where
                 |env| -> Result<()> {
                     // If the Env is borrowing from an AttachGuard that owns the current thread
                     // attachment that means the thread was not already attached
-                    if env.guard().owns_attachment() {
+                    if env.owns_attachment() {
                         warn!("Dropping a Weak in a detached thread. Fix your code if this message appears frequently (see the Weak docs).");
                     }
 

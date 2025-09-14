@@ -22,7 +22,10 @@ use std::{os::raw::c_void, path::PathBuf};
 use {crate::InitArgs, std::ffi::OsStr};
 
 #[cfg(doc)]
-use {crate::env, crate::objects};
+use {
+    crate::env::{self, EnvUnowned},
+    crate::objects,
+};
 
 /// The capacity of local frames, allocated for attached threads by default. Same as the default
 /// value Hotspot uses when calling native Java methods.
@@ -584,9 +587,9 @@ impl JavaVM {
         // private to this function.
         let mut guard = unsafe { self.attach_current_thread_guard(config)? };
         if let Some(capacity) = capacity {
-            guard.with_env(capacity, callback)
+            guard.borrow_env_mut().with_local_frame(capacity, callback)
         } else {
-            guard.with_env_current_frame(callback)
+            callback(guard.borrow_env_mut())
         }
     }
 
@@ -622,7 +625,7 @@ impl JavaVM {
     ///         // Safety: The guard will remain fixed on the stack by keeping the guard
     ///         // private to this function.
     ///         let mut guard = unsafe { self.vm.attach_current_thread_guard(AttachConfig::default)? };
-    ///         guard.with_env(DEFAULT_LOCAL_FRAME_CAPACITY, callback)
+    ///         guard.borrow_env_mut().with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, callback)
     ///     }
     /// }
     /// ```
@@ -630,17 +633,24 @@ impl JavaVM {
     /// See [`Self::attach_current_thread`], [`Self::attach_current_thread_for_scope`],
     /// [`AttachConfig`] and [`AttachGuard`] for more details.
     ///
-    /// Consider using [`Self::attach_current_thread_with_config`] before resorting to this (unsafe) API.
+    /// Consider using [`Self::attach_current_thread_with_config`] before resorting to this (unsafe)
+    /// API.
     ///
     /// # Safety
     ///
-    /// See the 'Safety' rules for [`AttachGuard`]
+    /// The returned guard must be managed according to the general [`AttachGuard`] "Safety" rules.
     ///
-    /// The main concern is that you must keep the [`AttachGuard`] on the stack and it must not
-    /// move. This can be achieved by hiding it from safe code, only exposing a temporary [`Env`]
+    /// **IMPORTANTLY:** Never give the returned guard a `'static` lifetime; the guard must be
+    /// treated as an immovable value on the stack and not be re-ordered relative to other guards on
+    /// the stack. See the 'Safety' rules for [`AttachGuard`]
+    ///
+    /// This can be achieved by hiding it from safe code, only exposing a temporary [`Env`]
     /// reference that borrows from the guard (as in the example above).
     ///
-    pub unsafe fn attach_current_thread_guard<'config, F>(&self, config: F) -> Result<AttachGuard>
+    pub unsafe fn attach_current_thread_guard<'config, F>(
+        &self,
+        config: F,
+    ) -> Result<AttachGuard<'_>>
     where
         F: FnOnce() -> AttachConfig<'config>,
     {
@@ -735,7 +745,7 @@ impl JavaVM {
     /// we couldn't even call GetEnv without 1.2)
     ///
     /// See the 'Safety' rules for [`AttachGuard`]
-    pub(crate) unsafe fn sys_get_env_attachment(&self) -> Result<AttachGuard> {
+    pub(crate) unsafe fn sys_get_env_attachment(&self) -> Result<AttachGuard<'_>> {
         unsafe {
             let mut ptr = ptr::null_mut();
             let res =
@@ -778,7 +788,7 @@ impl JavaVM {
     /// # Safety
     ///
     /// See the 'Safety' rules for [`AttachGuard`]
-    pub(crate) unsafe fn tls_get_env_attachment() -> Option<AttachGuard> {
+    pub(crate) unsafe fn tls_get_env_attachment<'local>() -> Option<AttachGuard<'local>> {
         let env_ptr = THREAD_ATTACHMENT.get();
         if env_ptr.is_null() {
             None
@@ -788,7 +798,7 @@ impl JavaVM {
         }
     }
 
-    /// Returns an [`AttachGuard`] for the [`Env`] associated with the current thread.
+    /// Returns an [`AttachGuard`] for top JNI stack frame attached to the current thread.
     ///
     /// If JNI is not attached to the Java VM, this will return [`Error::JniCall`] with
     /// [`JniError::ThreadDetached`].
@@ -806,7 +816,7 @@ impl JavaVM {
     /// # Safety
     ///
     /// See the 'Safety' rules for [`AttachGuard`]
-    pub unsafe fn get_env_attachment(&self) -> Result<AttachGuard> {
+    pub unsafe fn get_env_attachment(&self) -> Result<AttachGuard<'_>> {
         match Self::tls_get_env_attachment() {
             Some(guard) => Ok(guard),
             None => self.sys_get_env_attachment(),
@@ -841,7 +851,7 @@ impl JavaVM {
     {
         unsafe {
             let mut guard = self.get_env_attachment()?;
-            guard.with_env(capacity, f)
+            guard.borrow_env_mut().with_local_frame(capacity, f)
         }
     }
 
@@ -890,7 +900,7 @@ impl JavaVM {
     {
         unsafe {
             let mut guard = self.get_env_attachment()?;
-            guard.with_env_current_frame(f)
+            f(guard.borrow_env_mut())
         }
     }
 
@@ -1075,13 +1085,13 @@ unsafe fn sys_detach_current_thread(env_ptr: *mut jni_sys::JNIEnv, thread: &Thre
 
     unsafe {
         let mut guard = AttachGuard::from_unowned(env_ptr);
-        let env = Env::new(&mut guard);
+        let env = guard.borrow_env_mut();
         let vm = env.get_java_vm();
 
         let vm_get_env_guard = vm.sys_get_env_attachment()?;
 
         // Maybe just assert_eq!() ?
-        if vm_get_env_guard.env != env_ptr {
+        if vm_get_env_guard.env.raw != env_ptr {
             return Err(Error::JniCall(JniError::InvalidArguments));
         }
 
@@ -1110,80 +1120,96 @@ thread_local! {
 /// Represents a JNI attachment of the current thread to a Java VM, which is
 /// required before you can access the [`Env`] API.
 ///
+/// [`AttachGuard`] is an `unsafe`, low-level building block for the safe thread
+/// attachment APIs provided by [`JavaVM`]. Before considering this API you
+/// should look at:
+///
+///   - [`JavaVM::attach_current_thread()`]
+///   - [`JavaVM::attach_current_thread_for_scope()`]
+///   - [`JavaVM::attach_current_thread_with_config()`]
+///   - [`JavaVM::with_env()`]
+///   - [`JavaVM::with_env_current_frame()`]
+///
+/// More-specifically, an [`AttachGuard`] only represents an attachment for a
+/// single JNI stack frame or local reference frame.
+///
+/// The lifetime for an [`AttachGuard`] effectively names the scope of a single
+/// JNI stack frame. The lifetime of the guard is used to ensure that any local
+/// references created via the [`Env`] API are only accessible within the
+/// lifetime of the guard, which ensures that local references can't be used
+/// outside of the JNI stack frame that owns them.
+///
 /// If the [`AttachGuard`] "owns" the underlying JNI thread attachment, that
 /// means the guard will automatically detach the current thread from the Java
 /// VM when the guard is dropped.
-///
-/// See [`JavaVM::attach_current_thread()`],
-/// [`JavaVM::attach_current_thread_for_scope`] or
-/// [`AttachGuard::from_unowned()`] for creating thread attachment guards.
 ///
 /// If you're implementing a JNI native method which is passed a raw
 /// [`crate::sys::JNIEnv`] pointer, then you can get a corresponding guard via
 /// [`AttachGuard::from_unowned`].
 ///
 /// If you're implementing some JNI utility code that doesn't already have a raw
-/// [`crate::sys::JNIEnv`] pointer you should probably use
-/// [`JavaVM::attach_current_thread`] to get an attachment guard, and to also
-/// request that the thread remains permanently attached (avoiding any repeated
-/// overhead from attaching and detaching the current thread).
-///
-/// If you need an attachment guard in some case where you're concerned about
-/// having any side effects you can use
-/// [`JavaVM::attach_current_thread_for_scope`] to request an owned attachment
-/// guard that will detach the thread when dropped. Consider though that this
-/// may increase the chance that your code will be repeatedly attaching and
-/// detaching the same thread, which will incur more overhead than a permanent
-/// attachment would.
+/// [`crate::sys::JNIEnv`] pointer you could use
+/// [`JavaVM::attach_current_thread_guard`] to get an attachment guard.
 ///
 /// # JavaVM::singleton() guarantee
 ///
 /// If you know that at least one [`AttachGuard`] has ever existed (which is
-/// implied if you have a `Env` reference or any non-null reference type
-/// (like `JObject` or `Global`) you can assume that [`JavaVM::singleton()`]
-/// will return `Some(JavaVM)`.
+/// implied if you have a [`Env`] reference) you can assume that
+/// [`JavaVM::singleton()`] will return `Some(JavaVM)`.
 ///
-/// You can use this to avoid redundantly copying JavaVM pointers that can
-/// instead be read via [`JavaVM::singleton()`].
+/// This can be useful if you need to access JNI from something like a Drop
+/// implementation, without needing to explicitly copy `JavaVM` pointers. In
+/// these cases you can often prove that at least one `AttachGuard` must have
+/// existed in order to construct the object that will later be dropped.
 ///
 /// # Safety
 ///
-/// Thread attachment is always considered to be an `unsafe` operation (and
-/// functions like [`JavaVM::attach_current_thread()`] that can return a guard
-/// are `unsafe`) because there some safety rules for managing `AttachGuard`s
-/// that can't be automatically guaranteed through the Rust type system alone...
+/// [`AttachGuard`] management is considered `unsafe` because there are some
+/// safety rules that can't be automatically guaranteed through the Rust type
+/// system alone...
 ///
-/// 1. You must never materialise a thread attachment guard into any scope where
-///    you already have an accessible [`AttachGuard`] or where you have some
-///    safe way of accessing a mutable [`Env`].
+/// 1. You must treat a guard as an immovable type that needs to live on the
+///    stack and can't be re-ordered relative to other guards on the stack.
 ///
-///    It _is_ OK to create a redundant [`AttachGuard`] in case there may
-///    already be a guard for an attachment lower on the stack (owned by some
-///    function that has called you) but it's not safe if the code in your
-///    current scope can directly access a pre-existing guard or mutable
-///    [`Env`].
+/// 2. Following from (1), an [`AttachGuard`] _MUST NOT_ be given a `'static`
+///    lifetime (e.g. by boxing or moving into a `static` variable).
 ///
-/// 2. You must treat a guard as an immovable type that needs to live on the
-///    stack and can't be given a `'static` lifetime (e.g. by boxing or moving
-///    into a `static` variable) or re-ordered relative to other guards on the
-///    stack.
+/// 3. Any low-level JNI code that creates new local references must
+///    runtime-assert that it has exclusive access to the top-most
+///    [`AttachGuard`] on the stack.
 ///
-///    When a guard is borrowed to access a [`Env`] reference, it would not
-///    be safe if you could give yourself access to a `'static` `Env`
-///    reference, because the lifetime associated with a `Env` is used to
-///    associate JNI local references with a JNI stack frame.
+///    If you're only using the safe [`Env`] API then this is handled for you,
+///    but if you're implementing low-level JNI code that somehow creates local
+///    references without involving a checked `Env` API you must add fail-safe
+///    runtime assertions. (See [`Env::assert_top`])
+///
+/// # Safety Guidance
+///
+/// If you do need to use an [`AttachGuard`] directly, then it's recommended
+/// that the guard should be kept private to a function that uses so it isn't
+/// ever exposed to safe code.
+///
+/// It's very important that [`AttachGuard`]s are never given a `'static`
+/// lifetime or re-ordered relative to other guards on the stack and keeping the
+/// guard private to a function is a good way to ensure that it remains fixed on
+/// the stack.
+///
+/// Beware of making it too easy to repeatedly materialize access to a mutable
+/// [`Env`] and increasing the risk that safe code could attempt to create new
+/// local references with an [`Env`] reference that is not at the top of the
+/// stack. If this happens the API will panic at runtime to avoid undefined
+/// behavior.
 ///
 /// # Panics
 ///
 ///    The `Drop` implementation will `panic` if a guard is not dropped in the
 ///    same order that it was created, relative to other guards (LIFO order).
 #[derive(Debug)]
-pub struct AttachGuard {
-    pub(crate) env: *mut crate::sys::JNIEnv,
-    should_detach: bool,
-    pub(crate) level: usize,
+pub struct AttachGuard<'local> {
+    env: Env<'local>,
 }
 
+/// Increments the thread guard level, returning the new level.
 fn thread_guard_level_push(env: *mut jni_sys::JNIEnv) -> usize {
     THREAD_GUARD_NEST_LEVEL.with(|cell| {
         let level = cell.get();
@@ -1191,10 +1217,11 @@ fn thread_guard_level_push(env: *mut jni_sys::JNIEnv) -> usize {
             THREAD_ATTACHMENT.set(env);
         }
         cell.set(level + 1);
-        level
+        level + 1
     })
 }
 
+/// Decrements the thread guard level, returning the new level.
 fn thread_guard_level_pop() -> usize {
     let level = THREAD_GUARD_NEST_LEVEL.with(|cell| {
         let level = cell.get();
@@ -1213,7 +1240,7 @@ fn thread_guard_level_pop() -> usize {
     level
 }
 
-impl AttachGuard {
+impl<'local> AttachGuard<'local> {
     /// Wrap a raw [`sys::JNIEnv`] pointer in an `AttachGuard` that will detach
     /// the current thread on drop.
     ///
@@ -1222,28 +1249,25 @@ impl AttachGuard {
     ///
     /// # Safety
     ///
-    /// The pointer must be non-null and correspond to a valid [`Env`]
-    /// pointer that is attached to the current thread.
+    /// The pointer must be non-null and correspond to a valid [`Env`] pointer
+    /// that is attached to the current thread.
     ///
     /// The returned guard must be managed according to the general
-    /// [`AttachGuard`] "Safety" rules. The guard should be treated as an
-    /// immovable value on the stack that represents a handle for the
-    /// currently-top JNI stack frame.
+    /// [`AttachGuard`] "Safety" rules.
+    ///
+    /// **IMPORTANTLY:** Never give the returned guard a `'static` lifetime; the
+    /// guard must be treated as an immovable value on the stack and not be
+    /// re-ordered relative to other guards on the stack.
     unsafe fn from_owned(env: *mut sys::JNIEnv) -> Self {
         let level = thread_guard_level_push(env);
 
-        let mut guard = Self {
-            env,
-            should_detach: true,
-            level,
+        let guard = Self {
+            env: Env::new(env, level, true),
         };
 
-        unsafe {
-            let env = Env::new(&mut guard);
-            // Guarantee that if you have an `AttachGuard` then
-            // `JavaVM::singleton()` will always return `Some(JavaVM)`
-            let _vm = env.get_java_vm();
-        }
+        // Guarantee that if you have an `AttachGuard` then
+        // `JavaVM::singleton()` will always return `Some(JavaVM)`
+        let _vm = guard.env.get_java_vm();
 
         guard
     }
@@ -1255,29 +1279,30 @@ impl AttachGuard {
     /// This can be use when implementing native JNI methods (that are passed an
     /// attached [`sys::JNIEnv`] pointer) as a way to access the [`Env`] API.
     ///
+    /// It is recommended to use [`EnvUnowned`] instead of directly using this API
+    /// since that will make it clearer that the guard is associated with the
+    /// JNI stack frame lifetime that was passed to the native method.
+    ///
     /// # Safety
     ///
     /// The pointer must be non-null and correspond to a valid [`Env`]
     /// pointer that is attached to the current thread.
     ///
     /// The returned guard must be managed according to the general
-    /// [`AttachGuard`] "Safety" rules. The guard should be treated as an
-    /// immovable value on the stack that represents a handle for the
-    /// currently-top JNI stack frame.
+    /// [`AttachGuard`] "Safety" rules.
+    ///
+    /// **IMPORTANTLY:** Never give the returned guard a `'static` lifetime; the
+    /// guard must be treated as an immovable value on the stack and not be
+    /// re-ordered relative to other guards on the stack.
     pub unsafe fn from_unowned(env: *mut sys::JNIEnv) -> Self {
         let level = thread_guard_level_push(env);
-        let mut guard = Self {
-            env,
-            should_detach: false,
-            level,
+        let guard = Self {
+            env: Env::new(env, level, false),
         };
 
-        unsafe {
-            let env = Env::new(&mut guard);
-            // Guarantee that if you have an `AttachGuard` then `JavaVM::singleton()` will
-            // always return `Some(JavaVM)`
-            let _vm = env.get_java_vm();
-        }
+        // Guarantee that if you have an `AttachGuard` then
+        // `JavaVM::singleton()` will always return `Some(JavaVM)`
+        let _vm = guard.env.get_java_vm();
 
         guard
     }
@@ -1290,93 +1315,20 @@ impl AttachGuard {
     /// since the scope may be nested under some other guard, lower on the stack
     /// that has already attached the thread.
     pub fn owns_attachment(&self) -> bool {
-        self.should_detach
+        self.env.owns_attachment()
     }
 
-    /// Runs a closure with a borrowed [`Env`] associated with a new JNI stack
-    /// frame that will be unwound to release all local references created within
-    /// the given closure.
+    /// Borrows a mutable reference to the [`Env`] associated with this
+    /// [`AttachGuard`], after asserting that this is the top-most
+    /// guard on the stack.
     ///
     /// # Panic
     ///
     /// This will panic if the `AttachGuard` does not currently represent the
     /// top JNI stack frame.
-    pub fn with_env<F, T, E>(&mut self, capacity: usize, f: F) -> std::result::Result<T, E>
-    where
-        F: FnOnce(&mut Env) -> std::result::Result<T, E>,
-        E: From<Error>,
-    {
-        // Assuming that the application doesn't break the safety rules for
-        // keeping the `AttachGuard` on the stack, and not re-ordering them,
-        // we can assert that we will only ever borrow from the top-most
-        // guard on the stack
-        assert_eq!(THREAD_GUARD_NEST_LEVEL.get(), self.level + 1);
-        let mut env = unsafe { Env::new(self) };
-        env.with_local_frame(capacity, |jni_env| f(jni_env))
-    }
-
-    /// Runs a closure with a borrowed [`Env`] associated with a new JNI stack
-    /// frame that will be unwound to release all local references created within
-    /// the given closure, except for a single return value reference.
-    ///
-    /// # Panic
-    ///
-    /// This will panic if the `AttachGuard` does not currently represent the
-    /// top JNI stack frame.
-    pub fn with_env_returning_local<'local, F, T, E>(
-        &'local mut self,
-        capacity: usize,
-        f: F,
-    ) -> std::result::Result<T::Kind<'local>, E>
-    where
-        F: for<'new_local> FnOnce(
-            &mut Env<'new_local>,
-        ) -> std::result::Result<T::Kind<'new_local>, E>,
-        T: Reference,
-        E: From<Error>,
-    {
-        // Assuming that the application doesn't break the safety rules for
-        // keeping the `AttachGuard` on the stack, and not re-ordering them,
-        // we can assert that we will only ever borrow from the top-most
-        // guard on the stack
-        assert_eq!(THREAD_GUARD_NEST_LEVEL.get(), self.level + 1);
-        let mut env = unsafe { Env::new(self) };
-        env.with_local_frame_returning_local::<_, T, E>(capacity, |jni_env| f(jni_env))
-    }
-
-    /// Runs a closure with a borrowed [`Env`] associated with the guard's
-    /// JNI stack frame (which must currently be the top stack frame)
-    ///
-    /// Most of the time this API should probably be avoided (see
-    /// [`Self::with_env`] instead) unless you're sure your code won't leak
-    /// local references into the current stack frame.
-    ///
-    /// This may have a slightly lower overhead than [`Self::with_env()`] (since
-    /// it doesn't need to push/pop a JNI stack frame), but the trade off is
-    /// that you may leak local references into the current stack frame if you
-    /// don't delete them. Deleting local references individually is likely
-    /// to have a higher cost that pushing/popping a JNI stack frame.
-    ///
-    /// # Panic
-    ///
-    /// This will panic if the `AttachGuard` does not currently represent the
-    /// top JNI stack frame.
-    pub fn with_env_current_frame<F, T, E>(&mut self, f: F) -> std::result::Result<T, E>
-    where
-        F: FnOnce(&mut Env) -> std::result::Result<T, E>,
-        E: From<Error>,
-    {
-        // Assuming that the application doesn't break the safety rules for
-        // keeping the `AttachGuard` on the stack, and not re-ordering them,
-        // we can assert that we will only ever borrow from the top-most
-        // guard on the stack
-        assert_eq!(THREAD_GUARD_NEST_LEVEL.get(), self.level + 1);
-
-        // Assuming that the application doesn't break the safety rules for
-        // keeping the `AttachGuard` on the stack, we know we won't create
-        // a 'static Env here.
-        let mut env = unsafe { Env::new(self) };
-        f(&mut env)
+    pub fn borrow_env_mut(&mut self) -> &mut Env<'local> {
+        self.env.assert_top();
+        &mut self.env
     }
 
     /// Handles detaching the current thread if the guards owns the attachment
@@ -1389,17 +1341,18 @@ impl AttachGuard {
     /// Even though this only takes a reference, the implementation assumes that
     /// the guard is going to be dropped.
     unsafe fn detach_impl(&self) -> Result<()> {
-        let level = thread_guard_level_pop();
+        let new_level = thread_guard_level_pop();
         assert_eq!(
-            level, self.level,
+            new_level + 1,
+            self.env.level,
             "AttachGuard was dropped out-of-order with respect to other guards"
         );
-        if self.should_detach {
+        if self.owns_attachment() {
             assert_eq!(
-                level, 0,
+                new_level, 0,
                 "Spurious AttachGuard that owns its attachment but is nested under another guard"
             );
-            unsafe { sys_detach_current_thread(self.env, &std::thread::current()) }
+            unsafe { sys_detach_current_thread(self.env.raw, &std::thread::current()) }
         } else {
             Ok(())
         }
@@ -1429,7 +1382,7 @@ impl AttachGuard {
     }
 }
 
-impl Drop for AttachGuard {
+impl Drop for AttachGuard<'_> {
     fn drop(&mut self) {
         if let Err(err) = unsafe { self.detach_impl() } {
             // This probably means that something `unsafe` happened to detach the thread already
@@ -1478,10 +1431,10 @@ impl TLSAttachGuard {
         })
     }
 
-    unsafe fn attach_current_thread(
+    unsafe fn attach_current_thread<'local>(
         java_vm: &JavaVM,
         config: &AttachConfig,
-    ) -> Result<AttachGuard> {
+    ) -> Result<AttachGuard<'local>> {
         let thread = current();
         let env = sys_attach_current_thread(java_vm, config, &thread)?;
         THREAD_ATTACH_GUARD.with(move |f| {

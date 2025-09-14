@@ -15,6 +15,10 @@ use crate::{
     JValue, JValueOwned,
 };
 
+/// Policies for handling [`EnvOutcome`] results within native methods.
+mod policy;
+pub use policy::*;
+
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum Error {
@@ -79,9 +83,6 @@ pub enum Error {
 
     #[error("The thread can't be detached while AttachGuards exist")]
     ThreadAttachmentGuarded,
-
-    #[error("Panic caught in JNI code: {0}")]
-    PanicCaught(String),
 }
 
 #[derive(Debug, Error)]

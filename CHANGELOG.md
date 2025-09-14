@@ -25,7 +25,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `JavaVM::singleton()` lets you acquire the `JavaVM` for the process when you know that the `JavaVM` singleton has been initialized ([#595](https://github.com/jni-rs/jni-rs/pull/595))
 - `JavaVM::is_thread_attached` can query whether the current thread is attached to the Java VM ([#570](https://github.com/jni-rs/jni-rs/pull/570))
-- `EnvUnowned` is an FFI-safe type that can be used to capture a `jni_sys::Env` pointer given to native methods and give it a named lifetime (this can then be temporarily upgraded to a `&mut Env` reference via `EnvUnowned::with_env`) ([#570](https://github.com/jni-rs/jni-rs/pull/570))
 - `AttachGuard::from_unowned` added as a low-level (unsafe) way to represent a thread attachment with a raw `jni_sys::Env` pointer ([#570](https://github.com/jni-rs/jni-rs/pull/570))
 - `AttachConfig` exposes fine-grained control over thread attachment including `Thread` name, `ThreadGroup` and whether scoped or permanent. ([#606](https://github.com/jni-rs/jni-rs/pull/606))
 - `JavaVM::attach_current_thread_guard` is a low-level (unsafe) building block for attaching threads that exposes the `AttachGuard` and `AttachConfig` control. ([#606](https://github.com/jni-rs/jni-rs/pull/606))
@@ -52,6 +51,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Env::to_reflected_method` and `Env::to_reflected_static_method` for retrieving the Java reflection API instance for a method or constructor. ([#579](https://github.com/jni-rs/jni-rs/pull/579))
 - `Env::throw_new_void` provides an easy way to throw an exception that's constructed with no message argument
 - `Env::new_object_type_array<E>` lets you you instantiate a `JObjectArray` with a given element type like `new_object_type_array::<JString>`
+
+#### Native Method APIs
+
+- `EnvUnowned` is an FFI-safe type that can be used to capture a `jni_sys::Env` pointer given to native methods and give it a named lifetime (this can then be temporarily upgraded to a `&mut Env` reference via `EnvUnowned::with_env`) ([#570](https://github.com/jni-rs/jni-rs/pull/570))
+- `Outcome` is like a `Result` with the addition of a third `Panic()` variant, used for careful handling of errors in native methods.
+- `EnvOutcome` represents an `EnvUnowned::with_env` outcome whose errors can be handle, with access to JNI, via an `ErrorPolicy`.
+- `ErrorPolicy` is a trait with `on_error` and `on_panic` methods that can log native method errors or throw them as exceptions.
+- `ThrowRuntimeExAndDefault` is an `ErrorPolicy` that throws any error as a `RuntimeException` (and returns a default value).
+- `LogErrorAndDefault` is an `ErrorPolicy` that logs errors and returns a default value.
+- `LogContextErrorAndDefault` is an `ErrorPolicy` that logs errors, with a given context string, and returns a default value.
 
 #### String APIs
 
