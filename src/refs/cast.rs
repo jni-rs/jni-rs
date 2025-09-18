@@ -63,7 +63,7 @@ impl<'any, 'from, To: Reference> Cast<'any, 'from, To> {
             unsafe {
                 Ok(Self {
                     _from: PhantomData,
-                    to: To::from_raw::<'any>(from.as_raw()),
+                    to: To::kind_from_raw::<'any>(from.as_raw()),
                 })
             }
         } else {
@@ -119,7 +119,7 @@ impl<'any, 'from, To: Reference> Cast<'any, 'from, To> {
             unsafe {
                 Ok(Self {
                     _from: PhantomData,
-                    to: To::from_raw::<'any>(from.as_raw()),
+                    to: To::kind_from_raw::<'any>(from.as_raw()),
                 })
             }
         } else {
@@ -150,7 +150,7 @@ impl<'any, 'from, To: Reference> Cast<'any, 'from, To> {
         unsafe {
             Self {
                 _from: PhantomData,
-                to: To::from_raw::<'any>(from.as_raw()),
+                to: To::kind_from_raw::<'any>(from.as_raw()),
             }
         }
     }
@@ -179,7 +179,7 @@ impl<'any, 'from, To: Reference> Cast<'any, 'from, To> {
         unsafe {
             Self {
                 _from: PhantomData,
-                to: To::from_raw::<'any>(*from),
+                to: To::kind_from_raw::<'any>(*from),
             }
         }
     }
@@ -218,11 +218,11 @@ unsafe impl<'any, 'from, To: Reference> Reference for Cast<'any, 'from, To> {
         To::lookup_class(env, loader_context)
     }
 
-    unsafe fn from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        To::from_raw(local_ref)
+    unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+        To::kind_from_raw(local_ref)
     }
 
-    unsafe fn from_global_raw(global_ref: jobject) -> Self::GlobalKind {
-        To::from_global_raw(global_ref)
+    unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
+        To::global_kind_from_raw(global_ref)
     }
 }

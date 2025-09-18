@@ -302,12 +302,12 @@ where
         T::lookup_class(env, loader_context)
     }
 
-    unsafe fn from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        T::from_raw(local_ref)
+    unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+        T::kind_from_raw(local_ref)
     }
 
-    unsafe fn from_global_raw(global_ref: jobject) -> Self::GlobalKind {
-        T::from_global_raw(global_ref)
+    unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
+        T::global_kind_from_raw(global_ref)
     }
 }
 

@@ -130,7 +130,7 @@ pub unsafe trait Reference: Sized {
     ///
     /// You are responsible to knowing that `Self::Kind` is a suitable wrapper type for the given
     /// `reference`. E.g. because the `reference` came from an `into_raw` call from the same type.
-    unsafe fn from_raw<'env>(reference: jobject) -> Self::Kind<'env>;
+    unsafe fn kind_from_raw<'env>(reference: jobject) -> Self::Kind<'env>;
 
     /// Returns a (`'static`) reference type based on [`Self::GlobalKind`] for the given `global_ref`.
     ///
@@ -143,7 +143,7 @@ pub unsafe trait Reference: Sized {
     /// given `global_ref` reference. E.g. because the `global_ref` came from an `into_raw`
     /// call from the same type.
     ///
-    unsafe fn from_global_raw(global_ref: jobject) -> Self::GlobalKind;
+    unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind;
 }
 
 /// Represents the context that influences how a class may be loaded.
@@ -389,11 +389,11 @@ where
         T::lookup_class(env, loader_context)
     }
 
-    unsafe fn from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        T::from_raw(local_ref)
+    unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+        T::kind_from_raw(local_ref)
     }
 
-    unsafe fn from_global_raw(global_ref: jobject) -> Self::GlobalKind {
-        T::from_global_raw(global_ref)
+    unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
+        T::global_kind_from_raw(global_ref)
     }
 }

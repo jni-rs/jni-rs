@@ -240,11 +240,11 @@ unsafe impl Reference for JClass<'_> {
         Ok(&api.class)
     }
 
-    unsafe fn from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+    unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
         JClass::from_raw(local_ref)
     }
 
-    unsafe fn from_global_raw(global_ref: jobject) -> Self::GlobalKind {
+    unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
         JClass::from_raw(global_ref)
     }
 }
