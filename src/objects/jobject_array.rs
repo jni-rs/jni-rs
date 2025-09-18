@@ -191,7 +191,7 @@ impl<'local, E: Reference + 'local> JObjectArray<'local, E> {
         }
         unsafe {
             jni_call_check_ex!(env, v1_1, GetObjectArrayElement, array, index as i32)
-                .map(|obj| E::from_raw(obj))
+                .map(|obj| E::kind_from_raw(obj))
         }
     }
 
@@ -256,11 +256,11 @@ unsafe impl<'local, E: Reference + 'local> Reference for JObjectArray<'local, E>
         Ok(&api.class)
     }
 
-    unsafe fn from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+    unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
         JObjectArray::<E::Kind<'env>>::from_raw(local_ref as jobjectArray)
     }
 
-    unsafe fn from_global_raw(global_ref: jobject) -> Self::GlobalKind {
+    unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
         JObjectArray::<E::GlobalKind>::from_raw(global_ref as jobjectArray)
     }
 }

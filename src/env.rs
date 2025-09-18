@@ -1040,8 +1040,12 @@ impl<'local> Env<'local> {
         // - we know there's no other wrapper for the reference passed to from_global_raw
         //   since we have just created it.
         let global_ref = unsafe {
-            let global_ref =
-                O::from_global_raw(jni_call_unchecked!(self, v1_1, NewGlobalRef, obj.as_raw()));
+            let global_ref = O::global_kind_from_raw(jni_call_unchecked!(
+                self,
+                v1_1,
+                NewGlobalRef,
+                obj.as_raw()
+            ));
             Global::new(self, global_ref)
         };
 
@@ -1115,7 +1119,7 @@ impl<'local> Env<'local> {
             // Safety:
             // - we have just checked that `new` is an instance of `To`
             unsafe {
-                let cast = To::from_global_raw(new.into_raw());
+                let cast = To::global_kind_from_raw(new.into_raw());
                 Ok(Global::new(self, cast))
             }
         } else {
@@ -1173,7 +1177,7 @@ impl<'local> Env<'local> {
             // - we have just checked that `obj` is an instance of `T`
             // - there won't be multiple wrappers since we are creating one from the other
             unsafe {
-                let cast = To::from_global_raw(obj.into_raw());
+                let cast = To::global_kind_from_raw(obj.into_raw());
                 Ok(Global::new(self, cast))
             }
         } else {
@@ -1213,7 +1217,7 @@ impl<'local> Env<'local> {
         // - we know there's no other wrapper for the reference passed to from_global_raw
         //   since we have just created it.
         let weak_ref = unsafe {
-            let weak = O::from_global_raw(jni_call_check_ex!(
+            let weak = O::global_kind_from_raw(jni_call_check_ex!(
                 self,
                 v1_2,
                 NewWeakGlobalRef,
@@ -1351,7 +1355,7 @@ impl<'local> Env<'local> {
         // - we know there's no other wrapper for the reference passed to from_local_raw
         //   since we have just created it.
         let local =
-            unsafe { O::from_raw(jni_call_unchecked!(self, v1_2, NewLocalRef, obj.as_raw())) };
+            unsafe { O::kind_from_raw(jni_call_unchecked!(self, v1_2, NewLocalRef, obj.as_raw())) };
 
         // Per JNI spec, `NewLocalRef` will return a null pointer if the object was GC'd
         // (which could happen if `obj` is a `Weak`):
@@ -1419,7 +1423,7 @@ impl<'local> Env<'local> {
             // Safety:
             // - we have just checked that `new` is an instance of `To`
             // - as it's a new reference, it's assigned the `'local` Env lifetime
-            unsafe { Ok(To::from_raw::<'local>(new.into_raw())) }
+            unsafe { Ok(To::kind_from_raw::<'local>(new.into_raw())) }
         } else {
             Err(Error::WrongObjectType)
         }
@@ -1465,7 +1469,7 @@ impl<'local> Env<'local> {
             // Safety:
             // - we have just checked that `obj` is an instance of `T`
             // - it is associated with the same lifetime that it was created with
-            unsafe { Ok(To::from_raw::<'any_local>(obj.into_raw())) }
+            unsafe { Ok(To::kind_from_raw::<'any_local>(obj.into_raw())) }
         } else {
             Err(Error::WrongObjectType)
         }
@@ -1657,7 +1661,7 @@ impl<'local> Env<'local> {
         // This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
         // We check for JNI > 1.2 in `from_raw`
         let raw = jni_call_unchecked!(self, v1_2, PopLocalFrame, result.into_raw());
-        Ok(T::from_raw(raw))
+        Ok(T::kind_from_raw(raw))
     }
 
     /// Executes the given function in a new local reference frame, in which at least a given number
