@@ -15,7 +15,11 @@ use super::Reference;
 #[cfg(doc)]
 use crate::errors::Error;
 
-/// Wrapper for `java.utils.Map.Entry` references. Provides methods to get the key and value.
+/// A `java.util.Set` wrapper that is tied to a JNI local reference frame.
+///
+/// See the [`JObject`] documentation for more information about reference
+/// wrappers, how to cast them, and local reference frame lifetimes.
+///
 #[repr(transparent)]
 #[derive(Debug, Default)]
 pub struct JSet<'local>(JObject<'local>);
@@ -49,7 +53,7 @@ impl<'local> From<JSet<'local>> for JObject<'local> {
 impl<'local> From<JSet<'local>> for JCollection<'local> {
     fn from(other: JSet<'local>) -> JCollection<'local> {
         // SAFETY: Any `java.lang.Set` is also a `java.util.Collection`
-        unsafe { JCollection::from_raw(other.into_raw()) }
+        unsafe { JCollection::kind_from_raw(other.into_raw()) }
     }
 }
 
@@ -80,14 +84,24 @@ impl<'local> JSet<'local> {
     ///
     /// # Safety
     ///
-    /// `raw` may be a null pointer. If `raw` is not a null pointer, then:
+    /// - `raw` must be a valid raw JNI local reference (or `null`).
+    /// - `raw` must be an instance of `java.util.Set`.
+    /// - There must not be any other owning [`Reference`] wrapper for the same reference.
+    /// - The local reference must belong to the current thread and not outlive the
+    ///   JNI stack frame associated with the [Env] `'local` lifetime.
+    pub unsafe fn from_raw<'local_inner>(
+        env: &Env<'local_inner>,
+        raw: jobject,
+    ) -> JSet<'local_inner> {
+        JSet(JObject::from_raw(env, raw))
+    }
+
+    /// Creates a new null reference.
     ///
-    /// * `raw` must be a valid raw JNI local reference.
-    /// * There must not be any other `JObject` representing the same local reference.
-    /// * The lifetime `'local` must not outlive the local reference frame that the local reference
-    ///   was created in.
-    pub const unsafe fn from_raw(raw: jobject) -> Self {
-        Self(JObject::from_raw(raw))
+    /// Null references are always valid and do not belong to a local reference frame. Therefore,
+    /// the returned `JSet` always has the `'static` lifetime.
+    pub const fn null() -> JSet<'static> {
+        JSet(JObject::null())
     }
 
     /// Unwrap to the raw jni type.
@@ -218,10 +232,10 @@ unsafe impl Reference for JSet<'_> {
     }
 
     unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        JSet::from_raw(local_ref)
+        JSet(JObject::kind_from_raw(local_ref))
     }
 
     unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
-        JSet::from_raw(global_ref)
+        JSet(JObject::global_kind_from_raw(global_ref))
     }
 }

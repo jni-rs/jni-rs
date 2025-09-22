@@ -45,6 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Env::as_cast_unchecked` returns a `Cast<To>` like `as_cast()` but without a runtime `IsInstanceOf` check ([#669](https://github.com/jni-rs/jni-rs/pull/669))
 - `Env::as_cast_raw` or `Cast::from_raw` borrows a raw `jobject` reference and returns a `Cast<To>` that will Deref into `&To`
 - `Cast::new_unchecked` and `Cast::from_raw_unchecked` let you borrow a reference with an (`unsafe`) type cast, with no runtime check
+- `::cast_local()` methods as a convenience for all reference types, such as `let s = JString::cast_local(obj)`
+- `const` `null()` methods for all reference types.
 
 #### JNI Environment APIs
 
@@ -125,7 +127,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `JavaVM::get_java_vm_pointer` has been renamed `JavaVM::get_raw` for consistency.
 - `JavaVM::new` and `JavaVM::with_libjvm` now prevent libjvm from being unloaded. This isn't necessary for HotSpot, but other JVMs could crash if we don't do this. ([#554](https://github.com/jni-rs/jni-rs/pull/554))
 - `JValueGen` has been removed. `JValue` and `JValueOwned` are now separate, unrelated, non-generic types. ([#429](https://github.com/jni-rs/jni-rs/pull/429))
-- Make most `from_raw()`, `get_raw()` and `into_raw()` methods `const fn`. ([#453](https://github.com/jni-rs/jni-rs/pull/453))
+- Make `from_raw()`, `into_raw()` and `null()` methods `const fn`. ([#453](https://github.com/jni-rs/jni-rs/pull/453))
+- Make `from_raw()` require an `Env` reference so the returned wrapper is guaranteed to have a local reference frame lifetime ([#670](https://github.com/jni-rs/jni-rs/pull/670))
 - `get_object_class` borrows the `Env` mutably because it creates a new local reference. ([#456](https://github.com/jni-rs/jni-rs/pull/456))
 - `get/set_*_field_unchecked` have been marked as unsafe since they can lead to undefined behaviour if the given types don't match the field type ([#457](https://github.com/jni-rs/jni-rs/pull/457) + [#629](https://github.com/jni-rs/jni-rs/pull/629))
 - `set_static_field` takes a field name and signature as strings so the ID is looked up internally to ensure it's valid. ([#629](https://github.com/jni-rs/jni-rs/pull/629))

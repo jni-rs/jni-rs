@@ -10,13 +10,19 @@ use crate::{
         LoaderContext,
     },
     strings::JNIStr,
-    sys::{jobject, jthrowable},
+    sys::{jobject, jstring, jthrowable},
 };
 
 use super::Reference;
 
-/// Lifetime'd representation of a `jthrowable`. Just a `JObject` wrapped in a
-/// new class.
+#[cfg(doc)]
+use crate::errors::Error;
+
+/// A `java.lang.Throwable` wrapper that is tied to a JNI local reference frame.
+///
+/// See the [`JObject`] documentation for more information about reference
+/// wrappers, how to cast them, and local reference frame lifetimes.
+///
 #[repr(transparent)]
 #[derive(Debug, Default)]
 pub struct JThrowable<'local>(JObject<'local>);
@@ -93,19 +99,47 @@ impl JThrowable<'_> {
     ///
     /// # Safety
     ///
-    /// `raw` may be a null pointer. If `raw` is not a null pointer, then:
+    /// - `raw` must be a valid raw JNI local reference (or `null`).
+    /// - `raw` must be an instance of `java.lang.Throwable`.
+    /// - There must not be any other owning [`Reference`] wrapper for the same reference.
+    /// - The local reference must belong to the current thread and not outlive the
+    ///   JNI stack frame associated with the [Env] `'local` lifetime.
+    pub unsafe fn from_raw<'local>(env: &Env<'local>, raw: jthrowable) -> JThrowable<'local> {
+        JThrowable(JObject::from_raw(env, raw as jobject))
+    }
+
+    /// Creates a new null reference.
     ///
-    /// * `raw` must be a valid raw JNI local reference.
-    /// * There must not be any other `JObject` representing the same local reference.
-    /// * The lifetime `'local` must not outlive the local reference frame that the local reference
-    ///   was created in.
-    pub const unsafe fn from_raw(raw: jthrowable) -> Self {
-        Self(JObject::from_raw(raw as jobject))
+    /// Null references are always valid and do not belong to a local reference frame. Therefore,
+    /// the returned `JThrowable` always has the `'static` lifetime.
+    pub const fn null() -> JThrowable<'static> {
+        JThrowable(JObject::null())
     }
 
     /// Unwrap to the raw jni type.
     pub const fn into_raw(self) -> jthrowable {
         self.0.into_raw() as jthrowable
+    }
+
+    /// Cast a local reference to a [`JThrowable`]
+    ///
+    /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.lang.Throwable`.
+    ///
+    /// Also see these other options for casting local or global references to a [`JThrowable`]:
+    /// - [Env::as_cast]
+    /// - [Env::new_cast_local_ref]
+    /// - [Env::cast_local]
+    /// - [Env::new_cast_global_ref]
+    /// - [Env::cast_global]
+    ///
+    /// # Errors
+    ///
+    /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
+    pub fn cast_local<'any_local>(
+        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
+        env: &mut Env<'_>,
+    ) -> Result<JThrowable<'any_local>> {
+        env.cast_local::<JThrowable>(obj)
     }
 
     /// Get the message of the throwable by calling the `getMessage` method.
@@ -126,7 +160,7 @@ impl JThrowable<'_> {
                     &[],
                 )?
                 .l()?;
-            Ok(JString::from_raw(message.into_raw() as _))
+            Ok(JString::from_raw(env, message.into_raw() as jstring))
         }
     }
 
@@ -148,12 +182,10 @@ impl JThrowable<'_> {
                     &[],
                 )?
                 .l()?;
-            Ok(JThrowable::from_raw(cause.into_raw() as _))
+            Ok(JThrowable::from_raw(env, cause.into_raw() as jthrowable))
         }
     }
 
-    // TODO: it would be nice if we had a generic `JObjectArray<T: Reference>` type so we could
-    // create a `JStackTraceElement` `Reference` type.
     /// Gets the stack trace of the throwable by calling the `getStackTrace` method.
     pub fn get_stack_trace<'env_local>(
         &self,
@@ -173,7 +205,10 @@ impl JThrowable<'_> {
                     &[],
                 )?
                 .l()?;
-            Ok(JObjectArray::from_raw(stack_trace.into_raw() as _))
+            Ok(JObjectArray::<JStackTraceElement>::from_raw(
+                env,
+                stack_trace.into_raw(),
+            ))
         }
     }
 }
@@ -200,10 +235,10 @@ unsafe impl Reference for JThrowable<'_> {
     }
 
     unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        JThrowable::from_raw(local_ref)
+        JThrowable(JObject::kind_from_raw(local_ref))
     }
 
     unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
-        JThrowable::from_raw(global_ref)
+        JThrowable(JObject::global_kind_from_raw(global_ref))
     }
 }

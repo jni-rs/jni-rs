@@ -13,8 +13,14 @@ use crate::{
 
 use super::Reference;
 
-/// Lifetime'd representation of a `jclass`. Just a `JObject` wrapped in a new
-/// class.
+#[cfg(doc)]
+use crate::errors::Error;
+
+/// A `java.lang.Class` wrapper that is tied to a JNI local reference frame.
+///
+/// See the [`JObject`] documentation for more information about reference
+/// wrappers, how to cast them, and local reference frame lifetimes.
+///
 #[repr(transparent)]
 #[derive(Debug, Default)]
 pub struct JClass<'local>(JObject<'local>);
@@ -88,24 +94,47 @@ impl JClass<'_> {
     ///
     /// # Safety
     ///
-    /// `raw` may be a null pointer. If `raw` is not a null pointer, then:
-    ///
-    /// * `raw` must be a valid raw JNI local reference.
-    /// * There must not be any other `JObject` representing the same local reference.
-    /// * The lifetime `'local` must not outlive the local reference frame that the local reference
-    ///   was created in.
-    pub const unsafe fn from_raw(raw: jclass) -> Self {
-        Self(JObject::from_raw(raw as jobject))
+    /// - `raw` must be a valid raw JNI local reference (or `null`).
+    /// - `raw` must be an instance of `java.lang.Class`.
+    /// - There must not be any other owning [`Reference`] wrapper for the same reference.
+    /// - The local reference must belong to the current thread and not outlive the
+    ///   JNI stack frame associated with the [Env] `'local` lifetime.
+    pub unsafe fn from_raw<'local>(env: &Env<'local>, raw: jclass) -> JClass<'local> {
+        JClass(JObject::from_raw(env, raw as jobject))
     }
 
-    /// Returns the raw JNI pointer.
-    pub const fn as_raw(&self) -> jclass {
-        self.0.as_raw() as jclass
+    /// Creates a new null reference.
+    ///
+    /// Null references are always valid and do not belong to a local reference frame. Therefore,
+    /// the returned `JClass` always has the `'static` lifetime.
+    pub const fn null() -> JClass<'static> {
+        JClass(JObject::null())
     }
 
     /// Unwrap to the raw jni type.
     pub const fn into_raw(self) -> jclass {
         self.0.into_raw() as jclass
+    }
+
+    /// Cast a local reference to a [`JClass`]
+    ///
+    /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.lang.Class`.
+    ///
+    /// Also see these other options for casting local or global references to a [`JClass`]:
+    /// - [Env::as_cast]
+    /// - [Env::new_cast_local_ref]
+    /// - [Env::cast_local]
+    /// - [Env::new_cast_global_ref]
+    /// - [Env::cast_global]
+    ///
+    /// # Errors
+    ///
+    /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
+    pub fn cast_local<'any_local>(
+        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
+        env: &mut Env<'_>,
+    ) -> Result<JClass<'any_local>> {
+        env.cast_local::<JClass>(obj)
     }
 
     /// Returns the class loader for this class.
@@ -126,7 +155,7 @@ impl JClass<'_> {
             let loader = env
                 .call_method_unchecked(self, api.get_class_loader_method, JavaType::Object, &[])?
                 .l()?;
-            JClassLoader::from_raw(loader.into_raw())
+            JClassLoader::from_raw(env, loader.into_raw())
         };
         Ok(loader)
     }
@@ -162,7 +191,7 @@ impl JClass<'_> {
                     &[JValue::Object(&class_name).as_jni()],
                 )?
                 .l()?;
-            JClass::from_raw(class.into_raw())
+            JClass::from_raw(env, class.into_raw())
         };
         Ok(class)
     }
@@ -211,7 +240,7 @@ impl JClass<'_> {
                     ],
                 )?
                 .l()?;
-            JClass::from_raw(class.into_raw())
+            JClass::from_raw(env, class.into_raw())
         };
         Ok(class)
     }
@@ -241,10 +270,10 @@ unsafe impl Reference for JClass<'_> {
     }
 
     unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        JClass::from_raw(local_ref)
+        JClass(JObject::kind_from_raw(local_ref))
     }
 
     unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
-        JClass::from_raw(global_ref)
+        JClass(JObject::global_kind_from_raw(global_ref))
     }
 }

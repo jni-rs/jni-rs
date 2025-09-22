@@ -1228,8 +1228,8 @@ pub fn get_direct_buffer_capacity_ok() {
 #[test]
 pub fn get_direct_buffer_capacity_wrong_arg() {
     attach_current_thread(|env| {
-        let wrong_obj =
-            unsafe { JByteBuffer::from_raw(env.new_string(c"wrong").unwrap().into_raw()) };
+        let wrong_type = env.new_string(c"wrong").unwrap();
+        let wrong_obj = unsafe { JByteBuffer::from_raw(env, wrong_type.into_raw()) };
         let capacity = env.get_direct_buffer_capacity(&wrong_obj);
         assert!(capacity.is_err());
 
@@ -1276,7 +1276,7 @@ pub fn get_direct_buffer_address_wrong_arg() {
 
         // SAFETY: This is not a valid cast and not generally safe but `GetDirectBufferAddress` is
         // documented to return a null pointer in case the "given object is not a direct java.nio.Buffer".
-        let wrong_obj = unsafe { JByteBuffer::from_raw(wrong_obj.into_raw()) };
+        let wrong_obj = unsafe { JByteBuffer::from_raw(env, wrong_obj.into_raw()) };
         let result = env.get_direct_buffer_address(&wrong_obj);
         assert!(result.is_err());
 
@@ -1694,7 +1694,7 @@ fn test_jstring_conversion() {
     //
     // Alternatively the only other way we could test this case would be with a
     // native method callback which is hard to reproduce here.
-    let invalid = unsafe { JString::from_raw(1 as _) };
+    let invalid = unsafe { JString::kind_from_raw(1 as _) };
     assert_eq!(invalid.to_string(), "<JNI Not Initialized>");
 
     attach_current_thread(|env| {
@@ -1712,7 +1712,7 @@ fn test_jstring_conversion() {
 #[test]
 pub fn test_null_string_mutf8_chars() {
     attach_current_thread(|env| {
-        let s = unsafe { JString::from_raw(std::ptr::null_mut() as _) };
+        let s = unsafe { JString::from_raw(env, std::ptr::null_mut() as _) };
         let ret = s.mutf8_chars(env);
         assert!(ret.is_err());
 

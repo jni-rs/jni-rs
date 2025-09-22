@@ -13,7 +13,11 @@ use crate::{
 
 use super::Reference;
 
-/// Wrapper for `java.utils.Map.Entry` references. Provides methods to get the key and value.
+/// A `java.util.Iterator` wrapper that is tied to a JNI local reference frame.
+///
+/// See the [`JObject`] documentation for more information about reference
+/// wrappers, how to cast them, and local reference frame lifetimes.
+///
 #[repr(transparent)]
 #[derive(Debug, Default)]
 pub struct JIterator<'local>(JObject<'local>);
@@ -83,14 +87,24 @@ impl<'local> JIterator<'local> {
     ///
     /// # Safety
     ///
-    /// `raw` may be a null pointer. If `raw` is not a null pointer, then:
+    /// - `raw` must be a valid raw JNI local reference (or `null`).
+    /// - `raw` must be an instance of `java.util.Iterator`.
+    /// - There must not be any other owning [`Reference`] wrapper for the same reference.
+    /// - The local reference must belong to the current thread and not outlive the
+    ///   JNI stack frame associated with the [Env] `'local` lifetime.
+    pub unsafe fn from_raw<'local_inner>(
+        env: &Env<'local_inner>,
+        raw: jobject,
+    ) -> JIterator<'local_inner> {
+        JIterator(JObject::from_raw(env, raw))
+    }
+
+    /// Creates a new null reference.
     ///
-    /// * `raw` must be a valid raw JNI local reference.
-    /// * There must not be any other `JObject` representing the same local reference.
-    /// * The lifetime `'local` must not outlive the local reference frame that the local reference
-    ///   was created in.
-    pub const unsafe fn from_raw(raw: jobject) -> Self {
-        Self(JObject::from_raw(raw))
+    /// Null references are always valid and do not belong to a local reference frame. Therefore,
+    /// the returned `JIterator` always has the `'static` lifetime.
+    pub const fn null() -> JIterator<'static> {
+        JIterator(JObject::null())
     }
 
     /// Unwrap to the raw jni type.
@@ -214,10 +228,10 @@ unsafe impl Reference for JIterator<'_> {
     }
 
     unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        JIterator::from_raw(local_ref)
+        JIterator(JObject::kind_from_raw(local_ref))
     }
 
     unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
-        JIterator::from_raw(global_ref)
+        JIterator(JObject::global_kind_from_raw(global_ref))
     }
 }

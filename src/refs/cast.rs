@@ -92,7 +92,7 @@ impl<'any, 'from, To: Reference> Cast<'any, 'from, To> {
     where
         'any: 'from,
     {
-        let from = JObject::from_raw(*from);
+        let from = JObject::from_raw(env, *from);
         let from = &from; // make it clear, we don't own `from`
 
         // Note we can't just chain up to Cast::new since the from lifetime would be incorrect.
@@ -131,7 +131,7 @@ impl<'any, 'from, To: Reference> Cast<'any, 'from, To> {
     ///
     /// # Safety
     ///
-    /// The caller must ensure that `from` is an instance of `To`.
+    /// The caller must ensure that `from` is an instance of `To`, or null.
     pub unsafe fn new_unchecked<From: Reference + AsRef<JObject<'any>>>(from: &'from From) -> Self
     where
         'any: 'from,

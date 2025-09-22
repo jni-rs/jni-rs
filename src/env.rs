@@ -436,7 +436,7 @@ impl<'local> Env<'local> {
                 buf,
                 buf_len as jsize
             )
-            .map(|class| JClass::from_raw(class))
+            .map(|class| JClass::from_raw(self, class))
         }
     }
 
@@ -548,7 +548,7 @@ impl<'local> Env<'local> {
         // name is non-null
         unsafe {
             jni_call_check_ex_and_null_ret!(self, v1_1, FindClass, name.as_ptr())
-                .map(|class| JClass::from_raw(class))
+                .map(|class| JClass::from_raw(self, class))
         }
     }
 
@@ -567,12 +567,10 @@ impl<'local> Env<'local> {
         self.assert_top();
         let class = class.lookup(self)?;
         let superclass = unsafe {
-            JClass::from_raw(jni_call_unchecked!(
+            JClass::from_raw(
                 self,
-                v1_1,
-                GetSuperclass,
-                class.as_ref().as_raw()
-            ))
+                jni_call_unchecked!(self, v1_1, GetSuperclass, class.as_ref().as_raw()),
+            )
         };
 
         Ok((!superclass.is_null()).then_some(superclass))
@@ -862,7 +860,7 @@ impl<'local> Env<'local> {
         if throwable.is_null() {
             None
         } else {
-            Some(unsafe { JThrowable::from_raw(throwable) })
+            Some(unsafe { JThrowable::from_raw(self, throwable) })
         }
     }
 
@@ -975,7 +973,7 @@ impl<'local> Env<'local> {
             data as *mut c_void,
             len as jlong
         )?;
-        Ok(JByteBuffer::from_raw(obj))
+        Ok(JByteBuffer::from_raw(self, obj))
     }
 
     /// Returns the starting address of the memory of the direct
@@ -1855,7 +1853,7 @@ impl<'local> Env<'local> {
         // Ensure that `class` isn't dropped before the JNI call returns.
         drop(class);
 
-        Ok(unsafe { JObject::from_raw(obj) })
+        Ok(unsafe { JObject::from_raw(self, obj) })
     }
 
     // FIXME: this API shouldn't need a `&mut self` reference since it doesn't return a local reference
@@ -2102,12 +2100,10 @@ impl<'local> Env<'local> {
         let obj = obj.as_ref();
         let obj = null_check!(obj, "get_object_class")?;
         unsafe {
-            Ok(JClass::from_raw(jni_call_unchecked!(
+            Ok(JClass::from_raw(
                 self,
-                v1_1,
-                GetObjectClass,
-                obj.as_raw()
-            )))
+                jni_call_unchecked!(self, v1_1, GetObjectClass, obj.as_raw()),
+            ))
         }
     }
 
@@ -2159,7 +2155,7 @@ impl<'local> Env<'local> {
         let ret = match ret {
             Object | Array => {
                 let obj = invoke!(CallStaticObjectMethodA -> jobject);
-                let obj = unsafe { JObject::from_raw(obj) };
+                let obj = unsafe { JObject::from_raw(self, obj) };
                 JValueOwned::from(obj)
             }
             Primitive(Boolean) => invoke!(CallStaticBooleanMethodA -> bool).into(),
@@ -2235,7 +2231,7 @@ impl<'local> Env<'local> {
         let ret = match ret_ty {
             Object | Array => {
                 let obj = invoke!(CallObjectMethodA -> jobject);
-                let obj = unsafe { JObject::from_raw(obj) };
+                let obj = unsafe { JObject::from_raw(self, obj) };
                 JValueOwned::from(obj)
             }
             Primitive(Boolean) => invoke!(CallBooleanMethodA -> bool).into(),
@@ -2306,7 +2302,7 @@ impl<'local> Env<'local> {
         let ret = match ret_ty {
             Object | Array => {
                 let obj = invoke!(CallNonvirtualObjectMethodA -> jobject);
-                let obj = unsafe { JObject::from_raw(obj) };
+                let obj = unsafe { JObject::from_raw(self, obj) };
                 JValueOwned::from(obj)
             }
             Primitive(Boolean) => invoke!(CallNonvirtualBooleanMethodA -> bool).into(),
@@ -2610,7 +2606,7 @@ impl<'local> Env<'local> {
                 ctor_id.into_raw(),
                 jni_args
             )
-            .map(|obj| JObject::from_raw(obj))
+            .map(|obj| JObject::from_raw(self, obj))
         }?;
 
         // Ensure that `class` isn't dropped before the JNI call returns.
@@ -2709,7 +2705,7 @@ impl<'local> Env<'local> {
         let ffi_str = from.as_ref();
         unsafe {
             jni_call_check_ex_and_null_ret!(self, v1_1, NewStringUTF, ffi_str.as_ptr())
-                .map(|s| JString::from_raw(s))
+                .map(|s| JString::from_raw(self, s))
         }
     }
 
@@ -2754,7 +2750,7 @@ impl<'local> Env<'local> {
                 class.as_ref().as_raw(),
                 initial_element.as_ref().as_raw()
             )
-            .map(|array| JObjectArray::from_raw(array))?
+            .map(|array| JObjectArray::<JObject>::from_raw(self, array))?
         };
 
         // Ensure that `class` isn't dropped before the JNI call returns.
@@ -2788,7 +2784,7 @@ impl<'local> Env<'local> {
                 class.as_raw(),
                 initial_element.as_ref().as_raw()
             )
-            .map(|array| JObjectArray::from_raw(array))?
+            .map(|array| JObjectArray::<E>::from_raw(self, array))?
         };
 
         // Ensure that `class` isn't dropped before the JNI call returns.
@@ -2875,7 +2871,7 @@ impl<'local> Env<'local> {
         self.assert_top();
         let array = unsafe {
             jni_call_check_ex_and_null_ret!(self, v1_1, NewBooleanArray, length)
-                .map(|array| JBooleanArray::from_raw(array))?
+                .map(|array| JBooleanArray::from_raw(self, array))?
         };
         Ok(array)
     }
@@ -2887,7 +2883,7 @@ impl<'local> Env<'local> {
         self.assert_top();
         let array = unsafe {
             jni_call_check_ex_and_null_ret!(self, v1_1, NewByteArray, length)
-                .map(|array| JByteArray::from_raw(array))?
+                .map(|array| JByteArray::from_raw(self, array))?
         };
         Ok(array)
     }
@@ -2899,7 +2895,7 @@ impl<'local> Env<'local> {
         self.assert_top();
         let array = unsafe {
             jni_call_check_ex_and_null_ret!(self, v1_1, NewCharArray, length)
-                .map(|array| JCharArray::from_raw(array))?
+                .map(|array| JCharArray::from_raw(self, array))?
         };
         Ok(array)
     }
@@ -2911,7 +2907,7 @@ impl<'local> Env<'local> {
         self.assert_top();
         let array = unsafe {
             jni_call_check_ex_and_null_ret!(self, v1_1, NewShortArray, length)
-                .map(|array| JShortArray::from_raw(array))?
+                .map(|array| JShortArray::from_raw(self, array))?
         };
         Ok(array)
     }
@@ -2923,7 +2919,7 @@ impl<'local> Env<'local> {
         self.assert_top();
         let array = unsafe {
             jni_call_check_ex_and_null_ret!(self, v1_1, NewIntArray, length)
-                .map(|array| JIntArray::from_raw(array))?
+                .map(|array| JIntArray::from_raw(self, array))?
         };
         Ok(array)
     }
@@ -2935,7 +2931,7 @@ impl<'local> Env<'local> {
         self.assert_top();
         let array = unsafe {
             jni_call_check_ex_and_null_ret!(self, v1_1, NewLongArray, length)
-                .map(|array| JLongArray::from_raw(array))?
+                .map(|array| JLongArray::from_raw(self, array))?
         };
         Ok(array)
     }
@@ -2947,7 +2943,7 @@ impl<'local> Env<'local> {
         self.assert_top();
         let array = unsafe {
             jni_call_check_ex_and_null_ret!(self, v1_1, NewFloatArray, length)
-                .map(|array| JFloatArray::from_raw(array))?
+                .map(|array| JFloatArray::from_raw(self, array))?
         };
         Ok(array)
     }
@@ -2959,7 +2955,7 @@ impl<'local> Env<'local> {
         self.assert_top();
         let array = unsafe {
             jni_call_check_ex_and_null_ret!(self, v1_1, NewDoubleArray, length)
-                .map(|array| JDoubleArray::from_raw(array))?
+                .map(|array| JDoubleArray::from_raw(self, array))?
         };
         Ok(array)
     }
@@ -3336,7 +3332,7 @@ impl<'local> Env<'local> {
                 method_id,
                 is_static
             )
-            .map(|jobject| JObject::from_raw(jobject))
+            .map(|jobject| JObject::from_raw(self, jobject))
         }
     }
 
@@ -3385,7 +3381,7 @@ impl<'local> Env<'local> {
             Object | Array => {
                 let obj = unsafe {
                     jni_call_check_ex!(self, v1_1, GetObjectField, obj, field)
-                        .map(|obj| JObject::from_raw(obj))?
+                        .map(|obj| JObject::from_raw(self, obj))?
                 };
                 Ok(obj.into())
             }
@@ -3555,7 +3551,7 @@ impl<'local> Env<'local> {
             Primitive(Void) => Err(Error::WrongJValueType("void", "see java field")),
             Object | Array => {
                 let obj = field!(GetStaticObjectField);
-                let obj = unsafe { JObject::from_raw(obj) };
+                let obj = unsafe { JObject::from_raw(self, obj) };
                 Ok(JValueOwned::from(obj))
             }
             Primitive(Boolean) => Ok(field!(GetStaticBooleanField).into()),
