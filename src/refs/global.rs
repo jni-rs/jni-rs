@@ -207,8 +207,7 @@ where
         Self { obj: T::default() }
     }
 
-    /// Unwrap the RAII, auto-delete wrapper, returning the original global
-    /// reference.
+    /// Unwrap to the auto-delete global reference into a raw global `jobject`.
     ///
     /// This prevents the global reference from being automatically deleted when
     /// this guard is dropped.
@@ -218,33 +217,17 @@ where
     /// When unwrapping a [`Global`] you should consider how else you will
     /// ensure that the reference will get deleted.
     ///
-    /// The global reference may end leaking unless a new [`Global`] wrapper
+    /// The global reference may end up leaking unless a new [`Global`] wrapper
     /// is create later, or you find some way to call the JNI `DeleteGlobalRef`
     /// API on the raw reference.
     ///
-    /// # Safety
-    ///
-    /// The unwrapped reference type must not be treated like a local reference
-    /// which may be difficult to guarantee since Rust doesn't support negative
-    /// lifetime bounds for trait implementations.
-    ///
-    /// For example the returned type will implement `Into<JObject>` which means
-    /// it could be wrapped by [`Auto`], which would lead to undefined behavior.
-    ///
-    /// Reference types with a `'static` lifetime are an unsafe liability that
-    /// should not be exposed by-value in the public API because they will implement
-    /// `Into<JObject>` and may be treated like local references.
-    pub(crate) unsafe fn unwrap(mut self) -> T {
+    /// **Note:** You should not find yourself unwrapping a raw global `jobject`
+    /// that you do not logically own. If you have a raw global `jobject` that
+    /// you do not own, you should instead use [`Env::as_cast_raw`] to create a
+    /// temporary wrapper.
+    pub fn into_raw(mut self) -> sys::jobject {
         let obj = std::mem::take(&mut self.obj); // Leave a `Default/null`` reference in self.obj that doesn't need to be deleted
         std::mem::forget(self); // Skip redundant Drop for `Default/null` reference
-        obj
-    }
-
-    /// Unwrap to the internal global reference
-    pub fn into_raw(self) -> sys::jobject {
-        // Safety: there's no chance ot treating `obj` as a local reference
-        // since it's also immediately unwrapped
-        let obj = unsafe { self.unwrap() };
         let obj: JObject = obj.into();
         obj.into_raw()
     }
