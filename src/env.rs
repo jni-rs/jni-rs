@@ -1545,6 +1545,41 @@ impl<'local> Env<'local> {
         Cast::new(self, obj)
     }
 
+    /// Cast a reference (local or global) to a different type without consuming
+    /// it and without any runtime checks.
+    ///
+    /// This method borrows the input reference and returns a wrapper that
+    /// derefs to the target type. The original reference remains valid and can
+    /// be used after the cast operation.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use jni::{errors::Result, Env, objects::*};
+    /// #
+    /// # fn example(env: &mut Env) -> Result<()> {
+    /// let obj: JObject = env.new_object(c"java/lang/String", c"()V", &[])?;
+    /// let string_ref = unsafe { env.as_cast_unchecked::<JString>(&obj) };
+    /// // obj is still valid here
+    /// let empty_string_contents = string_ref.to_string();
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `obj` is a valid instance of `To`, or
+    /// `null`.
+    pub unsafe fn as_cast_unchecked<'from, 'any, To>(
+        &self,
+        obj: &'from (impl Reference + AsRef<JObject<'any>>),
+    ) -> Cast<'from, 'any, To>
+    where
+        To: Reference,
+        'any: 'from,
+    {
+        Cast::new_unchecked(obj)
+    }
+
     /// Attempts to cast a raw [`jobject`] reference without taking ownership.
     ///
     /// This method borrows the input reference and returns a wrapper that
