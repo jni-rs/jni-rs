@@ -53,15 +53,19 @@ use super::Reference;
 ///   global reference can be used to prevent it from being garbage collected.
 ///   (This hold is released when the global reference is dropped.)
 ///
-/// See also [`Weak`], a global reference that does *not* prevent the
-/// underlying Java object from being garbage collected.
+/// See also [`Weak`], a global reference that does *not* prevent the underlying
+/// Java object from being garbage collected.
 ///
 ///
 /// # Creating and Deleting
 ///
-/// To create a global reference, use the [`Env::new_global_ref`] method. To
-/// delete it, simply drop the `Global` (but be sure to do so on an attached
-/// thread if possible; see the warning below).
+/// To create a global reference, use the [`Env::new_global_ref`] method or wrap
+/// an existing global reference (that you own) with [`Env::global_from_raw`].
+/// To delete it, simply drop the [`Global`].
+///
+/// If you have a raw `jobject` global reference that you do not own, you can
+/// use [`Env::as_cast_raw`] to create a temporary wrapper that will not delete
+/// the reference when dropped.
 ///
 /// Note that, because global references take more time to create or delete than
 /// local references do, they should only be used when their benefits outweigh
@@ -78,8 +82,8 @@ use super::Reference;
 /// [`JavaVM::attach_current_thread_for_scope`], causing a severe performance
 /// penalty.
 ///
-/// To avoid this performance penalty, ensure that `Global`s are only dropped
-/// on a thread that is already attached (or never dropped at all).
+/// To avoid this performance penalty, ensure that `Global`s are only dropped on
+/// a thread that is already attached (or never dropped at all).
 ///
 /// In the event that a global reference is dropped on an unattached thread, a
 /// message is [logged][log] at [`log::Level::Warn`].
@@ -196,7 +200,7 @@ where
     /// # Safety
     ///
     /// If the given reference is non-null, it must represent a global JNI reference.
-    pub unsafe fn new(_env: &Env, obj: T) -> Self {
+    pub(crate) unsafe fn new(_env: &Env, obj: T) -> Self {
         Self { obj }
     }
 
