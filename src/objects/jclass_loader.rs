@@ -13,7 +13,14 @@ use crate::{
 
 use super::Reference;
 
-/// A `java.lang.ClassLoader` reference
+#[cfg(doc)]
+use crate::errors::Error;
+
+/// A `java.lang.ClassLoader` wrapper that is tied to a JNI local reference frame.
+///
+/// See the [`JObject`] documentation for more information about reference
+/// wrappers, how to cast them, and local reference frame lifetimes.
+///
 #[repr(transparent)]
 #[derive(Debug, Default)]
 pub struct JClassLoader<'local>(JObject<'local>);
@@ -73,28 +80,51 @@ impl JClassLoaderAPI {
 }
 
 impl JClassLoader<'_> {
-    /// Creates a [`JClass`] that wraps the given `raw` [`jclass`]
+    /// Creates a [`JClassLoader`] that wraps the given `raw` [`jobject`]
     ///
     /// # Safety
     ///
-    /// `raw` may be a null pointer. If `raw` is not a null pointer, then:
-    ///
-    /// * `raw` must be a valid raw JNI local reference.
-    /// * There must not be any other `JObject` representing the same local reference.
-    /// * The lifetime `'local` must not outlive the local reference frame that the local reference
-    ///   was created in.
-    pub const unsafe fn from_raw(raw: jclass) -> Self {
-        Self(JObject::from_raw(raw as jobject))
+    /// - `raw` must be a valid raw JNI local reference (or `null`).
+    /// - `raw` must be an instance of `java.lang.ClassLoader`.
+    /// - There must not be any other owning [`Reference`] wrapper for the same reference.
+    /// - The local reference must belong to the current thread and not outlive the
+    ///   JNI stack frame associated with the [Env] `'local` lifetime.
+    pub unsafe fn from_raw<'local>(env: &Env<'local>, raw: jobject) -> JClassLoader<'local> {
+        JClassLoader(JObject::from_raw(env, raw))
     }
 
-    /// Returns the raw JNI pointer.
-    pub const fn as_raw(&self) -> jclass {
-        self.0.as_raw() as jclass
+    /// Creates a new null reference.
+    ///
+    /// Null references are always valid and do not belong to a local reference frame. Therefore,
+    /// the returned `JClassLoader` always has the `'static` lifetime.
+    pub const fn null() -> JClassLoader<'static> {
+        JClassLoader(JObject::null())
     }
 
     /// Unwrap to the raw jni type.
-    pub const fn into_raw(self) -> jclass {
-        self.0.into_raw() as jclass
+    pub const fn into_raw(self) -> jobject {
+        self.0.into_raw()
+    }
+
+    /// Cast a local reference to a [`JClassLoader`]
+    ///
+    /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.lang.ClassLoader`.
+    ///
+    /// Also see these other options for casting local or global references to a [`JClassLoader`]:
+    /// - [Env::as_cast]
+    /// - [Env::new_cast_local_ref]
+    /// - [Env::cast_local]
+    /// - [Env::new_cast_global_ref]
+    /// - [Env::cast_global]
+    ///
+    /// # Errors
+    ///
+    /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
+    pub fn cast_local<'any_local>(
+        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
+        env: &mut Env<'_>,
+    ) -> Result<JClassLoader<'any_local>> {
+        env.cast_local::<JClassLoader>(obj)
     }
 
     /// Loads a class by name using this class loader.
@@ -125,7 +155,7 @@ impl JClassLoader<'_> {
                     &[JValue::Object(&name).as_jni()],
                 )?
                 .l()?;
-            JClass::from_raw(cls.into_raw())
+            JClass::from_raw(env, cls.into_raw() as jclass)
         };
         Ok(cls_obj)
     }
@@ -155,10 +185,10 @@ unsafe impl Reference for JClassLoader<'_> {
     }
 
     unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        JClassLoader::from_raw(local_ref)
+        JClassLoader(JObject::kind_from_raw(local_ref))
     }
 
     unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
-        JClassLoader::from_raw(global_ref)
+        JClassLoader(JObject::global_kind_from_raw(global_ref))
     }
 }

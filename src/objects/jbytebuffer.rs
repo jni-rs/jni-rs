@@ -10,8 +10,14 @@ use crate::{
     Env,
 };
 
-/// Lifetime'd representation of a `jobject` that is an instance of the
-/// ByteBuffer Java class. Just a `JObject` wrapped in a new class.
+#[cfg(doc)]
+use crate::errors::Error;
+
+/// A `java.nio.ByteBuffer` wrapper that is tied to a JNI local reference frame.
+///
+/// See the [`JObject`] documentation for more information about reference
+/// wrappers, how to cast them, and local reference frame lifetimes.
+///
 #[repr(transparent)]
 #[derive(Debug, Default)]
 pub struct JByteBuffer<'local>(JObject<'local>);
@@ -67,15 +73,48 @@ impl JByteBuffer<'_> {
     /// Creates a [`JByteBuffer`] that wraps the given `raw` [`jobject`]
     ///
     /// # Safety
-    /// No runtime check is made to verify that the given [`jobject`] is an instance of
-    /// a `ByteBuffer`.
-    pub const unsafe fn from_raw(raw: jobject) -> Self {
-        Self(JObject::from_raw(raw as jobject))
+    ///
+    /// - `raw` must be a valid raw JNI local reference (or `null`).
+    /// - `raw` must be an instance of `java.nio.ByteBuffer`.
+    /// - There must not be any other owning [`Reference`] wrapper for the same reference.
+    /// - The local reference must belong to the current thread and not outlive the
+    ///   JNI stack frame associated with the [Env] `'local` lifetime.
+    pub unsafe fn from_raw<'local>(env: &Env<'local>, raw: jobject) -> JByteBuffer<'local> {
+        JByteBuffer(JObject::from_raw(env, raw))
+    }
+
+    /// Creates a new null reference.
+    ///
+    /// Null references are always valid and do not belong to a local reference frame. Therefore,
+    /// the returned `JByteBuffer` always has the `'static` lifetime.
+    pub const fn null() -> JByteBuffer<'static> {
+        JByteBuffer(JObject::null())
     }
 
     /// Unwrap to the raw jni type.
     pub const fn into_raw(self) -> jobject {
         self.0.into_raw() as jobject
+    }
+
+    /// Cast a local reference to a [`JByteBuffer`]
+    ///
+    /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.nio.ByteBuffer`.
+    ///
+    /// Also see these other options for casting local or global references to a [`JByteBuffer`]:
+    /// - [Env::as_cast]
+    /// - [Env::new_cast_local_ref]
+    /// - [Env::cast_local]
+    /// - [Env::new_cast_global_ref]
+    /// - [Env::cast_global]
+    ///
+    /// # Errors
+    ///
+    /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
+    pub fn cast_local<'any_local>(
+        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
+        env: &mut Env<'_>,
+    ) -> Result<JByteBuffer<'any_local>> {
+        env.cast_local::<JByteBuffer>(obj)
     }
 }
 
@@ -100,10 +139,10 @@ unsafe impl Reference for JByteBuffer<'_> {
         Ok(&api.class)
     }
     unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        JByteBuffer::from_raw(local_ref)
+        JByteBuffer(JObject::kind_from_raw(local_ref))
     }
 
     unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
-        JByteBuffer::from_raw(global_ref)
+        JByteBuffer(JObject::global_kind_from_raw(global_ref))
     }
 }

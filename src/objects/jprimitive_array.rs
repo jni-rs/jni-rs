@@ -18,12 +18,28 @@ use crate::{
 use super::TypeArray;
 
 #[cfg(doc)]
-use crate::{errors::Error, MonitorGuard};
+use crate::{errors::Error, objects::JObjectArray, MonitorGuard};
 
-/// Lifetime'd representation of a [`jarray`] which wraps a [`JObject`] reference
+/// A primitive array wrapper that is tied to a JNI local reference frame.
 ///
-/// This is a wrapper type for a [`JObject`] local reference that's used to
-/// differentiate JVM array types.
+/// This is a wrapper type for a local JNI reference that's used to
+/// differentiate primitive array types like `boolean[]` or `int[]`.
+///
+/// For convenience it's recommended to use one of the type aliases like:
+/// - [JBooleanArray]
+/// - [JByteArray]
+/// - [JCharArray]
+/// - [JShortArray]
+/// - [JIntArray]
+/// - [JLongArray]
+/// - [JFloatArray]
+/// - [JDoubleArray]
+///
+/// See [JObjectArray] for non-primitive object arrays.
+///
+/// See the [`JObject`] documentation for more information about reference
+/// wrappers, how to cast them, and local reference frame lifetimes.
+///
 #[repr(transparent)]
 #[derive(Debug)]
 pub struct JPrimitiveArray<'local, T: TypeArray> {
@@ -77,22 +93,30 @@ impl<'local, T: TypeArray> JPrimitiveArray<'local, T> {
     ///
     /// # Safety
     ///
-    /// `raw` may be a null pointer. If `raw` is not a null pointer, then:
-    ///
-    /// * `raw` must be a valid raw JNI local reference.
-    /// * There must not be any other `JObject` representing the same local reference.
-    /// * The lifetime `'local` must not outlive the local reference frame that the local reference
-    ///   was created in.
-    pub const unsafe fn from_raw(raw: jarray) -> Self {
-        Self {
-            obj: JObject::from_raw(raw as jobject),
+    /// - `raw` must be a valid raw JNI local reference (or `null`).
+    /// - `raw` must be an instance of the appropriate primitive array type, e.g. `int[]`.
+    /// - There must not be any other owning [`Reference`] wrapper for the same reference.
+    /// - The local reference must belong to the current thread and not outlive the
+    ///   JNI stack frame associated with the [Env] `'env_local` lifetime.
+    pub unsafe fn from_raw<'env_local>(
+        env: &Env<'env_local>,
+        raw: jarray,
+    ) -> JPrimitiveArray<'env_local, T> {
+        JPrimitiveArray {
+            obj: JObject::from_raw(env, raw as jobject),
             _marker: PhantomData,
         }
     }
 
-    /// Returns the raw JNI pointer.
-    pub const fn as_raw(&self) -> jarray {
-        self.obj.as_raw() as jarray
+    /// Creates a new null reference.
+    ///
+    /// Null references are always valid and do not belong to a local reference frame. Therefore,
+    /// the returned `JPrimitiveArray` always has the `'static` lifetime.
+    pub const fn null() -> JPrimitiveArray<'static, T> {
+        JPrimitiveArray {
+            obj: JObject::null(),
+            _marker: PhantomData,
+        }
     }
 
     /// Unwrap to the raw jni type.
@@ -292,28 +316,28 @@ impl<'local, T: TypeArray> JPrimitiveArray<'local, T> {
     }
 }
 
-/// Lifetime'd representation of a [`crate::sys::jbooleanArray`] which wraps a [`JObject`] reference
+/// A wrapper for a `boolean[]` array reference that is tied to a JNI local reference frame
 pub type JBooleanArray<'local> = JPrimitiveArray<'local, crate::sys::jboolean>;
 
-/// Lifetime'd representation of a [`crate::sys::jbyteArray`] which wraps a [`JObject`] reference
+/// A wrapper for a `byte[]` array reference that is tied to a JNI local reference frame
 pub type JByteArray<'local> = JPrimitiveArray<'local, crate::sys::jbyte>;
 
-/// Lifetime'd representation of a [`crate::sys::jcharArray`] which wraps a [`JObject`] reference
+/// A wrapper for a `char[]` array reference that is tied to a JNI local reference frame
 pub type JCharArray<'local> = JPrimitiveArray<'local, crate::sys::jchar>;
 
-/// Lifetime'd representation of a [`crate::sys::jshortArray`] which wraps a [`JObject`] reference
+/// A wrapper for a `short[]` array reference that is tied to a JNI local reference frame
 pub type JShortArray<'local> = JPrimitiveArray<'local, crate::sys::jshort>;
 
-/// Lifetime'd representation of a [`crate::sys::jintArray`] which wraps a [`JObject`] reference
+/// A wrapper for a `int[]` array reference that is tied to a JNI local reference frame
 pub type JIntArray<'local> = JPrimitiveArray<'local, crate::sys::jint>;
 
-/// Lifetime'd representation of a [`crate::sys::jlongArray`] which wraps a [`JObject`] reference
+/// A wrapper for a `long[]` array reference that is tied to a JNI local reference frame
 pub type JLongArray<'local> = JPrimitiveArray<'local, crate::sys::jlong>;
 
-/// Lifetime'd representation of a [`crate::sys::jfloatArray`] which wraps a [`JObject`] reference
+/// A wrapper for a `float[]` array reference that is tied to a JNI local reference frame
 pub type JFloatArray<'local> = JPrimitiveArray<'local, crate::sys::jfloat>;
 
-/// Lifetime'd representation of a [`crate::sys::jdoubleArray`] which wraps a [`JObject`] reference
+/// A wrapper for a `double[]` array reference that is tied to a JNI local reference frame
 pub type JDoubleArray<'local> = JPrimitiveArray<'local, crate::sys::jdouble>;
 
 /// Trait to access the raw `jarray` pointer for types that wrap an array reference
@@ -362,6 +386,29 @@ macro_rules! impl_ref_for_jprimitive_array {
                 }
             }
 
+            impl JPrimitiveArray<'_, crate::sys::$type> {
+                /// Cast a local reference to a [`JPrimitiveArray<T>`]
+                ///
+                /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `T[]`.
+                ///
+                /// Also see these other options for casting local or global references to a [`JPrimitiveArray<T>`]:
+                /// - [Env::as_cast]
+                /// - [Env::new_cast_local_ref]
+                /// - [Env::cast_local]
+                /// - [Env::new_cast_global_ref]
+                /// - [Env::cast_global]
+                ///
+                /// # Errors
+                ///
+                /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
+                pub fn cast_local<'any_local>(
+                    obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
+                    env: &mut Env<'_>,
+                ) -> Result<<JPrimitiveArray<'any_local, crate::sys::$type> as Reference>::Kind<'any_local>> {
+                    env.cast_local::<JPrimitiveArray<crate::sys::$type>>(obj)
+                }
+            }
+
             // SAFETY: JPrimitiveArray is a transparent JObject wrapper with no Drop side effects
             unsafe impl Reference for JPrimitiveArray<'_, crate::sys::$type> {
                 type Kind<'env> = JPrimitiveArray<'env, crate::sys::$type>;
@@ -384,11 +431,17 @@ macro_rules! impl_ref_for_jprimitive_array {
                 }
 
                 unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-                    JPrimitiveArray::from_raw(local_ref)
+                    JPrimitiveArray {
+                        obj: JObject::kind_from_raw(local_ref),
+                        _marker: PhantomData,
+                    }
                 }
 
                 unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
-                    JPrimitiveArray::from_raw(global_ref)
+                    JPrimitiveArray {
+                        obj: JObject::global_kind_from_raw(global_ref),
+                        _marker: PhantomData,
+                    }
                 }
             }
         }

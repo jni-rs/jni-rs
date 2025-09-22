@@ -8,12 +8,16 @@ use crate::{
     objects::{Global, JClass, JMethodID, JObject, JString, LoaderContext},
     signature::{Primitive, ReturnType},
     strings::JNIStr,
-    sys::{jobject, jthrowable},
+    sys::{jobject, jstring},
 };
 
 use super::Reference;
 
-/// Wrapper for `java.lang.StackTraceElement` references.
+/// A `java.lang.StackTraceElement` wrapper that is tied to a JNI local reference frame.
+///
+/// See the [`JObject`] documentation for more information about reference
+/// wrappers, how to cast them, and local reference frame lifetimes.
+///
 #[repr(transparent)]
 #[derive(Debug, Default)]
 pub struct JStackTraceElement<'local>(JObject<'local>);
@@ -97,23 +101,30 @@ impl JStackTraceElementAPI {
 }
 
 impl JStackTraceElement<'_> {
-    /// Creates a [`JStackTraceElement`] that wraps the given `raw` [`jthrowable`]
+    /// Creates a [`JStackTraceElement`] that wraps the given `raw` [`jobject`]
     ///
     /// # Safety
     ///
-    /// `raw` may be a null pointer. If `raw` is not a null pointer, then:
+    /// - `raw` must be a valid raw JNI local reference (or `null`).
+    /// - `raw` must be an instance of `java.lang.StackTraceElement`.
+    /// - There must not be any other owning [`Reference`] wrapper for the same reference.
+    /// - The local reference must belong to the current thread and not outlive the
+    ///   JNI stack frame associated with the [Env] `'local` lifetime.
+    pub unsafe fn from_raw<'local>(env: &Env<'local>, raw: jobject) -> JStackTraceElement<'local> {
+        JStackTraceElement(JObject::from_raw(env, raw))
+    }
+
+    /// Creates a new null reference.
     ///
-    /// * `raw` must be a valid raw JNI local reference.
-    /// * There must not be any other `JObject` representing the same local reference.
-    /// * The lifetime `'local` must not outlive the local reference frame that the local reference
-    ///   was created in.
-    pub const unsafe fn from_raw(raw: jthrowable) -> Self {
-        Self(JObject::from_raw(raw as jobject))
+    /// Null references are always valid and do not belong to a local reference frame. Therefore,
+    /// the returned `JStackTraceElement` always has the `'static` lifetime.
+    pub const fn null() -> JStackTraceElement<'static> {
+        JStackTraceElement(JObject::null())
     }
 
     /// Unwrap to the raw jni type.
-    pub const fn into_raw(self) -> jthrowable {
-        self.0.into_raw() as jthrowable
+    pub const fn into_raw(self) -> jobject {
+        self.0.into_raw()
     }
 
     /// Cast a local reference to a [`JStackTraceElement`]
@@ -150,7 +161,7 @@ impl JStackTraceElement<'_> {
             let class_name = env
                 .call_method_unchecked(self, api.get_class_name_method, ReturnType::Object, &[])?
                 .l()?;
-            Ok(JString::from_raw(class_name.into_raw()))
+            Ok(JString::from_raw(env, class_name.into_raw() as jstring))
         }
     }
 
@@ -167,7 +178,7 @@ impl JStackTraceElement<'_> {
             let file_name = env
                 .call_method_unchecked(self, api.get_file_name_method, ReturnType::Object, &[])?
                 .l()?;
-            Ok(JString::from_raw(file_name.into_raw()))
+            Ok(JString::from_raw(env, file_name.into_raw() as jstring))
         }
     }
 
@@ -203,7 +214,7 @@ impl JStackTraceElement<'_> {
             let method_name = env
                 .call_method_unchecked(self, api.get_method_name_method, ReturnType::Object, &[])?
                 .l()?;
-            Ok(JString::from_raw(method_name.into_raw()))
+            Ok(JString::from_raw(env, method_name.into_raw() as jstring))
         }
     }
 
@@ -239,7 +250,7 @@ impl JStackTraceElement<'_> {
             let string = env
                 .call_method_unchecked(self, api.to_string_method, ReturnType::Object, &[])?
                 .l()?;
-            Ok(JString::from_raw(string.into_raw()))
+            Ok(JString::from_raw(env, string.into_raw() as jstring))
         }
     }
 }
@@ -266,10 +277,10 @@ unsafe impl Reference for JStackTraceElement<'_> {
     }
 
     unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        JStackTraceElement::from_raw(local_ref)
+        JStackTraceElement(JObject::kind_from_raw(local_ref))
     }
 
     unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
-        JStackTraceElement::from_raw(global_ref)
+        JStackTraceElement(JObject::global_kind_from_raw(global_ref))
     }
 }

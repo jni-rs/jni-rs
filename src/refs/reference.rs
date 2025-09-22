@@ -115,6 +115,13 @@ pub unsafe trait Reference: Sized {
     /// Returns a new reference type based on [`Self::Kind`] for the given `reference` that is tied
     /// to the specified lifetime.
     ///
+    /// This method in generally only expected to be used internally or when implementing your own
+    /// reference wrapper types.
+    ///
+    /// You should always prefer to use wrapper-provided `::from_raw()` methods (Such as
+    /// `JString::from_raw()`) for wrapping raw local references because those will guarantee that
+    /// the returned reference has a lifetime that's tied to a valid local reference frame.
+    ///
     /// # Safety
     ///
     /// There must not be no other owning wrapper for the given `reference` (unless it is `null`)
@@ -125,8 +132,8 @@ pub unsafe trait Reference: Sized {
     /// limits them to a single JNI stack frame.
     ///
     /// This can also be used to create a borrowed view of a global reference (e.g. as part of a
-    /// type cast), which may be associated with a `'static` lifetime only so long as the lifetime of
-    /// the view is limited by borrowing from the original global wrapper.
+    /// type cast), which may be associated with a `'static` lifetime only so long as the lifetime
+    /// of the view is limited by borrowing from the original global wrapper.
     ///
     /// You are responsible to knowing that `Self::Kind` is a suitable wrapper type for the given
     /// `reference`. E.g. because the `reference` came from an `into_raw` call from the same type.

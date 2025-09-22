@@ -16,8 +16,11 @@ use super::Reference;
 #[cfg(doc)]
 use crate::errors::Error;
 
-/// Lifetime'd representation of a `jstring`. Just a `JObject` wrapped in a new
-/// class.
+/// A `java.lang.String` wrapper that is tied to a JNI local reference frame.
+///
+/// See the [`JObject`] documentation for more information about reference
+/// wrappers, how to cast them, and local reference frame lifetimes.
+///
 #[repr(transparent)]
 #[derive(Debug, Default)]
 pub struct JString<'local>(JObject<'local>);
@@ -159,19 +162,47 @@ impl JString<'_> {
     ///
     /// # Safety
     ///
-    /// `raw` may be a null pointer. If `raw` is not a null pointer, then:
+    /// - `raw` must be a valid raw JNI local reference (or `null`).
+    /// - `raw` must be an instance of `java.lang.String`.
+    /// - There must not be any other owning [`Reference`] wrapper for the same reference.
+    /// - The local reference must belong to the current thread and not outlive the
+    ///   JNI stack frame associated with the [Env] `'local` lifetime.
+    pub unsafe fn from_raw<'local>(env: &Env<'local>, raw: jstring) -> JString<'local> {
+        JString(JObject::from_raw(env, raw as jobject))
+    }
+
+    /// Creates a new null reference.
     ///
-    /// * `raw` must be a valid raw JNI local reference.
-    /// * There must not be any other `JObject` representing the same local reference.
-    /// * The lifetime `'local` must not outlive the local reference frame that the local reference
-    ///   was created in.
-    pub const unsafe fn from_raw(raw: jstring) -> Self {
-        Self(JObject::from_raw(raw as jobject))
+    /// Null references are always valid and do not belong to a local reference frame. Therefore,
+    /// the returned `JString` always has the `'static` lifetime.
+    pub const fn null() -> JString<'static> {
+        JString(JObject::null())
     }
 
     /// Unwrap to the raw jni type.
     pub const fn into_raw(self) -> jstring {
         self.0.into_raw() as jstring
+    }
+
+    /// Cast a local reference to a [`JString`]
+    ///
+    /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.lang.String`.
+    ///
+    /// Also see these other options for casting local or global references to a [`JString`]:
+    /// - [Env::as_cast]
+    /// - [Env::new_cast_local_ref]
+    /// - [Env::cast_local]
+    /// - [Env::new_cast_global_ref]
+    /// - [Env::cast_global]
+    ///
+    /// # Errors
+    ///
+    /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
+    pub fn cast_local<'any_local>(
+        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
+        env: &mut Env<'_>,
+    ) -> Result<JString<'any_local>> {
+        env.cast_local::<JString>(obj)
     }
 
     /// Returns a canonical, interned version of this string.
@@ -189,7 +220,7 @@ impl JString<'_> {
                     &[],
                 )?
                 .l()?;
-            JString::from_raw(interned.into_raw() as jstring)
+            JString::from_raw(env, interned.into_raw() as jstring)
         };
         Ok(interned)
     }
@@ -288,10 +319,10 @@ unsafe impl Reference for JString<'_> {
     }
 
     unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        JString::from_raw(local_ref)
+        JString(JObject::kind_from_raw(local_ref))
     }
 
     unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
-        JString::from_raw(global_ref)
+        JString(JObject::global_kind_from_raw(global_ref))
     }
 }

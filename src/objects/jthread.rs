@@ -11,13 +11,19 @@ use crate::{
     },
     signature::{Primitive, ReturnType},
     strings::JNIStr,
-    sys::{jobject, jthrowable},
+    sys::{jobject, jstring},
 };
 
 use super::Reference;
 
-/// Lifetime'd representation of a `jthrowable`. Just a `JObject` wrapped in a
-/// new class.
+#[cfg(doc)]
+use crate::errors::Error;
+
+/// A `java.lang.Thread` wrapper that is tied to a JNI local reference frame.
+///
+/// See the [`JObject`] documentation for more information about reference
+/// wrappers, how to cast them, and local reference frame lifetimes.
+///
 #[repr(transparent)]
 #[derive(Debug, Default)]
 pub struct JThread<'local>(JObject<'local>);
@@ -107,23 +113,51 @@ impl JThreadAPI {
 }
 
 impl JThread<'_> {
-    /// Creates a [`JThread`] that wraps the given `raw` [`jthrowable`]
+    /// Creates a [`JThread`] that wraps the given `raw` [`jobject`]
     ///
     /// # Safety
     ///
-    /// `raw` may be a null pointer. If `raw` is not a null pointer, then:
+    /// - `raw` must be a valid raw JNI local reference (or `null`).
+    /// - `raw` must be an instance of `java.lang.Thread`.
+    /// - There must not be any other owning [`Reference`] wrapper for the same reference.
+    /// - The local reference must belong to the current thread and not outlive the
+    ///   JNI stack frame associated with the [Env] `'local` lifetime.
+    pub unsafe fn from_raw<'local>(env: &Env<'local>, raw: jobject) -> JThread<'local> {
+        JThread(JObject::from_raw(env, raw))
+    }
+
+    /// Creates a new null reference.
     ///
-    /// * `raw` must be a valid raw JNI local reference.
-    /// * There must not be any other `JObject` representing the same local reference.
-    /// * The lifetime `'local` must not outlive the local reference frame that the local reference
-    ///   was created in.
-    pub const unsafe fn from_raw(raw: jthrowable) -> Self {
-        Self(JObject::from_raw(raw as jobject))
+    /// Null references are always valid and do not belong to a local reference frame. Therefore,
+    /// the returned `JThread` always has the `'static` lifetime.
+    pub const fn null() -> JThread<'static> {
+        JThread(JObject::null())
     }
 
     /// Unwrap to the raw jni type.
-    pub const fn into_raw(self) -> jthrowable {
-        self.0.into_raw() as jthrowable
+    pub const fn into_raw(self) -> jobject {
+        self.0.into_raw()
+    }
+
+    /// Cast a local reference to a [`JThread`]
+    ///
+    /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.lang.Thread`.
+    ///
+    /// Also see these other options for casting local or global references to a [`JThread`]:
+    /// - [Env::as_cast]
+    /// - [Env::new_cast_local_ref]
+    /// - [Env::cast_local]
+    /// - [Env::new_cast_global_ref]
+    /// - [Env::cast_global]
+    ///
+    /// # Errors
+    ///
+    /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
+    pub fn cast_local<'any_local>(
+        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
+        env: &mut Env<'_>,
+    ) -> Result<JThread<'any_local>> {
+        env.cast_local::<JThread>(obj)
     }
 
     /// Get the message of the throwable by calling the `getMessage` method.
@@ -141,7 +175,7 @@ impl JThread<'_> {
                     &[],
                 )?
                 .l()?;
-            Ok(JThread::from_raw(message.into_raw()))
+            Ok(JThread::from_raw(env, message.into_raw()))
         }
     }
 
@@ -155,7 +189,7 @@ impl JThread<'_> {
             let name = env
                 .call_method_unchecked(self, api.get_name_method, ReturnType::Object, &[])?
                 .l()?;
-            Ok(JString::from_raw(name.into_raw()))
+            Ok(JString::from_raw(env, name.into_raw() as jstring))
         }
     }
 
@@ -223,7 +257,7 @@ impl JThread<'_> {
                     &[],
                 )?
                 .l()?;
-            Ok(JClassLoader::from_raw(cause.into_raw()))
+            Ok(JClassLoader::from_raw(env, cause.into_raw()))
         }
     }
 
@@ -254,7 +288,7 @@ impl JThread<'_> {
                     &[JValue::Object(loader.as_ref()).as_jni()],
                 )?
                 .l()?;
-            Ok(JClassLoader::from_raw(cause.into_raw()))
+            Ok(JClassLoader::from_raw(env, cause.into_raw()))
         }
     }
 }
@@ -283,10 +317,10 @@ unsafe impl Reference for JThread<'_> {
     }
 
     unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        JThread::from_raw(local_ref)
+        JThread(JObject::kind_from_raw(local_ref))
     }
 
     unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
-        JThread::from_raw(global_ref)
+        JThread(JObject::global_kind_from_raw(global_ref))
     }
 }

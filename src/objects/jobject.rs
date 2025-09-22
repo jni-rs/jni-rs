@@ -12,21 +12,41 @@ use crate::{
 
 use super::Reference;
 
-/// Wrapper around [`jni_sys::jobject`] that adds a lifetime to ensure that
-/// the underlying JNI pointer won't be accessible to safe Rust code if the
-/// object reference is released.
+#[cfg(doc)]
+use crate::{objects::JString, refs::Weak};
+
+/// A `java.lang.Object` wrapper that is tied to a JNI local reference frame.
 ///
-/// It matches C's representation of the raw pointer, so it can be used in any
-/// of the extern function argument positions that would take a `jobject`.
+/// This is a `#[repr(transparent)]` wrapper around a `jobject` JNI reference.
 ///
-/// Most other types in the `objects` module deref to this, as they do in the C
-/// representation.
+/// Since it is `#[repr(transparent)]`, it can be used to capture references
+/// passed to native methods while also associating them with a local reference
+/// frame lifetime for the method call.
+///
+/// # Casting
+///
+/// Most other types in the `objects` module implement `Into<JObject>` or
+/// `AsRef<JObject>` to allow easy upcasting to `JObject`.
+///
+/// For downcasting (i.e converting to a more specific type), with runtime
+/// checks, use one of these APIs:
+/// - [Env::as_cast]
+/// - [Env::new_cast_local_ref]
+/// - [Env::cast_local]
+/// - [Env::new_cast_global_ref]
+/// - [Env::cast_global]
+///
+/// or look for a `cast_local` API like [`JString::cast_local`].
+///
+/// # Local Reference Frame Lifetime
 ///
 /// The lifetime `'local` represents the local reference frame that this
 /// reference belongs to. See the [`Env`] documentation for more information
-/// about local reference frames. If `'local` is `'static`, then this reference
-/// does not belong to a local reference frame, that is, it is either null or a
-/// [global reference][Global].
+/// about local reference frames.
+///
+/// The lifetime may be `'static` if the reference has a [`Global`] or [`Weak`]
+/// wrapper that indicates that the reference is global or weak (i.e it does not
+/// belong to a local reference frame).
 ///
 /// Note that an *owned* `JObject` is always a local reference and will never
 /// have the `'static` lifetime. [`Global`] does implement
@@ -90,14 +110,21 @@ impl JObject<'_> {
     ///
     /// # Safety
     ///
-    /// * `raw` must be a valid raw JNI reference (or `null`).
-    /// * There must not be any other `JObject` representing the same reference.
-    /// * If `raw` represents a local reference then the `'local` lifetime must
-    ///   not outlive the JNI stack frame that the local reference was created in.
-    /// * Only global, weak global and `null` references may use a `'static` lifetime.
-    pub const unsafe fn from_raw(raw: jobject) -> Self {
-        Self {
-            internal: raw,
+    /// - `raw` must be a valid raw JNI local reference (or `null`).
+    /// - There must not be any other owning [`Reference`] wrapper for the same reference.
+    /// - The local reference must belong to the current thread and not outlive the
+    ///   JNI stack frame associated with the [Env] `'local` lifetime.
+    pub unsafe fn from_raw<'local>(_env: &Env<'local>, raw: jobject) -> JObject<'local> {
+        JObject::kind_from_raw(raw)
+    }
+
+    /// Creates a new null reference.
+    ///
+    /// Null references are always valid and do not belong to a local reference frame. Therefore,
+    /// the returned `JObject` always has the `'static` lifetime.
+    pub const fn null() -> JObject<'static> {
+        JObject {
+            internal: std::ptr::null_mut(),
             lifetime: PhantomData,
         }
     }
@@ -110,14 +137,6 @@ impl JObject<'_> {
     /// Unwrap to the internal jni type.
     pub const fn into_raw(self) -> jobject {
         self.internal
-    }
-
-    /// Creates a new null reference.
-    ///
-    /// Null references are always valid and do not belong to a local reference frame. Therefore,
-    /// the returned `JObject` always has the `'static` lifetime.
-    pub const fn null() -> JObject<'static> {
-        unsafe { JObject::from_raw(std::ptr::null_mut() as jobject) }
     }
 }
 
@@ -151,10 +170,16 @@ unsafe impl Reference for JObject<'_> {
     }
 
     unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        JObject::from_raw(local_ref)
+        JObject {
+            internal: local_ref,
+            lifetime: PhantomData,
+        }
     }
 
     unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
-        JObject::from_raw(global_ref)
+        JObject {
+            internal: global_ref,
+            lifetime: PhantomData,
+        }
     }
 }

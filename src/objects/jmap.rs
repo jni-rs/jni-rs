@@ -13,8 +13,11 @@ use crate::{
 
 use std::{borrow::Cow, ops::Deref};
 
-/// Wrapper for `java.utils.Map` references. Provides methods to get, add, and
-/// set entries and a way to iterate over key/value pairs.
+/// A `java.util.Map` wrapper that is tied to a JNI local reference frame.
+///
+/// See the [`JObject`] documentation for more information about reference
+/// wrappers, how to cast them, and local reference frame lifetimes.
+///
 #[repr(transparent)]
 #[derive(Debug, Default)]
 pub struct JMap<'local>(JObject<'local>);
@@ -97,14 +100,21 @@ impl<'local> JMap<'local> {
     ///
     /// # Safety
     ///
-    /// `raw` may be a null pointer. If `raw` is not a null pointer, then:
+    /// - `raw` must be a valid raw JNI local reference (or `null`).
+    /// - `raw` must be an instance of `java.util.Map`.
+    /// - There must not be any other owning [`Reference`] wrapper for the same reference.
+    /// - The local reference must belong to the current thread and not outlive the
+    ///   JNI stack frame associated with the [Env] `'env_local` lifetime.
+    pub unsafe fn from_raw<'env_local>(env: &Env<'env_local>, raw: jobject) -> JMap<'env_local> {
+        JMap(JObject::from_raw(env, raw))
+    }
+
+    /// Creates a new null reference.
     ///
-    /// * `raw` must be a valid raw JNI local reference.
-    /// * There must not be any other `JObject` representing the same local reference.
-    /// * The lifetime `'local` must not outlive the local reference frame that the local reference
-    ///   was created in.
-    pub const unsafe fn from_raw(raw: jobject) -> Self {
-        Self(JObject::from_raw(raw))
+    /// Null references are always valid and do not belong to a local reference frame. Therefore,
+    /// the returned `JMap` always has the `'static` lifetime.
+    pub const fn null() -> JMap<'static> {
+        JMap(JObject::null())
     }
 
     /// Unwrap to the raw jni type.
@@ -310,15 +320,19 @@ unsafe impl Reference for JMap<'_> {
     }
 
     unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        JMap::from_raw(local_ref)
+        JMap(JObject::kind_from_raw(local_ref))
     }
 
     unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
-        JMap::from_raw(global_ref)
+        JMap(JObject::global_kind_from_raw(global_ref))
     }
 }
 
-/// Wrapper for `java.utils.Map.Entry` references. Provides methods to get the key and value.
+/// A `java.util.Map.Entry` wrapper that is tied to a JNI local reference frame.
+///
+/// See the [`JObject`] documentation for more information about reference
+/// wrappers, how to cast them, and local reference frame lifetimes.
+///
 #[repr(transparent)]
 #[derive(Debug, Default)]
 pub struct JMapEntry<'local>(JObject<'local>);
@@ -393,14 +407,24 @@ impl<'local> JMapEntry<'local> {
     ///
     /// # Safety
     ///
-    /// `raw` may be a null pointer. If `raw` is not a null pointer, then:
+    /// - `raw` must be a valid raw JNI local reference (or `null`).
+    /// - `raw` must be an instance of `java.util.Map.Entry`.
+    /// - There must not be any other owning [`Reference`] wrapper for the same reference.
+    /// - The local reference must belong to the current thread and not outlive the
+    ///   JNI stack frame associated with the [Env] `'env_local` lifetime.
+    pub unsafe fn from_raw<'env_local>(
+        env: &Env<'env_local>,
+        raw: jobject,
+    ) -> JMapEntry<'env_local> {
+        JMapEntry(JObject::from_raw(env, raw))
+    }
+
+    /// Creates a new null reference.
     ///
-    /// * `raw` must be a valid raw JNI local reference.
-    /// * There must not be any other `JObject` representing the same local reference.
-    /// * The lifetime `'local` must not outlive the local reference frame that the local reference
-    ///   was created in.
-    pub const unsafe fn from_raw(raw: jobject) -> Self {
-        Self(JObject::from_raw(raw))
+    /// Null references are always valid and do not belong to a local reference frame. Therefore,
+    /// the returned `JMapEntry` always has the `'static` lifetime.
+    pub const fn null() -> JMapEntry<'static> {
+        JMapEntry(JObject::null())
     }
 
     /// Unwrap to the raw jni type.
@@ -504,11 +528,11 @@ unsafe impl Reference for JMapEntry<'_> {
     }
 
     unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        JMapEntry::from_raw(local_ref)
+        JMapEntry(JObject::kind_from_raw(local_ref))
     }
 
     unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
-        JMapEntry::from_raw(global_ref)
+        JMapEntry(JObject::global_kind_from_raw(global_ref))
     }
 }
 
@@ -564,7 +588,7 @@ impl<'local> JMapIter<'local> {
         self.iterator.next(env)?.map_or(Ok(None), |entry| {
             // SAFETY: we know that the entrySet iterator will yield Map.Entry values
             // so we can safely downcast without needing a runtime type check
-            let entry = unsafe { JMapEntry::from_raw(entry.into_raw()) };
+            let entry = unsafe { JMapEntry::from_raw(env, entry.into_raw()) };
             Ok(Some(entry))
         })
     }

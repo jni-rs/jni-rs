@@ -20,7 +20,11 @@ use super::AsJArrayRaw;
 #[cfg(doc)]
 use crate::errors::Error;
 
-/// Lifetime'd representation of a [`jobjectArray`] which wraps a [`JObject`] reference
+/// A `java.lang.Object[]` wrapper that is tied to a JNI local reference frame.
+///
+/// See the [`JObject`] documentation for more information about reference
+/// wrappers, how to cast them, and local reference frame lifetimes.
+///
 #[repr(transparent)]
 #[derive(Debug, Default)]
 pub struct JObjectArray<'local, E: Reference + 'local = JObject<'local>> {
@@ -123,22 +127,30 @@ impl<'local, E: Reference + 'local> JObjectArray<'local, E> {
     ///
     /// # Safety
     ///
-    /// `raw` may be a null pointer. If `raw` is not a null pointer, then:
-    ///
-    /// * `raw` must be a valid raw JNI local reference.
-    /// * There must not be any other `JObject` representing the same local reference.
-    /// * The lifetime `'local` must not outlive the local reference frame that the local reference
-    ///   was created in.
-    pub const unsafe fn from_raw(raw: jobjectArray) -> Self {
-        Self {
-            array: JObject::from_raw(raw as jobject),
+    /// - `raw` must be a valid raw JNI local reference (or `null`).
+    /// - `raw` must be an instance of `java.lang.Object[]` where each element is an instance of `E`.
+    /// - There must not be any other owning [`Reference`] wrapper for the same reference.
+    /// - The local reference must belong to the current thread and not outlive the
+    ///   JNI stack frame associated with the [Env] `'env_local` lifetime.
+    pub unsafe fn from_raw<'env_local>(
+        env: &Env<'env_local>,
+        raw: jobjectArray,
+    ) -> JObjectArray<'env_local, E::Kind<'env_local>> {
+        JObjectArray {
+            array: JObject::from_raw(env, raw as jobject),
             _marker: std::marker::PhantomData,
         }
     }
 
-    /// Returns the raw JNI pointer.
-    pub const fn as_raw(&self) -> jobjectArray {
-        self.array.as_raw() as jobjectArray
+    /// Creates a new null reference.
+    ///
+    /// Null references are always valid and do not belong to a local reference frame. Therefore,
+    /// the returned `JObjectArray` always has the `'static` lifetime.
+    pub const fn null() -> JObjectArray<'static, E::GlobalKind> {
+        JObjectArray {
+            array: JObject::null(),
+            _marker: std::marker::PhantomData,
+        }
     }
 
     /// Unwrap to the raw jni type.
@@ -169,7 +181,10 @@ impl<'local, E: Reference + 'local> JObjectArray<'local, E> {
 
     /// Returns the length of the array.
     pub fn len(&self, env: &Env) -> Result<usize> {
-        let array = null_check!(self.as_raw(), "JObjectArray::len self argument")?;
+        let array = null_check!(
+            self.as_raw() as jobjectArray,
+            "JObjectArray::len self argument"
+        )?;
         let len = unsafe { jni_call_unchecked!(env, v1_1, GetArrayLength, array) } as usize;
         Ok(len)
     }
@@ -183,7 +198,10 @@ impl<'local, E: Reference + 'local> JObjectArray<'local, E> {
         // Runtime check that the 'local reference lifetime will be tied to
         // Env lifetime for the top JNI stack frame
         assert_eq!(env.level, JavaVM::thread_attach_guard_level());
-        let array = null_check!(self.as_raw(), "get_object_array_element array argument")?;
+        let array = null_check!(
+            self.as_raw() as jobjectArray,
+            "get_object_array_element array argument"
+        )?;
         if index > i32::MAX as usize {
             return Err(crate::errors::Error::JniCall(
                 crate::errors::JniError::InvalidArguments,
@@ -202,7 +220,10 @@ impl<'local, E: Reference + 'local> JObjectArray<'local, E> {
         value: impl AsRef<E::Kind<'any_local>>,
         env: &Env<'_>,
     ) -> Result<()> {
-        let array = null_check!(self.as_raw(), "set_object_array_element array argument")?;
+        let array = null_check!(
+            self.as_raw() as jobjectArray,
+            "set_object_array_element array argument"
+        )?;
         if index > i32::MAX as usize {
             return Err(crate::errors::Error::JniCall(
                 crate::errors::JniError::InvalidArguments,
@@ -257,10 +278,16 @@ unsafe impl<'local, E: Reference + 'local> Reference for JObjectArray<'local, E>
     }
 
     unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        JObjectArray::<E::Kind<'env>>::from_raw(local_ref as jobjectArray)
+        JObjectArray {
+            array: JObject::kind_from_raw(local_ref),
+            _marker: std::marker::PhantomData,
+        }
     }
 
     unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
-        JObjectArray::<E::GlobalKind>::from_raw(global_ref as jobjectArray)
+        JObjectArray {
+            array: JObject::global_kind_from_raw(global_ref),
+            _marker: std::marker::PhantomData,
+        }
     }
 }
