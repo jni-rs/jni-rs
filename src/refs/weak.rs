@@ -145,7 +145,7 @@ where
     /// # Safety
     ///
     /// If the given reference is non-null, it must represent a weak global JNI reference.
-    pub unsafe fn new(_env: &Env, obj: T) -> Self {
+    pub(crate) unsafe fn new(_env: &Env, obj: T) -> Self {
         Self { obj }
     }
 

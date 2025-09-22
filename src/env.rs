@@ -1127,7 +1127,24 @@ impl<'local> Env<'local> {
         }
     }
 
-    /// Attempts to cast a global reference to a different type.
+    /// Creates an auto-delete [`Global`] reference wrapper around a raw JNI `jobject` pointer.
+    ///
+    /// This may be useful if a third-party library gives you ownership over a JNI global reference
+    /// pointer and you want to manage it safely in Rust.
+    ///
+    /// If you don't own the global reference you must not use this function and can instead
+    /// use [`Env::as_cast_raw`] to temporarily wrap the raw pointer without taking ownership.
+    ///
+    /// # Safety
+    /// - The `raw` pointer must be a valid JNI reference of the appropriate type `T`, or `null`.
+    /// - The `raw` pointer must not have any other existing wrappers
+    /// - You must logically own the global reference and be able to guarantee that it can not
+    ///   be deleted elsewhere while the returned [`Global`] is alive.
+    pub unsafe fn global_from_raw<T: Reference>(&self, raw: sys::jobject) -> Global<T::GlobalKind> {
+        Global::new(self, T::global_kind_from_raw(raw))
+    }
+
+    /// Attempts to cast an owned global reference to a different type.
     ///
     /// This performs a runtime type check using `IsInstanceOf` and consumes the input reference.
     ///
@@ -1237,6 +1254,23 @@ impl<'local> Env<'local> {
         } else {
             Ok(weak_ref)
         }
+    }
+
+    /// Creates an auto-delete [`Weak`] reference wrapper around a raw JNI `jobject` pointer.
+    ///
+    /// This may be useful if a third-party library gives you ownership over a JNI weak reference
+    /// pointer and you want to manage it safely in Rust.
+    ///
+    /// If you don't own the weak reference you must not use this function and can instead
+    /// use [`Env::as_cast_raw`] to temporarily wrap the raw pointer without taking ownership.
+    ///
+    /// # Safety
+    /// - The `raw` pointer must be a valid JNI reference of the appropriate type `T`, or `null`.
+    /// - The `raw` pointer must not have any other existing wrappers
+    /// - You must logically own the weak reference and be able to guarantee that it can not
+    ///   be deleted elsewhere while the returned [`Weak`] is alive.
+    pub unsafe fn weak_from_raw<T: Reference>(&self, raw: sys::jobject) -> Weak<T::GlobalKind> {
+        Weak::new(self, T::global_kind_from_raw(raw))
     }
 
     /// Create a new local reference to an object.
@@ -1429,7 +1463,7 @@ impl<'local> Env<'local> {
         }
     }
 
-    /// Attempts to cast a local reference to a different type.
+    /// Attempts to cast an owned local reference to a different type.
     ///
     /// This performs a runtime type check using `IsInstanceOf` and consumes the input reference.
     /// For upcasting (converting to a more general type), consider using the `From` trait
