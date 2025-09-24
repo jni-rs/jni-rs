@@ -96,16 +96,47 @@ pub unsafe trait Reference: Sized {
     /// when first loading a class, or for debugging.
     fn class_name() -> Cow<'static, JNIStr>;
 
-    /// Borrows a global reference to the class implemented by this reference.
+    /// Borrows a global reference to the [JClass] associated with this
+    /// reference.
     ///
-    /// This is used as part of downcasting checks to do a cached lookup of associated class
-    /// references - avoiding the cost of repeated FindClass or loadClass calls.
+    /// Whenever you need the class associated with some reference wrapper type
+    /// (e.g. [`JObject`], [`JClass`], [`JString`] etc), prefer using this
+    /// method instead of [Env::find_class], [Env::load_class] or
+    /// [LoaderContext::load_class].
     ///
-    /// The implementation is expected to use [`once_cell::sync::OnceCell::get_or_try_init`] to
-    /// lookup cached API state, including a `Global<JClass>`.
+    /// This [Reference] trait is implemented for all reference wrapper types
+    /// like [`JObject`], [`JString`], [`JClass`] etc.
     ///
-    /// In case no class reference is already cached then use [`LoaderContext::load_class`] to
-    /// lookup a class reference.
+    /// All implementations will maintain a static cache holding a
+    /// `Global<JClass>` that is cheap to lookup and doesn't require a JNI call
+    /// or creating any new references.
+    ///
+    /// For example, lookup the class for `java.lang.String` / [JString] like
+    /// this:
+    /// ```rust,no_run
+    /// # use jni::{errors::Result, Env, objects::JClass};
+    /// #
+    /// # fn example<'local>(env: &mut Env<'local>) -> Result<()> {
+    /// use jni::objects::{JString, Reference as _, LoaderContext};
+    /// let string_class = JString::lookup_class(env, LoaderContext::None)?;
+    /// let string_class_ref: &JClass = string_class.as_ref();
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Implementation notes
+    ///
+    /// This is used as part of casting checks to do a cached lookup of
+    /// associated class references - avoiding the cost of repeated class
+    /// lookups.
+    ///
+    /// The implementation is expected to use
+    /// [`once_cell::sync::OnceCell::get_or_try_init`] (or similar) to lookup
+    /// cached API state, including a `Global<JClass>`.
+    ///
+    /// In case no class reference is already cached then use
+    /// [`LoaderContext::load_class`] (not [Env::find_class]) to lookup a class
+    /// reference.
     ///
     fn lookup_class<'caller>(
         env: &Env<'_>,
