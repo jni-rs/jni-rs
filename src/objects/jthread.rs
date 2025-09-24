@@ -249,7 +249,7 @@ impl JThread<'_> {
         // Safety: We know that `getContextClassLoader` is a valid method on `java/lang/Thread` that has no
         // arguments and it returns a valid `ClassLoader` instance.
         unsafe {
-            let cause = env
+            let loader = env
                 .call_method_unchecked(
                     self,
                     api.get_context_class_loader_method,
@@ -257,7 +257,7 @@ impl JThread<'_> {
                     &[],
                 )?
                 .l()?;
-            Ok(JClassLoader::from_raw(env, cause.into_raw()))
+            Ok(JClassLoader::from_raw(env, loader.into_raw()))
         }
     }
 
@@ -274,21 +274,19 @@ impl JThread<'_> {
         &self,
         loader: &JClassLoader<'loader_local>,
         env: &mut Env<'env_local>,
-    ) -> Result<JClassLoader<'env_local>> {
+    ) -> Result<()> {
         let api = JThreadAPI::get(env)?;
 
-        // Safety: We know that `getContextClassLoader` is a valid method on `java/lang/Thread` that has no
-        // arguments and it returns a valid `ClassLoader` instance.
+        // Safety: We know that `setContextClassLoader` is a valid method on `java/lang/Thread` that has no
+        // arguments and it returns void.
         unsafe {
-            let cause = env
-                .call_method_unchecked(
-                    self,
-                    api.set_context_class_loader_method,
-                    ReturnType::Object,
-                    &[JValue::Object(loader.as_ref()).as_jni()],
-                )?
-                .l()?;
-            Ok(JClassLoader::from_raw(env, cause.into_raw()))
+            env.call_method_unchecked(
+                self,
+                api.set_context_class_loader_method,
+                ReturnType::Primitive(Primitive::Void),
+                &[JValue::Object(loader.as_ref()).as_jni()],
+            )?;
+            Ok(())
         }
     }
 }
