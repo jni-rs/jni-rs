@@ -8,6 +8,7 @@ use crate::{
     objects::{Cast, Global, JClass, JCollection, JIterator, JObject, LoaderContext},
     strings::JNIStr,
     sys::jobject,
+    DEFAULT_LOCAL_FRAME_CAPACITY,
 };
 
 use super::Reference;
@@ -68,8 +69,7 @@ impl JSetAPI {
     ) -> Result<&'static Self> {
         static JSET_API: OnceCell<JSetAPI> = OnceCell::new();
         JSET_API.get_or_try_init(|| {
-            let vm = env.get_java_vm();
-            vm.with_env_current_frame(|env| {
+            env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
                 let class = loader_context.load_class_for_type::<JSet>(true, env)?;
                 let class = env.new_global_ref(&class).unwrap();
 

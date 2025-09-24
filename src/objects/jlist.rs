@@ -10,7 +10,7 @@ use crate::{
     signature::{Primitive, ReturnType},
     strings::JNIStr,
     sys::jint,
-    Env,
+    Env, DEFAULT_LOCAL_FRAME_CAPACITY,
 };
 
 use std::{borrow::Cow, ops::Deref};
@@ -71,8 +71,7 @@ impl JListAPI {
     ) -> Result<&'static Self> {
         static JLIST_API: OnceCell<JListAPI> = OnceCell::new();
         JLIST_API.get_or_try_init(|| {
-            let vm = env.get_java_vm();
-            vm.with_env_current_frame(|env| {
+            env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
                 let class = loader_context.load_class_for_type::<JList>(true, env)?;
                 let class = env.new_global_ref(&class).unwrap();
 

@@ -1,0 +1,10 @@
+error[E0500]: closure requires unique access to `*env0` but it is already borrowed
+  --> tests/ui/fail/with-local-frame-borrow-mut-env.rs:9:35
+   |
+ 9 |         env0.with_local_frame(10, |_env1: &mut Env| -> jni::errors::Result<_> {
+   |         ---- ----------------     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ closure construction occurs here
+   |         |    |
+   |         |    first borrow later used by call
+   |         borrow occurs here
+10 |             let _s = env0.new_string(c"hello").unwrap();
+   |                      ---- second borrow occurs due to use of `*env0` in closure

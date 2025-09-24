@@ -22,6 +22,8 @@ use util::{attach_current_thread, unwrap};
 
 use rusty_fork::rusty_fork_test;
 
+use crate::util::jvm;
+
 static ARRAYLIST_CLASS: &JNIStr = JNIStr::from_cstr(c"java/util/ArrayList");
 static EXCEPTION_CLASS: &JNIStr = JNIStr::from_cstr(c"java/lang/Exception");
 static ARITHMETIC_EXCEPTION_CLASS: &JNIStr = JNIStr::from_cstr(c"java/lang/ArithmeticException");
@@ -538,6 +540,25 @@ attach_current_thread(|env| {
 */
 
 #[test]
+pub fn attach_current_thread_guard_scope() {
+    let mut scope = jni::vm::ScopeToken::default();
+    let (_vm, _guard) = {
+        let vm = jvm();
+        let vm = vm.as_ref().clone();
+        let guard = unsafe {
+            vm.attach_current_thread_guard(Default::default, &mut scope)
+                .unwrap()
+        };
+        vm.with_local_frame(10, |env| -> jni::errors::Result<_> {
+            let _s = env.new_string(c"hello").unwrap();
+            Ok(())
+        })
+        .unwrap();
+        (vm, guard)
+    };
+}
+
+#[test]
 pub fn with_local_frame() {
     attach_current_thread(|env| {
         let s = env
@@ -552,6 +573,31 @@ pub fn with_local_frame() {
             .mutf8_chars(env)
             .expect("The object returned from the local frame must remain valid");
         assert_eq!(s.to_str(), "Test");
+
+        Ok(())
+    })
+    .unwrap();
+}
+
+#[test]
+#[should_panic(expected = "not associated with the top JNI stack frame")]
+pub fn with_local_frame_misuse_panic() {
+    attach_current_thread(|env0| {
+        env0.with_local_frame::<_, _, jni::errors::Error>(5, |env1| {
+            env0.with_local_frame::<_, _, jni::errors::Error>(5, |_env2| {
+                // At this point we have given ourselves access to mutable Env references (env1 and env2)
+                // (env0 is tied up due to the `with_local_frame` calls)
+
+                // As a failsafe though, we should panic if we attempt use env1 to create new local references
+                // since env1 is not the top frame Env.
+                let _res = env1.new_string(c"Test").expect("This should panic");
+
+                Ok(())
+            })
+            .unwrap();
+            Ok(())
+        })
+        .unwrap();
 
         Ok(())
     })

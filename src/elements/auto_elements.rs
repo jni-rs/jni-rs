@@ -85,9 +85,12 @@ where
     ///
     /// If `mode` is not [`sys::JNI_COMMIT`], then `self.ptr` must not have already been released.
     unsafe fn release_array_elements(&self, mode: i32) -> Result<()> {
-        // Panic: Since we can't construct `AutoElements` without a valid `Env` reference
-        // we know we can call `JavaVM::singleton()` without a panic.
-        JavaVM::singleton()?.with_env_current_frame(|env| {
+        // Errors:
+        // - Since we can't construct `AutoElements` without a valid `Env` reference we know
+        //   we can call `JavaVM::singleton()` without an error.
+        // - Since `self` is associated with a local reference frame lifetime we know that the
+        //   thread is attached and so `with_top_local_frame()` can't return an error.
+        JavaVM::singleton()?.with_top_local_frame(|env| {
             T::release_elements(env, self.array.as_ref().as_raw(), self.ptr, mode)
         })
     }

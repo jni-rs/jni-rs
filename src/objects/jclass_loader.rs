@@ -9,6 +9,7 @@ use crate::{
     signature::JavaType,
     strings::JNIStr,
     sys::{jclass, jobject},
+    DEFAULT_LOCAL_FRAME_CAPACITY,
 };
 
 use super::Reference;
@@ -60,8 +61,7 @@ impl JClassLoaderAPI {
     fn get(env: &Env<'_>) -> Result<&'static Self> {
         static JCLASS_LOADER_API: OnceCell<JClassLoaderAPI> = OnceCell::new();
         JCLASS_LOADER_API.get_or_try_init(|| {
-            let vm = env.get_java_vm();
-            vm.with_env_current_frame(|env| {
+            env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
                 // NB: Self::CLASS_NAME is a binary name with dots, not slashes
                 let class = env.find_class(c"java/lang/ClassLoader")?;
                 let class = env.new_global_ref(&class).unwrap();

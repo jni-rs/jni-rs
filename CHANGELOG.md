@@ -29,8 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `AttachConfig` exposes fine-grained control over thread attachment including `Thread` name, `ThreadGroup` and whether scoped or permanent. ([#606](https://github.com/jni-rs/jni-rs/pull/606))
 - `JavaVM::attach_current_thread_guard` is a low-level (unsafe) building block for attaching threads that exposes the `AttachGuard` and `AttachConfig` control. ([#606](https://github.com/jni-rs/jni-rs/pull/606))
 - `JavaVM::attach_current_thread_with_config` is a safe building block for attaching threads that hides the `AttachGuard` but exposes `AttachConfig` control. ([#606](https://github.com/jni-rs/jni-rs/pull/606))
-- `JavaVM::with_env` and `JavaVM::with_env_with_capacity` added as methods to borrow a `Env` that is already attached to the current thread, after pushing a new JNI stack frame ([#570](https://github.com/jni-rs/jni-rs/pull/570))
-- `JavaVM::with_env_current_frame` added to borrow a `Env` for the top JNI stack frame (i.e. without pushing a new JNI stack frame) ([#570](https://github.com/jni-rs/jni-rs/pull/570))
+- `JavaVM::with_local_frame` added as method to borrow a `Env` that is already attached to the current thread, after pushing a new JNI stack frame ([#570](https://github.com/jni-rs/jni-rs/pull/570), [#673](https://github.com/jni-rs/jni-rs/pull/673))
+- `JavaVM::with_top_local_frame_frame` added to borrow a `Env` for the top JNI stack frame (i.e. without pushing a new JNI stack frame) ([#570](https://github.com/jni-rs/jni-rs/pull/570), [#673](https://github.com/jni-rs/jni-rs/pull/673))
 
 #### Reference Type APIs
 
@@ -154,6 +154,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Env::define_class_bytearray` was renamed to `Env::define_class_jbyte` and is identical to `define_class` except for taking a `&[jbyte]` slice instead of `&[u8]`, which is a convenience if you have a `JByteArray` or `AutoElements<JByteArray>`.
 - `AutoElements` was simplified to only be parameterized by one lifetime for the array reference, and accepts any `AsRef<JPrimitiveArray<T>>` as a reference. ([#508](https://github.com/jni-rs/jni-rs/pull/508))
 - `JavaType` was simplified to not capture object names or array details (like `ReturnType`) since these details don't affect `JValue` type checks and had a hidden cost that was redundant.
+- `Env::with_local_frame` can be used with a shared `&Env` reference since it doesn't return a new local reference. ([#673](https://github.com/jni-rs/jni-rs/pull/673))
 - `Env::with_local_frame_returning_local` can now return any kind of local `Reference`, not just `JObject`
 - `JList` is a simpler, transparent reference wrapper implementing `Reference`, like `JObject`, `JClass`, `JString` etc
 - `JList::add` returns the boolean returned by the Java API

@@ -7,7 +7,7 @@ use crate::{
     objects::{Global, JClass, LoaderContext},
     strings::JNIStr,
     sys::jobject,
-    Env,
+    Env, DEFAULT_LOCAL_FRAME_CAPACITY,
 };
 
 use super::Reference;
@@ -94,8 +94,7 @@ impl JObjectAPI {
     fn get(env: &Env<'_>) -> Result<&'static Self> {
         static JOBJECT_API: OnceCell<JObjectAPI> = OnceCell::new();
         JOBJECT_API.get_or_try_init(|| {
-            let vm = env.get_java_vm();
-            vm.with_env_current_frame(|env| {
+            env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
                 // NB: Self::CLASS_NAME is a binary name with dots, not slashes
                 let class = env.find_class(JNIStr::from_cstr(c"java/lang/Object"))?;
                 let class = env.new_global_ref(class)?;
