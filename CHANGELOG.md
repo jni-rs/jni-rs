@@ -54,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Env::to_reflected_method` and `Env::to_reflected_static_method` for retrieving the Java reflection API instance for a method or constructor. ([#579](https://github.com/jni-rs/jni-rs/pull/579))
 - `Env::throw_new_void` provides an easy way to throw an exception that's constructed with no message argument
 - `Env::new_object_type_array<E>` lets you you instantiate a `JObjectArray` with a given element type like `new_object_type_array::<JString>`
+- `Env::load_class` supports class lookups via the current `Thread` context class loader, with `FindClass` fallback. ([#674](https://github.com/jni-rs/jni-rs/pull/674))
 
 #### Native Method APIs
 

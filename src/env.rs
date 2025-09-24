@@ -38,6 +38,9 @@ use crate::{objects::AsJArrayRaw, signature::ReturnType};
 
 use super::{objects::Reference, AttachGuard};
 
+#[cfg(doc)]
+use crate::objects::JThread;
+
 /// A non-transparent wrapper around a raw [`sys::JNIEnv`] pointer that provides
 /// safe access to the Java Native Interface (JNI) functions.
 ///
@@ -535,58 +538,40 @@ See the jni-rs Env documentation for more details.
         unsafe { self.define_class_impl(name, loader, buf.as_ptr() as *const jbyte, buf.len()) }
     }
 
-    /// Look up a class by its fully-qualified name, via JNI `FindClass`.
+    /// Look up a class by its fully-qualified "internal" JNI name, via JNI
+    /// `FindClass`.
+    ///
+    /// **Note:** Only use this method if you _strictly_ need the JNI
+    /// `FindClass` behavior exactly, otherwise, it is strongly recommended to
+    /// use [Reference::lookup_class] (cached), [Env::load_class] or
+    /// [LoaderContext::load_class].
+    ///
+    /// The `name` must be in the "internal" form, with slashes instead of dots,
+    /// like `c"java/lang/IllegalArgumentException"` or an array descriptor like
+    /// `c"[Ljava/lang/Number;"`.
     ///
     /// # Example
     /// ```rust,no_run
     /// # use jni::{errors::Result, Env, objects::JClass};
     /// #
     /// # fn example<'local>(env: &mut Env<'local>) -> Result<()> {
-    /// let class: JClass<'local> = env.find_class(c"java/lang/String")?;
+    /// let class: JClass<'local> = env.find_class(c"java/lang/IllegalArgumentException")?;
     /// # Ok(())
     /// # }
     /// ```
     ///
-    /// Returns the loaded class, or a [`Error::NullPtr`] error if the class could not be found.
+    /// Returns the loaded class, or a [`Error::NullPtr`] error if the class
+    /// could not be found.
     ///
-    /// ## Use [Reference::lookup_class], instead of [Env::find_class] where possible
+    /// # Android
     ///
-    /// Whenever you need the class associated with some reference wrapper type (e.g. [`JObject`],
-    /// [`JClass`], [`JString`] etc), prefer using [Reference::lookup_class] instead of this method.
+    /// On Android in particular it's notable that `FindClass` will not be able
+    /// to find application classes when called from a native thread, outside of
+    /// a native method call.
     ///
-    /// [Reference] is a trait that all of these reference wrapper types implement.
-    ///
-    /// All implementations of [Reference::lookup_class] will maintain a static cache holding a
-    /// `Global<JClass>` that is cheap to lookup and doesn't require a JNI call or creating any new
-    /// references.
-    ///
-    /// For example, lookup the class for `java.lang.String` / [JString] like this:
-    /// ```rust,no_run
-    /// # use jni::{errors::Result, Env, objects::JClass};
-    /// #
-    /// # fn example<'local>(env: &mut Env<'local>) -> Result<()> {
-    /// use jni::objects::{JString, Reference as _, LoaderContext};
-    /// let string_class = JString::lookup_class(env, LoaderContext::None)?;
-    /// let string_class_ref: &JClass = string_class.as_ref();
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// ## Consider using [LoaderContext::load_class] in all other cases
-    ///
-    /// Unless you strictly need to use the JNI `FindClass` API directly to look up classes it may
-    /// be best to use [LoaderContext::load_class] or [LoaderContext::find_class] instead of this
-    /// method.
-    ///
-    /// [LoaderContext::load_class] can be given a specific `java.lang.ClassLoader`
-    /// ([crate::objects::JClassLoader]) for finding application classes that `FindClass` may not
-    /// find.
-    ///
-    /// Even without providing a `ClassLoader`, [LoaderContext::load_class] will check the context
-    /// class loader of the current thread, which makes it possible to associate a thread with an
-    /// application class loader. This may be particularly useful for native applications on Android
-    /// because native threads will not normally be able to find application classes through
-    /// `FindClass`.
+    /// [Env::load_class] can work on Android if a loader has been set up for
+    /// the current thread (see: [JThread::set_context_class_loader]) and if you
+    /// use the `android-activity` crate this may be done for you.
     pub fn find_class<S>(&mut self, name: S) -> Result<JClass<'local>>
     where
         S: AsRef<JNIStr>,
@@ -602,6 +587,53 @@ See the jni-rs Env documentation for more details.
             jni_call_check_ex_and_null_ret!(self, v1_1, FindClass, name.as_ptr())
                 .map(|class| JClass::from_raw(self, class))
         }
+    }
+
+    /// Look up a class by its fully-qualified name, via `Class.forName(<name>,
+    /// <initialize>, <loader>)` with a `FindClass` fallback.
+    ///
+    /// This is a convenience wrapper around [LoaderContext::load_class] with
+    /// [LoaderContext::None].
+    ///
+    /// `name` should be a binary name like `c"java.lang.Number"` or an array
+    /// descriptor like `c"[Ljava.lang.Number;"`.
+    ///
+    /// **Note:** that unlike [Env::find_class], the name uses **dots instead of
+    /// slashes** and should conform to the format that `Class.getName()`
+    /// returns and that `Class.forName()` expects.
+    ///
+    /// For example, lookup the class for
+    /// `java.lang.IllegalArgumentException`like this:
+    /// ```rust,no_run
+    /// # use jni::{errors::Result, Env, objects::JClass};
+    /// #
+    /// # fn example<'local>(env: &mut Env<'local>) -> Result<()> {
+    /// let class: JClass<'local> = env.find_class(c"java.lang.IllegalArgumentException")?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Returns a local reference to the loaded class, or a
+    /// [`Error::ClassNotFound`] error if the class could not be found.
+    ///
+    /// # Android
+    ///
+    /// This API will notably check the context class loader of the current
+    /// thread, which makes it possible to associate a thread with an
+    /// application class loader.
+    ///
+    /// This may be particularly useful for native applications on Android
+    /// because native threads will not normally be able to find application
+    /// classes through `FindClass`.
+    ///
+    /// If you use the `android-activity` crate, it may set up the context class
+    /// loader for you.
+    pub fn load_class<S>(&mut self, name: S) -> Result<JClass<'local>>
+    where
+        S: AsRef<JNIStr>,
+    {
+        let name = name.as_ref();
+        LoaderContext::None.load_class(name, false, self)
     }
 
     /// Returns the superclass for a particular class. Returns None for `java.lang.Object` or
