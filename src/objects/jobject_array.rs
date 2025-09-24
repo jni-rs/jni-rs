@@ -12,7 +12,7 @@ use crate::{
     objects::{Global, JClass, JObject, LoaderContext, Reference},
     strings::{JNIStr, JNIString},
     sys::{jobject, jobjectArray},
-    JavaVM,
+    JavaVM, DEFAULT_LOCAL_FRAME_CAPACITY,
 };
 
 use super::AsJArrayRaw;
@@ -93,8 +93,7 @@ impl<E: Reference + Send + Sync> JObjectArrayAPI<E> {
         // the same state then we let them race and keep the first one to finish.
 
         let created: JObjectArrayAPI<E> = {
-            let vm = env.get_java_vm();
-            vm.with_env_current_frame(|env| -> Result<_> {
+            env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| -> Result<_> {
                 let class = loader_context.load_class_for_type::<JObjectArray<E>>(false, env)?;
                 let class = env.new_global_ref(&class)?;
                 Ok(JObjectArrayAPI {

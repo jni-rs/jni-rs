@@ -8,7 +8,7 @@ use crate::{
     objects::{Global, JClass, JMethodID, JObject, LoaderContext},
     strings::{JNIStr, MUTF8Chars},
     sys::{jobject, jstring},
-    Env, JavaVM,
+    Env, JavaVM, DEFAULT_LOCAL_FRAME_CAPACITY,
 };
 
 use super::Reference;
@@ -140,8 +140,7 @@ impl JStringAPI {
     ) -> Result<&'static Self> {
         static JSTRING_API: OnceCell<JStringAPI> = OnceCell::new();
         JSTRING_API.get_or_try_init(|| {
-            let vm = env.get_java_vm();
-            vm.with_env_current_frame(|env| {
+            env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
                 let class = loader_context.load_class_for_type::<JString>(true, env)?;
                 let class = env.new_global_ref(&class).unwrap();
                 let intern_method = env

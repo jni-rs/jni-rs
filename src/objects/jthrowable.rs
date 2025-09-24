@@ -11,6 +11,7 @@ use crate::{
     },
     strings::JNIStr,
     sys::{jobject, jstring, jthrowable},
+    DEFAULT_LOCAL_FRAME_CAPACITY,
 };
 
 use super::Reference;
@@ -66,8 +67,7 @@ impl JThrowableAPI {
     ) -> Result<&'static Self> {
         static JTHROWABLE_API: OnceCell<JThrowableAPI> = OnceCell::new();
         JTHROWABLE_API.get_or_try_init(|| {
-            let vm = env.get_java_vm();
-            vm.with_env_current_frame(|env| {
+            env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
                 let class = loader_context.load_class_for_type::<JThrowable>(true, env)?;
                 let class = env.new_global_ref(&class).unwrap();
                 let get_message_method = env

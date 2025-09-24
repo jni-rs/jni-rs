@@ -13,6 +13,7 @@ use crate::{
     },
     strings::JNIStr,
     sys::{jarray, jobject},
+    vm::DEFAULT_LOCAL_FRAME_CAPACITY,
 };
 
 use super::TypeArray;
@@ -373,8 +374,7 @@ macro_rules! impl_ref_for_jprimitive_array {
                 ) -> Result<&'static Self> {
                     static JPRIMITIVE_ARRAY_API: OnceCell<[<JPrimitiveArrayAPI _ $type>]> = OnceCell::new();
                     JPRIMITIVE_ARRAY_API.get_or_try_init(|| {
-                        let vm = env.get_java_vm();
-                        vm.with_env_current_frame(|env| {
+                        env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
                             let class =
                                 loader_context.load_class_for_type::<JPrimitiveArray::<crate::sys::$type>>(false, env)?;
                             let class = env.new_global_ref(&class).unwrap();

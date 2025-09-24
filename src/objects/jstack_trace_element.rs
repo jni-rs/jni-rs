@@ -9,6 +9,7 @@ use crate::{
     signature::{Primitive, ReturnType},
     strings::JNIStr,
     sys::{jobject, jstring},
+    DEFAULT_LOCAL_FRAME_CAPACITY,
 };
 
 use super::Reference;
@@ -62,8 +63,7 @@ impl JStackTraceElementAPI {
     fn get(env: &Env<'_>, loader_context: &LoaderContext<'_, '_>) -> Result<&'static Self> {
         static JSTACK_TRACE_ELEMENT_API: OnceCell<JStackTraceElementAPI> = OnceCell::new();
         JSTACK_TRACE_ELEMENT_API.get_or_try_init(|| {
-            let vm = env.get_java_vm();
-            vm.with_env_current_frame(|env| {
+            env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
                 let class = loader_context.load_class_for_type::<JStackTraceElement>(false, env)?;
                 let class = env.new_global_ref(&class).unwrap();
 

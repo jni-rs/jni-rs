@@ -12,6 +12,7 @@ use crate::{
     signature::{Primitive, ReturnType},
     strings::JNIStr,
     sys::{jobject, jstring},
+    DEFAULT_LOCAL_FRAME_CAPACITY,
 };
 
 use super::Reference;
@@ -67,8 +68,7 @@ impl JThreadAPI {
     fn get(env: &Env<'_>) -> Result<&'static Self> {
         static JTHREAD_API: OnceCell<JThreadAPI> = OnceCell::new();
         JTHREAD_API.get_or_try_init(|| {
-            let vm = env.get_java_vm();
-            vm.with_env_current_frame(|env| {
+            env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
                 // NB: Self::CLASS_NAME is a binary name with dots, not slashes
                 let class = env.find_class(JNIStr::from_cstr(c"java/lang/Thread"))?;
                 let class = env.new_global_ref(&class).unwrap();

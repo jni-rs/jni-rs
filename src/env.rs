@@ -24,7 +24,7 @@ use crate::{
         self, jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jshort, jsize, jvalue,
         JNINativeMethod,
     },
-    JNIVersion, JavaVM,
+    JNIVersion, JavaVM, DEFAULT_LOCAL_FRAME_CAPACITY,
 };
 use crate::{
     errors::ErrorPolicy,
@@ -49,8 +49,8 @@ use super::{objects::Reference, AttachGuard};
 /// See:
 /// - [`JavaVM::attach_current_thread`]
 /// - [`JavaVM::attach_current_thread_for_scope`]
-/// - [`JavaVM::with_env`]
-/// - [`JavaVM::with_env_current_frame`]
+/// - [`JavaVM::with_local_frame`]
+/// - [`JavaVM::with_top_local_frame`]
 /// - [`EnvUnowned::with_env`]
 ///
 /// [Env] is a non-transparent wrapper that is not FFI-safe, so it must not be
@@ -151,55 +151,87 @@ use super::{objects::Reference, AttachGuard};
 ///
 /// ## `null` Java references
 /// `null` Java references are handled by the following rules:
-///   - If a `null` Java reference is passed to a method that expects a
-///     non-`null` argument, an `Err` result with the kind `NullPtr` is
-///     returned.
+///   - Methods that require non-null references will return [Error::NullPtr] if
+///     passed a `null` reference.
 ///   - If a JNI function returns `null` to indicate an error (e.g.
-///     `new_int_array`), it is converted to `Err`/`NullPtr` or, where possible,
-///     to a more applicable error type, such as `MethodNotFound`. If the JNI
-///     function also throws an exception, the `JavaException` error kind will
-///     be preferred.
-///   - If a JNI function may return `null` Java reference as one of possible
-///     reference values (e.g., `get_object_array_element` or
-///     `get_field_unchecked`), it is converted to `JObject::null()`.
+///     [`Env::new_int_array`]), it is converted to `Err`/[`Error::NullPtr`], or
+///     some other more applicable error type, such as [`Error::MethodNotFound`].
+///   - Otherwise `null` is considered a valid Java reference and is represented
+///     as [`JObject::null()`].
 ///
-/// # `&self` and `&mut self`
+/// ## A `&mut Env` represents the top JNI stack frame
 ///
-/// Many of the methods on this type take a `&mut self` reference if they need
-/// to return a new local reference. This is because new local references can
-/// only be created in the current (top) local reference frame and this crate
-/// needs to be able to name the lifetime of that local reference frame in order
-/// to return it safely.
+/// Each `Env<'local>` represents a single local reference frame in the JVM.
 ///
-/// This crate is designed to take away mutable access to an `Env` when pushing
-/// a new local reference frame so you can't accidentally attempt to create a
-/// new local reference that would be associated with the wrong frame.
+/// A **mutable** `&mut Env` is special: it always represents the *current top*
+/// local reference frame on the JNI stack.
 ///
-/// In some circumstances you may find you only have a shared [Env] reference
-/// but need to create some hidden, temporary local references that will not be
-/// returned to the caller. In this case you can use [`JavaVM::with_env`] or
-/// [`JavaVM::with_env_current_frame`] to materialize a temporary mutable [Env]
-/// reference for the top / current local reference frame.
+/// * You need `&mut Env` when creating new local references, since those can
+///   only be created in the top frame.
+/// * A shared `&Env` is fine for operations that don’t produce new local
+///   references.
 ///
-/// Beware though that this crate also implements runtime checks as a failsafe
-/// to ensure that local references are only created in the top local reference
+/// If you only have a shared `&Env` but need to create temporary local
+/// references (that won’t escape the scope), you can materialize a new mutable
+/// handle to the top frame using:
+///
+/// * [`Env::with_local_frame`] – pushes a new frame, returns a mutable `Env`
+///   for it.
+/// * [`Env::with_top_local_frame`] – borrows a mutable `Env` for the existing
+///   top frame without pushing a new one.
+///
+/// If you don’t even have an `Env` (e.g. inside a `Drop` implementation), you
+/// can still get one via:
+///
+/// * [`JavaVM::with_local_frame`]
+/// * [`JavaVM::with_top_local_frame`]
+///
+/// (and you can access a [`JavaVM`] via [`JavaVM::singleton`]).
+///
+/// These APIs are safe because they constrain the new [`Env`] lifetime to the
+/// scope of the call, so any references created cannot leak.
+///
+/// ## Runtime Top Frame Checks
+///
+/// Rust’s type system ensures that a mutable `Env<'local>` only produces
+/// references tied to its frame.
+///
+/// Normally this crate also guarantees that a `&mut Env` represents the top
 /// frame.
 ///
-/// If you use an API like [`JavaVM::with_env_current_frame`] to get a mutable
-/// [Env] while you already have another mutable [Env] reference for a different
-/// local reference frame, then you open up the risk of a panic if you try to
-/// create a new local reference using the [Env] that is not associated with the
-/// top local reference frame.
+/// However, because the JVM is global and multiple crates may independently use
+/// jni-rs, some valid usage patterns can be misused to create multiple mutable
+/// `Env`s in the same scope. For example:
 ///
-/// As a rule of thumb (to avoid the risk of runtime check failures) you should
-/// avoid any attempt to materialize a mutable reference to an [`Env`] instance
-/// if you already have a mutable [Env] reference.
+/// ```rust,no_run
+/// # use jni::{JavaVM, errors::Result};
+/// # fn f(vm: &JavaVM) -> Result<()> {
+/// vm.attach_current_thread(|env1| -> Result<()> {
+///     vm.attach_current_thread(|env2| -> Result<()> {
+///         // env1 is still mutable, but no longer the top frame.
+///         // This will panic at runtime:
+///         env1.new_string(c"not valid here").unwrap();
+///         Ok(())
+///     })
+/// })
+/// # ; Ok(())
+/// # }
+/// ```
 ///
-/// See [issue #392] for background discussion on this topic.
+/// To prevent unsoundness, this crate enforces a **runtime check**:
 ///
-/// [issue #392]: https://github.com/jni-rs/jni-rs/issues/392
+/// * Creating a new local reference with a mutable `Env` that is *not* the top
+///   frame will cause a panic.
 ///
-/// ## `cannot borrow as mutable`
+/// ### Rule of thumb
+///
+/// * Keep only one `Env` in scope at a time.
+/// * Always shadow outer `env` variables when introducing a new one.
+///
+/// As long as you follow this pattern, the type system will ensure that local
+/// references are only created from the valid top frame.
+///
+/// ## Troubleshooting `cannot borrow as mutable`
 ///
 /// If a function takes two or more parameters, one of them is `Env`, and
 /// another is something returned by a `Env` method (like [`JObject`]), then
@@ -300,7 +332,7 @@ use super::{objects::Reference, AttachGuard};
 /// to require non-UTF-8 strings.
 ///
 /// For more complex strings that need full unicode support (for example when
-/// calling [`Env::new_string`] then you should use [JNIString::from] instead on
+/// calling [`Env::new_string`] then you should use [JNIString::from] instead of
 /// relying on `CStr` literals.
 ///
 #[derive(Debug)]
@@ -320,6 +352,13 @@ impl Drop for Env<'_> {
         // NOOP - we just implement Drop so that the compiler won't consider
         // Env to be FFI safe.
     }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::Env;
+    static_assertions::assert_not_impl_any!(Env: Send);
+    static_assertions::assert_not_impl_any!(Env: Sync);
 }
 
 impl<'local> Env<'local> {
@@ -1744,26 +1783,31 @@ See the jni-rs Env documentation for more details.
         Ok(T::kind_from_raw(raw))
     }
 
-    /// Executes the given function in a new local reference frame, in which at least a given number
-    /// of references can be created. Once this method returns, all references allocated in the
-    /// frame are freed.
+    /// Run a closure with a mutable [`Env`] associated with a new local reference frame.
+    ///
+    /// `capacity` is the minimum number of local references that can be created in the new frame.
+    /// it can be seen as a hint to the JVM to pre-allocate space for that many local references
+    /// but if more are created then the JVM will transparently allocate more space as needed.
     ///
     /// If a frame can't be allocated with the requested capacity for local references, returns
     /// `Err` with a pending `OutOfMemoryError`.
     ///
-    /// Since local references created within this frame won't be accessible to the calling frame
-    /// then if you need to pass an object back to the caller then you can do that via
-    /// [`Self::with_local_frame_returning_local`] or else return a [`Global`] with
+    /// Once this method returns, all references allocated in the frame are freed.
+    ///
+    /// If you need to return a reference from the frame to the caller then you should either
+    /// use [`Self::with_local_frame_returning_local`] or else create a [`Global`] with
     /// [`Self::new_global_ref`].
-    pub fn with_local_frame<F, T, E>(&mut self, capacity: usize, f: F) -> std::result::Result<T, E>
+    ///
+    /// # Runtime Top Frame Checks
+    ///
+    /// See top-level [Env] documentation for rules on limiting yourself to one
+    /// [Env] reference per-scope to avoid exposing code to runtime checks for
+    /// the top JNI frame (that can panic).
+    pub fn with_local_frame<F, T, E>(&self, capacity: usize, f: F) -> std::result::Result<T, E>
     where
         F: FnOnce(&mut Env) -> std::result::Result<T, E>,
         E: From<Error>,
     {
-        // Runtime check that the new local frame is being pushed on top of the
-        // the current top JNI stack frame
-        self.assert_top();
-
         let capacity: jni_sys::jint = capacity
             .try_into()
             .map_err(|_| Error::JniCall(JniError::InvalidArguments))?;
@@ -1787,17 +1831,23 @@ See the jni-rs Env documentation for more details.
         }
     }
 
-    /// Executes the given function in a new local reference frame, in which at least a given number
-    /// of references can be created. Once this method returns, all references allocated
-    /// in the frame are freed, except the one that the function returns, which remains valid.
+    /// Run a closure with a mutable [`Env`] associated with a new local reference frame, and return
+    /// one local reference to the caller.
     ///
-    /// If a frame can't be allocated with the requested capacity for local
-    /// references, returns `Err` with a pending `OutOfMemoryError`.
+    /// `capacity` is the minimum number of local references that can be created in the new frame.
+    /// it can be seen as a hint to the JVM to pre-allocate space for that many local references but
+    /// if more are created then the JVM will transparently allocate more space as needed.
     ///
-    /// Since the low-level JNI interface has support for passing back a single local reference
-    /// from a local frame as special-case optimization, this alternative to `with_local_frame`
-    /// exposes that capability to return a local reference without needing to create a
-    /// temporary [`Global`].
+    /// If a frame can't be allocated with the requested capacity for local references, returns
+    /// `Err` with a pending `OutOfMemoryError`.
+    ///
+    /// Once this method returns, all references allocated in the frame are freed, except the one
+    /// that the function returns, which remains valid.
+    ///
+    /// Since the low-level JNI interface has support for passing back a single local reference from
+    /// a local frame as special-case optimization, this alternative to `with_local_frame` exposes
+    /// that capability to return a local reference without needing to create a temporary
+    /// [`Global`].
     pub fn with_local_frame_returning_local<F, T, E>(
         &mut self,
         capacity: usize,
@@ -1846,6 +1896,43 @@ See the jni-rs Env documentation for more details.
             };
 
             resume_unwind(panic_payload);
+        }
+    }
+
+    /// Runs a closure with a mutable [`Env`] associated with the top local reference frame.
+    ///
+    /// Unlike [`Self::with_local_frame()`], this API does not push a new JNI stack frame and so new
+    /// local references created in the closure will be associated with the existing local reference
+    /// frame at the top of the stack.
+    ///
+    /// Most of the time this API should probably be avoided (see [`Self::with_local_frame`]).
+    ///
+    /// Only use if:
+    /// - You're sure your code won't leak local references into the current stack frame.
+    /// - OR, you're sure that the leaked references are acceptable because you know when the top
+    ///   frame will unwind and release those references.
+    ///
+    /// This will have a slightly lower overhead than [`Self::with_local_frame()`] (since it doesn't
+    /// need to push/pop a JNI stack frame), but the trade off is that you may leak local references
+    /// into the top stack frame.
+    ///
+    /// Keep in mind that deleting local references individually is likely to have a higher cost
+    /// than pushing/popping a JNI stack frame, so you should probably only use this API if you're
+    /// OK with leaking a small number of local references into the top frame and waiting for it to
+    /// unwind.
+    ///
+    /// # Runtime Top Frame Checks
+    ///
+    /// See top-level [Env] documentation for rules on limiting yourself to one [Env] reference
+    /// per-scope to avoid exposing code to runtime checks for the top JNI frame (that can panic).
+    pub fn with_top_local_frame<F, T, E>(&self, f: F) -> std::result::Result<T, E>
+    where
+        F: FnOnce(&mut Env) -> std::result::Result<T, E>,
+        E: From<Error>,
+    {
+        unsafe {
+            let mut guard = AttachGuard::from_unowned(self.get_raw());
+            f(guard.borrow_env_mut())
         }
     }
 
@@ -3719,7 +3806,7 @@ See the jni-rs Env documentation for more details.
 
         // Panic: The `&self` reference is enough to prove that `JavaVM::singleton` must have been
         // initialized and won't panic.
-        JavaVM::singleton()?.with_env(|env| {
+        self.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
             let obj = obj.as_ref();
             let class = env.get_object_class(obj)?;
             let field_id: JFieldID = Desc::<JFieldID>::lookup((&class, &field, c"J"), env)?;
@@ -3785,9 +3872,7 @@ See the jni-rs Env documentation for more details.
         // `jlong` field and since we have already looked up the field ID then we also know that
         // get_field_unchecked and set_field_unchecked don't need to create any local references.
 
-        // Panic: The `&self` reference is enough to prove that `JavaVM::singleton` must have been
-        // initialized and won't panic.
-        JavaVM::singleton()?.with_env_current_frame(|env| {
+        self.with_top_local_frame(|env| {
             // Safety: the requirement that the given field must be a `long` is
             // documented in the 'Safety' section of this function
             unsafe {
@@ -3844,9 +3929,7 @@ See the jni-rs Env documentation for more details.
         // `jlong` field and since we have already looked up the field ID then we also know that
         // get_field_unchecked doesn't need to create any local references.
 
-        // Panic: The `&self` reference is enough to prove that `JavaVM::singleton` must have been
-        // initialized and won't panic.
-        JavaVM::singleton()?.with_env_current_frame(|env| {
+        self.with_top_local_frame(|env| {
             // Safety: the requirement that the given field must be a `long` is
             // documented in the 'Safety' section of this function
             unsafe {
@@ -3888,9 +3971,7 @@ See the jni-rs Env documentation for more details.
         // `jlong` field and since we have already looked up the field ID then we also know that
         // get_field_unchecked doesn't need to create any local references.
 
-        // Panic: The `&self` reference is enough to prove that `JavaVM::singleton` must have been
-        // initialized and won't panic.
-        JavaVM::singleton()?.with_env_current_frame(|env| {
+        self.with_top_local_frame(|env| {
             // Safety: the requirement that the given field must be a `long` is
             // documented in the 'Safety' section of this function
             let mbox = unsafe {
@@ -4412,7 +4493,7 @@ impl Drop for MonitorGuard<'_> {
         // is dropped.
         JavaVM::singleton()
             .expect("JavaVM singleton must be initialized")
-            .with_env_current_frame(|env| -> crate::errors::Result<()> {
+            .with_top_local_frame(|env| -> crate::errors::Result<()> {
                 // Safety:
                 //
                 // This relies on `MonitorGuard` not being `Send` to maintain the

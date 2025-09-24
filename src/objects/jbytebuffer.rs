@@ -7,7 +7,7 @@ use crate::{
     objects::{Global, JClass, JObject, LoaderContext, Reference},
     strings::JNIStr,
     sys::jobject,
-    Env,
+    Env, DEFAULT_LOCAL_FRAME_CAPACITY,
 };
 
 #[cfg(doc)]
@@ -59,8 +59,7 @@ impl JByteBufferAPI {
     ) -> Result<&'static Self> {
         static JBYTEBUFFER_API: OnceCell<JByteBufferAPI> = OnceCell::new();
         JBYTEBUFFER_API.get_or_try_init(|| {
-            let vm = env.get_java_vm();
-            vm.with_env_current_frame(|env| {
+            env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
                 let class = loader_context.load_class_for_type::<JByteBuffer>(false, env)?;
                 let class = env.new_global_ref(&class).unwrap();
                 Ok(Self { class })

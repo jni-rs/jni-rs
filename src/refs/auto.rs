@@ -215,9 +215,9 @@ where
             // Panic:
             //
             // Since we have a non-null local reference associated with a JNI stack frame lifetime
-            // we know that the thread is attached and so `with_env_current_frame()` can't return an
+            // we know that the thread is attached and so `with_top_local_frame()` can't return an
             // error.
-            vm.with_env_current_frame(|env| -> errors::Result<()> {
+            vm.with_top_local_frame(|env| -> errors::Result<()> {
                 env.delete_local_ref(obj);
                 Ok(())
             })
