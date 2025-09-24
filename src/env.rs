@@ -370,7 +370,20 @@ impl<'local> Env<'local> {
     pub fn assert_top(&self) {
         // Runtime check that the 'local reference lifetime will be tied to
         // Env lifetime for the top JNI stack frame
-        assert_eq!(self.level, JavaVM::thread_attach_guard_level());
+        assert_eq!(
+            self.level,
+            JavaVM::thread_attach_guard_level(),
+            r#" jni runtime check failure: attempt to create a new local reference using an Env<'not_top> that is not associated with the top JNI stack frame.
+
+This implies that there is more than one mutable Env in scope.
+
+This should only be possible by misusing APIs like JavaVM::attach_current_thread or Env::with_local_frame to materialize a mutable Env when there is already one in scope.
+
+To fix this, ensure that you only ever have one mutable Env in scope at a time, which is associated with the top JNI stack frame.
+
+See the jni-rs Env documentation for more details.
+"#
+        );
     }
 
     /// Returns true if this [`Env`] is associated with a scoped attachment that
