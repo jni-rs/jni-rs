@@ -3816,10 +3816,10 @@ See the jni-rs Env documentation for more details.
     /// lock on the given object so the field can be updated without racing
     /// with other Java threads
     fn lock_rust_field<'other_local, O, S>(
-        &'_ self,
+        &self,
         obj: O,
         field: S,
-    ) -> Result<(MonitorGuard<'_>, JFieldID)>
+    ) -> Result<(MonitorGuard<'local>, JFieldID)>
     where
         O: AsRef<JObject<'other_local>>,
         S: AsRef<JNIStr>,
@@ -3836,8 +3836,6 @@ See the jni-rs Env documentation for more details.
         // (which we don't want to leak), we push a new stack frame that we can get a mutable
         // reference for.
 
-        // Panic: The `&self` reference is enough to prove that `JavaVM::singleton` must have been
-        // initialized and won't panic.
         self.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
             let obj = obj.as_ref();
             let class = env.get_object_class(obj)?;
@@ -3944,10 +3942,10 @@ See the jni-rs Env documentation for more details.
     /// pointer that was set via `set_rust_field` and will lead to undefined
     /// behaviour if that is not true.
     pub unsafe fn get_rust_field<'other_local, O, S, T>(
-        &'_ self,
+        &self,
         obj: O,
         field: S,
-    ) -> Result<MutexGuard<'_, T>>
+    ) -> Result<MutexGuard<'local, T>>
     where
         O: AsRef<JObject<'other_local>>,
         S: AsRef<JNIStr>,
