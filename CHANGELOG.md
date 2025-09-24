@@ -134,6 +134,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `get/set_*_field_unchecked` have been marked as unsafe since they can lead to undefined behaviour if the given types don't match the field type ([#457](https://github.com/jni-rs/jni-rs/pull/457) + [#629](https://github.com/jni-rs/jni-rs/pull/629))
 - `set_static_field` takes a field name and signature as strings so the ID is looked up internally to ensure it's valid. ([#629](https://github.com/jni-rs/jni-rs/pull/629))
 - `Env::get/set/take_rust_field` no longer require a mutable `Env` reference since they don't return any new local references to the caller ([#455](https://github.com/jni-rs/jni-rs/issues/455))
+- `Env::get_rust_field` returns a `MutexGuard<'local>` instead of taking the `&'env self` lifetime (so you don't lose any `&mut Env` reference you have) ([#675](https://github.com/jni-rs/jni-rs/pull/675))
 - `Env::is_assignable_from` and `is_instance_of` no longer requires a mutable `Env` reference, since they doesn't return any new local references to the caller
 - `JavaStr` has been renamed `MUTF8Chars` (with a deprecated `JavaStr` alias) and is intended to be got via `JString::mutf8_chars()`
 - `JavaStr/MUTF8Chars::from_env` has been removed because it was unsound (it could cause undefined behavior and was not marked `unsafe`). Use `JString::mutf8_chars` instead. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
