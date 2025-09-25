@@ -1,6 +1,3 @@
-use jni_sys::jobject;
-use once_cell::sync::OnceCell;
-
 use crate::{
     errors::*,
     objects::{
@@ -8,47 +5,11 @@ use crate::{
         Reference,
     },
     signature::{Primitive, ReturnType},
-    strings::JNIStr,
     sys::jint,
-    Env, DEFAULT_LOCAL_FRAME_CAPACITY,
+    Env,
 };
 
 use std::{borrow::Cow, ops::Deref};
-
-/// A `java.util.List` wrapper that is tied to a JNI local reference frame.
-///
-/// See the [`JObject`] documentation for more information about reference
-/// wrappers, how to cast them, and local reference frame lifetimes.
-///
-#[repr(transparent)]
-#[derive(Debug, Default)]
-pub struct JList<'local>(JObject<'local>);
-
-impl<'local> AsRef<JList<'local>> for JList<'local> {
-    fn as_ref(&self) -> &JList<'local> {
-        self
-    }
-}
-
-impl<'local> AsRef<JObject<'local>> for JList<'local> {
-    fn as_ref(&self) -> &JObject<'local> {
-        self
-    }
-}
-
-impl<'local> ::std::ops::Deref for JList<'local> {
-    type Target = JObject<'local>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<'local> From<JList<'local>> for JObject<'local> {
-    fn from(other: JList<'local>) -> JObject<'local> {
-        other.0
-    }
-}
 
 impl<'local> From<JList<'local>> for JCollection<'local> {
     fn from(other: JList<'local>) -> JCollection<'local> {
@@ -64,82 +25,25 @@ struct JListAPI {
     remove_method: JMethodID,
 }
 
-impl JListAPI {
-    fn get<'any_local>(
-        env: &Env<'_>,
-        loader_context: &LoaderContext<'any_local, '_>,
-    ) -> Result<&'static Self> {
-        static JLIST_API: OnceCell<JListAPI> = OnceCell::new();
-        JLIST_API.get_or_try_init(|| {
-            env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
-                let class = loader_context.load_class_for_type::<JList>(true, env)?;
-                let class = env.new_global_ref(&class).unwrap();
+crate::define_reference_type!(
+    JList,
+    "java.util.List",
+    |env: &mut Env, loader_context: &LoaderContext| {
+        let class = loader_context.load_class_for_type::<JList>(true, env)?;
+        let get_method = env.get_method_id(&class, c"get", c"(I)Ljava/lang/Object;")?;
+        let add_idx_method = env.get_method_id(&class, c"add", c"(ILjava/lang/Object;)V")?;
+        let remove_method = env.get_method_id(&class, c"remove", c"(I)Ljava/lang/Object;")?;
 
-                let get_method = env.get_method_id(&class, c"get", c"(I)Ljava/lang/Object;")?;
-                let add_idx_method =
-                    env.get_method_id(&class, c"add", c"(ILjava/lang/Object;)V")?;
-                let remove_method =
-                    env.get_method_id(&class, c"remove", c"(I)Ljava/lang/Object;")?;
-
-                Ok(Self {
-                    class,
-                    get_method,
-                    add_idx_method,
-                    remove_method,
-                })
-            })
+        Ok(Self {
+            class: env.new_global_ref(&class)?,
+            get_method,
+            add_idx_method,
+            remove_method,
         })
     }
-}
+);
 
 impl<'local> JList<'local> {
-    /// Creates a [`JList`] that wraps the given `raw` [`jobject`]
-    ///
-    /// # Safety
-    ///
-    /// - `raw` must be a valid raw JNI local reference (or `null`).
-    /// - `raw` must be an instance of `java.util.List`.
-    /// - There must not be any other owning [`Reference`] wrapper for the same reference.
-    /// - The local reference must belong to the current thread and not outlive the
-    ///   JNI stack frame associated with the [Env] `'env_local` lifetime.
-    pub unsafe fn from_raw<'env_local>(env: &Env<'env_local>, raw: jobject) -> JList<'env_local> {
-        JList(JObject::from_raw(env, raw))
-    }
-
-    /// Creates a new null reference.
-    ///
-    /// Null references are always valid and do not belong to a local reference frame. Therefore,
-    /// the returned `JList` always has the `'static` lifetime.
-    pub const fn null() -> JList<'static> {
-        JList(JObject::null())
-    }
-
-    /// Unwrap to the raw jni type.
-    pub const fn into_raw(self) -> jobject {
-        self.0.into_raw()
-    }
-
-    /// Cast a local reference to a [`JList`]
-    ///
-    /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.util.List`.
-    ///
-    /// Also see these other options for casting local or global references to a [`JList`]:
-    /// - [Env::as_cast]
-    /// - [Env::new_cast_local_ref]
-    /// - [Env::cast_local]
-    /// - [Env::new_cast_global_ref]
-    /// - [Env::cast_global]
-    ///
-    /// # Errors
-    ///
-    /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
-    pub fn cast_local<'any_local>(
-        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
-        env: &mut Env<'_>,
-    ) -> Result<JList<'any_local>> {
-        env.cast_local::<JList>(obj)
-    }
-
     /// Cast a local reference to a `JList`
     ///
     /// See [`JList::cast_local`] for more information.
@@ -326,35 +230,5 @@ impl<'local> JList<'local> {
     /// the local references at once.
     pub fn iter<'env_local>(&self, env: &mut Env<'env_local>) -> Result<JIterator<'env_local>> {
         self.as_collection().iterator(env)
-    }
-}
-
-// SAFETY: JList is a transparent JObject wrapper with no Drop side effects
-unsafe impl Reference for JList<'_> {
-    type Kind<'env> = JList<'env>;
-    type GlobalKind = JList<'static>;
-
-    fn as_raw(&self) -> jobject {
-        self.0.as_raw()
-    }
-
-    fn class_name() -> Cow<'static, JNIStr> {
-        Cow::Borrowed(JNIStr::from_cstr(c"java.util.List"))
-    }
-
-    fn lookup_class<'caller>(
-        env: &Env<'_>,
-        loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'caller> {
-        let api = JListAPI::get(env, &loader_context)?;
-        Ok(&api.class)
-    }
-
-    unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        JList(JObject::kind_from_raw(local_ref))
-    }
-
-    unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
-        JList(JObject::global_kind_from_raw(global_ref))
     }
 }

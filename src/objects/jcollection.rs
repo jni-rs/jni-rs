@@ -1,56 +1,14 @@
 use std::{borrow::Cow, ops::Deref};
 
-use once_cell::sync::OnceCell;
-
 use crate::{
     env::Env,
     errors::Result,
     objects::{Global, JClass, JIterator, JMethodID, JObject, JValue, LoaderContext},
     signature::{Primitive, ReturnType},
-    strings::JNIStr,
-    sys::jobject,
-    DEFAULT_LOCAL_FRAME_CAPACITY,
 };
-
-use super::Reference;
 
 #[cfg(doc)]
 use crate::errors::Error;
-
-/// A `java.util.Collection` wrapper that is tied to a JNI local reference frame.
-///
-/// See the [`JObject`] documentation for more information about reference
-/// wrappers, how to cast them, and local reference frame lifetimes.
-///
-#[repr(transparent)]
-#[derive(Debug, Default)]
-pub struct JCollection<'local>(JObject<'local>);
-
-impl<'local> AsRef<JCollection<'local>> for JCollection<'local> {
-    fn as_ref(&self) -> &JCollection<'local> {
-        self
-    }
-}
-
-impl<'local> AsRef<JObject<'local>> for JCollection<'local> {
-    fn as_ref(&self) -> &JObject<'local> {
-        self
-    }
-}
-
-impl<'local> ::std::ops::Deref for JCollection<'local> {
-    type Target = JObject<'local>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<'local> From<JCollection<'local>> for JObject<'local> {
-    fn from(other: JCollection<'local>) -> JObject<'local> {
-        other.0
-    }
-}
 
 struct JCollectionAPI {
     class: Global<JClass<'static>>,
@@ -63,91 +21,33 @@ struct JCollectionAPI {
     iterator_method: JMethodID,
 }
 
-impl JCollectionAPI {
-    fn get<'any_local>(
-        env: &Env<'_>,
-        loader_context: &LoaderContext<'any_local, '_>,
-    ) -> Result<&'static Self> {
-        static JCOLLECTION_API: OnceCell<JCollectionAPI> = OnceCell::new();
-        JCOLLECTION_API.get_or_try_init(|| {
-            env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
-                let class = loader_context.load_class_for_type::<JCollection>(true, env)?;
-                let class = env.new_global_ref(&class).unwrap();
+crate::define_reference_type!(
+    JCollection,
+    "java.util.Collection",
+    |env: &mut Env, loader_context: &LoaderContext| {
+        let class = loader_context.load_class_for_type::<JCollection>(true, env)?;
+        let add_method = env.get_method_id(&class, c"add", c"(Ljava/lang/Object;)Z")?;
+        let remove_method = env.get_method_id(&class, c"remove", c"(Ljava/lang/Object;)Z")?;
+        let clear_method = env.get_method_id(&class, c"clear", c"()V")?;
+        let contains_method = env.get_method_id(&class, c"contains", c"(Ljava/lang/Object;)Z")?;
+        let size_method = env.get_method_id(&class, c"size", c"()I")?;
+        let is_empty_method = env.get_method_id(&class, c"isEmpty", c"()Z")?;
+        let iterator_method = env.get_method_id(&class, c"iterator", c"()Ljava/util/Iterator;")?;
 
-                let add_method = env.get_method_id(&class, c"add", c"(Ljava/lang/Object;)Z")?;
-                let remove_method =
-                    env.get_method_id(&class, c"remove", c"(Ljava/lang/Object;)Z")?;
-                let clear_method = env.get_method_id(&class, c"clear", c"()V")?;
-                let contains_method =
-                    env.get_method_id(&class, c"contains", c"(Ljava/lang/Object;)Z")?;
-                let size_method = env.get_method_id(&class, c"size", c"()I")?;
-                let is_empty_method = env.get_method_id(&class, c"isEmpty", c"()Z")?;
-                let iterator_method =
-                    env.get_method_id(&class, c"iterator", c"()Ljava/util/Iterator;")?;
-
-                Ok(Self {
-                    class,
-                    add_method,
-                    remove_method,
-                    clear_method,
-                    contains_method,
-                    size_method,
-                    is_empty_method,
-                    iterator_method,
-                })
-            })
+        Ok(Self {
+            class: env.new_global_ref(&class)?,
+            add_method,
+            remove_method,
+            clear_method,
+            contains_method,
+            size_method,
+            is_empty_method,
+            iterator_method,
         })
     }
-}
+);
 
 impl JCollection<'_> {
-    /// Creates a [`JCollection`] that wraps the given `raw` [`jobject`]
-    ///
-    /// # Safety
-    ///
-    /// - `raw` must be a valid raw JNI local reference (or `null`).
-    /// - `raw` must be an instance of `java.util.Collection`.
-    /// - There must not be any other owning [`Reference`] wrapper for the same reference.
-    /// - The local reference must belong to the current thread and not outlive the
-    ///   JNI stack frame associated with the [Env] `'local` lifetime.
-    pub unsafe fn from_raw<'local>(env: &Env<'local>, raw: jobject) -> JCollection<'local> {
-        JCollection(JObject::from_raw(env, raw))
-    }
-
-    /// Creates a new null reference.
-    ///
-    /// Null references are always valid and do not belong to a local reference frame. Therefore,
-    /// the returned `JCollection` always has the `'static` lifetime.
-    pub const fn null() -> JCollection<'static> {
-        JCollection(JObject::null())
-    }
-
-    /// Unwrap to the raw jni type.
-    pub const fn into_raw(self) -> jobject {
-        self.0.into_raw()
-    }
-
-    /// Cast a local reference to a [`JCollection`]
-    ///
-    /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.util.Collection`.
-    ///
-    /// Also see these other options for casting local or global references to a [`JCollection`]:
-    /// - [Env::as_cast]
-    /// - [Env::new_cast_local_ref]
-    /// - [Env::cast_local]
-    /// - [Env::new_cast_global_ref]
-    /// - [Env::cast_global]
-    ///
-    /// # Errors
-    ///
-    /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
-    pub fn cast_local<'any_local>(
-        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
-        env: &mut Env<'_>,
-    ) -> Result<JCollection<'any_local>> {
-        env.cast_local::<JCollection>(obj)
-    }
-
     /// Adds the given element to this set if it is not already present
     ///
     /// Returns `true` if the collection was modified. Returns false if the collection already contains the element and
@@ -281,35 +181,5 @@ impl JCollection<'_> {
                 .l()?;
             Ok(JIterator::from_raw(env, iterator.into_raw()))
         }
-    }
-}
-
-// SAFETY: JCollection is a transparent JObject wrapper with no Drop side effects
-unsafe impl Reference for JCollection<'_> {
-    type Kind<'env> = JCollection<'env>;
-    type GlobalKind = JCollection<'static>;
-
-    fn as_raw(&self) -> jobject {
-        self.0.as_raw()
-    }
-
-    fn class_name() -> Cow<'static, JNIStr> {
-        Cow::Borrowed(JNIStr::from_cstr(c"java.util.Collection"))
-    }
-
-    fn lookup_class<'caller>(
-        env: &Env<'_>,
-        loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'caller> {
-        let api = JCollectionAPI::get(env, &loader_context)?;
-        Ok(&api.class)
-    }
-
-    unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        JCollection(JObject::kind_from_raw(local_ref))
-    }
-
-    unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
-        JCollection(JObject::global_kind_from_raw(global_ref))
     }
 }

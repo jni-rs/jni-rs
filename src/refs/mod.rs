@@ -14,3 +14,5 @@ pub use weak::*;
 // For automatic local ref deletion
 mod auto;
 pub use auto::*;
+
+mod macros;

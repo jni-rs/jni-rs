@@ -1,52 +1,13 @@
-use jni_sys::jobject;
-use once_cell::sync::OnceCell;
-
 use crate::{
     errors::*,
     objects::{
         Global, JClass, JIterator, JMethodID, JObject, JSet, JValue, LoaderContext, Reference,
     },
     signature::{Primitive, ReturnType},
-    strings::JNIStr,
-    Env, DEFAULT_LOCAL_FRAME_CAPACITY,
+    Env,
 };
 
 use std::{borrow::Cow, ops::Deref};
-
-/// A `java.util.Map` wrapper that is tied to a JNI local reference frame.
-///
-/// See the [`JObject`] documentation for more information about reference
-/// wrappers, how to cast them, and local reference frame lifetimes.
-///
-#[repr(transparent)]
-#[derive(Debug, Default)]
-pub struct JMap<'local>(JObject<'local>);
-
-impl<'local> AsRef<JMap<'local>> for JMap<'local> {
-    fn as_ref(&self) -> &JMap<'local> {
-        self
-    }
-}
-
-impl<'local> AsRef<JObject<'local>> for JMap<'local> {
-    fn as_ref(&self) -> &JObject<'local> {
-        self
-    }
-}
-
-impl<'local> ::std::ops::Deref for JMap<'local> {
-    type Target = JObject<'local>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<'local> From<JMap<'local>> for JObject<'local> {
-    fn from(other: JMap<'local>) -> JObject<'local> {
-        other.0
-    }
-}
 
 struct JMapAPI {
     class: Global<JClass<'static>>,
@@ -56,92 +17,35 @@ struct JMapAPI {
     entry_set_method: JMethodID,
 }
 
-impl JMapAPI {
-    fn get<'any_local>(
-        env: &Env<'_>,
-        loader_context: &LoaderContext<'any_local, '_>,
-    ) -> Result<&'static Self> {
-        static JMAP_API: OnceCell<JMapAPI> = OnceCell::new();
-        JMAP_API.get_or_try_init(|| {
-            env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
-                let class = loader_context.load_class_for_type::<JMap>(true, env)?;
-                let class = env.new_global_ref(&class).unwrap();
+crate::define_reference_type!(
+    JMap,
+    "java.util.Map",
+    |env: &mut Env, loader_context: &LoaderContext| {
+        let class = loader_context.load_class_for_type::<JMap>(true, env)?;
+        let class = env.new_global_ref(&class).unwrap();
 
-                let get_method =
-                    env.get_method_id(&class, c"get", c"(Ljava/lang/Object;)Ljava/lang/Object;")?;
-                let put_method = env.get_method_id(
-                    &class,
-                    c"put",
-                    c"(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
-                )?;
-                let remove_method = env.get_method_id(
-                    &class,
-                    c"remove",
-                    c"(Ljava/lang/Object;)Ljava/lang/Object;",
-                )?;
-                let entry_set_method =
-                    env.get_method_id(&class, c"entrySet", c"()Ljava/util/Set;")?;
+        let get_method =
+            env.get_method_id(&class, c"get", c"(Ljava/lang/Object;)Ljava/lang/Object;")?;
+        let put_method = env.get_method_id(
+            &class,
+            c"put",
+            c"(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
+        )?;
+        let remove_method =
+            env.get_method_id(&class, c"remove", c"(Ljava/lang/Object;)Ljava/lang/Object;")?;
+        let entry_set_method = env.get_method_id(&class, c"entrySet", c"()Ljava/util/Set;")?;
 
-                Ok(Self {
-                    class,
-                    get_method,
-                    put_method,
-                    remove_method,
-                    entry_set_method,
-                })
-            })
+        Ok(Self {
+            class,
+            get_method,
+            put_method,
+            remove_method,
+            entry_set_method,
         })
     }
-}
+);
 
 impl<'local> JMap<'local> {
-    /// Creates a [`JMap`] that wraps the given `raw` [`jobject`]
-    ///
-    /// # Safety
-    ///
-    /// - `raw` must be a valid raw JNI local reference (or `null`).
-    /// - `raw` must be an instance of `java.util.Map`.
-    /// - There must not be any other owning [`Reference`] wrapper for the same reference.
-    /// - The local reference must belong to the current thread and not outlive the
-    ///   JNI stack frame associated with the [Env] `'env_local` lifetime.
-    pub unsafe fn from_raw<'env_local>(env: &Env<'env_local>, raw: jobject) -> JMap<'env_local> {
-        JMap(JObject::from_raw(env, raw))
-    }
-
-    /// Creates a new null reference.
-    ///
-    /// Null references are always valid and do not belong to a local reference frame. Therefore,
-    /// the returned `JMap` always has the `'static` lifetime.
-    pub const fn null() -> JMap<'static> {
-        JMap(JObject::null())
-    }
-
-    /// Unwrap to the raw jni type.
-    pub const fn into_raw(self) -> jobject {
-        self.0.into_raw()
-    }
-
-    /// Cast a local reference to a [`JMap`]
-    ///
-    /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.util.Map`.
-    ///
-    /// Also see these other options for casting local or global references to a [`JMap`]:
-    /// - [Env::as_cast]
-    /// - [Env::new_cast_local_ref]
-    /// - [Env::cast_local]
-    /// - [Env::new_cast_global_ref]
-    /// - [Env::cast_global]
-    ///
-    /// # Errors
-    ///
-    /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
-    pub fn cast_local<'any_local>(
-        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
-        env: &mut Env<'_>,
-    ) -> Result<JMap<'any_local>> {
-        env.cast_local::<JMap>(obj)
-    }
-
     /// Cast a local reference to a `JMap`
     ///
     /// See [`JMap::cast_local`] for more information.
@@ -297,71 +201,6 @@ impl<'local> JMap<'local> {
     }
 }
 
-// SAFETY: JMap is a transparent JObject wrapper with no Drop side effects
-unsafe impl Reference for JMap<'_> {
-    type Kind<'env> = JMap<'env>;
-    type GlobalKind = JMap<'static>;
-
-    fn as_raw(&self) -> jobject {
-        self.0.as_raw()
-    }
-
-    fn class_name() -> Cow<'static, JNIStr> {
-        Cow::Borrowed(JNIStr::from_cstr(c"java.util.Map"))
-    }
-
-    fn lookup_class<'caller>(
-        env: &Env<'_>,
-        loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'caller> {
-        let api = JMapAPI::get(env, &loader_context)?;
-        Ok(&api.class)
-    }
-
-    unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        JMap(JObject::kind_from_raw(local_ref))
-    }
-
-    unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
-        JMap(JObject::global_kind_from_raw(global_ref))
-    }
-}
-
-/// A `java.util.Map.Entry` wrapper that is tied to a JNI local reference frame.
-///
-/// See the [`JObject`] documentation for more information about reference
-/// wrappers, how to cast them, and local reference frame lifetimes.
-///
-#[repr(transparent)]
-#[derive(Debug, Default)]
-pub struct JMapEntry<'local>(JObject<'local>);
-
-impl<'local> AsRef<JMapEntry<'local>> for JMapEntry<'local> {
-    fn as_ref(&self) -> &JMapEntry<'local> {
-        self
-    }
-}
-
-impl<'local> AsRef<JObject<'local>> for JMapEntry<'local> {
-    fn as_ref(&self) -> &JObject<'local> {
-        self
-    }
-}
-
-impl<'local> ::std::ops::Deref for JMapEntry<'local> {
-    type Target = JObject<'local>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<'local> From<JMapEntry<'local>> for JObject<'local> {
-    fn from(other: JMapEntry<'local>) -> JObject<'local> {
-        other.0
-    }
-}
-
 struct JMapEntryAPI {
     class: Global<JClass<'static>>,
     get_key_method: JMethodID,
@@ -369,88 +208,31 @@ struct JMapEntryAPI {
     set_value_method: JMethodID,
 }
 
-impl JMapEntryAPI {
-    fn get<'any_local>(
-        env: &Env<'_>,
-        loader_context: &LoaderContext<'any_local, '_>,
-    ) -> Result<&'static Self> {
-        static JMAPENTRY_API: OnceCell<JMapEntryAPI> = OnceCell::new();
-        JMAPENTRY_API.get_or_try_init(|| {
-            env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
-                let class = loader_context.load_class_for_type::<JMapEntry>(true, env)?;
-                let class = env.new_global_ref(&class).unwrap();
+crate::define_reference_type!(
+    JMapEntry,
+    "java.util.Map$Entry",
+    |env: &mut Env, loader_context: &LoaderContext| {
+        let class = loader_context.load_class_for_type::<JMapEntry>(true, env)?;
+        let class = env.new_global_ref(&class).unwrap();
 
-                let get_key_method =
-                    env.get_method_id(&class, c"getKey", c"()Ljava/lang/Object;")?;
-                let get_value_method =
-                    env.get_method_id(&class, c"getValue", c"()Ljava/lang/Object;")?;
-                let set_value_method = env.get_method_id(
-                    &class,
-                    c"setValue",
-                    c"(Ljava/lang/Object;)Ljava/lang/Object;",
-                )?;
-                Ok(Self {
-                    class,
-                    get_key_method,
-                    get_value_method,
-                    set_value_method,
-                })
-            })
+        let get_key_method = env.get_method_id(&class, c"getKey", c"()Ljava/lang/Object;")?;
+        let get_value_method = env.get_method_id(&class, c"getValue", c"()Ljava/lang/Object;")?;
+        let set_value_method = env.get_method_id(
+            &class,
+            c"setValue",
+            c"(Ljava/lang/Object;)Ljava/lang/Object;",
+        )?;
+
+        Ok(Self {
+            class,
+            get_key_method,
+            get_value_method,
+            set_value_method,
         })
     }
-}
+);
 
 impl<'local> JMapEntry<'local> {
-    /// Creates a [`JMapEntry`] that wraps the given `raw` [`jobject`]
-    ///
-    /// # Safety
-    ///
-    /// - `raw` must be a valid raw JNI local reference (or `null`).
-    /// - `raw` must be an instance of `java.util.Map.Entry`.
-    /// - There must not be any other owning [`Reference`] wrapper for the same reference.
-    /// - The local reference must belong to the current thread and not outlive the
-    ///   JNI stack frame associated with the [Env] `'env_local` lifetime.
-    pub unsafe fn from_raw<'env_local>(
-        env: &Env<'env_local>,
-        raw: jobject,
-    ) -> JMapEntry<'env_local> {
-        JMapEntry(JObject::from_raw(env, raw))
-    }
-
-    /// Creates a new null reference.
-    ///
-    /// Null references are always valid and do not belong to a local reference frame. Therefore,
-    /// the returned `JMapEntry` always has the `'static` lifetime.
-    pub const fn null() -> JMapEntry<'static> {
-        JMapEntry(JObject::null())
-    }
-
-    /// Unwrap to the raw jni type.
-    pub const fn into_raw(self) -> jobject {
-        self.0.into_raw()
-    }
-
-    /// Cast a local reference to a [`JMapEntry`]
-    ///
-    /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.util.Map.Entry`.
-    ///
-    /// Also see these other options for casting local or global references to a [`JMapEntry`]:
-    /// - [Env::as_cast]
-    /// - [Env::new_cast_local_ref]
-    /// - [Env::cast_local]
-    /// - [Env::new_cast_global_ref]
-    /// - [Env::cast_global]
-    ///
-    /// # Errors
-    ///
-    /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
-    pub fn cast_local<'any_local>(
-        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
-        env: &mut Env<'_>,
-    ) -> Result<JMapEntry<'any_local>> {
-        env.cast_local::<JMapEntry>(obj)
-    }
-
     /// Get the key of the map entry by calling the `getKey` method.
     ///
     /// # Throws
@@ -501,36 +283,6 @@ impl<'local> JMapEntry<'local> {
             )?
             .l()
         }
-    }
-}
-
-// SAFETY: JMapEntry is a transparent JObject wrapper with no Drop side effects
-unsafe impl Reference for JMapEntry<'_> {
-    type Kind<'env> = JMapEntry<'env>;
-    type GlobalKind = JMapEntry<'static>;
-
-    fn as_raw(&self) -> jobject {
-        self.0.as_raw()
-    }
-
-    fn class_name() -> Cow<'static, JNIStr> {
-        Cow::Borrowed(JNIStr::from_cstr(c"java.util.Map$Entry"))
-    }
-
-    fn lookup_class<'caller>(
-        env: &Env<'_>,
-        loader_context: LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'caller> {
-        let api = JMapEntryAPI::get(env, &loader_context)?;
-        Ok(&api.class)
-    }
-
-    unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        JMapEntry(JObject::kind_from_raw(local_ref))
-    }
-
-    unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
-        JMapEntry(JObject::global_kind_from_raw(global_ref))
     }
 }
 

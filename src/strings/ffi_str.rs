@@ -92,7 +92,7 @@ impl AsRef<JNIStr> for CStr {
 impl PartialEq<JNIString> for &JNIStr {
     #[inline]
     fn eq(&self, other: &JNIString) -> bool {
-        &self.internal == other.internal.as_c_str()
+        self.internal == other.internal.as_c_str()
     }
 }
 

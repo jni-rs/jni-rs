@@ -95,7 +95,6 @@ impl JObjectAPI {
         static JOBJECT_API: OnceCell<JObjectAPI> = OnceCell::new();
         JOBJECT_API.get_or_try_init(|| {
             env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
-                // NB: Self::CLASS_NAME is a binary name with dots, not slashes
                 let class = env.find_class(JNIStr::from_cstr(c"java/lang/Object"))?;
                 let class = env.new_global_ref(class)?;
                 Ok(JObjectAPI { class })
