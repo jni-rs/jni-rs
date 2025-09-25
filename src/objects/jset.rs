@@ -1,9 +1,7 @@
-use std::{borrow::Cow, ops::Deref};
-
 use crate::{
     env::Env,
     errors::Result,
-    objects::{Cast, Global, JClass, JCollection, JIterator, JObject, LoaderContext},
+    objects::{Cast, Global, JClass, JCollection, JIterator, JObject},
 };
 
 use super::Reference as _;
@@ -23,12 +21,10 @@ struct JSetAPI {
 }
 
 crate::define_reference_type!(
-    JSet,
-    "java.util.Set",
-    |env: &mut Env, loader_context: &LoaderContext| {
-        let class = loader_context.load_class_for_type::<JSet>(true, env)?;
-        let class = env.new_global_ref(&class).unwrap();
-        Ok(Self { class })
+    type = JSet,
+    class = "java.util.Set",
+    init = |env, class| {
+        Ok(Self { class: env.new_global_ref(&class)? })
     }
 );
 

@@ -9,8 +9,6 @@ use crate::{
     Env,
 };
 
-use std::{borrow::Cow, ops::Deref};
-
 impl<'local> From<JList<'local>> for JCollection<'local> {
     fn from(other: JList<'local>) -> JCollection<'local> {
         // SAFETY: Any `java.lang.List` is also a `java.util.Collection`
@@ -26,19 +24,14 @@ struct JListAPI {
 }
 
 crate::define_reference_type!(
-    JList,
-    "java.util.List",
-    |env: &mut Env, loader_context: &LoaderContext| {
-        let class = loader_context.load_class_for_type::<JList>(true, env)?;
-        let get_method = env.get_method_id(&class, c"get", c"(I)Ljava/lang/Object;")?;
-        let add_idx_method = env.get_method_id(&class, c"add", c"(ILjava/lang/Object;)V")?;
-        let remove_method = env.get_method_id(&class, c"remove", c"(I)Ljava/lang/Object;")?;
-
+    type = JList,
+    class = "java.util.List",
+    init = |env, class| {
         Ok(Self {
-            class: env.new_global_ref(&class)?,
-            get_method,
-            add_idx_method,
-            remove_method,
+            class: env.new_global_ref(class)?,
+            get_method: env.get_method_id(class, c"get", c"(I)Ljava/lang/Object;")?,
+            add_idx_method: env.get_method_id(class, c"add", c"(ILjava/lang/Object;)V")?,
+            remove_method: env.get_method_id(class, c"remove", c"(I)Ljava/lang/Object;")?,
         })
     }
 );

@@ -1,5 +1,3 @@
-use std::{borrow::Cow, ops::Deref};
-
 use crate::{
     env::Env,
     errors::{Error, Result},
@@ -15,19 +13,14 @@ struct JIteratorAPI {
 }
 
 crate::define_reference_type!(
-    JIterator,
-    "java.util.Iterator",
-    |env: &mut Env, loader_context: &LoaderContext| {
-        let class = loader_context.load_class_for_type::<JIterator>(true, env)?;
-        let has_next_method = env.get_method_id(&class, c"hasNext", c"()Z")?;
-        let next_method = env.get_method_id(&class, c"next", c"()Ljava/lang/Object;")?;
-        let remove_method = env.get_method_id(&class, c"remove", c"()V")?;
-
+    type = JIterator,
+    class = "java.util.Iterator",
+    init = |env, class| {
         Ok(Self {
-            class: env.new_global_ref(&class)?,
-            has_next_method,
-            next_method,
-            remove_method,
+            class: env.new_global_ref(class)?,
+            has_next_method: env.get_method_id(class, c"hasNext", c"()Z")?,
+            next_method: env.get_method_id(class, c"next", c"()Ljava/lang/Object;")?,
+            remove_method: env.get_method_id(class, c"remove", c"()V")?,
         })
     }
 );

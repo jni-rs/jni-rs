@@ -7,7 +7,7 @@ use crate::{
     Env,
 };
 
-use std::{borrow::Cow, ops::Deref};
+use std::ops::Deref;
 
 struct JMapAPI {
     class: Global<JClass<'static>>,
@@ -18,29 +18,15 @@ struct JMapAPI {
 }
 
 crate::define_reference_type!(
-    JMap,
-    "java.util.Map",
-    |env: &mut Env, loader_context: &LoaderContext| {
-        let class = loader_context.load_class_for_type::<JMap>(true, env)?;
-        let class = env.new_global_ref(&class).unwrap();
-
-        let get_method =
-            env.get_method_id(&class, c"get", c"(Ljava/lang/Object;)Ljava/lang/Object;")?;
-        let put_method = env.get_method_id(
-            &class,
-            c"put",
-            c"(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
-        )?;
-        let remove_method =
-            env.get_method_id(&class, c"remove", c"(Ljava/lang/Object;)Ljava/lang/Object;")?;
-        let entry_set_method = env.get_method_id(&class, c"entrySet", c"()Ljava/util/Set;")?;
-
+    type = JMap,
+    class = "java.util.Map",
+    init = |env, class| {
         Ok(Self {
-            class,
-            get_method,
-            put_method,
-            remove_method,
-            entry_set_method,
+            class: env.new_global_ref(class)?,
+            get_method: env.get_method_id(class, c"get", c"(Ljava/lang/Object;)Ljava/lang/Object;")?,
+            put_method: env.get_method_id(class, c"put", c"(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;")?,
+            remove_method: env.get_method_id(class, c"remove", c"(Ljava/lang/Object;)Ljava/lang/Object;")?,
+            entry_set_method: env.get_method_id(class, c"entrySet", c"()Ljava/util/Set;")?,
         })
     }
 );
@@ -209,25 +195,18 @@ struct JMapEntryAPI {
 }
 
 crate::define_reference_type!(
-    JMapEntry,
-    "java.util.Map$Entry",
-    |env: &mut Env, loader_context: &LoaderContext| {
-        let class = loader_context.load_class_for_type::<JMapEntry>(true, env)?;
-        let class = env.new_global_ref(&class).unwrap();
-
-        let get_key_method = env.get_method_id(&class, c"getKey", c"()Ljava/lang/Object;")?;
-        let get_value_method = env.get_method_id(&class, c"getValue", c"()Ljava/lang/Object;")?;
-        let set_value_method = env.get_method_id(
-            &class,
-            c"setValue",
-            c"(Ljava/lang/Object;)Ljava/lang/Object;",
-        )?;
-
+    type = JMapEntry,
+    class = "java.util.Map$Entry",
+    init = |env, class| {
         Ok(Self {
-            class,
-            get_key_method,
-            get_value_method,
-            set_value_method,
+            class: env.new_global_ref(class)?,
+            get_key_method: env.get_method_id(class, c"getKey", c"()Ljava/lang/Object;")?,
+            get_value_method: env.get_method_id(class, c"getValue", c"()Ljava/lang/Object;")?,
+            set_value_method: env.get_method_id(
+                class,
+                c"setValue",
+                c"(Ljava/lang/Object;)Ljava/lang/Object;",
+            )?,
         })
     }
 );

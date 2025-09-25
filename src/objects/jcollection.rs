@@ -1,5 +1,3 @@
-use std::{borrow::Cow, ops::Deref};
-
 use crate::{
     env::Env,
     errors::Result,
@@ -22,27 +20,18 @@ struct JCollectionAPI {
 }
 
 crate::define_reference_type!(
-    JCollection,
-    "java.util.Collection",
-    |env: &mut Env, loader_context: &LoaderContext| {
-        let class = loader_context.load_class_for_type::<JCollection>(true, env)?;
-        let add_method = env.get_method_id(&class, c"add", c"(Ljava/lang/Object;)Z")?;
-        let remove_method = env.get_method_id(&class, c"remove", c"(Ljava/lang/Object;)Z")?;
-        let clear_method = env.get_method_id(&class, c"clear", c"()V")?;
-        let contains_method = env.get_method_id(&class, c"contains", c"(Ljava/lang/Object;)Z")?;
-        let size_method = env.get_method_id(&class, c"size", c"()I")?;
-        let is_empty_method = env.get_method_id(&class, c"isEmpty", c"()Z")?;
-        let iterator_method = env.get_method_id(&class, c"iterator", c"()Ljava/util/Iterator;")?;
-
+    type = JCollection,
+    class = "java.util.Collection",
+    init = |env, class| {
         Ok(Self {
-            class: env.new_global_ref(&class)?,
-            add_method,
-            remove_method,
-            clear_method,
-            contains_method,
-            size_method,
-            is_empty_method,
-            iterator_method,
+            class: env.new_global_ref(class)?,
+            add_method: env.get_method_id(class, c"add", c"(Ljava/lang/Object;)Z")?,
+            remove_method: env.get_method_id(class, c"remove", c"(Ljava/lang/Object;)Z")?,
+            clear_method: env.get_method_id(class, c"clear", c"()V")?,
+            contains_method: env.get_method_id(class, c"contains", c"(Ljava/lang/Object;)Z")?,
+            size_method: env.get_method_id(class, c"size", c"()I")?,
+            is_empty_method: env.get_method_id(class, c"isEmpty", c"()Z")?,
+            iterator_method: env.get_method_id(class, c"iterator", c"()Ljava/util/Iterator;")?,
         })
     }
 );

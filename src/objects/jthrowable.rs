@@ -1,5 +1,3 @@
-use std::{borrow::Cow, ops::Deref};
-
 use crate::{
     env::Env,
     errors::Result,
@@ -20,25 +18,15 @@ struct JThrowableAPI {
 }
 
 crate::define_reference_type!(
-    JThrowable,
-    "java.lang.Throwable",
-    |env: &mut Env, loader_context: &LoaderContext| {
-        let class = loader_context.load_class_for_type::<JThrowable>(true, env)?;
-        let class = env.new_global_ref(&class).unwrap();
-        let get_message_method =
-            env.get_method_id(&class, c"getMessage", c"()Ljava/lang/String;")?;
-        let get_cause_method =
-            env.get_method_id(&class, c"getCause", c"()Ljava/lang/Throwable;")?;
-        let get_stack_trace_method = env.get_method_id(
-            &class,
-            c"getStackTrace",
-            c"()[Ljava/lang/StackTraceElement;",
-        )?;
-        Ok(Self {
-            class,
-            get_message_method,
-            get_cause_method,
-            get_stack_trace_method,
+    type = JThrowable,
+    class = "java.lang.Throwable",
+    raw = jthrowable,
+    init = |env, class| {
+        Ok(JThrowableAPI {
+            class: env.new_global_ref(class)?,
+            get_message_method: env.get_method_id(class, c"getMessage", c"()Ljava/lang/String;")?,
+            get_cause_method: env.get_method_id(class, c"getCause", c"()Ljava/lang/Throwable;")?,
+            get_stack_trace_method: env.get_method_id(class, c"getStackTrace", c"()[Ljava/lang/StackTraceElement;")?,
         })
     }
 );

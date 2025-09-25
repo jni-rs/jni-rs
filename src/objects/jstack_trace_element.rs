@@ -1,5 +1,3 @@
-use std::{borrow::Cow, ops::Deref};
-
 use crate::{
     env::Env,
     errors::*,
@@ -19,28 +17,17 @@ struct JStackTraceElementAPI {
 }
 
 crate::define_reference_type!(
-    JStackTraceElement,
-    "java.lang.StackTraceElement",
-    |env: &mut Env, loader_context: &LoaderContext| {
-        let class = loader_context.load_class_for_type::<JStackTraceElement>(true, env)?;
-        let get_class_name_method =
-            env.get_method_id(&class, c"getClassName", c"()Ljava/lang/String;")?;
-        let get_file_name_method =
-            env.get_method_id(&class, c"getFileName", c"()Ljava/lang/String;")?;
-        let get_line_number_method = env.get_method_id(&class, c"getLineNumber", c"()I")?;
-        let get_method_name_method =
-            env.get_method_id(&class, c"getMethodName", c"()Ljava/lang/String;")?;
-        let is_native_method = env.get_method_id(&class, c"isNative", c"()Z")?;
-        let to_string_method = env.get_method_id(&class, c"toString", c"()Ljava/lang/String;")?;
-
+    type = JStackTraceElement,
+    class = "java.lang.StackTraceElement",
+    init = |env, class| {
         Ok(Self {
-            class: env.new_global_ref(&class)?,
-            get_class_name_method,
-            get_file_name_method,
-            get_line_number_method,
-            get_method_name_method,
-            is_native_method,
-            to_string_method,
+            class: env.new_global_ref(class)?,
+            get_class_name_method: env.get_method_id(class, c"getClassName", c"()Ljava/lang/String;")?,
+            get_file_name_method: env.get_method_id(class, c"getFileName", c"()Ljava/lang/String;")?,
+            get_line_number_method: env.get_method_id(class, c"getLineNumber", c"()I")?,
+            get_method_name_method: env.get_method_id(class, c"getMethodName", c"()Ljava/lang/String;")?,
+            is_native_method: env.get_method_id(class, c"isNative", c"()Z")?,
+            to_string_method: env.get_method_id(class, c"toString", c"()Ljava/lang/String;")?,
         })
     }
 );

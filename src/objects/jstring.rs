@@ -1,5 +1,3 @@
-use std::{borrow::Cow, ops::Deref};
-
 use thiserror::Error;
 
 use crate::{
@@ -98,14 +96,13 @@ struct JStringAPI {
 }
 
 crate::define_reference_type!(
-    JString,
-    "java.lang.String",
-    |env: &mut Env, loader_context: &LoaderContext| {
-        let class = loader_context.load_class_for_type::<JString>(true, env)?;
-        let intern_method = env.get_method_id(&class, c"intern", c"()Ljava/lang/String;")?;
+    type = JString,
+    class = "java.lang.String",
+    raw = jstring,
+    init = |env, class| {
         Ok(JStringAPI {
-            class: env.new_global_ref(&class)?,
-            intern_method,
+            class: env.new_global_ref(class)?,
+            intern_method: env.get_method_id(class, c"intern", c"()Ljava/lang/String;")?,
         })
     }
 );
