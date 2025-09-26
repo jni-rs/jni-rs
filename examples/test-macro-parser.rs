@@ -1,26 +1,127 @@
-//use crate::objects::JClass;
-//use crate::refs::LoaderContext;
-//use crate::Env;
+/// Standalone test for define_reference_type! macro parsing
+use std::ops::Deref;
 
-#[cfg(doc)]
-use crate::{objects::JObject, refs::Reference};
+#[derive(Default)]
+struct Env;
+#[allow(unused)]
+impl Env {
+    fn new_global_ref(&self, class: &JClass) -> Result<String, String> {
+        Ok(format!("global_ref::{}", class.name()))
+    }
+    fn get_method_id(&self, class: &JClass, _name: &str, _sig: &str) -> Result<String, String> {
+        Ok(format!("method_id::{}", class.name()))
+    }
+}
 
-/// Call the initializer through a shim to help with type inference.
+#[derive(Default)]
+struct LoaderContext;
+impl LoaderContext {
+    fn load_class_for_type(&self, _env: &mut Env) -> Result<String, String> {
+        Ok("loaded_class".to_string())
+    }
+}
+
+#[derive(Clone)]
+struct JClass(&'static str);
+
+impl JClass {
+    fn new(name: &'static str) -> Self {
+        Self(name)
+    }
+
+    fn name(&self) -> &'static str {
+        self.0
+    }
+}
+
+impl Deref for JClass {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.0
+    }
+}
+
+fn call_init<F, R>(init: F, env: &mut Env, class: &JClass) -> Result<R, String>
+where
+    F: FnOnce(&mut Env, &JClass) -> Result<R, String>,
+{
+    init(env, class)
+}
+
+fn call_init_with_loader<F, R>(init: F, env: &mut Env, loader: &LoaderContext) -> Result<R, String>
+where
+    F: FnOnce(&mut Env, &LoaderContext) -> Result<R, String>,
+{
+    init(env, loader)
+}
+
+// Dummy name mappings for testing that avoids paste crate dependency
 #[doc(hidden)]
 #[macro_export]
-macro_rules! __drt__expand_init {
-    ($Type:ident, $env:ident, $loader:ident, __drt__InitKindEnvClass, $Init:expr) => {{
-        let class = $loader.load_class_for_type::<$Type>(true, $env)?;
-        Self::call_init($env, &class, $Init)
-    }};
-    ($Type:ident, $env:ident, $loader:ident, __drt__InitKindLoader, $Init:expr) => {
-        Self::call_init_with_loader($env, $loader, $Init)
+macro_rules! __drt__with_api_ident {
+    (__auto_api, Test0, $callback:ident $(, $args:tt)*) => {
+        $callback!(Test0API $(, $args)*)
+    };
+    (__auto_api, Test1, $callback:ident $(, $args:tt)*) => {
+        $callback!(Test1API $(, $args)*)
+    };
+    (__auto_api, Test2, $callback:ident $(, $args:tt)*) => {
+        $callback!(Test2API $(, $args)*)
+    };
+    (__auto_api, Test3, $callback:ident $(, $args:tt)*) => {
+        $callback!(Test3API $(, $args)*)
+    };
+    (__auto_api, Test4, $callback:ident $(, $args:tt)*) => {
+        $callback!(Test4API $(, $args)*)
+    };
+    (__auto_api, Test5, $callback:ident $(, $args:tt)*) => {
+        $callback!(Test5API $(, $args)*)
+    };
+    (__auto_api, Test6, $callback:ident $(, $args:tt)*) => {
+        $callback!(Test6API $(, $args)*)
+    };
+    (__auto_api, Test7, $callback:ident $(, $args:tt)*) => {
+        $callback!(Test7API $(, $args)*)
+    };
+    (__auto_api, Test8, $callback:ident $(, $args:tt)*) => {
+        $callback!(Test8API $(, $args)*)
+    };
+    (__auto_api, JThrowable, $callback:ident $(, $args:tt)*) => {
+        $callback!(JThrowableAPI $(, $args)*)
+    };
+    (Custom0API, $Type:ident, $callback:ident $(, $args:tt)*) => {
+        $callback!(Custom0API $(, $args)*)
+    };
+    (Custom1API, $Type:ident, $callback:ident $(, $args:tt)*) => {
+        $callback!(Custom1API $(, $args)*)
+    };
+    ($Api:ident, $Type:ident, $callback:ident $(, $args:tt)*) => {
+        $callback!($Api $(, $args)*)
     };
 }
 
-/// The actual emitter, parameterized by the resolved API ident.
-#[doc(hidden)]
-#[macro_export]
+// Simplified emit macro that receives individual tokens (not named parameters)
+macro_rules! __drt__init_kind_report {
+    (__drt__InitKindEnvClass) => {
+        println!("Init kind: init");
+    };
+    (__drt__InitKindLoader) => {
+        println!("Init kind: init_with_loader");
+    };
+}
+
+macro_rules! __drt__call_init_kind {
+    (__drt__InitKindEnvClass, $Init:expr, $env:ident, $Class:expr) => {{
+        let class = JClass::new($Class);
+        call_init($Init, &mut $env, &class)
+    }};
+    (__drt__InitKindLoader, $Init:expr, $env:ident, $Class:expr) => {{
+        let loader = LoaderContext::default();
+        call_init_with_loader($Init, &mut $env, &loader)
+    }};
+}
+
 macro_rules! __drt__emit_with_api {
     (
         $ApiTy:ident,
@@ -36,209 +137,24 @@ macro_rules! __drt__emit_with_api {
         { $($Fields:tt)* },
         { $($StaticFields:tt)* } $(,)?
     ) => {
-        paste::paste!{
-            // ---------- API struct ----------
-            //pub(crate) struct $ApiTy {
-            //    class: $crate::refs::Global<$crate::objects::JClass<'static>>,
-            //    $( $Fields )*
-            //}
+        impl $ApiTy {
+            #[allow(unused)]
+            fn get() -> Self {
+                println!("Generated API for type: {}", stringify!($Type));
+                println!("Class: {}", $Class);
+                println!("Raw ident: {}", stringify!($RawIdent));
+                println!("Init tokens: {}", stringify!($Init));
+                println!("Aliases: [{}]", stringify!($($Aliases)*));
+                println!("Methods: {{ {} }}", stringify!($($Methods)*));
+                println!("Static methods: {{ {} }}", stringify!($($StaticMethods)*));
+                println!("Fields: {{ {} }}", stringify!($($Fields)*));
+                println!("Static fields: {{ {} }}", stringify!($($StaticFields)*));
 
-            impl $ApiTy {
-                #[allow(unused)]
-                fn call_init<F, R>(env: &mut $crate::Env, class: &JClass, init: F) -> R
-                where
-                    F: FnOnce(&mut $crate::Env, &JClass) -> R,
-                {
-                    init(env, class)
-                }
-
-                #[allow(unused)]
-                fn call_init_with_loader<F, R>(env: &mut $crate::Env, loader: &$crate::refs::LoaderContext, init: F) -> R
-                where
-                    F: FnOnce(&mut $crate::Env, &$crate::refs::LoaderContext) -> R,
-                {
-                    init(env, loader)
-                }
-
-                fn get<'any_local>(
-                    env: &$crate::Env<'_>,
-                    loader_context: &$crate::refs::LoaderContext<'any_local, '_>,
-                ) -> $crate::errors::Result<&'static Self> {
-                    static CELL: once_cell::sync::OnceCell<$ApiTy> = once_cell::sync::OnceCell::new();
-                    CELL.get_or_try_init(|| {
-                        env.with_local_frame($crate::DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
-                            $crate::__drt__expand_init!($Type,
-                                env,
-                                loader_context,
-                                $InitKind,
-                                $Init
-                            )
-                        })
-                    })
-                }
-            }
-
-            // ---------- Wrapper and impls (unchanged from your version) ----------
-            #[doc = concat!(r#"A `"#, $Class, r#"` wrapper that is tied to a JNI local reference frame.
-
-See the [`JObject`] documentation for more information about reference
-wrappers, how to cast them, and local reference frame lifetimes.
-
-[`JObject`]: $crate::objects::JObject
-"#)]
-            #[repr(transparent)]
-            #[derive(Debug, Default)]
-            pub struct $Type<'local>($crate::objects::JObject<'local>);
-
-            impl<'local> AsRef<$Type<'local>> for $Type<'local> {
-                #[inline] fn as_ref(&self) -> &$Type<'local> { self }
-            }
-            impl<'local> AsRef<$crate::objects::JObject<'local>> for $Type<'local> {
-                #[inline] fn as_ref(&self) -> &$crate::objects::JObject<'local> { self }
-            }
-            impl<'local> ::std::ops::Deref for $Type<'local> {
-                type Target = $crate::objects::JObject<'local>;
-                #[inline] fn deref(&self) -> &Self::Target { &self.0 }
-            }
-            impl<'local> From<$Type<'local>> for $crate::objects::JObject<'local> {
-                #[inline] fn from(other: $Type<'local>) -> $crate::objects::JObject<'local> { other.0 }
-            }
-
-            impl<'local> $Type<'local> {
-                #[doc = concat!(r#"Creates a [`"#, stringify!($Type), r#"`] that wraps the given `raw` [jobject]
-
-# Safety
-
-- `raw` must be a valid raw JNI local reference (or `null`).
-- `raw` must be an instance of `"#, $Class, r#"`.
-- There must not be any other owning [Reference] wrapper for the same reference.
-- The local reference must belong to the current thread and not outlive the
-  JNI stack frame associated with the [Env] `'local` lifetime.
-
-[jobject]: crate::sys::jobject
-[Reference]: crate::refs::Reference
-[Env]: crate::Env
-"#)]
-                #[inline]
-                pub unsafe fn from_raw<'env_inner>(
-                    env: &$crate::Env<'env_inner>,
-                    raw: $RawTy,
-                ) -> $Type<'env_inner> {
-                    let jobj: $crate::sys::jobject = raw as $crate::sys::jobject;
-                    $Type($crate::objects::JObject::from_raw(env, jobj))
-                }
-
-                #[doc = concat!(r#"Creates a new null reference.
-
-Null references are always valid and do not belong to a local reference frame. Therefore,
-the returned [`"#, stringify!($Type), r#"`] always has the `'static` lifetime."#)]
-                #[inline]
-                pub const fn null() -> $Type<'static> {
-                    $Type($crate::objects::JObject::null())
-                }
-
-                /// Unwrap to the raw jni type.
-                #[inline]
-                pub fn into_raw(self) -> $RawTy {
-                    (self.0.into_raw()) as $RawTy
-                }
-
-                #[doc = concat!(r#"Cast a local reference to a [`"#, stringify!($Type), r#"`]
-
-This will do a runtime (`IsInstanceOf`) check that the object is an instance of `"#, $Class, r#"`.
-
-Also see these other options for casting local or global references to a [`"#, stringify!($Type), r#"`]:
-- [Env::as_cast]
-- [Env::new_cast_local_ref]
-- [Env::cast_local]
-- [Env::new_cast_global_ref]
-- [Env::cast_global]
-
-# Errors
-
-Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
-
-[Error::WrongObjectType]: crate::errors::Error::WrongObjectType
-"#)]
-                #[inline]
-                pub fn cast_local<'any_local>(
-                    obj: impl $crate::refs::Reference
-                       + Into<$crate::objects::JObject<'any_local>>
-                       + AsRef<$crate::objects::JObject<'any_local>>,
-                    env: &mut $crate::Env<'_>,
-                ) -> $crate::errors::Result<$Type<'any_local>> {
-                    env.cast_local::<$Type>(obj)
-                }
-            }
-
-            // ---------- Safe upcasts ----------
-            /* FIXME: refer to Aliases
-            $(
-                impl<'l> From<$Type<'l>> for $AsTy<'l> {
-                    #[inline]
-                    fn from(value: $Type<'l>) -> $AsTy<'l> {
-                        let raw = value.into_jobject_raw();
-                        unsafe { <$AsTy as $crate::refs::Reference>::kind_from_raw(raw) }
-                    }
-                }
-            )*
-            */
-
-            // ---------- Reference impl ----------
-            unsafe impl $crate::refs::Reference for $Type<'_> {
-                type Kind<'env> = $Type<'env>;
-                type GlobalKind = $Type<'static>;
-
-                #[inline]
-                fn as_raw(&self) -> $crate::sys::jobject { self.0.as_raw() }
-
-                #[inline]
-                fn class_name() -> ::std::borrow::Cow<'static, $crate::strings::JNIStr> {
-                    const CLASS_NAME: &$crate::strings::JNIStr = $crate::strings::JNIStr::from_cstr(
-                        match ::std::ffi::CStr::from_bytes_with_nul(concat!($Class, "\0").as_bytes()) {
-                            Ok(cstr) => cstr,
-                            Err(_) => panic!("Class name is not a valid C string"),
-                        }
-                    );
-                    ::std::borrow::Cow::Borrowed(CLASS_NAME)
-                }
-
-                #[inline]
-                fn lookup_class<'caller>(
-                    env: &$crate::Env<'_>,
-                    loader_context: $crate::refs::LoaderContext,
-                ) -> $crate::errors::Result<
-                    impl ::std::ops::Deref<
-                        Target = $crate::refs::Global<$crate::objects::JClass<'static>>
-                    > + 'caller
-                > {
-                    let api = $ApiTy::get(env, &loader_context)?;
-                    Ok(&api.class)
-                }
-
-                #[inline]
-                unsafe fn kind_from_raw<'env>(local_ref: $crate::sys::jobject) -> Self::Kind<'env> {
-                    $Type($crate::objects::JObject::kind_from_raw(local_ref))
-                }
-
-                #[inline]
-                unsafe fn global_kind_from_raw(global_ref: $crate::sys::jobject) -> Self::GlobalKind {
-                    $Type($crate::objects::JObject::global_kind_from_raw(global_ref))
-                }
+                let mut env = Env::default();
+                __drt__init_kind_report!($InitKind);
+                __drt__call_init_kind!($InitKind, $Init, env, $Class).unwrap()
             }
         }
-    };
-}
-
-/// Resolve an API ident (auto => `<Type>API`) and call a callback with it.
-#[doc(hidden)]
-#[macro_export]
-macro_rules! __drt__with_api_ident {
-    (__auto_api, $Type:ident, $callback:ident $(, $args:tt)*) => {
-        paste::paste! { $crate::$callback!([<$Type API>] $(, $args)*); }
-    };
-    ($Api:ident, $Type:ident, $callback:ident $(, $args:tt)*) => {
-        $crate::$callback!($Api $(, $args)*)
     };
 }
 
@@ -299,7 +215,7 @@ macro_rules! __drt__emit_init_wrapper {
             type      = $Type,
             class     = $Class,
             raw_ident = $RawIdent,
-            raw_path  = $RawIdent,
+            raw_path  = jobject,
             api       = $Api,
             init_kind = $InitKind,
             init      = $InitExpr,
@@ -373,6 +289,8 @@ macro_rules! __def_ref_emit {
     };
 }
 
+#[doc(hidden)]
+#[macro_export]
 macro_rules! __def_ref_members_parse {
     (@parse
         (
@@ -1096,4 +1014,201 @@ macro_rules! define_reference_type {
             $( , $($rest)* )?
         }
     };
+}
+
+fn main() {
+    struct Test0API;
+    define_reference_type!(
+        type = Test0,
+        class = "java.lang.Object",
+        raw = jstring,
+        init = |_env, _class| {
+            println!("Test0: Custom init called");
+            Ok(Test0API)
+        }
+    );
+    let _ = Test0API::get();
+
+    struct Custom0API;
+    define_reference_type!(
+        type = Test1,
+        class = "java.lang.Object",
+        init = (|_env, _class| {
+            println!("Custom init called");
+            Ok(Custom0API)
+        }),
+        raw = jstring,
+        api = Custom0API
+    );
+
+    struct Custom1API;
+    define_reference_type!(
+        type = Test2,
+        class = "java.lang.Object",
+        api = Custom1API,
+        init = |_env, _class| {
+            println!("Custom init called");
+            Ok(Custom1API)
+        },
+        raw = jstring,
+    );
+
+    struct Test3API;
+    define_reference_type!(
+        type = Test3,
+        class = "java.lang.Object",
+        init = |_env, _class| {
+            println!("Custom init called");
+            Ok(Test3API)
+        },
+        raw = jstring,
+    );
+
+    struct Test4API;
+    define_reference_type!(
+        type = Test4,
+        class = "java.lang.Object",
+        raw = jstring,
+        init = |_env, _class| {
+            println!("Custom init called");
+            Ok(Test4API)
+        }
+    );
+
+    struct Test5API;
+    define_reference_type!(
+        type = Test5,
+        class = "java.lang.Object",
+        raw = jstring,
+        init = |_env, _class| {
+            println!("Custom init called");
+            Ok(Test5API)
+        },
+        as = [Test2, Test3],
+    );
+
+    struct Test6API;
+    define_reference_type!(
+        type = Test6,
+        class = "java.lang.Object",
+        raw = jstring,
+        init = |_env, _class| {
+            println!("Custom init called");
+            Ok(Test6API)
+        },
+        as = [Test2, Test3],
+        members = {
+            methods = {
+                get_message = {
+                    name = "getMessage",
+                    sig = "()Ljava/lang/String;",
+                    ret = JString,
+                },
+                set_message = {
+                    name = "setMessage",
+                    sig = "(Ljava/lang/String;)V",
+                    ret = void
+                }
+            },
+            static_methods = {
+                example_static = {
+                    name = "exampleStatic",
+                    sig = "(I)I",
+                    ret = jint,
+                }
+            },
+            fields {
+                example_field = {
+                    name = "exampleField",
+                    sig = "I",
+                    ty = jint
+                }
+            },
+            static_fields {
+                example_static_field = {
+                    name = "exampleStaticField",
+                    sig = "I",
+                    ty = jint,
+                }
+            }
+        }
+    );
+
+    struct Test7API;
+    define_reference_type!(
+        type = Test7,
+        class = "java.lang.Object",
+        raw = jstring,
+        init = |_env, _class| {
+            println!("Test7: Custom init called");
+            Ok(Test7API)
+        },
+        as = [Test2, Test3],
+        members = {
+            fields {
+                example_field = {
+                    name = "exampleField",
+                    sig = "I",
+                    ty = jint,
+                }
+            },
+            methods = {
+                get_message = {
+                    name = "getMessage",
+                    sig = "()Ljava/lang/String;",
+                    ret = JString
+                },
+                set_message = {
+                    name = "setMessage",
+                    sig = "(Ljava/lang/String;)V",
+                    ret = void,
+                }
+            },
+            static_methods = {
+                example_static = {
+                    name = "exampleStatic",
+                    sig = "(I)I",
+                    ret = jint,
+                }
+            },
+        }
+    );
+
+    #[allow(dead_code)]
+    struct JThrowableAPI {
+        class: String,
+        get_message_method: String,
+        get_cause_method: String,
+        get_stack_trace_method: String,
+    }
+    define_reference_type!(
+        type = JThrowable,
+        class = "java.lang.Throwable",
+        init = |env, class| {
+            println!("JThrowable: Custom init called");
+            Ok(JThrowableAPI {
+                class: env.new_global_ref(class)?,
+                get_message_method: env.get_method_id(class, "getMessage", "()Ljava/lang/String;")?,
+                get_cause_method: env.get_method_id(class, "getCause", "()Ljava/lang/Throwable;")?,
+                get_stack_trace_method: env.get_method_id(class, "getStackTrace", "()[Ljava/lang/StackTraceElement;")?,
+            })
+        }
+    );
+
+    struct Test8API;
+    define_reference_type!(
+        type = Test8,
+        class = "java.lang.Object",
+        raw = jstring,
+        init_with_loader = |env, loader_context| {
+            let _class = loader_context.load_class_for_type(env).unwrap();
+            println!("Test8: Custom init called");
+            Ok(Test8API)
+        }
+    );
+
+    Test7API::get();
+    Test8API::get();
+
+    println!("All macro parsing tests passed!");
 }
