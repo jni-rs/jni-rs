@@ -215,7 +215,7 @@ macro_rules! __drt__emit_init_wrapper {
             type      = $Type,
             class     = $Class,
             raw_ident = $RawIdent,
-            raw_path  = jobject,
+            raw_path  = $crate::sys::$RawIdent,
             api       = $Api,
             init_kind = $InitKind,
             init      = $InitExpr,
