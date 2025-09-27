@@ -299,7 +299,7 @@ macro_rules! __drt__emit_init_wrapper {
             type      = $Type,
             class     = $Class,
             raw_ident = $RawIdent,
-            raw_path  = $crate::sys::$RawIdent,
+            raw_path  = $RawIdent,
             api       = $Api,
             init_kind = $InitKind,
             init      = $InitExpr,
