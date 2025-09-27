@@ -3,6 +3,7 @@ use crate::{
     errors::Result,
     objects::{Global, JClass, JIterator, JMethodID, JObject, JValue, LoaderContext},
     signature::{Primitive, ReturnType},
+    sys::jobject,
 };
 
 #[cfg(doc)]

@@ -3,6 +3,7 @@ use crate::{
     errors::{Error, Result},
     objects::{Global, JClass, JMethodID, JObject, LoaderContext},
     signature::{Primitive, ReturnType},
+    sys::jobject,
 };
 
 struct JIteratorAPI {

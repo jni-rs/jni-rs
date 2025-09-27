@@ -2,6 +2,7 @@ use crate::{
     env::Env,
     errors::Result,
     objects::{Cast, Global, JClass, JCollection, JIterator, JObject},
+    sys::jobject,
 };
 
 use super::Reference as _;

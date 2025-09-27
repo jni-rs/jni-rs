@@ -5,7 +5,7 @@ use crate::{
         Reference,
     },
     signature::{Primitive, ReturnType},
-    sys::jint,
+    sys::{jint, jobject},
     Env,
 };
 

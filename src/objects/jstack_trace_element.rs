@@ -3,7 +3,7 @@ use crate::{
     errors::*,
     objects::{Global, JClass, JMethodID, JString, LoaderContext},
     signature::{Primitive, ReturnType},
-    sys::jstring,
+    sys::{jobject, jstring},
 };
 
 struct JStackTraceElementAPI {

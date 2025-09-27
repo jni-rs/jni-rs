@@ -4,6 +4,7 @@ use crate::{
         Global, JClass, JIterator, JMethodID, JObject, JSet, JValue, LoaderContext, Reference,
     },
     signature::{Primitive, ReturnType},
+    sys::jobject,
     Env,
 };
 

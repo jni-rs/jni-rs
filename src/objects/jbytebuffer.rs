@@ -1,4 +1,5 @@
 use crate::objects::{Global, JClass};
+use crate::sys::jobject;
 
 struct JByteBufferAPI {
     class: Global<JClass<'static>>,
