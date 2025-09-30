@@ -703,13 +703,13 @@ See the jni-rs Env documentation for more details.
 
     /// Checks if an object can be cast to a specific reference type.
     pub(crate) fn is_instance_of_cast_type<To: Reference>(&self, obj: &JObject) -> Result<bool> {
-        let class = match To::lookup_class(self, LoaderContext::FromObject(obj)) {
+        let class = match To::lookup_class(self, &LoaderContext::FromObject(obj)) {
             Ok(class) => class,
             Err(Error::ClassNotFound { name: _ }) => return Ok(false),
             Err(e) => return Err(e),
         };
 
-        let class: &JClass = class.as_ref();
+        let class: &JClass = &class;
         self.is_instance_of_class(obj, class)
     }
 
@@ -839,8 +839,8 @@ See the jni-rs Env documentation for more details.
     // FIXME: this API shouldn't need a `&mut self` reference since it doesn't return a local reference
     // (currently it just needs the `&mut self` for the sake of `Desc<JClass>::lookup`)
     fn throw_new_optional(&self, class: &JClass, msg: Option<&JNIStr>) -> Result<()> {
-        let throwable_class = JThrowable::lookup_class(self, LoaderContext::None)?;
-        let throwable_class: &JClass = throwable_class.as_ref();
+        let throwable_class = JThrowable::lookup_class(self, &LoaderContext::None)?;
+        let throwable_class: &JClass = &throwable_class;
 
         if !self.is_assignable_from_class(class.as_ref(), throwable_class)? {
             return Err(Error::WrongObjectType);
@@ -2905,7 +2905,7 @@ See the jni-rs Env documentation for more details.
         // Runtime check that the 'local reference lifetime will be tied to
         // Env lifetime for the top JNI stack frame
         self.assert_top();
-        let class = E::lookup_class(self, LoaderContext::None)?;
+        let class = E::lookup_class(self, &LoaderContext::None)?;
 
         let array = unsafe {
             jni_call_check_ex_and_null_ret!(

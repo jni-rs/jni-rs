@@ -213,7 +213,7 @@ unsafe impl<'any, 'from, To: Reference> Reference for Cast<'any, 'from, To> {
 
     fn lookup_class<'caller>(
         env: &Env<'_>,
-        loader_context: LoaderContext,
+        loader_context: &LoaderContext,
     ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'caller> {
         To::lookup_class(env, loader_context)
     }

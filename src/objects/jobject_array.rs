@@ -270,9 +270,9 @@ unsafe impl<'local, E: Reference + 'local> Reference for JObjectArray<'local, E>
 
     fn lookup_class<'caller>(
         env: &Env<'_>,
-        loader_context: LoaderContext,
+        loader_context: &LoaderContext,
     ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'caller> {
-        let api = JObjectArrayAPI::<E::GlobalKind>::get(env, &loader_context)?;
+        let api = JObjectArrayAPI::<E::GlobalKind>::get(env, loader_context)?;
         Ok(&api.class)
     }
 

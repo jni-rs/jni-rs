@@ -312,9 +312,9 @@ unsafe impl Reference for JMap<'_> {
 
     fn lookup_class<'caller>(
         env: &Env<'_>,
-        loader_context: LoaderContext,
+        loader_context: &LoaderContext,
     ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'caller> {
-        let api = JMapAPI::get(env, &loader_context)?;
+        let api = JMapAPI::get(env, loader_context)?;
         Ok(&api.class)
     }
 
@@ -519,9 +519,9 @@ unsafe impl Reference for JMapEntry<'_> {
 
     fn lookup_class<'caller>(
         env: &Env<'_>,
-        loader_context: LoaderContext,
+        loader_context: &LoaderContext,
     ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'caller> {
-        let api = JMapEntryAPI::get(env, &loader_context)?;
+        let api = JMapEntryAPI::get(env, loader_context)?;
         Ok(&api.class)
     }
 
