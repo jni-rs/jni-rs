@@ -344,9 +344,9 @@ unsafe impl Reference for JList<'_> {
 
     fn lookup_class<'caller>(
         env: &Env<'_>,
-        loader_context: LoaderContext,
+        loader_context: &LoaderContext,
     ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'caller> {
-        let api = JListAPI::get(env, &loader_context)?;
+        let api = JListAPI::get(env, loader_context)?;
         Ok(&api.class)
     }
 

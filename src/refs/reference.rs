@@ -118,7 +118,7 @@ pub unsafe trait Reference: Sized {
     /// #
     /// # fn example<'local>(env: &mut Env<'local>) -> Result<()> {
     /// use jni::objects::{JString, Reference as _, LoaderContext};
-    /// let string_class = JString::lookup_class(env, LoaderContext::None)?;
+    /// let string_class = JString::lookup_class(env, &LoaderContext::None)?;
     /// let string_class_ref: &JClass = string_class.as_ref();
     /// # Ok(())
     /// # }
@@ -140,7 +140,7 @@ pub unsafe trait Reference: Sized {
     ///
     fn lookup_class<'caller>(
         env: &Env<'_>,
-        loader_context: LoaderContext,
+        loader_context: &LoaderContext,
     ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'caller>;
 
     /// Returns a new reference type based on [`Self::Kind`] for the given `reference` that is tied
@@ -422,7 +422,7 @@ where
 
     fn lookup_class<'caller>(
         env: &Env<'_>,
-        loader_context: LoaderContext,
+        loader_context: &LoaderContext,
     ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'caller> {
         T::lookup_class(env, loader_context)
     }
