@@ -175,6 +175,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The documentation for `Env::find_class` now recommends considering `LoaderContext::load_class` instead.
 - `Desc<JClass>::lookup()` is now based on `LoaderContext::load_class` (instead of `Env::find_class`), which checks for a thread context class loader by default.
 - `AutoElements[Critical]::discard()` now takes ownership of the elements and drops them to release the pointer after setting the mode to `NoCopyBack` ([#645](https://github.com/jni-rs/jni-rs/pull/645))
+- Mark `MonitorGuard` with `#[must_use]` to warn when the guard is dropped accidentally ([#676](https://github.com/jni-rs/jni-rs/pull/676))
 
 ### Fixed
 - `Env::get_string` no longer leaks local references. ([#528](https://github.com/jni-rs/jni-rs/pull/528), [#557](https://github.com/jni-rs/jni-rs/pull/557))

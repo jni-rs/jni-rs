@@ -4505,6 +4505,7 @@ pub struct NativeMethod {
 /// Guard for a lock on a java object. This gets returned from the `lock_obj`
 /// method.
 #[derive(Debug)]
+#[must_use]
 pub struct MonitorGuard<'local> {
     obj: sys::jobject,
     life: PhantomData<&'local ()>,
