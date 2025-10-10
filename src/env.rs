@@ -19,7 +19,7 @@ use crate::{
         JValue, JValueOwned, ReleaseMode, TypeArray, Weak,
     },
     signature::{JavaType, Primitive, TypeSignature},
-    strings::{JNIStr, JNIString, MUTF8Chars},
+    strings::{JNIStr, MUTF8Chars},
     sys::{
         self, jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jshort, jsize, jvalue,
         JNINativeMethod,
@@ -39,7 +39,7 @@ use crate::{objects::AsJArrayRaw, signature::ReturnType};
 use super::{objects::Reference, AttachGuard};
 
 #[cfg(doc)]
-use crate::objects::JThread;
+use crate::{objects::JThread, strings::JNIString};
 
 /// A non-transparent wrapper around a raw [`sys::JNIEnv`] pointer that provides
 /// safe access to the Java Native Interface (JNI) functions.
@@ -4074,19 +4074,34 @@ See the jni-rs Env documentation for more details.
     // FIXME: this API shouldn't need a `&mut self` reference since it doesn't return a local reference
     // (currently it just needs the `&mut self` for the sake of `Desc<JClass>::lookup`)
     //
-    /// Bind function pointers to native methods of class according to method
-    /// name and signature.
+    /// Bind function pointers to native methods of class according to method name and signature.
     ///
     /// For details see
     /// [documentation](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#RegisterNatives).
     ///
     /// # Safety
     ///
-    /// All the native method pointers must be valid, non-null pointers to
-    /// functions that match the signature of the corresponding Java method.
+    /// The caller must ensure that the function signatures in `methods` have a `this` or `class`
+    /// parameter as appropriate for instance or static methods, and that the function pointers are
+    /// valid and match the signatures.
     ///
-    /// All of the pointers must remain valid for the lifetime of the class unless
-    /// they are unregistered, via [`Self::unregister_native_methods`].
+    /// Although `NativeMethod` has an `unsafe` constructor that requires the caller to ensure that
+    /// the function pointer is valid and matches the signature, this API is still marked as
+    /// `unsafe` to reflect the additional risk that the signature matches but the second parameter
+    /// is not consistent with whether the method is static or instance.
+    ///
+    /// - **Static native methods** must have a `class: JClass<'local>` parameter as the second parameter.
+    ///
+    /// - **Instance native methods** must have a `this: JObject<'local>` or `this: MyType<'local>` parameter as the second parameter.
+    ///
+    /// # Throws
+    ///
+    /// - `NoSuchMethodError` - if a method could not be found (based on its name and signature) or
+    ///   it was not a native method.
+    ///
+    /// **Note** that there is no way for the JVM to report errors if the function pointer is invalid or
+    /// does not match the signature, so incorrect function pointers may lead to crashes or
+    /// undefined behaviour.
     pub unsafe fn register_native_methods<'other_local, T>(
         &mut self,
         class: T,
@@ -4096,22 +4111,18 @@ See the jni-rs Env documentation for more details.
         T: Desc<'local, JClass<'other_local>>,
     {
         let class = class.lookup(self)?;
-        let jni_native_methods: Vec<JNINativeMethod> = methods
-            .iter()
-            .map(|nm| JNINativeMethod {
-                name: nm.name.as_ptr() as *mut c_char,
-                signature: nm.sig.as_ptr() as *mut c_char,
-                fnPtr: nm.fn_ptr,
-            })
-            .collect();
+        // Safety:
+        //  - NativeMethod is a #[transparent] / repr(C)] wrapper around sys::JNINativeMethod
+        //  - NativeMethod only has an `unsafe` constructor that requires the caller to ensure that
+        //    the function pointer is valid and matches the signature
         let res = unsafe {
             jni_call_check_ex!(
                 self,
                 v1_1,
                 RegisterNatives,
                 class.as_ref().as_raw(),
-                jni_native_methods.as_ptr(),
-                jni_native_methods.len() as jint
+                methods.as_ptr() as *mut sys::JNINativeMethod,
+                methods.len() as jint
             )?
         };
 
@@ -4487,19 +4498,54 @@ impl<'local> EnvUnowned<'local> {
     }
 }
 
+#[repr(transparent)]
 #[derive(Debug)]
-/// Native method descriptor.
-pub struct NativeMethod {
-    /// Name of method.
-    pub name: JNIString,
-    /// Method signature.
-    pub sig: JNIString,
-    /// Pointer to native function with signature
-    /// `fn(env: Env, class: JClass, ...arguments according to sig) -> RetType`
-    /// for static methods or
-    /// `fn(env: Env, object: JObject, ...arguments according to sig) -> RetType`
-    /// for instance methods.
-    pub fn_ptr: *mut c_void,
+/// Native method descriptor for use with [`Env::register_native_methods`].
+///
+/// This is a `#[repr(transparent)]` / `repr(C)` wrapper around the [`crate::sys::JNINativeMethod`]
+/// struct but with the additional constraint that it can only be constructed via an `unsafe`
+/// [`Self::from_raw_parts`] method that requires the caller to ensure that the function pointer is
+/// valid and matches the signature.
+pub struct NativeMethod<'desc> {
+    desc: JNINativeMethod,
+    _phantom: PhantomData<&'desc JNIStr>,
+}
+
+impl<'desc> NativeMethod<'desc> {
+    /// Creates a new `NativeMethod` descriptor.
+    ///
+    /// # Safety
+    ///
+    /// The `fn_ptr` must be a valid pointer to a function that matches the
+    /// signature specified by `sig`.
+    ///
+    /// For example, with the signature `"(I)Ljava/lang/String;"`...
+    ///
+    /// A **static method** must point to a function with the signature:
+    ///
+    /// `fn<'local>(unowned_env: EnvUnowned<'local>, class: JClass<'local>, arg0: jint) -> JString<'local>`.
+    ///
+    /// An **instance method** must point to a function with the signature:
+    ///
+    /// `fn<'local>(unowned_env: EnvUnowned<'local>, this: JObject<'local>, arg0: jint) -> JString<'local>`.
+    ///
+    /// or some specific `this` type like:
+    ///
+    /// `fn<'local>(unowned_env: EnvUnowned<'local>, this: MyType<'local>, arg0: jint) -> JString<'local>`.
+    pub unsafe fn from_raw_parts(
+        name: &'desc JNIStr,
+        sig: &'desc JNIStr,
+        fn_ptr: *mut c_void,
+    ) -> NativeMethod<'desc> {
+        NativeMethod {
+            desc: JNINativeMethod {
+                name: name.as_ptr() as *mut c_char,
+                signature: sig.as_ptr() as *mut c_char,
+                fnPtr: fn_ptr as *mut c_void,
+            },
+            _phantom: PhantomData,
+        }
+    }
 }
 
 /// Guard for a lock on a java object. This gets returned from the `lock_obj`
