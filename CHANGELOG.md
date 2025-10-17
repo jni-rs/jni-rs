@@ -98,6 +98,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `JThrowable::get_message` is a binding for `getMessage()` and gives easy access to an exception message
 - `JThrowable::get_stack_trace` is a binding for `getStackTrace()`, returning a `JObjectArray<JStackTraceElement>`
 
+#### Macros
+
+- The `#[jni_mangle()]` attribute proc macro can export an `extern "system"` native method with a mangled name like "Java_com_example_myMethod" so it can be automatically resolved within a shared library by the JVM ([#693](https://github.com/jni-rs/jni-rs/pull/693))
 
 ### Changed
 

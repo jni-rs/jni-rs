@@ -27,6 +27,7 @@ name = "api_calls"
 harness = false
 
 [dependencies]
+jni-macros = { path = "jni-macros", version = "0.1.0" }
 cfg-if = "1.0.0"
 cesu8 = "1.1.0"
 combine = "4.1.0"
@@ -62,4 +63,4 @@ default = []
 features = ["invocation"]
 
 [workspace]
-members = ["javac"]
+members = ["javac", "jni-macros"]
