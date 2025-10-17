@@ -12,7 +12,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/jni-rs/jni-rs"
 version = "0.1.0"
 edition = "2024"
-include = ["../LICENSE-APACHE", "../LICENSE-MIT", "**/*.rs"]
+include = ["../LICENSE-APACHE", "../LICENSE-MIT", "src/**/*.rs"]
 
 [dependencies]
 which = "8"

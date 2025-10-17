@@ -338,3 +338,5 @@ pub mod vm;
     note = "Please use `jni::vm::JavaVM` instead of `jni::JavaVM`."
 )]
 pub use self::vm::*;
+
+pub use jni_macros::jni_mangle;
