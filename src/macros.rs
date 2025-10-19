@@ -5,7 +5,7 @@
 /// When calling any function added after JNI 1.1 you must know that it's valid
 /// for the current JNI version.
 macro_rules! jni_call_unchecked {
-    ( $jnienv:expr, $version:tt, $name:tt $(, $args:expr )*) => {{
+    ( $jnienv:expr, $version:tt, $name:ident $(, $args:expr )*) => {{
         // Safety: we know that the Env pointer can't be null, since that's
         // checked in `from_raw()`
         let env: *mut jni_sys::JNIEnv = $jnienv.get_raw();
@@ -21,7 +21,7 @@ macro_rules! jni_call_unchecked {
 ///
 /// Returns `Err` if there is a pending exception after the call.
 macro_rules! jni_call_check_ex {
-    ( $jnienv:expr, $version:tt, $name:tt $(, $args:expr )* ) => ({
+    ( $jnienv:expr, $version:tt, $name:ident $(, $args:expr )* ) => ({
         let ret = jni_call_unchecked!($jnienv, $version, $name $(, $args)*);
         if $jnienv.exception_check() {
             Err(crate::errors::Error::JavaException)
@@ -36,7 +36,7 @@ macro_rules! jni_call_check_ex {
 /// Returns `Err` if there is a pending exception after the call.
 /// Returns `Err(Error::NullPtr)` if the JNI function returns `null`
 macro_rules! jni_call_check_ex_and_null_ret {
-    ( $jnienv:expr, $version:tt, $name:tt $(, $args:expr )* ) => ({
+    ( $jnienv:expr, $version:tt, $name:ident $(, $args:expr )* ) => ({
         jni_call_check_ex!($jnienv, $version, $name $(, $args)*).and_then(|ret| {
             if ret.is_null() {
                 Err($crate::errors::Error::NullPtr(concat!(stringify!($name), " result")))
@@ -51,7 +51,7 @@ macro_rules! jni_call_check_ex_and_null_ret {
 ///
 /// Returns `Err(Error::NullPtr)` if the JNI function returns `null`
 macro_rules! jni_call_only_check_null_ret {
-    ( $jnienv:expr, $version:tt, $name:tt $(, $args:expr )* ) => ({
+    ( $jnienv:expr, $version:tt, $name:ident $(, $args:expr )* ) => ({
         let ret = jni_call_unchecked!($jnienv, $version, $name $(, $args)*);
         if ret.is_null() {
             Err($crate::errors::Error::NullPtr(concat!(stringify!($name), " result")))
@@ -81,7 +81,7 @@ macro_rules! null_check {
 
 /// Directly calls a JavaVM function, nothing else
 macro_rules! java_vm_call_unchecked {
-    ( $jvm:expr, $version:tt, $name:tt $(, $args:expr )*) => {{
+    ( $jvm:expr, $version:tt, $name:ident $(, $args:expr )*) => {{
         // Safety: we know that the pointer can't be null, since that's
         // checked in `from_raw()`
         let jvm: *mut jni_sys::JavaVM = $jvm.get_raw();
