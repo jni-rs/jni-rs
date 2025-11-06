@@ -5,7 +5,7 @@ use combine::{
     ParseError, Parser, RangeStream, StdParseResult, Stream,
 };
 
-use crate::errors::*;
+use crate::{errors::*, strings::JNIStr};
 
 /// A primitive java type. These are the things that can be represented without
 /// an object.
@@ -49,7 +49,7 @@ impl fmt::Display for Primitive {
 /// significant hidden cost that was redundant while those details were never used (at least
 /// internally).
 #[allow(missing_docs)]
-#[derive(Eq, PartialEq, Debug, Clone)]
+#[derive(Eq, PartialEq, Debug, Clone, Copy)]
 pub enum JavaType {
     Primitive(Primitive),
     Object,
@@ -88,9 +88,106 @@ impl fmt::Display for JavaType {
 /// Enum representing any java type that may be used as a return value
 pub type ReturnType = JavaType;
 
-/// A method type signature. This is the structure representation of something
-/// like `(Ljava/lang/String;)Z`. Used by the `call_(object|static)_method`
-/// functions on jnienv to ensure safety.
+/// A parsed JNI method signature
+///
+/// This is a structured representation of a JNI method signature, such
+/// as `(Ljava/lang/String;)Z`.
+///
+/// The decomposed types are guaranteed to match the signature string and so
+/// they can be used for safe JNI calls without further validation.
+#[allow(missing_docs)]
+#[derive(Eq, PartialEq, Debug, Clone)]
+pub struct MethodSignature<'sig, 'args> {
+    sig: &'sig JNIStr,
+    args: &'args [JavaType],
+    ret: JavaType,
+}
+
+impl<'sig, 'args> MethodSignature<'sig, 'args> {
+    /// Create a `MethodSignature` from its raw parts
+    ///
+    /// # Safety
+    ///
+    /// In order for the returned `MethodSignature` to be used safely to make
+    /// JNI calls, the caller must ensure that the provided signature string,
+    /// argument types, and return type are consistent
+    pub const unsafe fn from_raw_parts(
+        sig: &'sig JNIStr,
+        args: &'args [JavaType],
+        ret: ReturnType,
+    ) -> Self {
+        Self { sig, args, ret }
+    }
+
+    /// Get the JNI signature string
+    pub fn sig(&self) -> &JNIStr {
+        self.sig
+    }
+
+    /// Get the argument types
+    pub fn args(&self) -> &[JavaType] {
+        self.args
+    }
+
+    /// Get the return type
+    pub fn ret(&self) -> JavaType {
+        self.ret
+    }
+}
+
+impl<'sig, 'args> From<&MethodSignature<'sig, 'args>> for MethodSignature<'sig, 'args> {
+    fn from(sig: &MethodSignature<'sig, 'args>) -> Self {
+        sig.clone()
+    }
+}
+
+/// A parsed JNI field signature
+///
+/// This is a structured representation of a JNI field signature, such
+/// as `I`.
+///
+/// The field type is guaranteed to match the signature string and so
+/// it can be used for safe JNI calls without further validation.
+#[allow(missing_docs)]
+#[derive(Eq, PartialEq, Debug, Clone)]
+pub struct FieldSignature<'sig> {
+    sig: &'sig JNIStr,
+    ty: JavaType,
+}
+
+impl<'sig> FieldSignature<'sig> {
+    /// Create a `FieldSignature` from its raw parts
+    ///
+    /// # Safety
+    ///
+    /// In order for the returned `FieldSignature` to be used safely to get or
+    /// set fields via JNI calls, the caller must ensure that the provided
+    /// signature string and field type are consistent
+    pub const unsafe fn from_raw_parts(sig: &'sig JNIStr, ty: JavaType) -> Self {
+        Self { sig, ty }
+    }
+
+    /// Get the JNI signature string
+    pub fn sig(&self) -> &JNIStr {
+        self.sig
+    }
+
+    /// Get the field type
+    pub fn ty(&self) -> JavaType {
+        self.ty
+    }
+}
+
+/// A runtime-parsed JNI method signature.
+///
+/// This is a structured representation of a JNI method signature, such as
+/// `(Ljava/lang/String;)Z`.
+///
+/// The decomposed types are guaranteed to match the signature string and so
+/// they can be used for safe JNI calls without further validation.
+///
+/// Used by the `call_(object|static)_method` functions on jnienv to ensure
+/// safety.
 #[allow(missing_docs)]
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct TypeSignature {
