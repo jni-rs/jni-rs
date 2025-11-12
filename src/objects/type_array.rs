@@ -19,6 +19,9 @@ pub(crate) mod type_array_sealed {
     ///
     /// The `release` method must not invalidate the `ptr` if the `mode` is [`sys::JNI_COMMIT`].
     pub unsafe trait TypeArraySealed: Copy + Send + Sync {
+        /// Creates a new array of this type with the given length.
+        unsafe fn new_array(env: &mut Env, length: jsize) -> Result<jarray>;
+
         /// getter
         ///
         /// # Safety
@@ -84,8 +87,15 @@ pub(crate) mod type_array_sealed {
     macro_rules! type_array {
         ( $jni_type:ty, $jni_type_name:ident) => {
             paste! {
+
                 /// $jni_type array access/release impl
                 unsafe impl TypeArraySealed for $jni_type {
+                    /// Create new Java $jni_type array
+                    unsafe fn new_array(env: &mut Env, length: jsize) -> Result<jarray> {
+                        let raw_array = jni_call_check_ex_and_null_ret!(env, v1_1, [< New $jni_type_name Array>], length)?;
+                        Ok(raw_array)
+                    }
+
                     /// Get Java $jni_type array
                     unsafe fn get_elements(
                         env: &Env,

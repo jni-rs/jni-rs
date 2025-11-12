@@ -2906,6 +2906,11 @@ See the jni-rs Env documentation for more details.
     /// Construct a new array holding objects in class `element_class`.
     ///
     /// All elements are initially set to `initial_element`.
+    ///
+    /// It's recommended to use [JObjectArray::new] or [`Self::new_object_type_array`]
+    /// instead, which both support element type parameterization.
+    ///
+    /// This API may be deprecated and removed in a future version.
     pub fn new_object_array<'other_local_1, 'other_local_2, T, U>(
         &mut self,
         length: jsize,
@@ -2942,35 +2947,17 @@ See the jni-rs Env documentation for more details.
     /// Construct a new array holding objects with of type `E`.
     ///
     /// All elements are initially set to `initial_element`.
+    ///
+    /// It's recommended to use [JObjectArray::new] instead.
     pub fn new_object_type_array<'any_local, E>(
         &mut self,
-        length: jsize,
+        length: usize,
         initial_element: impl AsRef<E::Kind<'any_local>>,
     ) -> Result<JObjectArray<'local, E::Kind<'local>>>
     where
         E: Reference,
     {
-        // Runtime check that the 'local reference lifetime will be tied to
-        // Env lifetime for the top JNI stack frame
-        self.assert_top();
-        let class = E::lookup_class(self, &LoaderContext::None)?;
-
-        let array = unsafe {
-            jni_call_check_ex_and_null_ret!(
-                self,
-                v1_1,
-                NewObjectArray,
-                length,
-                class.as_raw(),
-                initial_element.as_ref().as_raw()
-            )
-            .map(|array| JObjectArray::<E>::from_raw(self, array))?
-        };
-
-        // Ensure that `class` isn't dropped before the JNI call returns.
-        drop(class);
-
-        Ok(array)
+        JObjectArray::<E>::new(self, length, initial_element)
     }
 
     /// Returns a local reference to an element of the [`JObjectArray`] `array`.
@@ -3001,23 +2988,15 @@ See the jni-rs Env documentation for more details.
     }
 
     /// Create a new java byte array from a rust byte slice.
-    pub fn byte_array_from_slice(&self, buf: &[u8]) -> Result<JByteArray<'local>> {
-        // Runtime check that the 'local reference lifetime will be tied to
-        // Env lifetime for the top JNI stack frame
-        self.assert_top();
-        let length = buf.len() as i32;
-        let bytes = self.new_byte_array(length)?;
-        unsafe {
-            jni_call_unchecked!(
-                self,
-                v1_1,
-                SetByteArrayRegion,
-                bytes.as_raw(),
-                0,
-                length,
-                buf.as_ptr() as *const i8
-            );
-        }
+    pub fn byte_array_from_slice(&mut self, buf: &[u8]) -> Result<JByteArray<'local>> {
+        let bytes = JByteArray::new(self, buf.len())?;
+        // SAFETY: i8 and u8 are both plain, single-byte, data types with the same size and
+        // alignment.
+        //
+        // We just want to forward the bitwise representation of the slice and it doesn't matter
+        // whether we interpret the data as signed or unsigned.
+        let buf: &[i8] = unsafe { std::mem::transmute(buf) };
+        bytes.set_region(self, 0, buf)?;
         Ok(bytes)
     }
 
@@ -3044,100 +3023,76 @@ See the jni-rs Env documentation for more details.
         Ok(vec)
     }
 
-    /// Create a new java boolean array of supplied length.
-    pub fn new_boolean_array(&self, length: jsize) -> Result<JBooleanArray<'local>> {
-        // Runtime check that the 'local reference lifetime will be tied to
-        // Env lifetime for the top JNI stack frame
-        self.assert_top();
-        let array = unsafe {
-            jni_call_check_ex_and_null_ret!(self, v1_1, NewBooleanArray, length)
-                .map(|array| JBooleanArray::from_raw(self, array))?
-        };
-        Ok(array)
+    /// Create a new [JBooleanArray] of supplied length.
+    ///
+    /// It is recommended to use [JBooleanArray::new] instead.
+    ///
+    /// This API may be deprecated and removed in a future version.
+    pub fn new_boolean_array(&mut self, length: usize) -> Result<JBooleanArray<'local>> {
+        JBooleanArray::new(self, length)
     }
 
-    /// Create a new java byte array of supplied length.
-    pub fn new_byte_array(&self, length: jsize) -> Result<JByteArray<'local>> {
-        // Runtime check that the 'local reference lifetime will be tied to
-        // Env lifetime for the top JNI stack frame
-        self.assert_top();
-        let array = unsafe {
-            jni_call_check_ex_and_null_ret!(self, v1_1, NewByteArray, length)
-                .map(|array| JByteArray::from_raw(self, array))?
-        };
-        Ok(array)
+    /// Create a new [JByteArray] of supplied length.
+    ///
+    /// It is recommended to use [JByteArray::new] instead.
+    ///
+    /// This API may be deprecated and removed in a future version.
+    pub fn new_byte_array(&mut self, length: usize) -> Result<JByteArray<'local>> {
+        JByteArray::new(self, length)
     }
 
-    /// Create a new java char array of supplied length.
-    pub fn new_char_array(&self, length: jsize) -> Result<JCharArray<'local>> {
-        // Runtime check that the 'local reference lifetime will be tied to
-        // Env lifetime for the top JNI stack frame
-        self.assert_top();
-        let array = unsafe {
-            jni_call_check_ex_and_null_ret!(self, v1_1, NewCharArray, length)
-                .map(|array| JCharArray::from_raw(self, array))?
-        };
-        Ok(array)
+    /// Create a new [JCharArray] of supplied length.
+    ///
+    /// It is recommended to use [JCharArray::new] instead.
+    ///
+    /// This API may be deprecated and removed in a future version.
+    pub fn new_char_array(&mut self, length: usize) -> Result<JCharArray<'local>> {
+        JCharArray::new(self, length)
     }
 
-    /// Create a new java short array of supplied length.
-    pub fn new_short_array(&self, length: jsize) -> Result<JShortArray<'local>> {
-        // Runtime check that the 'local reference lifetime will be tied to
-        // Env lifetime for the top JNI stack frame
-        self.assert_top();
-        let array = unsafe {
-            jni_call_check_ex_and_null_ret!(self, v1_1, NewShortArray, length)
-                .map(|array| JShortArray::from_raw(self, array))?
-        };
-        Ok(array)
+    /// Create a new [JShortArray] of supplied length.
+    ///
+    /// It is recommended to use [JShortArray::new] instead.
+    ///
+    /// This API may be deprecated and removed in a future version.
+    pub fn new_short_array(&mut self, length: usize) -> Result<JShortArray<'local>> {
+        JShortArray::new(self, length)
     }
 
-    /// Create a new java int array of supplied length.
-    pub fn new_int_array(&self, length: jsize) -> Result<JIntArray<'local>> {
-        // Runtime check that the 'local reference lifetime will be tied to
-        // Env lifetime for the top JNI stack frame
-        self.assert_top();
-        let array = unsafe {
-            jni_call_check_ex_and_null_ret!(self, v1_1, NewIntArray, length)
-                .map(|array| JIntArray::from_raw(self, array))?
-        };
-        Ok(array)
+    /// Create a new [JIntArray] of supplied length.
+    ///
+    /// It is recommended to use [JIntArray::new] instead.
+    ///
+    /// This API may be deprecated and removed in a future version.
+    pub fn new_int_array(&mut self, length: usize) -> Result<JIntArray<'local>> {
+        JIntArray::new(self, length)
     }
 
-    /// Create a new java long array of supplied length.
-    pub fn new_long_array(&self, length: jsize) -> Result<JLongArray<'local>> {
-        // Runtime check that the 'local reference lifetime will be tied to
-        // Env lifetime for the top JNI stack frame
-        self.assert_top();
-        let array = unsafe {
-            jni_call_check_ex_and_null_ret!(self, v1_1, NewLongArray, length)
-                .map(|array| JLongArray::from_raw(self, array))?
-        };
-        Ok(array)
+    /// Create a new [JLongArray] of supplied length.
+    ///
+    /// It is recommended to use [JLongArray::new] instead.
+    ///
+    /// This API may be deprecated and removed in a future version.
+    pub fn new_long_array(&mut self, length: usize) -> Result<JLongArray<'local>> {
+        JLongArray::new(self, length)
     }
 
-    /// Create a new java float array of supplied length.
-    pub fn new_float_array(&self, length: jsize) -> Result<JFloatArray<'local>> {
-        // Runtime check that the 'local reference lifetime will be tied to
-        // Env lifetime for the top JNI stack frame
-        self.assert_top();
-        let array = unsafe {
-            jni_call_check_ex_and_null_ret!(self, v1_1, NewFloatArray, length)
-                .map(|array| JFloatArray::from_raw(self, array))?
-        };
-        Ok(array)
+    /// Create a new [JFloatArray] of supplied length.
+    ///
+    /// It is recommended to use [JFloatArray::new] instead.
+    ///
+    /// This API may be deprecated and removed in a future version.
+    pub fn new_float_array(&mut self, length: usize) -> Result<JFloatArray<'local>> {
+        JFloatArray::new(self, length)
     }
 
-    /// Create a new java double array of supplied length.
-    pub fn new_double_array(&self, length: jsize) -> Result<JDoubleArray<'local>> {
-        // Runtime check that the 'local reference lifetime will be tied to
-        // Env lifetime for the top JNI stack frame
-        self.assert_top();
-        let array = unsafe {
-            jni_call_check_ex_and_null_ret!(self, v1_1, NewDoubleArray, length)
-                .map(|array| JDoubleArray::from_raw(self, array))?
-        };
-        Ok(array)
+    /// Create a new [JDoubleArray] of supplied length.
+    ///
+    /// It is recommended to use [JDoubleArray::new] instead.
+    ///
+    /// This API may be deprecated and removed in a future version.
+    pub fn new_double_array(&mut self, length: usize) -> Result<JDoubleArray<'local>> {
+        JDoubleArray::new(self, length)
     }
 
     /// Copy elements of the java boolean array from the `start` index to the
