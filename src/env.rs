@@ -14,9 +14,9 @@ use crate::{
     descriptors::Desc,
     errors::*,
     objects::{
-        Auto, AutoElements, AutoElementsCritical, Global, IntoAuto, JByteBuffer, JClass, JFieldID,
-        JList, JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID, JString, JThrowable,
-        JValue, JValueOwned, ReleaseMode, TypeArray, Weak,
+        Auto, AutoElements, AutoElementsCritical, Global, IntoAuto, JByteBuffer, JClass,
+        JClassLoader, JFieldID, JList, JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID,
+        JString, JThrowable, JValue, JValueOwned, ReleaseMode, TypeArray, Weak,
     },
     signature::{JavaType, Primitive, TypeSignature},
     strings::{JNIStr, MUTF8Chars},
@@ -470,10 +470,13 @@ See the jni-rs Env documentation for more details.
     unsafe fn define_class_impl(
         &mut self,
         name: *const c_char,
-        loader: &JObject,
+        loader: &JClassLoader,
         buf: *const jbyte,
         buf_len: usize,
     ) -> Result<JClass<'local>> {
+        if buf_len > jsize::MAX as usize {
+            return Err(Error::JniCall(JniError::InvalidArguments));
+        }
         // Runtime check that the 'local reference lifetime will be tied to
         // Env lifetime for the top JNI stack frame
         self.assert_top();
@@ -481,6 +484,7 @@ See the jni-rs Env documentation for more details.
         // DefineClass is 1.1 API that must be valid
         // It is valid to potentially pass a `null` `name` to `DefineClass`, since the
         // name can bre read from the bytecode.
+        // A null loader corresponds to the bootstrap class loader.
         unsafe {
             jni_call_check_ex_and_null_ret!(
                 self,
@@ -500,21 +504,43 @@ See the jni-rs Env documentation for more details.
     /// If `name` is `None` then the name of the loaded class will be inferred, otherwise the given
     /// `name` must match the name encoded within the class file data.
     ///
-    /// Alternatively, call `define_class_jbyte()` if your data comes from a [`JByteArray`] or
+    /// Typically the `loader` should come from [`JClassLoader::get_system_class_loader`] or the
+    /// loader from some other application-specific class.
+    ///
+    /// If `loader` is `null` then the bootstrap class loader will be used, which may not be able to
+    /// load dependencies of the defined class.
+    ///
+    /// Alternatively, call [`Self::define_class_jbyte`] if your data comes from a [`JByteArray`] or
     /// `&[jbyte]`.
-    pub fn define_class<S>(
+    ///
+    /// # Portability Note
+    ///
+    /// The JNI `DefineClass` function may not be supported by all JVM implementations, even though
+    /// it is part of the JNI specification.
+    ///
+    /// In particular Android's ART runtime does not support it, since all classes must be
+    /// pre-compiled into DEX format.
+    pub fn define_class<'any_loader, N, L>(
         &mut self,
-        name: Option<S>,
-        loader: &JObject,
+        name: Option<N>,
+        loader: L,
         buf: &[u8],
     ) -> Result<JClass<'local>>
     where
-        S: AsRef<JNIStr>,
+        N: AsRef<JNIStr>,
+        L: AsRef<JClassLoader<'any_loader>>,
     {
         let name: Option<&JNIStr> = name.as_ref().map(|n| n.as_ref());
         let name = name.map_or(ptr::null(), |n| n.as_ptr());
         // Safety: we know the pointer for the u8 slice is valid for buf.len() bytes
-        unsafe { self.define_class_impl(name, loader, buf.as_ptr() as *const jbyte, buf.len()) }
+        unsafe {
+            self.define_class_impl(
+                name,
+                loader.as_ref(),
+                buf.as_ptr() as *const jbyte,
+                buf.len(),
+            )
+        }
     }
 
     /// Load a class from a buffer of raw class data.
@@ -522,20 +548,42 @@ See the jni-rs Env documentation for more details.
     /// If `name` is `None` then the name of the loaded class will be inferred, otherwise the given
     /// `name` must match the name encoded within the class file data.
     ///
-    /// This is the same as `define_class` but takes a `&[jbyte]` instead of `&[u8]`.
-    pub fn define_class_jbyte<S>(
+    /// Typically the `loader` should come from [`JClassLoader::get_system_class_loader`] or the
+    /// loader from some other application-specific class.
+    ///
+    /// If `loader` is `null` then the bootstrap class loader will be used, which may not be able to
+    /// load dependencies of the defined class.
+    ///
+    /// This is the same as [`Self::define_class`] but takes a `&[jbyte]` instead of `&[u8]`.
+    ///
+    /// # Portability Note
+    ///
+    /// The JNI `DefineClass` function may not be supported by all JVM implementations, even though
+    /// it is part of the JNI specification.
+    ///
+    /// In particular Android's ART runtime does not support it, since all classes must be
+    /// pre-compiled into DEX format.
+    pub fn define_class_jbyte<'any_loader, N, L>(
         &mut self,
-        name: Option<S>,
-        loader: &JObject,
+        name: Option<N>,
+        loader: L,
         buf: &[jbyte],
     ) -> Result<JClass<'local>>
     where
-        S: AsRef<JNIStr>,
+        N: AsRef<JNIStr>,
+        L: AsRef<JClassLoader<'any_loader>>,
     {
         let name: Option<&JNIStr> = name.as_ref().map(|n| n.as_ref());
         let name = name.as_ref().map_or(ptr::null(), |n| n.as_ptr());
         // Safety: we know the pointer for the u8 slice is valid for buf.len() bytes
-        unsafe { self.define_class_impl(name, loader, buf.as_ptr() as *const jbyte, buf.len()) }
+        unsafe {
+            self.define_class_impl(
+                name,
+                loader.as_ref(),
+                buf.as_ptr() as *const jbyte,
+                buf.len(),
+            )
+        }
     }
 
     /// Look up a class by its fully-qualified "internal" JNI name, via JNI

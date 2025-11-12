@@ -155,6 +155,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Env::new_global_ref` and `::new_local_ref` may return `Error::ObjectFreed` in case a weak reference was given and the object has been freed. ([#596](https://github.com/jni-rs/jni-rs/pull/596))
 - `Env::define_class` takes a `name: Option<>` instead of having a separate `define_unnamed_class` API.
 - `Env::define_class_bytearray` was renamed to `Env::define_class_jbyte` and is identical to `define_class` except for taking a `&[jbyte]` slice instead of `&[u8]`, which is a convenience if you have a `JByteArray` or `AutoElements<JByteArray>`.
+- `Env::define_class[_jbyte]` now takes a `loader: AsRef<JClassLoader>` instead of `loader: &JObject`.
 - `AutoElements` was simplified to only be parameterized by one lifetime for the array reference, and accepts any `AsRef<JPrimitiveArray<T>>` as a reference. ([#508](https://github.com/jni-rs/jni-rs/pull/508))
 - `JavaType` was simplified to not capture object names or array details (like `ReturnType`) since these details don't affect `JValue` type checks and had a hidden cost that was redundant.
 - `Env::with_local_frame` can be used with a shared `&Env` reference since it doesn't return a new local reference. ([#673](https://github.com/jni-rs/jni-rs/pull/673))
