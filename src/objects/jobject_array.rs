@@ -122,6 +122,38 @@ impl<E: Reference + Send + Sync> JObjectArrayAPI<E> {
 }
 
 impl<'local, E: Reference + 'local> JObjectArray<'local, E> {
+    /// Creates a new [`JObjectArray`] of the given `length`, with each element initialized to
+    /// `initial_element`.
+    pub fn new<'env_local, 'any_local>(
+        env: &mut Env<'env_local>,
+        length: usize,
+        initial_element: impl AsRef<E::Kind<'any_local>>,
+    ) -> Result<JObjectArray<'env_local, E::Kind<'env_local>>> {
+        if length > crate::sys::jsize::MAX as usize {
+            return Err(crate::errors::Error::JniCall(
+                crate::errors::JniError::InvalidArguments,
+            ));
+        }
+        env.assert_top();
+        let element_class = E::lookup_class(env, &LoaderContext::default())?;
+        let array = unsafe {
+            jni_call_check_ex!(
+                env,
+                v1_1,
+                NewObjectArray,
+                length as i32,
+                element_class.as_raw(),
+                initial_element.as_ref().as_raw()
+            )
+            .map(|array| JObjectArray::<E>::from_raw(env, array))?
+        };
+
+        // Ensure that `element_class` isn't dropped before the JNI call returns.
+        drop(element_class);
+
+        Ok(array)
+    }
+
     /// Creates a [`JObjectArray`] that wraps the given `raw` [`jobjectArray`]
     ///
     /// # Safety

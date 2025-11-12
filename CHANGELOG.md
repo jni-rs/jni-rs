@@ -90,7 +90,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `JList::clear` allows a list to be cleared.
 - `JList::is_empty` checks if a list is empty.
 - `JList::as_collection` casts a list into a `JCollection`
+- `JObjectArray::new` lets you construct a `JObjectArray<E>` with strong element type parameterization, instead of `Env::new_object_array`
 - `JObjectArray::get/set_element` let you get and set array elements as methods on the array.
+- `JPrimitiveArray::new` lets you construct a `JPrimitiveArray<E>`, consistent with `JObjectArray::new`
 - `JThrowable::get_message` is a binding for `getMessage()` and gives easy access to an exception message
 - `JThrowable::get_stack_trace` is a binding for `getStackTrace()`, returning a `JObjectArray<JStackTraceElement>`
 - `JStackTraceElement` gives access to stack frame info within a stack trace, like filename, line number etc
@@ -171,6 +173,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Env::get_*_array_region` and `Env::set_*_array_region` are deprecated in favor of `JPrimitiveArray::get/set_region`
 - `Env::get_array_length` is deprecated in favor of `JPrimitiveArray::len` and `JObjectArray::len`
 - `Env::get/set_object_array_element` are deprecated in favor of `JObjectArray::get/set_element`
+- `Env::new_*_array` methods for primitive array types (like `JByteArray`) take a `&mut Env` and a `usize` len, and the docs recommend using `J<Type>Array::new()` instead.
 - `Env::new_object_unchecked` now takes a `Desc<JMethodID>` for consistency/flexibility instead of directly taking a `JMethodID`
 - `JObjectArray` supports generic element types like `JObjectArray<JString>`
 - `AutoLocal` has been renamed to `Auto` with a deprecated type alias for `AutoLocal` to sign post the rename.

@@ -13,7 +13,7 @@ use jni::{
     refs::Reference,
     signature::{JavaType, Primitive, ReturnType},
     strings::{JNIStr, JNIString},
-    sys::{jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jobject, jshort, jsize},
+    sys::{jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jshort},
     Env,
 };
 
@@ -1346,7 +1346,7 @@ pub fn get_direct_buffer_address_null_arg() {
 #[test]
 pub fn new_primitive_array_ok() {
     attach_current_thread(|env| {
-        const SIZE: jsize = 16;
+        const SIZE: usize = 16;
 
         let result = env.new_boolean_array(SIZE);
         assert!(result.is_ok());
@@ -1387,41 +1387,33 @@ pub fn new_primitive_array_ok() {
 
 // Group test for testing the family of new_PRIMITIVE_array functions with wrong arguments
 #[test]
-pub fn new_primitive_array_wrong() {
+pub fn new_primitive_array_bad_size() {
     attach_current_thread(|env| {
-        const WRONG_SIZE: jsize = -1;
+        const BAD_SIZE: usize = usize::MAX;
 
-        let result = env.new_boolean_array(WRONG_SIZE).map(|arr| arr.as_raw());
-        assert_exception(&result, "Env#new_boolean_array should throw exception");
-        assert_pending_java_exception(env);
+        let result = env.new_boolean_array(BAD_SIZE).map(|arr| arr.as_raw());
+        assert!(result.is_err());
 
-        let result = env.new_byte_array(WRONG_SIZE).map(|arr| arr.as_raw());
-        assert_exception(&result, "Env#new_byte_array should throw exception");
-        assert_pending_java_exception(env);
+        let result = env.new_byte_array(BAD_SIZE).map(|arr| arr.as_raw());
+        assert!(result.is_err());
 
-        let result = env.new_char_array(WRONG_SIZE).map(|arr| arr.as_raw());
-        assert_exception(&result, "Env#new_char_array should throw exception");
-        assert_pending_java_exception(env);
+        let result = env.new_char_array(BAD_SIZE).map(|arr| arr.as_raw());
+        assert!(result.is_err());
 
-        let result = env.new_short_array(WRONG_SIZE).map(|arr| arr.as_raw());
-        assert_exception(&result, "Env#new_short_array should throw exception");
-        assert_pending_java_exception(env);
+        let result = env.new_short_array(BAD_SIZE).map(|arr| arr.as_raw());
+        assert!(result.is_err());
 
-        let result = env.new_int_array(WRONG_SIZE).map(|arr| arr.as_raw());
-        assert_exception(&result, "Env#new_int_array should throw exception");
-        assert_pending_java_exception(env);
+        let result = env.new_int_array(BAD_SIZE).map(|arr| arr.as_raw());
+        assert!(result.is_err());
 
-        let result = env.new_long_array(WRONG_SIZE).map(|arr| arr.as_raw());
-        assert_exception(&result, "Env#new_long_array should throw exception");
-        assert_pending_java_exception(env);
+        let result = env.new_long_array(BAD_SIZE).map(|arr| arr.as_raw());
+        assert!(result.is_err());
 
-        let result = env.new_float_array(WRONG_SIZE).map(|arr| arr.as_raw());
-        assert_exception(&result, "Env#new_float_array should throw exception");
-        assert_pending_java_exception(env);
+        let result = env.new_float_array(BAD_SIZE).map(|arr| arr.as_raw());
+        assert!(result.is_err());
 
-        let result = env.new_double_array(WRONG_SIZE).map(|arr| arr.as_raw());
-        assert_exception(&result, "Env#new_double_array should throw exception");
-        assert_pending_java_exception(env);
+        let result = env.new_double_array(BAD_SIZE).map(|arr| arr.as_raw());
+        assert!(result.is_err());
 
         Ok(())
     })
@@ -1778,15 +1770,6 @@ where
 
     assert_exception_type(env, exception, RUNTIME_EXCEPTION_CLASS);
     assert_exception_message(env, exception, TEST_EXCEPTION_MESSAGE);
-}
-
-// Helper method that asserts that result is Error and the cause is JavaException.
-fn assert_exception(res: &Result<jobject, Error>, expect_message: &str) {
-    assert!(res.is_err());
-    assert!(res
-        .as_ref()
-        .map_err(|error| matches!(error, Error::JavaException))
-        .expect_err(expect_message));
 }
 
 // Shortcut to `assert_pending_java_exception_detailed()` without checking for expected  type and

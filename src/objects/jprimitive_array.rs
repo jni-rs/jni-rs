@@ -87,6 +87,23 @@ impl<T: TypeArray> std::default::Default for JPrimitiveArray<'_, T> {
 }
 
 impl<'local, T: TypeArray> JPrimitiveArray<'local, T> {
+    /// Creates a new [`JPrimitiveArray`] of the given `length`.
+    pub fn new<'env_local>(
+        env: &mut Env<'env_local>,
+        length: usize,
+    ) -> Result<JPrimitiveArray<'env_local, T>> {
+        if length > crate::sys::jsize::MAX as usize {
+            return Err(crate::errors::Error::JniCall(
+                crate::errors::JniError::InvalidArguments,
+            ));
+        }
+        // Runtime check that the 'local reference lifetime will be tied to
+        // Env lifetime for the top JNI stack frame
+        env.assert_top();
+        let raw_array = unsafe { T::new_array(env, length as crate::sys::jsize)? };
+        unsafe { Ok(JPrimitiveArray::from_raw(env, raw_array)) }
+    }
+
     /// Creates a [`JPrimitiveArray`] that wraps the given `raw` [`jarray`]
     ///
     /// # Safety
