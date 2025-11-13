@@ -30,7 +30,7 @@ jobs:
       - name: Toolchain Info
         run: rustup show active-toolchain
       - name: Run Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
   # Security audit.
   audit:
@@ -57,27 +57,27 @@ jobs:
             target_os: linux
             # Avoid --all-targets for MSRV build since we don't want to
             # build dev-dependencies for tests / benchmarks
-            build_args: --all-features
+            build_args: --package jni --all-features
           - build: Linux
             rust-version: stable
             image: ubuntu-latest
             target_os: linux
-            build_args: --all-targets --all-features
+            build_args: --workspace --all-targets --all-features
           - build: macOS
             rust-version: stable
-            image: macOS-13
+            image: macOS-latest
             target_os: macOS
-            build_args: --all-targets --all-features
+            build_args: --workspace --all-targets --all-features
           - build: Windows
             rust-version: stable
             image: windows-latest
             target_os: windows
-            build_args: --all-targets --all-features
+            build_args: --workspace --all-targets --all-features
           - build: Android
             rust-version: stable
             image: ubuntu-latest
             target_os: android
-            build_args: --target=aarch64-linux-android --all --all-features
+            build_args: --package jni --target=aarch64-linux-android --all --all-features
             target_arg: --target=aarch64-linux-android
     steps:
       - name: Checkout sources
@@ -102,26 +102,50 @@ jobs:
         run: cargo +stable install cargo-ndk
       - name: Toolchain Info
         run: rustup show active-toolchain
-      - name: Install java
-        uses: actions/setup-java@v1
-        with:
-          java-version: "1.8.0"
       - name: Build
         run: cargo build ${{ matrix.build_args }}
       - name: Test
         if: ${{ matrix.rust-version == 'stable' && matrix.target_os != 'android' && !cancelled() }}
-        run: cargo test --all-targets --all-features
+        run: cargo test --workspace --all-targets --all-features
       - name: Test
         if: ${{ matrix.rust-version == 'stable' && matrix.target_os == 'android' && !cancelled() }}
         # Intentionally don't pass --all-features so we can check building with and without the
         # 'invocation' feature for Android
-        run: cargo ndk -t arm64-v8a test --lib --tests --no-run -- --nocapture
+        run: cargo ndk -t arm64-v8a test --package jni --lib --tests --no-run -- --nocapture
       - name: Test Docs
         if: ${{ matrix.rust-version == 'stable' && !cancelled() }}
-        run: cargo test --doc ${{ matrix.target_arg }} --all-features
+        run: cargo test --workspace --doc ${{ matrix.target_arg }} --all-features
       - name: Documentation
         if: ${{ matrix.rust-version == 'stable' && !cancelled() }}
-        run: cargo doc ${{ matrix.target_arg }} --all-features --no-deps
+        run: cargo doc --workspace ${{ matrix.target_arg }} --all-features --no-deps
       - name: Abort on error
         if: ${{ failure() }}
         run: echo "test failed" && false
+
+  test_javac:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        java: [8, 11, 17, 21, 25]
+        exclude:
+          - os: macos-latest
+            java: 8 # Java 8 not available on macOS runners
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java ${{ matrix.java }}
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+
+      - name: Show java version
+        run: java -version
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run tests
+        run: cargo test -p javac

@@ -60,3 +60,6 @@ default = []
 
 [package.metadata.docs.rs]
 features = ["invocation"]
+
+[workspace]
+members = ["javac"]
