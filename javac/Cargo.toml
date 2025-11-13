@@ -1,0 +1,14 @@
+[package]
+name = "javac"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+which = "8"
+thiserror = "2"
+
+[dev-dependencies]
+jni = { path = "../", version = "0.21.0", features = ["invocation"] }
+rusty-fork = "0.3.0"
+cafebabe = "0.9"
+encoding_rs = "0.8.35"
