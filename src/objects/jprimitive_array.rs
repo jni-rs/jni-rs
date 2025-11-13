@@ -401,7 +401,7 @@ macro_rules! impl_ref_for_jprimitive_array {
 
                     let api = env.with_local_frame(4, |env| -> Result<_> {
                         let class =
-                            loader_context.load_class_for_type::<JPrimitiveArray::<crate::sys::$type>>(false, env)?;
+                            loader_context.load_class_for_type::<JPrimitiveArray::<crate::sys::$type>>(env, false)?;
                         let class = env.new_global_ref(&class).unwrap();
                         Ok(Self {
                             class,
@@ -428,8 +428,8 @@ macro_rules! impl_ref_for_jprimitive_array {
                 ///
                 /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
                 pub fn cast_local<'any_local>(
-                    obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
                     env: &mut Env<'_>,
+                    obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
                 ) -> Result<<JPrimitiveArray<'any_local, crate::sys::$type> as Reference>::Kind<'any_local>> {
                     env.cast_local::<JPrimitiveArray<crate::sys::$type>>(obj)
                 }

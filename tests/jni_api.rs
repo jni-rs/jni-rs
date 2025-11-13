@@ -1609,10 +1609,10 @@ fn get_object_array_element() {
             .unwrap();
 
         assert!(!array.is_null());
-        assert!(array.get_element(0, env).unwrap().is_null());
+        assert!(array.get_element(env, 0).unwrap().is_null());
         let test_str = env.new_string(c"test").unwrap();
-        array.set_element(0, test_str, env).unwrap();
-        assert!(!array.get_element(0, env).unwrap().is_null());
+        array.set_element(env, 0, test_str).unwrap();
+        assert!(!array.get_element(env, 0).unwrap().is_null());
 
         Ok(())
     })
@@ -1936,7 +1936,7 @@ fn test_throwable_get_stack_trace() {
         assert_eq!(len, 0);
 
         for i in 0..len {
-            let element = stack_trace.get_element(i, env).unwrap();
+            let element = stack_trace.get_element(env, i).unwrap();
             let _class_name = element.get_class_name(env).unwrap();
             let _method_name = element.get_method_name(env).unwrap();
             let _file_name = element.get_file_name(env).unwrap();

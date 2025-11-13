@@ -64,7 +64,7 @@ impl JIteratorAPI {
         static JITERATOR_API: OnceCell<JIteratorAPI> = OnceCell::new();
         JITERATOR_API.get_or_try_init(|| {
             env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
-                let class = loader_context.load_class_for_type::<JIterator>(true, env)?;
+                let class = loader_context.load_class_for_type::<JIterator>(env, true)?;
                 let class = env.new_global_ref(&class).unwrap();
 
                 let has_next_method = env.get_method_id(&class, c"hasNext", c"()Z")?;

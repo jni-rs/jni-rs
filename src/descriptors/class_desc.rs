@@ -14,7 +14,7 @@ where
 
     fn lookup(self, env: &mut Env<'local>) -> Result<Self::Output> {
         Ok(LoaderContext::None
-            .find_class(self.as_ref(), false, env)?
+            .find_class(env, self.as_ref(), false)?
             .auto())
     }
 }
