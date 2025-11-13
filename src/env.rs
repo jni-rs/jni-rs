@@ -681,7 +681,7 @@ See the jni-rs Env documentation for more details.
         S: AsRef<JNIStr>,
     {
         let name = name.as_ref();
-        LoaderContext::None.load_class(name, false, self)
+        LoaderContext::None.load_class(self, name, false)
     }
 
     /// Returns the superclass for a particular class. Returns None for `java.lang.Object` or
@@ -2970,7 +2970,7 @@ See the jni-rs Env documentation for more details.
         array: impl AsRef<JObjectArray<'other_local, E>>,
         index: usize,
     ) -> Result<E::Kind<'local>> {
-        array.as_ref().get_element(index, self)
+        array.as_ref().get_element(self, index)
     }
 
     /// Sets an element of the [`JObjectArray`] `array`.
@@ -2984,7 +2984,7 @@ See the jni-rs Env documentation for more details.
         index: usize,
         value: impl AsRef<E::Kind<'any_local_2>>,
     ) -> Result<()> {
-        array.as_ref().set_element(index, value, self)
+        array.as_ref().set_element(self, index, value)
     }
 
     /// Create a new java byte array from a rust byte slice.

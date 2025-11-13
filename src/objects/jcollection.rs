@@ -71,7 +71,7 @@ impl JCollectionAPI {
         static JCOLLECTION_API: OnceCell<JCollectionAPI> = OnceCell::new();
         JCOLLECTION_API.get_or_try_init(|| {
             env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
-                let class = loader_context.load_class_for_type::<JCollection>(true, env)?;
+                let class = loader_context.load_class_for_type::<JCollection>(env, true)?;
                 let class = env.new_global_ref(&class).unwrap();
 
                 let add_method = env.get_method_id(&class, c"add", c"(Ljava/lang/Object;)Z")?;

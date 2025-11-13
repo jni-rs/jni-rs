@@ -72,7 +72,7 @@ impl JListAPI {
         static JLIST_API: OnceCell<JListAPI> = OnceCell::new();
         JLIST_API.get_or_try_init(|| {
             env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
-                let class = loader_context.load_class_for_type::<JList>(true, env)?;
+                let class = loader_context.load_class_for_type::<JList>(env, true)?;
                 let class = env.new_global_ref(&class).unwrap();
 
                 let get_method = env.get_method_id(&class, c"get", c"(I)Ljava/lang/Object;")?;

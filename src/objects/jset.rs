@@ -70,7 +70,7 @@ impl JSetAPI {
         static JSET_API: OnceCell<JSetAPI> = OnceCell::new();
         JSET_API.get_or_try_init(|| {
             env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
-                let class = loader_context.load_class_for_type::<JSet>(true, env)?;
+                let class = loader_context.load_class_for_type::<JSet>(env, true)?;
                 let class = env.new_global_ref(&class).unwrap();
 
                 Ok(Self { class })

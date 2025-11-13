@@ -233,9 +233,9 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
     /// The strategy for loading the class depends on the loader context (See [Self]).
     pub fn load_class<'env_local>(
         &self,
-        name: &JNIStr,
-        initialize: bool,
         env: &mut crate::env::Env<'env_local>,
+        name: impl AsRef<JNIStr>,
+        initialize: bool,
     ) -> crate::errors::Result<JClass<'env_local>> {
         /// Convert a binary name or array descriptor (like `"java.lang.String"` or
         /// `"[Ljava.lang.String;"`) into an internal name like `"java/lang/String"` or
@@ -272,10 +272,10 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
         }
 
         fn load_class_with_catch<'any_loader, 'any_local>(
+            env: &mut crate::env::Env<'any_local>,
             name: &JNIStr,
             initialize: bool,
             loader: &JClassLoader<'any_loader>,
-            env: &mut crate::env::Env<'any_local>,
         ) -> crate::errors::Result<JClass<'any_local>> {
             // May throw ClassNotFoundException
             match JClass::for_name_with_loader(name, initialize, loader, env) {
@@ -292,8 +292,8 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
         }
 
         fn find_class<'local>(
-            name: &JNIStr,
             env: &mut crate::env::Env<'local>,
+            name: &JNIStr,
         ) -> crate::errors::Result<JClass<'local>> {
             let internal_name = internal_find_class_name(name);
             match env.find_class(&internal_name) {
@@ -306,13 +306,13 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
         }
 
         fn lookup_class_with_fallbacks<'local>(
+            env: &mut crate::env::Env<'local>,
             name: &JNIStr,
             initialize: bool,
             candidate: Option<&JObject>,
-            env: &mut crate::env::Env<'local>,
         ) -> crate::errors::Result<JClass<'local>> {
             if let Some(tccl) = lookup_tccl_with_catch(env)? {
-                match load_class_with_catch(name, initialize, &tccl, env) {
+                match load_class_with_catch(env, name, initialize, &tccl) {
                     Ok(class) => return Ok(class),
                     Err(Error::ClassNotFound { .. }) => {
                         // Try the next fallback
@@ -325,7 +325,7 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
                 let candidate_class = env.get_object_class(candidate)?;
                 // Doesn't throw exception for missing loader
                 let loader = candidate_class.get_class_loader(env)?;
-                match load_class_with_catch(name, initialize, &loader, env) {
+                match load_class_with_catch(env, name, initialize, &loader) {
                     Ok(class) => return Ok(class),
                     Err(Error::ClassNotFound { .. }) => {
                         // Try the next fallback
@@ -334,18 +334,19 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
                 }
             }
 
-            find_class(name, env)
+            find_class(env, name)
         }
 
+        let name = name.as_ref();
         match self {
             LoaderContext::None => env.with_local_frame_returning_local::<_, JClass, _>(5, |env| {
-                lookup_class_with_fallbacks(name, initialize, None, env)
+                lookup_class_with_fallbacks(env, name, initialize, None)
             }),
             LoaderContext::FromObject(candidate) => env
                 .with_local_frame_returning_local::<_, JClass, _>(5, |env| {
-                    lookup_class_with_fallbacks(name, initialize, Some(candidate), env)
+                    lookup_class_with_fallbacks(env, name, initialize, Some(candidate))
                 }),
-            LoaderContext::Loader(loader) => load_class_with_catch(name, initialize, loader, env),
+            LoaderContext::Loader(loader) => load_class_with_catch(env, name, initialize, loader),
         }
     }
 
@@ -358,9 +359,9 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
     /// If possible, prefer to use [Self::load_class] to avoid a redundant name format conversion.
     pub fn find_class<'env_local>(
         &self,
-        name: &JNIStr,
-        initialize: bool,
         env: &mut crate::env::Env<'env_local>,
+        name: impl AsRef<JNIStr>,
+        initialize: bool,
     ) -> crate::errors::Result<JClass<'env_local>> {
         /// Convert an internal name or array descriptor (like `"java/lang/String"` or
         /// `"[Ljava/lang/String;"`) into a binary name like `"java.lang.String"` or
@@ -380,8 +381,8 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
                 Cow::Owned(jni_string)
             }
         }
-        let internal_name = internal_to_binary_class_name(name);
-        self.load_class(&internal_name, initialize, env)
+        let internal_name = internal_to_binary_class_name(name.as_ref());
+        self.load_class(env, &internal_name, initialize)
     }
 
     /// Loads the class associated with the `JObjectRef` type `T`, using the given loader context.
@@ -395,11 +396,11 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
     /// The strategy for loading the class depends on the loader context (See [Self]).
     pub fn load_class_for_type<'env_local, T: Reference>(
         &self,
-        initialize: bool,
         env: &mut crate::env::Env<'env_local>,
+        initialize: bool,
     ) -> crate::errors::Result<JClass<'env_local>> {
         let class_name = T::class_name();
-        self.load_class(&class_name, initialize, env)
+        self.load_class(env, &class_name, initialize)
     }
 }
 

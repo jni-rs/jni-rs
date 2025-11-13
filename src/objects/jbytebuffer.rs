@@ -60,7 +60,7 @@ impl JByteBufferAPI {
         static JBYTEBUFFER_API: OnceCell<JByteBufferAPI> = OnceCell::new();
         JBYTEBUFFER_API.get_or_try_init(|| {
             env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
-                let class = loader_context.load_class_for_type::<JByteBuffer>(false, env)?;
+                let class = loader_context.load_class_for_type::<JByteBuffer>(env, false)?;
                 let class = env.new_global_ref(&class).unwrap();
                 Ok(Self { class })
             })

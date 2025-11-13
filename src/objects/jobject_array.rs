@@ -94,7 +94,7 @@ impl<E: Reference + Send + Sync> JObjectArrayAPI<E> {
 
         let created: JObjectArrayAPI<E> = {
             env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| -> Result<_> {
-                let class = loader_context.load_class_for_type::<JObjectArray<E>>(false, env)?;
+                let class = loader_context.load_class_for_type::<JObjectArray<E>>(env, false)?;
                 let class = env.new_global_ref(&class)?;
                 Ok(JObjectArrayAPI {
                     class,
@@ -204,8 +204,8 @@ impl<'local, E: Reference + 'local> JObjectArray<'local, E> {
     ///
     /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
     pub fn cast_local<'any_local, O: Reference + 'static>(
-        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
         env: &mut Env<'_>,
+        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
     ) -> Result<<JObjectArray<'any_local, O> as Reference>::Kind<'any_local>> {
         env.cast_local::<JObjectArray<'any_local, O>>(obj)
     }
@@ -223,8 +223,8 @@ impl<'local, E: Reference + 'local> JObjectArray<'local, E> {
     /// Returns a local reference to an element of the [`JObjectArray`] `array`.
     pub fn get_element<'env_local>(
         &self,
-        index: usize,
         env: &mut Env<'env_local>,
+        index: usize,
     ) -> Result<E::Kind<'env_local>> {
         // Runtime check that the 'local reference lifetime will be tied to
         // Env lifetime for the top JNI stack frame
@@ -247,9 +247,9 @@ impl<'local, E: Reference + 'local> JObjectArray<'local, E> {
     /// Sets an element of the [`JObjectArray`] `array`.
     pub fn set_element<'any_local>(
         &self,
+        env: &Env<'_>,
         index: usize,
         value: impl AsRef<E::Kind<'any_local>>,
-        env: &Env<'_>,
     ) -> Result<()> {
         let array = null_check!(
             self.as_raw() as jobjectArray,

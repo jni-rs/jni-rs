@@ -68,7 +68,7 @@ impl JThrowableAPI {
         static JTHROWABLE_API: OnceCell<JThrowableAPI> = OnceCell::new();
         JTHROWABLE_API.get_or_try_init(|| {
             env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
-                let class = loader_context.load_class_for_type::<JThrowable>(true, env)?;
+                let class = loader_context.load_class_for_type::<JThrowable>(env, true)?;
                 let class = env.new_global_ref(&class).unwrap();
                 let get_message_method = env
                     .get_method_id(&class, c"getMessage", c"()Ljava/lang/String;")

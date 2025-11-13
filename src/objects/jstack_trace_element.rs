@@ -64,7 +64,7 @@ impl JStackTraceElementAPI {
         static JSTACK_TRACE_ELEMENT_API: OnceCell<JStackTraceElementAPI> = OnceCell::new();
         JSTACK_TRACE_ELEMENT_API.get_or_try_init(|| {
             env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
-                let class = loader_context.load_class_for_type::<JStackTraceElement>(false, env)?;
+                let class = loader_context.load_class_for_type::<JStackTraceElement>(env, false)?;
                 let class = env.new_global_ref(&class).unwrap();
 
                 let get_class_name_method = env

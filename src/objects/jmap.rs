@@ -64,7 +64,7 @@ impl JMapAPI {
         static JMAP_API: OnceCell<JMapAPI> = OnceCell::new();
         JMAP_API.get_or_try_init(|| {
             env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
-                let class = loader_context.load_class_for_type::<JMap>(true, env)?;
+                let class = loader_context.load_class_for_type::<JMap>(env, true)?;
                 let class = env.new_global_ref(&class).unwrap();
 
                 let get_method =
@@ -377,7 +377,7 @@ impl JMapEntryAPI {
         static JMAPENTRY_API: OnceCell<JMapEntryAPI> = OnceCell::new();
         JMAPENTRY_API.get_or_try_init(|| {
             env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
-                let class = loader_context.load_class_for_type::<JMapEntry>(true, env)?;
+                let class = loader_context.load_class_for_type::<JMapEntry>(env, true)?;
                 let class = env.new_global_ref(&class).unwrap();
 
                 let get_key_method =
