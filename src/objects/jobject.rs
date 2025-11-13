@@ -1,13 +1,11 @@
 use std::{borrow::Cow, marker::PhantomData, ops::Deref};
 
-use once_cell::sync::OnceCell;
-
 use crate::{
     errors::Result,
     objects::{Global, JClass, LoaderContext},
     strings::JNIStr,
     sys::jobject,
-    Env, DEFAULT_LOCAL_FRAME_CAPACITY,
+    Env,
 };
 
 use super::Reference;
@@ -92,15 +90,38 @@ struct JObjectAPI {
 }
 impl JObjectAPI {
     fn get(env: &Env<'_>) -> Result<&'static Self> {
-        static JOBJECT_API: OnceCell<JObjectAPI> = OnceCell::new();
-        JOBJECT_API.get_or_try_init(|| {
-            env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
-                // NB: Self::CLASS_NAME is a binary name with dots, not slashes
-                let class = env.find_class(JNIStr::from_cstr(c"java/lang/Object"))?;
-                let class = env.new_global_ref(class)?;
-                Ok(JObjectAPI { class })
-            })
-        })
+        static API: std::sync::OnceLock<JObjectAPI> = std::sync::OnceLock::new();
+
+        // Fast path: already initialized
+        if let Some(api) = API.get() {
+            return Ok(api);
+        }
+
+        // Slow path: Lookup class
+
+        // Although this isn't really a concern for java.lang.Object, the
+        // general pattern here is to avoid holding any lock while performing
+        // class lookups and API initialization in case we need to be re-entrant
+        // (e.g. due to class initializers that call back into Rust).
+        //
+        // This matters more for other types where we lookup method IDs and
+        // field IDs which may trigger class initialization, and especially for
+        // types that register native methods that may need to be registered
+        // before the class can be initialized and then called during class
+        // initialization.
+
+        // NB: the purpose of the `OnceLock` here is to amortize the cost of
+        // class lookups and API initialization over multiple uses, so we aren't
+        // really concerned about a small amount of redundant work if multiple
+        // threads race here.
+
+        let api = env.with_local_frame(8, |env| -> crate::errors::Result<_> {
+            let class = env.find_class(JNIStr::from_cstr(c"java/lang/Object"))?;
+            let class = env.new_global_ref(class)?;
+            Ok(JObjectAPI { class })
+        })?;
+        let _ = API.set(api);
+        Ok(API.get().unwrap())
     }
 }
 
