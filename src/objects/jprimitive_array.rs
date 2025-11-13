@@ -2,8 +2,6 @@ use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::ops::Deref;
 
-use once_cell::sync::OnceCell;
-
 use crate::{
     env::Env,
     errors::Result,
@@ -13,7 +11,6 @@ use crate::{
     },
     strings::JNIStr,
     sys::{jarray, jobject},
-    vm::DEFAULT_LOCAL_FRAME_CAPACITY,
 };
 
 use super::TypeArray;
@@ -372,17 +369,29 @@ macro_rules! impl_ref_for_jprimitive_array {
                     env: &Env<'_>,
                     loader_context: &LoaderContext<'any_local, '_>,
                 ) -> Result<&'static Self> {
-                    static JPRIMITIVE_ARRAY_API: OnceCell<[<JPrimitiveArrayAPI _ $type>]> = OnceCell::new();
-                    JPRIMITIVE_ARRAY_API.get_or_try_init(|| {
-                        env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
-                            let class =
-                                loader_context.load_class_for_type::<JPrimitiveArray::<crate::sys::$type>>(false, env)?;
-                            let class = env.new_global_ref(&class).unwrap();
-                            Ok(Self {
-                                class,
-                            })
+                    static API: std::sync::OnceLock<[<JPrimitiveArrayAPI _ $type>]> = std::sync::OnceLock::new();
+
+                    // Fast path
+                    if let Some(api) = API.get() {
+                        return Ok(api);
+                    }
+
+                    // Lookup class and cache
+
+                    // Note: we don't mind racing here, and follow the general pattern of avoiding
+                    // locks while looking up classes and initializing APIs, because in the more
+                    // general case it can lead to deadlocks via class initialization dependencies.
+
+                    let api = env.with_local_frame(4, |env| -> Result<_> {
+                        let class =
+                            loader_context.load_class_for_type::<JPrimitiveArray::<crate::sys::$type>>(false, env)?;
+                        let class = env.new_global_ref(&class).unwrap();
+                        Ok(Self {
+                            class,
                         })
-                    })
+                    })?;
+                    let _ = API.set(api);
+                    Ok(API.get().unwrap())
                 }
             }
 
