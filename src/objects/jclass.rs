@@ -5,7 +5,9 @@ use once_cell::sync::OnceCell;
 use crate::{
     env::Env,
     errors::Result,
-    objects::{Global, JClassLoader, JMethodID, JObject, JStaticMethodID, JValue, LoaderContext},
+    objects::{
+        Global, JClassLoader, JMethodID, JObject, JStaticMethodID, JString, JValue, LoaderContext,
+    },
     signature::JavaType,
     strings::JNIStr,
     sys::{jclass, jobject},
@@ -178,7 +180,7 @@ impl JClass<'_> {
     {
         let api = JClassAPI::get(env)?;
 
-        let class_name = env.new_string(class_name)?;
+        let class_name = JString::from_jni_str(env, class_name.as_ref())?;
 
         // Safety: We know that `forName` is a valid static method on `java/lang/Class` that takes
         // a String and returns a valid `Class` instance.
@@ -223,7 +225,7 @@ impl JClass<'_> {
     {
         let api = JClassAPI::get(env)?;
 
-        let class_name = env.new_string(class_name)?;
+        let class_name = JString::from_jni_str(env, class_name.as_ref())?;
 
         // Safety: We know that `forName` is a valid static method on `java/lang/Class` that takes
         // a String, initializer boolean and a ClassLoader and returns a valid `Class` instance.

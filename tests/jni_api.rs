@@ -122,7 +122,7 @@ pub fn is_instance_of_null() {
 #[test]
 pub fn is_same_object_diff_references() {
     attach_current_thread(|env| {
-        let string = env.new_string(TESTING_OBJECT_STR).unwrap();
+        let string = JString::from_jni_str(env, TESTING_OBJECT_STR).unwrap();
         let ref_from_string = unwrap(env.new_local_ref(&string), env);
         assert!(env.is_same_object(&string, &ref_from_string));
         env.delete_local_ref(ref_from_string);
@@ -135,7 +135,7 @@ pub fn is_same_object_diff_references() {
 #[test]
 pub fn is_same_object_same_reference() {
     attach_current_thread(|env| {
-        let string = env.new_string(TESTING_OBJECT_STR).unwrap();
+        let string = JString::from_jni_str(env, TESTING_OBJECT_STR).unwrap();
         assert!(env.is_same_object(&string, &string));
 
         Ok(())
@@ -146,8 +146,8 @@ pub fn is_same_object_same_reference() {
 #[test]
 pub fn is_not_same_object() {
     attach_current_thread(|env| {
-        let string = env.new_string(TESTING_OBJECT_STR).unwrap();
-        let same_src_str = env.new_string(TESTING_OBJECT_STR).unwrap();
+        let string = JString::from_jni_str(env, TESTING_OBJECT_STR).unwrap();
+        let same_src_str = JString::from_jni_str(env, TESTING_OBJECT_STR).unwrap();
         assert!(!env.is_same_object(string, same_src_str));
 
         Ok(())
@@ -550,7 +550,7 @@ pub fn attach_current_thread_guard_scope() {
                 .unwrap()
         };
         vm.with_local_frame(10, |env| -> jni::errors::Result<_> {
-            let _s = env.new_string(c"hello").unwrap();
+            let _s = env.new_string("hello").unwrap();
             Ok(())
         })
         .unwrap();
@@ -563,7 +563,7 @@ pub fn with_local_frame() {
     attach_current_thread(|env| {
         let s = env
             .with_local_frame_returning_local::<_, JObject, jni::errors::Error>(16, |env| {
-                let res = env.new_string(c"Test")?;
+                let res = env.new_string("Test")?;
                 Ok(res.into())
             })
             .unwrap();
@@ -590,7 +590,7 @@ pub fn with_local_frame_misuse_panic() {
 
                 // As a failsafe though, we should panic if we attempt use env1 to create new local references
                 // since env1 is not the top frame Env.
-                let _res = env1.new_string(c"Test").expect("This should panic");
+                let _res = env1.new_string("Test").expect("This should panic");
 
                 Ok(())
             })
@@ -624,7 +624,7 @@ pub fn with_local_frame_pending_exception() {
 #[test]
 pub fn call_method_ok() {
     attach_current_thread(|env| {
-        let s = env.new_string(TESTING_OBJECT_STR).unwrap();
+        let s = JString::from_jni_str(env, TESTING_OBJECT_STR).unwrap();
 
         let v: jint = env
             .call_method(s, c"indexOf", c"(I)I", &[JValue::Int('S' as i32)])
@@ -642,7 +642,7 @@ pub fn call_method_ok() {
 #[test]
 pub fn call_method_with_bad_args_errs() {
     attach_current_thread(|env| {
-        let s = env.new_string(TESTING_OBJECT_STR).unwrap();
+        let s = JString::from_jni_str(env, TESTING_OBJECT_STR).unwrap();
 
         let is_bad_typ = env
             .call_method(
@@ -726,7 +726,7 @@ pub fn call_static_method_unchecked_ok() {
 #[test]
 pub fn call_new_object_unchecked_ok() {
     attach_current_thread(|env| {
-        let test_str = env.new_string(TESTING_OBJECT_STR).unwrap();
+        let test_str = JString::from_jni_str(env, TESTING_OBJECT_STR).unwrap();
         let string_class = env.find_class(STRING_CLASS).unwrap();
 
         let ctor_method_id = env
@@ -766,7 +766,7 @@ pub fn call_new_object_with_bad_args_errs() {
             "ErrorKind::InvalidArgList expected when passing bad value type"
         );
 
-        let s = env.new_string(TESTING_OBJECT_STR).unwrap();
+        let s = JString::from_jni_str(env, TESTING_OBJECT_STR).unwrap();
 
         let is_bad_len = env
             .new_object(
@@ -886,7 +886,7 @@ pub fn get_reflected_method_from_id() {
             .unwrap();
 
         let value = {
-            let jstr = env.new_string(c"55").unwrap();
+            let jstr = env.new_string("55").unwrap();
             let vargs = env
                 .new_object_array(1, c"java/lang/Object", jstr)
                 .expect("can create array");
@@ -1198,7 +1198,7 @@ pub fn get_array_elements_critical() {
 #[test]
 pub fn get_object_class() {
     attach_current_thread(|env| {
-        let string = env.new_string(c"test").unwrap();
+        let string = env.new_string("test").unwrap();
         let result = env.get_object_class(string);
         assert!(result.is_ok());
         assert!(!result.unwrap().is_null());
@@ -1274,7 +1274,7 @@ pub fn get_direct_buffer_capacity_ok() {
 #[test]
 pub fn get_direct_buffer_capacity_wrong_arg() {
     attach_current_thread(|env| {
-        let wrong_type = env.new_string(c"wrong").unwrap();
+        let wrong_type = env.new_string("wrong").unwrap();
         let wrong_obj = unsafe { JByteBuffer::from_raw(env, wrong_type.into_raw()) };
         let capacity = env.get_direct_buffer_capacity(&wrong_obj);
         assert!(capacity.is_err());
@@ -1318,7 +1318,7 @@ pub fn get_direct_buffer_address_ok() {
 #[test]
 pub fn get_direct_buffer_address_wrong_arg() {
     attach_current_thread(|env| {
-        let wrong_obj: JObject = env.new_string(c"wrong").unwrap().into();
+        let wrong_obj: JObject = env.new_string("wrong").unwrap().into();
 
         // SAFETY: This is not a valid cast and not generally safe but `GetDirectBufferAddress` is
         // documented to return a null pointer in case the "given object is not a direct java.nio.Buffer".
@@ -1516,8 +1516,8 @@ fn auto_null() {
 #[test]
 fn test_call_nonvirtual_method() {
     attach_current_thread(|env| {
-        let a_string = JObject::from(env.new_string(c"test").unwrap());
-        let another_string = JObject::from(env.new_string(c"test").unwrap());
+        let a_string = JObject::from(env.new_string("test").unwrap());
+        let another_string = JObject::from(env.new_string("test").unwrap());
 
         // The `equals` method in java/lang/Object will compare the reference
         let obj_class = env.find_class(c"java/lang/Object").unwrap();
@@ -1610,7 +1610,7 @@ fn get_object_array_element() {
 
         assert!(!array.is_null());
         assert!(array.get_element(env, 0).unwrap().is_null());
-        let test_str = env.new_string(c"test").unwrap();
+        let test_str = env.new_string("test").unwrap();
         array.set_element(env, 0, test_str).unwrap();
         assert!(!array.get_element(env, 0).unwrap().is_null());
 
@@ -1695,7 +1695,7 @@ pub fn throw_defaults() {
 #[test]
 pub fn test_conversion() {
     attach_current_thread(|env| {
-        let orig_obj: JObject = env.new_string(c"Hello, world!").unwrap().into();
+        let orig_obj: JObject = env.new_string("Hello, world!").unwrap().into();
 
         let obj: JObject = unwrap(env.new_local_ref(&orig_obj), env);
 
@@ -1736,7 +1736,7 @@ fn test_jstring_conversion() {
     assert_eq!(invalid.to_string(), "<JNI Not Initialized>");
 
     attach_current_thread(|env| {
-        let hello: JString = env.new_string(c"Hello, world!").unwrap();
+        let hello: JString = env.new_string("Hello, world!").unwrap();
 
         assert_eq!(hello.to_string(), "Hello, world!");
         assert_eq!(hello.to_string(), hello.try_to_string(env).unwrap());

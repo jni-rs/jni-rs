@@ -6,7 +6,7 @@ use crate::{
     env::Env,
     errors::Result,
     ids::JStaticMethodID,
-    objects::{Global, JClass, JMethodID, JObject, JValue, LoaderContext},
+    objects::{Global, JClass, JMethodID, JObject, JString, JValue, LoaderContext},
     signature::JavaType,
     strings::JNIStr,
     sys::{jclass, jobject},
@@ -178,7 +178,7 @@ impl JClassLoader<'_> {
     ) -> Result<JClass<'local>> {
         let api = JClassLoaderAPI::get(env)?;
 
-        let name = env.new_string(name)?;
+        let name = JString::from_jni_str(env, name)?;
 
         // SAFETY:
         // - we know that `self` is a valid `JClassLoader` reference and `load_class_method` is a valid method ID.

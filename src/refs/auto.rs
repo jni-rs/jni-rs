@@ -64,7 +64,7 @@ use super::Reference;
 /// for i in 0..1000 {
 ///     // Ensure we aren't left with a new local for each iteration by
 ///     // wrapping the reference in an `Auto` wrapper.
-///     let auto_delete_string = env.new_string(c"Hello, world!")?.auto();
+///     let auto_delete_string = env.new_string("Hello, world!")?.auto();
 /// }
 /// # Ok(())
 /// # }

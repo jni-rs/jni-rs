@@ -83,7 +83,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### java.lang APIs
 
-- `JThread` as a `Reference` wrapper for `java.lang.Thread` references ([#612](https://github.com/jni-rs/jni-rs/pull/612))
 - `JClassLoader` as a `Reference` wrapper for `java.lang.ClassLoader` references ([#612](https://github.com/jni-rs/jni-rs/pull/612))
 - `JCollection`, `JSet` and `JIterator` reference wrappers for `java.util.Collection`, `java.util.Set` and `java.util.Iterator` interfaces.
 - `JList::remove_item` for removing a given value, by-reference, from the list (instead of by index).
@@ -93,9 +92,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `JObjectArray::new` lets you construct a `JObjectArray<E>` with strong element type parameterization, instead of `Env::new_object_array`
 - `JObjectArray::get/set_element` let you get and set array elements as methods on the array.
 - `JPrimitiveArray::new` lets you construct a `JPrimitiveArray<E>`, consistent with `JObjectArray::new`
+- `JStackTraceElement` gives access to stack frame info within a stack trace, like filename, line number etc
+- `JString` now has `::new()`, `::from_str` and `::from_jni_str` constructor methods ([#960](https://github.com/jni-rs/jni-rs/pull/690))
+- `JThread` as a `Reference` wrapper for `java.lang.Thread` references ([#612](https://github.com/jni-rs/jni-rs/pull/612))
 - `JThrowable::get_message` is a binding for `getMessage()` and gives easy access to an exception message
 - `JThrowable::get_stack_trace` is a binding for `getStackTrace()`, returning a `JObjectArray<JStackTraceElement>`
-- `JStackTraceElement` gives access to stack frame info within a stack trace, like filename, line number etc
 
 
 ### Changed

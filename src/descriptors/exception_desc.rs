@@ -2,7 +2,7 @@ use crate::{
     descriptors::Desc,
     env::Env,
     errors::*,
-    objects::{Auto, IntoAuto as _, JClass, JObject, JThrowable, JValue},
+    objects::{Auto, IntoAuto as _, JClass, JObject, JString, JThrowable, JValue},
     strings::{JNIStr, JNIString},
 };
 
@@ -16,7 +16,7 @@ where
     type Output = Auto<'local, JThrowable<'local>>;
 
     fn lookup(self, env: &mut Env<'local>) -> Result<Self::Output> {
-        let jmsg = env.new_string(self.1.as_ref())?.auto();
+        let jmsg = JString::from_jni_str(env, self.1.as_ref())?.auto();
         let obj: JObject =
             env.new_object(self.0, c"(Ljava/lang/String;)V", &[JValue::from(&jmsg)])?;
         let throwable = env.cast_local::<JThrowable>(obj)?;

@@ -27,7 +27,7 @@ pub fn jlist_push_and_iterate() {
         // Add all strings to the list
         unwrap(
             data.iter().try_for_each(|s| {
-                let string = env.new_string(s)?;
+                let string = JString::from_jni_str(env, s)?;
                 let added = list.add(env, &string)?;
                 assert!(added);
                 Ok(())
@@ -68,8 +68,8 @@ pub fn jlist_get_and_set() {
         let list = unwrap(JList::cast_local(list_object, env), env);
 
         // Add some initial elements
-        let hello_str = unwrap(env.new_string(c"hello"), env);
-        let world_str = unwrap(env.new_string(c"world"), env);
+        let hello_str = unwrap(JString::from_str(env, "hello"), env);
+        let world_str = unwrap(JString::from_str(env, "world"), env);
 
         unwrap(list.add(env, &hello_str.into()), env);
         unwrap(list.add(env, &world_str.into()), env);
@@ -106,14 +106,14 @@ pub fn jlist_insert_and_remove() {
         let list = unwrap(JList::cast_local(list_object, env), env);
 
         // Add initial elements
-        let first_str = unwrap(env.new_string(c"first"), env);
-        let third_str = unwrap(env.new_string(c"third"), env);
+        let first_str = unwrap(JString::from_str(env, "first"), env);
+        let third_str = unwrap(JString::from_str(env, "third"), env);
 
         unwrap(list.add(env, &first_str.into()), env);
         unwrap(list.add(env, &third_str.into()), env);
 
         // Insert in the middle
-        let second_str = unwrap(env.new_string(c"second"), env);
+        let second_str = unwrap(JString::from_str(env, "second"), env);
         unwrap(list.insert(env, 1, &second_str.into()), env);
 
         // Verify the size is now 3
@@ -169,9 +169,9 @@ pub fn jlist_size_and_remove() {
         assert_eq!(size, 0);
 
         // Add some elements
-        let first_str = unwrap(env.new_string(c"first"), env);
-        let second_str = unwrap(env.new_string(c"second"), env);
-        let third_str = unwrap(env.new_string(c"third"), env);
+        let first_str = unwrap(env.new_string("first"), env);
+        let second_str = unwrap(env.new_string("second"), env);
+        let third_str = unwrap(env.new_string("third"), env);
 
         unwrap(list.add(env, &first_str), env);
         unwrap(list.add(env, &second_str), env);
@@ -259,7 +259,7 @@ pub fn jlist_iterator_with_auto() {
         // Add all strings to the list
         unwrap(
             data.iter().try_for_each(|s| {
-                let string = env.new_string(s)?;
+                let string = JString::from_jni_str(env, s)?;
                 let added = list.add(env, &string)?;
                 assert!(added);
                 Ok(())

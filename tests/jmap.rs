@@ -25,7 +25,7 @@ pub fn jmap_push_and_iterate() {
         // Push all strings
         unwrap(
             data.iter().try_for_each(|s| {
-                env.new_string(s)
+                JString::from_jni_str(env, s)
                     .map(JObject::from)
                     .and_then(|s| map.put(env, &s, &s).map(|_| ()))
             }),

@@ -207,13 +207,13 @@ use crate::{objects::JThread, strings::JNIString};
 /// `Env`s in the same scope. For example:
 ///
 /// ```rust,no_run
-/// # use jni::{JavaVM, errors::Result};
+/// # use jni::{JavaVM, errors::Result, objects::JString};
 /// # fn f(vm: &JavaVM) -> Result<()> {
 /// vm.attach_current_thread(|env1| -> Result<()> {
 ///     vm.attach_current_thread(|env2| -> Result<()> {
 ///         // env1 is still mutable, but no longer the top frame.
 ///         // This will panic at runtime:
-///         env1.new_string(c"not valid here").unwrap();
+///         JString::from_str(env1, "not valid here").unwrap();
 ///         Ok(())
 ///     })
 /// })
@@ -334,9 +334,8 @@ use crate::{objects::JThread, strings::JNIString};
 /// simply panic but in practice there should be no reason for these arguments
 /// to require non-UTF-8 strings.
 ///
-/// For more complex strings that need full unicode support (for example when
-/// calling [`Env::new_string`] then you should use [JNIString::from] instead of
-/// relying on `CStr` literals.
+/// For more complex JNI strings that need full unicode support then you should
+/// use [JNIString::from] instead of relying on `CStr` literals.
 ///
 #[derive(Debug)]
 pub struct Env<'local> {
@@ -1479,7 +1478,7 @@ See the jni-rs Env documentation for more details.
     ///                 // The error was caused by something that happened in Rust code. Create a
     ///                 // new `java.lang.Error` to represent it.
     ///
-    ///                 let error_string = env.new_string(JNIString::from(error.to_string()))?;
+    ///                 let error_string = JString::from_str(env, error.to_string())?;
     ///
     ///                 env.new_object(
     ///                     c"java/lang/Error",
@@ -2875,18 +2874,14 @@ See the jni-rs Env documentation for more details.
         MUTF8Chars::from_get_string_utf_chars(self, obj)
     }
 
-    /// Create a new java string object from a rust string. This requires a
-    /// re-encoding of rusts *real* UTF-8 strings to java's modified UTF-8
-    /// format.
-    pub fn new_string<S: AsRef<JNIStr>>(&mut self, from: S) -> Result<JString<'local>> {
-        // Runtime check that the 'local reference lifetime will be tied to
-        // Env lifetime for the top JNI stack frame
-        self.assert_top();
-        let ffi_str = from.as_ref();
-        unsafe {
-            jni_call_check_ex_and_null_ret!(self, v1_1, NewStringUTF, ffi_str.as_ptr())
-                .map(|s| JString::from_raw(self, s))
-        }
+    /// Create a new java string object from a rust string.
+    ///
+    /// This requires a re-encoding of rusts UTF-8 strings to JNI's modified UTF-8 format before
+    /// calling the JNI function `NewStringUTF`.
+    ///
+    /// To avoid this intermediate copy + encoding, consider using [`JString::from_jni_str`].
+    pub fn new_string(&mut self, from: impl AsRef<str>) -> Result<JString<'local>> {
+        JString::new(self, from)
     }
 
     /// Get the length of a [`JPrimitiveArray`] or [`JObjectArray`].
