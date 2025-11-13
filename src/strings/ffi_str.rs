@@ -92,7 +92,10 @@ impl AsRef<JNIStr> for CStr {
 impl PartialEq<JNIString> for &JNIStr {
     #[inline]
     fn eq(&self, other: &JNIString) -> bool {
-        &self.internal == other.internal.as_c_str()
+        // PartialEq<&CStr> was only added in Rust 1.90 which is currently higher
+        // than our MSRV, so we compare by bytes to also avoid clippy warnings
+        // with newer Rust versions.
+        self.internal.to_bytes() == other.internal.to_bytes()
     }
 }
 
