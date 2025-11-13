@@ -32,7 +32,7 @@ use ::{
 /// # use jni::{errors::Result, Env, objects::*};
 /// #
 /// # fn f(env: &mut Env) -> Result<()> {
-/// let string = env.new_string(c"Hello, world!")?;
+/// let string = JString::from_str(env, "Hello, world!")?;
 /// let rust_utf8_string = string.mutf8_chars(env)?.to_string();
 /// # Ok(())
 /// # }
@@ -173,10 +173,10 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{errors::Result, Env, strings::MUTF8Chars};
+    /// # use jni::{errors::Result, Env, objects::JString, strings::MUTF8Chars};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// let jstring = env.new_string(c"foo")?;
+    /// let jstring = JString::from_str(env, "foo")?;
     /// let chars = jstring.mutf8_chars(env)?;
     ///
     /// let (ptr, is_copy) = chars.into_raw();

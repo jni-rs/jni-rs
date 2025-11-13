@@ -24,7 +24,7 @@ fn invocation_character_encoding() {
 
     jvm.attach_current_thread(|env| -> jni::errors::Result<()> {
         println!("creating new_string, env = {:?}", env.get_raw());
-        let prop_name = env.new_string(c"nbsp").unwrap();
+        let prop_name = env.new_string("nbsp").unwrap();
 
         println!("calling getProperty");
         let prop_value = env

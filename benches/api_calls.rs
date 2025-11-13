@@ -1,6 +1,6 @@
 #![cfg(feature = "invocation")]
 
-use jni::strings::{JNIStr, JNIString};
+use jni::strings::JNIStr;
 use jni_sys::jvalue;
 use lazy_static::lazy_static;
 
@@ -231,7 +231,7 @@ fn jni_call_static_date_time_method_unchecked_jclass(c: &mut Criterion) {
 
 fn jni_call_object_hash_method_safe(c: &mut Criterion) {
     VM.attach_current_thread_for_scope(|env| -> jni::errors::Result<()> {
-        let s = env.new_string(c"").unwrap();
+        let s = env.new_string("").unwrap();
         let obj = black_box(JObject::from(s));
 
         c.bench_function("jni_call_object_hash_method_safe", |b| {
@@ -244,7 +244,7 @@ fn jni_call_object_hash_method_safe(c: &mut Criterion) {
 
 fn jni_call_object_hash_method_unchecked(c: &mut Criterion) {
     VM.attach_current_thread_for_scope(|env| -> jni::errors::Result<()> {
-        let s = env.new_string(c"").unwrap();
+        let s = env.new_string("").unwrap();
         let obj = black_box(JObject::from(s));
         let obj_class = env.get_object_class(&obj).unwrap();
         let method_id = env
@@ -368,9 +368,7 @@ fn jni_get_java_vm(c: &mut Criterion) {
 
 fn jni_get_string(c: &mut Criterion) {
     VM.attach_current_thread_for_scope(|env| -> jni::errors::Result<()> {
-        let string = env
-            .new_string(JNIString::from(TEST_STRING_UNICODE))
-            .unwrap();
+        let string = env.new_string(TEST_STRING_UNICODE).unwrap();
 
         c.bench_function("jni_get_string", |b| {
             b.iter(|| {
@@ -385,9 +383,7 @@ fn jni_get_string(c: &mut Criterion) {
 
 fn jni_get_string_unchecked(c: &mut Criterion) {
     VM.attach_current_thread_for_scope(|env| -> jni::errors::Result<()> {
-        let string = env
-            .new_string(JNIString::from(TEST_STRING_UNICODE))
-            .unwrap();
+        let string = env.new_string(TEST_STRING_UNICODE).unwrap();
 
         c.bench_function("jni_get_string_unchecked", |b| {
             b.iter(|| {
@@ -476,7 +472,7 @@ fn jni_new_string_within_single_thread_attachment(c: &mut Criterion) {
     VM.attach_current_thread_for_scope(|env| -> jni::errors::Result<()> {
         c.bench_function("jni_new_string_within_single_thread_attachment", |b| {
             b.iter(|| {
-                black_box(env.new_string(c"Test").unwrap().auto());
+                black_box(env.new_string("Test").unwrap().auto());
             })
         });
         Ok(())
@@ -491,7 +487,7 @@ fn jni_new_string_with_repeat_scoped_thread_attachments(c: &mut Criterion) {
         |b| {
             b.iter(|| {
                 VM.attach_current_thread_for_scope(|env| -> jni::errors::Result<()> {
-                    black_box(env.new_string(c"Test").unwrap().auto());
+                    black_box(env.new_string("Test").unwrap().auto());
                     Ok(())
                 })
                 .unwrap();
@@ -514,7 +510,7 @@ fn jni_new_string_with_repeat_permanent_thread_attachments(c: &mut Criterion) {
         |b| {
             b.iter(|| {
                 VM.attach_current_thread(|env| -> jni::errors::Result<()> {
-                    black_box(env.new_string(c"Test").unwrap().auto());
+                    black_box(env.new_string("Test").unwrap().auto());
                     Ok(())
                 })
                 .unwrap();

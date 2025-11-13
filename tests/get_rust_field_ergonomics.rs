@@ -32,7 +32,7 @@ pub extern "system" fn Java_Renderer_render<'local>(
             renderer.render(&surface);
 
             // Check we can still call something requiring `&mut Env` after locking multiple fields
-            let _s = env.new_string(c"hello")?;
+            let _s = env.new_string("hello")?;
 
             Ok(())
         })

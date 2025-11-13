@@ -158,7 +158,7 @@
 //!         let input: String = input.to_string();
 //!         // Then we have to create a new Java string to return. Again, more info
 //!         // in the `strings` module.
-//!         env.new_string(JNIString::from(format!("Hello, {}!", input)))
+//!         JString::from_str(env, format!("Hello, {}!", input))
 //!     });
 //!
 //!    // Finally, we have to resolve the `EnvOutcome` into a concrete return value.

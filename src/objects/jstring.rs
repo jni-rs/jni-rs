@@ -6,7 +6,7 @@ use thiserror::Error;
 use crate::{
     errors::Result,
     objects::{Global, JClass, JMethodID, JObject, LoaderContext},
-    strings::{JNIStr, MUTF8Chars},
+    strings::{JNIStr, JNIString, MUTF8Chars},
     sys::{jobject, jstring},
     Env, JavaVM, DEFAULT_LOCAL_FRAME_CAPACITY,
 };
@@ -157,6 +157,53 @@ impl JStringAPI {
 }
 
 impl JString<'_> {
+    /// Encodes a Rust `&str` to MUTF-8 and creates a `JString` (`java.lang.String` object).
+    ///
+    /// This is a convenience that's equivalent to calling [`Self::from_str`]
+    ///
+    /// # Performance
+    ///
+    /// The input string is re-encoded to modified UTF-8, so this involves a copy of your input to
+    /// encode, before calling into JNI to create the `JString`.
+    ///
+    /// To avoid the overhead of encoding and copying, use [`Self::from_jni_str`].
+    pub fn new<'env_local>(
+        env: &mut Env<'env_local>,
+        from: impl AsRef<str>,
+    ) -> Result<JString<'env_local>> {
+        Self::from_str(env, from)
+    }
+
+    /// Encodes a Rust `&str` to MUTF-8 and creates a `JString` (`java.lang.String` object).
+    ///
+    /// # Performance
+    ///
+    /// The input string is re-encoded to modified UTF-8, so this involves a copy of your input to
+    /// encode, before calling into JNI to create the `JString`.
+    ///
+    /// To avoid the overhead of encoding and copying, use [`Self::from_jni_str`].
+    pub fn from_str<'env_local>(
+        env: &mut Env<'env_local>,
+        from: impl AsRef<str>,
+    ) -> Result<JString<'env_local>> {
+        Self::from_jni_str(env, JNIString::new(from))
+    }
+
+    /// Creates a `JString` (`java.lang.String` object) from a [JNIStr] (modified UTF-8).
+    pub fn from_jni_str<'env_local>(
+        env: &mut Env<'env_local>,
+        from: impl AsRef<JNIStr>,
+    ) -> Result<JString<'env_local>> {
+        // Runtime check that the 'local reference lifetime will be tied to
+        // Env lifetime for the top JNI stack frame
+        env.assert_top();
+        let ffi_str: &JNIStr = from.as_ref();
+        unsafe {
+            jni_call_check_ex_and_null_ret!(env, v1_1, NewStringUTF, ffi_str.as_ptr())
+                .map(|s| JString::from_raw(env, s))
+        }
+    }
+
     /// Creates a [`JString`] that wraps the given `raw` [`jstring`]
     ///
     /// # Safety
@@ -235,7 +282,7 @@ impl JString<'_> {
     /// # use jni::{errors::Result, Env, objects::*, strings::*};
     /// #
     /// # fn f(env: &mut Env) -> Result<()> {
-    /// let my_jstring = env.new_string(c"Hello, world!")?;
+    /// let my_jstring = JString::from_str(env, "Hello, world!")?;
     /// let mutf8_chars = my_jstring.mutf8_chars(env)?;
     /// let jni_str: &JNIStr = &mutf8_chars;
     /// let rust_str = jni_str.to_str();
@@ -267,7 +314,7 @@ impl JString<'_> {
     /// # use jni::{errors::Result, Env, objects::*};
     /// #
     /// # fn f(env: &mut Env) -> Result<()> {
-    /// let jstring = env.new_string(c"Hello, world!")?;
+    /// let jstring = JString::from_str(env, "Hello, world!")?;
     /// let rust_string = jstring.try_to_string(&env)?;
     /// assert_eq!(rust_string, "Hello, world!");
     /// # ; Ok(())
@@ -280,7 +327,7 @@ impl JString<'_> {
     /// # use jni::{errors::Result, Env, objects::*};
     /// #
     /// # fn f(env: &mut Env) -> Result<()> {
-    /// let jstring = env.new_string(c"Hello, world!")?;
+    /// let jstring = JString::from_str(env, "Hello, world!")?;
     /// let mutf8_chars = jstring.mutf8_chars(&env)?;
     /// let rust_string = mutf8_chars.to_string();
     /// # ; Ok(())
