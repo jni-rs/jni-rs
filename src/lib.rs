@@ -86,7 +86,7 @@
 //! need to make a couple of changes to `Cargo.toml` before we do anything else.
 //!
 //! * Under `[dependencies]`, add `jni = "0.22"`
-//! * Add a new `[lib]` section and under it, `crate_type = ["cdylib"]`.
+//! * Add a new `[lib]` section and under it, `crate-type = ["cdylib"]`.
 //!
 //! Now, if you run `cargo build` from inside the crate directory, you should
 //! see a `libmylib.so` (if you're on Linux) or a `libmylib.dylib` (if you are
