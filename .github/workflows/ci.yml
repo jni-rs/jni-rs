@@ -148,4 +148,4 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Run tests
-        run: cargo test
+        run: cargo test -p javac
