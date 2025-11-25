@@ -12,7 +12,7 @@ repository = "https://github.com/jni-rs/jni-rs"
 version = "0.21.1"
 edition = "2021"
 # Keep in sync with ci.yml
-rust-version = "1.77.0"
+rust-version = "1.85.0"
 exclude = [
     "/.github",
     "/benches",
