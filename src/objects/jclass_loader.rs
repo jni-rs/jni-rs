@@ -5,6 +5,7 @@ use once_cell::sync::OnceCell;
 use crate::{
     env::Env,
     errors::Result,
+    ids::JStaticMethodID,
     objects::{Global, JClass, JMethodID, JObject, JValue, LoaderContext},
     signature::JavaType,
     strings::JNIStr,
@@ -54,6 +55,7 @@ impl<'local> From<JClassLoader<'local>> for JObject<'local> {
 
 struct JClassLoaderAPI {
     class: Global<JClass<'static>>,
+    get_system_class_loader_method: JStaticMethodID,
     load_class_method: JMethodID,
 }
 
@@ -65,6 +67,11 @@ impl JClassLoaderAPI {
                 // NB: Self::CLASS_NAME is a binary name with dots, not slashes
                 let class = env.find_class(c"java/lang/ClassLoader")?;
                 let class = env.new_global_ref(&class).unwrap();
+                let get_system_class_loader_method = env.get_static_method_id(
+                    &class,
+                    c"getSystemClassLoader",
+                    c"()Ljava/lang/ClassLoader;",
+                )?;
                 let load_class_method = env.get_method_id(
                     &class,
                     c"loadClass",
@@ -72,6 +79,7 @@ impl JClassLoaderAPI {
                 )?;
                 Ok(Self {
                     class,
+                    get_system_class_loader_method,
                     load_class_method,
                 })
             })
@@ -125,6 +133,35 @@ impl JClassLoader<'_> {
         env: &mut Env<'_>,
     ) -> Result<JClassLoader<'any_local>> {
         env.cast_local::<JClassLoader>(obj)
+    }
+
+    /// Gets the system class loader.
+    ///
+    /// This is a method binding for `java.lang.ClassLoader.getSystemClassLoader()`.
+    ///
+    /// # Throws
+    ///
+    /// - `SecurityException` if a security manager doesn't allow access to the system class loader.
+    /// - `IllegalStateException` if called recursively while the system class loader is being initialized.
+    /// - `Error` if the system class loader could not be created according to the system property "java.system.class.loader".
+    pub fn get_system_class_loader<'local>(env: &mut Env<'local>) -> Result<JClassLoader<'local>> {
+        let api = JClassLoaderAPI::get(env)?;
+
+        // SAFETY:
+        // - we know that `get_system_class_loader_method` is a valid method ID.
+        // - we know that `getSystemClassLoader` returns a valid `ClassLoader` reference.
+        let cls_loader = unsafe {
+            let obj = env
+                .call_static_method_unchecked(
+                    &api.class,
+                    api.get_system_class_loader_method,
+                    JavaType::Object,
+                    &[],
+                )?
+                .l()?;
+            JClassLoader::from_raw(env, obj.into_raw())
+        };
+        Ok(cls_loader)
     }
 
     /// Loads a class by name using this class loader.
