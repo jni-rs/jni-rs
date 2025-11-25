@@ -2,6 +2,7 @@ use std::{borrow::Cow, marker::PhantomData, ops::Deref};
 
 use crate::{
     errors::Result,
+    jni_str,
     objects::{Global, JClass, LoaderContext},
     strings::JNIStr,
     sys::jobject,
@@ -116,7 +117,7 @@ impl JObjectAPI {
         // threads race here.
 
         let api = env.with_local_frame(8, |env| -> crate::errors::Result<_> {
-            let class = env.find_class(JNIStr::from_cstr(c"java/lang/Object"))?;
+            let class = env.find_class(jni_str!("java/lang/Object"))?;
             let class = env.new_global_ref(class)?;
             Ok(JObjectAPI { class })
         })?;
@@ -176,7 +177,7 @@ unsafe impl Reference for JObject<'_> {
     }
 
     fn class_name() -> Cow<'static, JNIStr> {
-        Cow::Borrowed(JNIStr::from_cstr(c"java.lang.Object"))
+        Cow::Borrowed(jni_str!("java.lang.Object"))
     }
 
     fn lookup_class<'caller>(

@@ -77,8 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `JNIString` now implements `Debug`, `PartialEq`, `Eq`, `PartialOrd`, `Ord`, `Hash` and `Clone` ([#615](https://github.com/jni-rs/jni-rs/pull/615))
 - `PartialEq<&JNIStr> for JNIString` allows `JNIStr` and `JNIString` to be compared. ([#615](https://github.com/jni-rs/jni-rs/pull/615))
 - `From<&JNIStr>` and `From<MUTF8Chars>` implementations for `JNIString`. ([#615](https://github.com/jni-rs/jni-rs/pull/615))
-- `JNIStr::from_cstr` safely does a zero-copy cast of a `CStr` to a `JNIStr` after a `const` modified-utf8 encoding validation (with a panic on failure)
-- `AsRef<JNIStr>` is implemented for `CStr` (based on `JNIStr::from_cstr`) allows use of literals like `c"java/lang/Foo"` to be passed to JNI APIs without needing to be copied. ([#615](https://github.com/jni-rs/jni-rs/pull/615))
+- `JNIStr::from_cstr` safely does a zero-copy cast of a `CStr` to a `JNIStr` after a `const` modified-utf8 encoding validation ([#615](https://github.com/jni-rs/jni-rs/pull/615),[#617](https://github.com/jni-rs/jni-rs/pull/617), [#715](https://github.com/jni-rs/jni-rs/pull/715))
 - `JNIStr::to_bytes` gives access to a `&[u8]` slice over the bytes of a JNI string (like `CStr::to_bytes`) ([#615](https://github.com/jni-rs/jni-rs/pull/615))
 
 #### java.lang APIs
@@ -151,7 +150,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `JavaStr/MUTF8Chars::from_env` has been removed because it was unsound (it could cause undefined behavior and was not marked `unsafe`). Use `JString::mutf8_chars` instead. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
 - `JavaStr/MUTF8Chars::get_raw` has been renamed to `as_ptr`. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
 - `JavaStr/MUTF8Chars`, `JNIStr`, and `JNIString` no longer coerce to `CStr`, because using `CStr::to_str` will often have incorrect results. You can still get a `CStr`, but must use the new `as_cstr` method to do so. ([#510](https://github.com/jni-rs/jni-rs/issues/510) / [#512](https://github.com/jni-rs/jni-rs/pull/512))
-- All APIs that were accepting modified-utf8 string args via `Into<JNIString>`, now take `AsRef<JNIStr>` to avoid string copies every call. Considering that these strings are often literals for signatures or class names, most code can rely on `AsRef<JNIStr>` for `CStr` and pass `CStr` literals like `env.find_class(c"java/lang/Foo")`. ([#617](https://github.com/jni-rs/jni-rs/pull/617))
+- All APIs that were accepting modified-utf8 string args via `Into<JNIString>`, now take `AsRef<JNIStr>` to avoid string copies every call. Considering that these strings are often literals for signatures or class names, most code can use `jni_str!()` to encode string literals at compile time, like `env.find_class(jni_str!("java/lang/Foo"))`. ([#617](https://github.com/jni-rs/jni-rs/pull/617), [#696](https://github.com/jni-rs/jni-rs/pull/696))
 - `JavaStr/MUTF8Chars` and `JString` both implement `Display` and therefore `ToString`, making it even easier to get a Rust `String`.
 - `Env::get_string` performance was optimized by caching an expensive class lookup, and using a faster instanceof check. ([#531](https://github.com/jni-rs/jni-rs/pull/531))
 - `Env::get_string` performance was later further optimized to avoid the need for runtime type checking ([#612](https://github.com/jni-rs/jni-rs/pull/612))

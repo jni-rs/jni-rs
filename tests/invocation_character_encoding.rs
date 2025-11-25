@@ -4,7 +4,7 @@
 
 use std::borrow::Cow;
 
-use jni::{jni_sig, objects::JString, InitArgsBuilder, JavaVM};
+use jni::{jni_sig, jni_str, objects::JString, InitArgsBuilder, JavaVM};
 
 #[test]
 fn invocation_character_encoding() {
@@ -29,8 +29,8 @@ fn invocation_character_encoding() {
         println!("calling getProperty");
         let prop_value = env
             .call_static_method(
-                c"java/lang/System",
-                c"getProperty",
+                jni_str!("java/lang/System"),
+                jni_str!("getProperty"),
                 jni_sig!("(Ljava/lang/String;)Ljava/lang/String;"),
                 &[(&prop_name).into()],
             )

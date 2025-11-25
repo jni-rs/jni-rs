@@ -6,7 +6,7 @@ use std::{
 };
 
 use jni::{
-    jni_sig,
+    jni_sig, jni_str,
     objects::{Global, IntoAuto as _, JObject, JValue},
     sys::jint,
 };
@@ -21,7 +21,7 @@ pub fn global_ref_works_in_other_threads() {
     let atomic_integer = attach_current_thread(|env| {
         let local_ref = unwrap(
             env.new_object(
-                c"java/util/concurrent/atomic/AtomicInteger",
+                jni_str!("java/util/concurrent/atomic/AtomicInteger"),
                 jni_sig!("(I)V"),
                 &[JValue::from(0)],
             ),
@@ -53,7 +53,7 @@ pub fn global_ref_works_in_other_threads() {
                             unwrap(
                                 env.call_method(
                                     atomic_integer,
-                                    c"incrementAndGet",
+                                    jni_str!("incrementAndGet"),
                                     jni_sig!("()I"),
                                     &[],
                                 ),
@@ -83,7 +83,7 @@ pub fn global_ref_works_in_other_threads() {
                     unwrap(
                         env.call_method(
                             atomic_integer,
-                            c"getAndSet",
+                            jni_str!("getAndSet"),
                             jni_sig!("(I)I"),
                             &[JValue::from(0)]
                         ),

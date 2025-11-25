@@ -1,4 +1,4 @@
-use crate::strings::JNIStr;
+use crate::jni_str;
 
 crate::bind_java_type! {
     rust_type = JThread,
@@ -7,7 +7,7 @@ crate::bind_java_type! {
         load_class = |env, _loader_context, _initialize| {
             // As a special-case; we ignore loader_context and use `env.find_class` just to be clear that there's no risk of
             // recursion. (`LoaderContext::load_class` depends on the `JThreadAPI`)
-            env.find_class(const { JNIStr::from_cstr(c"java/lang/Thread") })
+            env.find_class(const { jni_str!("java/lang/Thread") })
         }
     },
     methods {

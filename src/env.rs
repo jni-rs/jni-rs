@@ -7,12 +7,12 @@ use std::{
     sync::{Mutex, MutexGuard},
 };
 
-use jni_macros::jni_sig;
 use jni_sys::jobject;
 
 use crate::{
     descriptors::Desc,
     errors::*,
+    jni_sig,
     objects::{
         Auto, AutoElements, AutoElementsCritical, Global, IntoAuto, JByteBuffer, JClass,
         JClassLoader, JFieldID, JList, JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID,
@@ -39,7 +39,7 @@ use crate::{objects::AsJArrayRaw, signature::ReturnType};
 use super::{objects::Reference, AttachGuard};
 
 #[cfg(doc)]
-use crate::{objects::JThread, strings::JNIString};
+use crate::{jni_str, objects::JThread, strings::JNIString};
 
 /// A non-transparent wrapper around a raw [`sys::JNIEnv`] pointer that provides
 /// safe access to the Java Native Interface (JNI) functions.
@@ -242,7 +242,7 @@ use crate::{objects::JThread, strings::JNIString};
 ///
 /// ```rust,compile_fail
 /// # extern crate self as jni;
-/// # use jni::{jni_sig, errors::Result, Env, objects::*};
+/// # use jni::{jni_sig, jni_str, errors::Result, Env, objects::*};
 /// #
 /// # fn f(env: &mut Env) -> Result<()> {
 /// fn example_function(
@@ -256,7 +256,7 @@ use crate::{objects::JThread, strings::JNIString};
 ///     env,
 ///     // ERROR: cannot borrow `*env` as mutable more than once at a time
 ///     &env.new_object(
-///         c"com/example/SomeClass",
+///         jni_str!("com/example/SomeClass"),
 ///         jni_sig!("()V"),
 ///         &[],
 ///     )?,
@@ -268,7 +268,7 @@ use crate::{objects::JThread, strings::JNIString};
 /// To fix this, the `Env` parameter needs to come *last*:
 ///
 /// ```rust,no_run
-/// # use jni::{jni_sig, errors::Result, Env, objects::*};
+/// # use jni::{jni_sig, jni_str, errors::Result, Env, objects::*};
 /// #
 /// # fn f(env: &mut Env) -> Result<()> {
 /// fn example_function(
@@ -280,7 +280,7 @@ use crate::{objects::JThread, strings::JNIString};
 ///
 /// example_function(
 ///     &env.new_object(
-///         c"com/example/SomeClass",
+///         jni_str!("com/example/SomeClass"),
 ///         jni_sig!("()V"),
 ///         &[],
 ///     )?,
@@ -315,28 +315,17 @@ use crate::{objects::JThread, strings::JNIString};
 ///
 /// # Zero-copy `AsRef<JNIStr>` arguments
 ///
-/// The [`Env`] JNI methods that take string arguments can often accept types
-/// that implement the [`AsRef<JNIStr>`] trait and allow for zero-copy
-/// conversions of `CStr` literals like `c"java/lang/String"`
+/// The JNI specification for many functions requires that string arguments are
+/// passed as NUL terminated, Modified UTF-8 encoded byte arrays.
 ///
-/// Under the hood, the JNI specification for many functions requires that
-/// string arguments are passed as NUL terminated, Modified UTF-8 encoded byte
-/// arrays.
+/// Anything that accepts an `AsRef<JNIStr>` can directly accept a `JNIStr`
+/// literal like `jni_str!("java/lang/String")` which will be
+/// encoded as MUTF-8 at compile time.
 ///
-/// For the majority of the JNI functions there is no practical difference
-/// between Modified UTF-8 and standard UTF-8 (for example class names and
-/// method names and signatures) and you can rely on a `const` validation at
-/// compile time that a given `CStr` literal is valid Modified UTF-8 string via
-/// [`JNIStr::from_cstr`].
+/// See [jni_str!] for more details.
 ///
-/// Anything that accepts an `AsRef<JNIStr>` can directly accept a `CStr`
-/// literal like `c"java/lang/String"` or `c"(I)Ljava/lang/String;"` and will be
-/// validated via [JNIStr::from_cstr]. Beware that validation failure will
-/// simply panic but in practice there should be no reason for these arguments
-/// to require non-UTF-8 strings.
-///
-/// For more complex JNI strings that need full unicode support then you should
-/// use [JNIString::from] instead of relying on `CStr` literals.
+/// For non-literal, dynamic strings then you can use [JNIString::new] to encode
+/// strings as MUTF-8 at runtime (derefs as [`JNIStr`]).
 ///
 #[derive(Debug)]
 pub struct Env<'local> {
@@ -595,15 +584,15 @@ See the jni-rs Env documentation for more details.
     /// [LoaderContext::load_class].
     ///
     /// The `name` must be in the "internal" form, with slashes instead of dots,
-    /// like `c"java/lang/IllegalArgumentException"` or an array descriptor like
-    /// `c"[Ljava/lang/Number;"`.
+    /// like `jni_str!("java/lang/IllegalArgumentException")` or an array descriptor like
+    /// `jni_str!("[Ljava/lang/Number;")`.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{errors::Result, Env, objects::JClass};
+    /// # use jni::{jni_str, errors::Result, Env, objects::JClass};
     /// #
     /// # fn example<'local>(env: &mut Env<'local>) -> Result<()> {
-    /// let class: JClass<'local> = env.find_class(c"java/lang/IllegalArgumentException")?;
+    /// let class: JClass<'local> = env.find_class(jni_str!("java/lang/IllegalArgumentException"))?;
     /// # Ok(())
     /// # }
     /// ```
@@ -643,8 +632,8 @@ See the jni-rs Env documentation for more details.
     /// This is a convenience wrapper around [LoaderContext::load_class] with
     /// [LoaderContext::None].
     ///
-    /// `name` should be a binary name like `c"java.lang.Number"` or an array
-    /// descriptor like `c"[Ljava.lang.Number;"`.
+    /// `name` should be a binary name like `jni_str!("java.lang.Number")` or an array
+    /// descriptor like `jni_str!("[Ljava.lang.Number;")`.
     ///
     /// **Note:** that unlike [Env::find_class], the name uses **dots instead of
     /// slashes** and should conform to the format that `Class.getName()`
@@ -653,10 +642,10 @@ See the jni-rs Env documentation for more details.
     /// For example, lookup the class for
     /// `java.lang.IllegalArgumentException`like this:
     /// ```rust,no_run
-    /// # use jni::{errors::Result, Env, objects::JClass};
+    /// # use jni::{jni_str, errors::Result, Env, objects::JClass};
     /// #
     /// # fn example<'local>(env: &mut Env<'local>) -> Result<()> {
-    /// let class: JClass<'local> = env.find_class(c"java.lang.IllegalArgumentException")?;
+    /// let class: JClass<'local> = env.find_class(jni_str!("java.lang.IllegalArgumentException"))?;
     /// # Ok(())
     /// # }
     /// ```
@@ -842,10 +831,10 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Examples
     /// ```rust,no_run
-    /// # use jni::{errors::Result, Env};
+    /// # use jni::{jni_str, errors::Result, Env};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// env.throw((c"java/lang/Exception", c"something bad happened"))?;
+    /// env.throw((jni_str!("java/lang/Exception"), jni_str!("something bad happened")))?;
     /// # Ok(())
     /// # }
     /// ```
@@ -853,10 +842,10 @@ See the jni-rs Env documentation for more details.
     /// Defaulting to "java/lang/Exception":
     ///
     /// ```rust,no_run
-    /// # use jni::{errors::Result, Env};
+    /// # use jni::{jni_str, errors::Result, Env};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// env.throw(c"something bad happened")?;
+    /// env.throw(jni_str!("something bad happened"))?;
     /// # Ok(())
     /// # }
     /// ```
@@ -925,10 +914,10 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{errors::Result, Env};
+    /// # use jni::{jni_str, errors::Result, Env};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// env.throw_new(c"java/lang/Exception", c"something bad happened")?;
+    /// env.throw_new(jni_str!("java/lang/Exception"), jni_str!("something bad happened"))?;
     /// # Ok(())
     /// # }
     /// ```
@@ -950,10 +939,10 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{errors::Result, Env};
+    /// # use jni::{jni_str, errors::Result, Env};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// env.throw_new_void(c"java/lang/Exception")?;
+    /// env.throw_new_void(jni_str!("java/lang/Exception"))?;
     /// # Ok(())
     /// # }
     /// ```
@@ -1216,10 +1205,10 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{jni_sig, errors::Result, Env, objects::*};
+    /// # use jni::{jni_sig, jni_str, errors::Result, Env, objects::*};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// let local_obj: JObject = env.new_object(c"java/lang/String", jni_sig!("()V"), &[])?;
+    /// let local_obj: JObject = env.new_object(jni_str!("java/lang/String"), jni_sig!("()V"), &[])?;
     /// let global_string = env.new_cast_global_ref::<JString>(local_obj)?;
     /// // global_string is now a `Global<JString>` that persists beyond local frames
     ///
@@ -1283,10 +1272,10 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{jni_sig, errors::Result, Env, objects::*};
+    /// # use jni::{jni_sig, jni_str, errors::Result, Env, objects::*};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// let local_obj: JObject = env.new_object(c"java/lang/String", jni_sig!("()V"), &[])?;
+    /// let local_obj: JObject = env.new_object(jni_str!("java/lang/String"), jni_sig!("()V"), &[])?;
     /// let global_obj: Global<JObject<'static>> = env.new_global_ref(&local_obj)?;
     /// let global_string = env.cast_global::<JString>(global_obj)?;
     ///
@@ -1437,7 +1426,7 @@ See the jni-rs Env documentation for more details.
     /// reference:
     ///
     /// ```no_run
-    /// # use jni::{jni_sig, Env, objects::*, strings::*};
+    /// # use jni::{jni_sig, jni_str, Env, objects::*, strings::*};
     /// # use std::fmt::Display;
     /// #
     /// # type SomeOtherErrorType = Box<dyn Display>;
@@ -1482,7 +1471,7 @@ See the jni-rs Env documentation for more details.
     ///                 let error_string = JString::from_str(env, error.to_string())?;
     ///
     ///                 env.new_object(
-    ///                     c"java/lang/Error",
+    ///                     jni_str!("java/lang/Error"),
     ///                     jni_sig!("(Ljava/lang/String;)V"),
     ///                     &[
     ///                         (&error_string).into(),
@@ -1557,10 +1546,10 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{jni_sig, errors::Result, Env, objects::*};
+    /// # use jni::{jni_sig, jni_str, errors::Result, Env, objects::*};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// let local_obj: JObject = env.new_object(c"java/lang/String", jni_sig!("()V"), &[])?;
+    /// let local_obj: JObject = env.new_object(jni_str!("java/lang/String"), jni_sig!("()V"), &[])?;
     /// let local_string = env.new_cast_local_ref::<JString>(&local_obj)?;
     /// // local_string is now a JString<'local> in the current frame
     /// # Ok(())
@@ -1601,10 +1590,10 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{jni_sig, errors::Result, Env, objects::*};
+    /// # use jni::{jni_sig, jni_str, errors::Result, Env, objects::*};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// let obj: JObject = env.new_object(c"java/lang/String", jni_sig!("()V"), &[])?;
+    /// let obj: JObject = env.new_object(jni_str!("java/lang/String"), jni_sig!("()V"), &[])?;
     /// let string: JString = env.cast_local::<JString>(obj)?;
     ///
     /// // For upcasting, From trait is more efficient:
@@ -1648,10 +1637,10 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{jni_sig, errors::Result, Env, objects::*};
+    /// # use jni::{jni_sig, jni_str, errors::Result, Env, objects::*};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// let obj: JObject = env.new_object(c"java/lang/String", jni_sig!("()V"), &[])?;
+    /// let obj: JObject = env.new_object(jni_str!("java/lang/String"), jni_sig!("()V"), &[])?;
     /// let string_ref = env.as_cast::<JString>(&obj)?;
     /// // obj is still valid here
     /// let empty_string_contents = string_ref.to_string();
@@ -1684,10 +1673,10 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{jni_sig, errors::Result, Env, objects::*};
+    /// # use jni::{jni_sig, jni_str, errors::Result, Env, objects::*};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// let obj: JObject = env.new_object(c"java/lang/String", jni_sig!("()V"), &[])?;
+    /// let obj: JObject = env.new_object(jni_str!("java/lang/String"), jni_sig!("()V"), &[])?;
     /// let string_ref = unsafe { env.as_cast_unchecked::<JString>(&obj) };
     /// // obj is still valid here
     /// let empty_string_contents = string_ref.to_string();
@@ -2086,11 +2075,11 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{jni_sig, errors::Result, Env, objects::JMethodID};
+    /// # use jni::{jni_sig, jni_str, errors::Result, Env, objects::JMethodID};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
     /// let method_id: JMethodID =
-    ///     env.get_method_id(c"java/lang/String", c"substring", jni_sig!("(II)Ljava/lang/String;"))?;
+    ///     env.get_method_id(jni_str!("java/lang/String"), jni_str!("substring"), jni_sig!("(II)Ljava/lang/String;"))?;
     /// # Ok(())
     /// # }
     /// ```
@@ -2126,10 +2115,10 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{jni_sig, errors::Result, Env, objects::JStaticMethodID};
+    /// # use jni::{jni_sig, jni_str, errors::Result, Env, objects::JStaticMethodID};
     /// # fn example(env: &mut Env) -> Result<()> {
     /// let method_id: JStaticMethodID =
-    ///     env.get_static_method_id(c"java/lang/String", c"valueOf", jni_sig!("(I)Ljava/lang/String;"))?;
+    ///     env.get_static_method_id(jni_str!("java/lang/String"), jni_str!("valueOf"), jni_sig!("(I)Ljava/lang/String;"))?;
     /// # Ok(())
     /// # }
     /// ```
@@ -2164,10 +2153,10 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{jni_sig, errors::Result, Env, objects::JFieldID};
+    /// # use jni::{jni_sig, jni_str, errors::Result, Env, objects::JFieldID};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// let field_id: JFieldID = env.get_field_id(c"com/my/Class", c"intField", jni_sig!("I"))?;
+    /// let field_id: JFieldID = env.get_field_id(jni_str!("com/my/Class"), jni_str!("intField"), jni_sig!("I"))?;
     /// # Ok(())
     /// # }
     /// ```
@@ -2218,10 +2207,10 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{jni_sig, errors::Result, Env, objects::JStaticFieldID};
+    /// # use jni::{jni_sig, jni_str, errors::Result, Env, objects::JStaticFieldID};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// let field_id: JStaticFieldID = env.get_static_field_id(c"com/my/Class", c"intField", jni_sig!("I"))?;
+    /// let field_id: JStaticFieldID = env.get_static_field_id(jni_str!("com/my/Class"), jni_str!("intField"), jni_sig!("I"))?;
     /// # Ok(())
     /// # }
     /// ```
