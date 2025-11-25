@@ -52,7 +52,7 @@ jobs:
         include:
           - build: Linux MSRV
             # Keep in sync with Cargo.toml
-            rust-version: 1.77.0
+            rust-version: 1.85.0
             image: ubuntu-latest
             target_os: linux
             # Avoid --all-targets for MSRV build since we don't want to
