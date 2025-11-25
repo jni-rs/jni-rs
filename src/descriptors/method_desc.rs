@@ -2,6 +2,7 @@ use crate::{
     descriptors::Desc,
     env::Env,
     errors::*,
+    jni_str,
     objects::{JClass, JMethodID, JStaticMethodID},
     signature::MethodSignature,
     strings::JNIStr,
@@ -29,7 +30,7 @@ where
     type Output = JMethodID;
 
     fn lookup(self, env: &mut Env<'local>) -> Result<Self::Output> {
-        Desc::<JMethodID>::lookup((self.0, c"<init>", self.1.as_ref()), env)
+        Desc::<JMethodID>::lookup((self.0, jni_str!("<init>"), self.1.as_ref()), env)
     }
 }
 

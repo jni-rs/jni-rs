@@ -2,12 +2,13 @@ use crate::{
     descriptors::Desc,
     env::Env,
     errors::*,
+    jni_str,
     objects::{Auto, IntoAuto as _, JClass, JObject, JString, JThrowable, JValue},
     signature::{JavaType, MethodSignature, Primitive},
     strings::{JNIStr, JNIString},
 };
 
-const DEFAULT_EXCEPTION_CLASS: &JNIStr = JNIStr::from_cstr(c"java/lang/RuntimeException");
+const DEFAULT_EXCEPTION_CLASS: &JNIStr = jni_str!("java/lang/RuntimeException");
 
 unsafe impl<'local, 'other_local, C, M> Desc<'local, JThrowable<'local>> for (C, M)
 where
@@ -22,7 +23,7 @@ where
         // Safety: We are sure the arguments and return type are consistent with the signature string.
         let ctor_sig = unsafe {
             MethodSignature::from_raw_parts(
-                JNIStr::from_cstr(c"(Ljava/lang/String;)V"),
+                jni_str!("(Ljava/lang/String;)V"),
                 ctor_args,
                 JavaType::Primitive(Primitive::Void),
             )

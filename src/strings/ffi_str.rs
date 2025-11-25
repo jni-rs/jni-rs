@@ -78,17 +78,6 @@ impl ::std::ops::Deref for JNIString {
     }
 }
 
-/// Converts a `CStr` into a `JNIStr`.
-///
-/// # Panic
-///
-/// This function will panic if the `CStr` is not valid modified UTF-8.
-impl AsRef<JNIStr> for CStr {
-    fn as_ref(&self) -> &JNIStr {
-        JNIStr::from_cstr(self)
-    }
-}
-
 impl PartialEq<JNIString> for &JNIStr {
     #[inline]
     fn eq(&self, other: &JNIString) -> bool {
@@ -337,24 +326,23 @@ impl JNIStr {
         &*(cstr as *const CStr as *const JNIStr)
     }
 
-    /// Converts a `&CStr` to a `&JNIStr`, validating the input.
+    /// `const` casts a `&CStr` as a `&JNIStr`, after validating the input.
     ///
-    /// This API is intended for zero-copy casting of simple `CStr` literals that
-    /// can be passed to JNI for things like signatures or class/method/field names.
+    /// This can be used for zero-copy casting of simple `CStr` literals
+    /// that can be passed to JNI for things like signatures or
+    /// class/method/field names where you can be almost certain that the input
+    /// is valid modified UTF-8 because it doesn't contain any NULs or
+    /// supplementary Unicode characters.
     ///
-    /// It is **not** recommended for use with arbitrary, dynamically generated
-    /// `CString`s that may not be valid modified UTF-8, since this API handles
-    /// validation failures by panicking.
-    ///
-    /// # Panic
-    ///
-    /// This function will panic if the provided `CStr` is not valid modified UTF-8.
-    pub const fn from_cstr(cstr: &CStr) -> &JNIStr {
-        // Safety: We can check the validity of the bytes at compile time.
+    /// In general though, it's recommended to use the [`crate::jni_str!`] macro
+    /// to encode string literals, since it has full unicode support and it
+    /// guarantees that the string is encoded at compile time.
+    pub const fn from_cstr(cstr: &CStr) -> Option<&JNIStr> {
         if !is_valid_mutf8_cstr(cstr) {
-            panic!("JNIStr::from_cstr: input is not valid modified UTF-8");
+            return None;
         }
-        unsafe { Self::from_cstr_unchecked(cstr) }
+        // Safety: We have just checked the validity of the bytes.
+        unsafe { Some(Self::from_cstr_unchecked(cstr)) }
     }
 
     /// Returns a `CStr` view of the string.

@@ -121,7 +121,7 @@ static JAVA_VM_SINGLETON: std::sync::OnceLock<JavaVM> = std::sync::OnceLock::new
 /// # // Ignore this test without invocation feature, so that simple `cargo test` works
 /// # #[cfg(feature = "invocation")]
 /// # fn main() -> errors::StartJvmResult<()> {
-/// # use jni::{jni_sig, AttachGuard, objects::JValue, InitArgsBuilder, Env, JNIVersion, JavaVM, sys::jint};
+/// # use jni::{jni_sig, jni_str, AttachGuard, objects::JValue, InitArgsBuilder, Env, JNIVersion, JavaVM, sys::jint};
 /// # //
 /// // Build the VM properties
 /// let jvm_args = InitArgsBuilder::new()
@@ -141,7 +141,7 @@ static JAVA_VM_SINGLETON: std::sync::OnceLock<JavaVM> = std::sync::OnceLock::new
 /// jvm.attach_current_thread(|env| -> errors::Result<()> {
 ///     // Call Java Math#abs(-10)
 ///     let x = JValue::from(-10);
-///     let val: jint = env.call_static_method(c"java/lang/Math", c"abs", jni_sig!("(I)I"), &[x])?
+///     let val: jint = env.call_static_method(jni_str!("java/lang/Math"), jni_str!("abs"), jni_sig!("(I)I"), &[x])?
 ///         .i()?;
 ///
 ///     assert_eq!(val, 10);

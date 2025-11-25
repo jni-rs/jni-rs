@@ -1,7 +1,7 @@
 #![cfg(feature = "invocation")]
 
 use jni::{
-    jni_sig,
+    jni_sig, jni_str,
     objects::{JCollection, JList, JSet},
 };
 
@@ -14,7 +14,7 @@ pub fn test_generated_alias_methods() {
     let _: Result<()> = attach_current_thread(|env| {
         // Test JList as_collection method
         let list_object = unwrap(
-            env.new_object(c"java/util/ArrayList", jni_sig!("()V"), &[]),
+            env.new_object(jni_str!("java/util/ArrayList"), jni_sig!("()V"), &[]),
             env,
         );
         let list = unwrap(JList::cast_local(env, list_object), env);
@@ -23,7 +23,7 @@ pub fn test_generated_alias_methods() {
 
         // Test JList From implementation (using a fresh instance)
         let list_object2 = unwrap(
-            env.new_object(c"java/util/ArrayList", jni_sig!("()V"), &[]),
+            env.new_object(jni_str!("java/util/ArrayList"), jni_sig!("()V"), &[]),
             env,
         );
         let list2 = unwrap(JList::cast_local(env, list_object2), env);
@@ -32,7 +32,7 @@ pub fn test_generated_alias_methods() {
 
         // Test JSet as_collection method
         let set_object = unwrap(
-            env.new_object(c"java/util/HashSet", jni_sig!("()V"), &[]),
+            env.new_object(jni_str!("java/util/HashSet"), jni_sig!("()V"), &[]),
             env,
         );
         let set = unwrap(JSet::cast_local(env, set_object), env);
@@ -41,7 +41,7 @@ pub fn test_generated_alias_methods() {
 
         // Test JSet From implementation (using a fresh instance)
         let set_object2 = unwrap(
-            env.new_object(c"java/util/HashSet", jni_sig!("()V"), &[]),
+            env.new_object(jni_str!("java/util/HashSet"), jni_sig!("()V"), &[]),
             env,
         );
         let set2 = unwrap(JSet::cast_local(env, set_object2), env);

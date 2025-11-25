@@ -6,7 +6,7 @@ use std::{
 };
 
 use jni::{
-    jni_sig,
+    jni_sig, jni_str,
     objects::{IntoAuto as _, JObject, JValue, Weak},
     sys::jint,
     Env,
@@ -22,7 +22,7 @@ pub fn weak_ref_works_in_other_threads() {
     attach_current_thread(|env| {
         let atomic_integer_local = unwrap(
             env.new_object(
-                c"java/util/concurrent/atomic/AtomicInteger",
+                jni_str!("java/util/concurrent/atomic/AtomicInteger"),
                 jni_sig!("(I)V"),
                 &[JValue::from(0)],
             ),
@@ -55,7 +55,7 @@ pub fn weak_ref_works_in_other_threads() {
                                 unwrap(
                                     env.call_method(
                                         &atomic_integer,
-                                        c"incrementAndGet",
+                                        jni_str!("incrementAndGet"),
                                         jni_sig!("()I"),
                                         &[],
                                     ),
@@ -83,7 +83,7 @@ pub fn weak_ref_works_in_other_threads() {
                     unwrap(
                         env.call_method(
                             &atomic_integer_local,
-                            c"getAndSet",
+                            jni_str!("getAndSet"),
                             jni_sig!("(I)I"),
                             &[JValue::from(0)]
                         ),
@@ -108,7 +108,12 @@ fn weak_ref_is_actually_weak() {
         fn run_gc(env: &mut Env) {
             unwrap(
                 env.with_local_frame(1, |env| {
-                    env.call_static_method(c"java/lang/System", c"gc", jni_sig!("()V"), &[])?;
+                    env.call_static_method(
+                        jni_str!("java/lang/System"),
+                        jni_str!("gc"),
+                        jni_sig!("()V"),
+                        &[],
+                    )?;
                     Ok(())
                 }),
                 env,
@@ -118,7 +123,7 @@ fn weak_ref_is_actually_weak() {
         for _ in 0..100 {
             let obj_local = unwrap(
                 env.with_local_frame_returning_local::<_, JObject, _>(2, |env| {
-                    env.new_object(c"java/lang/Object", jni_sig!("()V"), &[])
+                    env.new_object(jni_str!("java/lang/Object"), jni_sig!("()V"), &[])
                 }),
                 env,
             )

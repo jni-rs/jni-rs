@@ -1,4 +1,4 @@
-use crate::strings::JNIStr;
+use crate::jni_str;
 
 crate::bind_java_type! {
     rust_type = JClass,
@@ -10,7 +10,7 @@ crate::bind_java_type! {
             // As a special-case; we ignore loader_context and use `env.find_class` just to be clear
             // that there's no risk of recursion. (`LoaderContext::load_class` depends on the
             // `JClassAPI`)
-            env.find_class(const { JNIStr::from_cstr(c"java/lang/Class") })
+            env.find_class(const { jni_str!("java/lang/Class") })
         }
     },
     methods {

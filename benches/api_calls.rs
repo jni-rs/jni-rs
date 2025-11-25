@@ -1,13 +1,13 @@
 #![cfg(feature = "invocation")]
 
-use jni::jni_sig;
 use jni::signature::MethodSignature;
 use jni::strings::JNIStr;
+use jni::{jni_sig, jni_str};
 use jni_sys::jvalue;
 use lazy_static::lazy_static;
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use jni::objects::{Global, IntoAuto as _};
+use jni::objects::{Global, IntoAuto as _, JString};
 use jni::{
     descriptors::Desc,
     objects::{JClass, JMethodID, JObject, JStaticMethodID, JValue},
@@ -19,13 +19,13 @@ use std::hint::black_box;
 use std::rc::Rc;
 use std::sync::Arc;
 
-static CLASS_MATH: &JNIStr = JNIStr::from_cstr(c"java/lang/Math");
-static CLASS_OBJECT: &JNIStr = JNIStr::from_cstr(c"java/lang/Object");
-static CLASS_LOCAL_DATE_TIME: &JNIStr = JNIStr::from_cstr(c"java/time/LocalDateTime");
-static METHOD_MATH_ABS: &JNIStr = JNIStr::from_cstr(c"abs");
-static METHOD_OBJECT_HASH_CODE: &JNIStr = JNIStr::from_cstr(c"hashCode");
-static METHOD_CTOR: &JNIStr = JNIStr::from_cstr(c"<init>");
-static METHOD_LOCAL_DATE_TIME_OF: &JNIStr = JNIStr::from_cstr(c"of");
+static CLASS_MATH: &JNIStr = jni_str!("java/lang/Math");
+static CLASS_OBJECT: &JNIStr = jni_str!("java/lang/Object");
+static CLASS_LOCAL_DATE_TIME: &JNIStr = jni_str!("java/time/LocalDateTime");
+static METHOD_MATH_ABS: &JNIStr = jni_str!("abs");
+static METHOD_OBJECT_HASH_CODE: &JNIStr = jni_str!("hashCode");
+static METHOD_CTOR: &JNIStr = jni_str!("<init>");
+static METHOD_LOCAL_DATE_TIME_OF: &JNIStr = jni_str!("of");
 static SIG_OBJECT_CTOR: MethodSignature = jni_sig!("()V");
 static SIG_MATH_ABS: MethodSignature = jni_sig!("(I)I");
 static SIG_OBJECT_HASH_CODE: MethodSignature = jni_sig!("()I");
@@ -474,7 +474,7 @@ fn jni_new_string_within_single_thread_attachment(c: &mut Criterion) {
     VM.attach_current_thread_for_scope(|env| -> jni::errors::Result<()> {
         c.bench_function("jni_new_string_within_single_thread_attachment", |b| {
             b.iter(|| {
-                black_box(env.new_string("Test").unwrap().auto());
+                black_box(JString::from_jni_str(env, jni_str!("Test")).unwrap().auto());
             })
         });
         Ok(())
@@ -489,7 +489,7 @@ fn jni_new_string_with_repeat_scoped_thread_attachments(c: &mut Criterion) {
         |b| {
             b.iter(|| {
                 VM.attach_current_thread_for_scope(|env| -> jni::errors::Result<()> {
-                    black_box(env.new_string("Test").unwrap().auto());
+                    black_box(JString::from_jni_str(env, jni_str!("Test")).unwrap().auto());
                     Ok(())
                 })
                 .unwrap();
@@ -512,7 +512,7 @@ fn jni_new_string_with_repeat_permanent_thread_attachments(c: &mut Criterion) {
         |b| {
             b.iter(|| {
                 VM.attach_current_thread(|env| -> jni::errors::Result<()> {
-                    black_box(env.new_string("Test").unwrap().auto());
+                    black_box(JString::from_jni_str(env, jni_str!("Test")).unwrap().auto());
                     Ok(())
                 })
                 .unwrap();

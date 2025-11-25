@@ -4,7 +4,7 @@ use std::{ops::Deref, sync::Arc};
 
 use jni::{
     errors::*,
-    jni_sig,
+    jni_sig, jni_str,
     objects::{Global, JObject, JValue},
     sys::jint,
     JavaVM, DEFAULT_LOCAL_FRAME_CAPACITY,
@@ -33,7 +33,7 @@ impl AtomicIntegerProxy {
         vm.attach_current_thread(|env| -> Result<Self> {
             let obj = env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
                 let i = env.new_object(
-                    c"java/util/concurrent/atomic/AtomicInteger",
+                    jni_str!("java/util/concurrent/atomic/AtomicInteger"),
                     jni_sig!("(I)V"),
                     &[JValue::from(init_value)],
                 )?;
@@ -49,7 +49,7 @@ impl AtomicIntegerProxy {
     pub fn get(&mut self) -> Result<jint> {
         let vm = JavaVM::singleton()?;
         vm.attach_current_thread(|env| {
-            env.call_method(&*self.obj, c"get", jni_sig!("()I"), &[])?
+            env.call_method(&*self.obj, jni_str!("get"), jni_sig!("()I"), &[])?
                 .i()
         })
     }
@@ -58,8 +58,13 @@ impl AtomicIntegerProxy {
     pub fn increment_and_get(&mut self) -> Result<jint> {
         let vm = JavaVM::singleton()?;
         vm.attach_current_thread(|env| {
-            env.call_method(&*self.obj, c"incrementAndGet", jni_sig!("()I"), &[])?
-                .i()
+            env.call_method(
+                &*self.obj,
+                jni_str!("incrementAndGet"),
+                jni_sig!("()I"),
+                &[],
+            )?
+            .i()
         })
     }
 
@@ -68,8 +73,13 @@ impl AtomicIntegerProxy {
         let vm = JavaVM::singleton()?;
         vm.attach_current_thread(|env| {
             let delta = JValue::from(delta);
-            env.call_method(&*self.obj, c"addAndGet", jni_sig!("(I)I"), &[delta])?
-                .i()
+            env.call_method(
+                &*self.obj,
+                jni_str!("addAndGet"),
+                jni_sig!("(I)I"),
+                &[delta],
+            )?
+            .i()
         })
     }
 }

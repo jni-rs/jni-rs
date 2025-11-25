@@ -445,7 +445,7 @@ macro_rules! impl_ref_for_jprimitive_array {
                 }
 
                 fn class_name() -> Cow<'static, JNIStr> {
-                    Cow::Borrowed(JNIStr::from_cstr($class_name))
+                    Cow::Borrowed($crate::jni_str!($class_name))
                 }
 
                 fn lookup_class<'caller>(
@@ -474,11 +474,11 @@ macro_rules! impl_ref_for_jprimitive_array {
     };
 }
 
-impl_ref_for_jprimitive_array!(jboolean, c"[Z");
-impl_ref_for_jprimitive_array!(jbyte, c"[B");
-impl_ref_for_jprimitive_array!(jchar, c"[C");
-impl_ref_for_jprimitive_array!(jshort, c"[S");
-impl_ref_for_jprimitive_array!(jint, c"[I");
-impl_ref_for_jprimitive_array!(jlong, c"[J");
-impl_ref_for_jprimitive_array!(jfloat, c"[F");
-impl_ref_for_jprimitive_array!(jdouble, c"[D");
+impl_ref_for_jprimitive_array!(jboolean, "[Z");
+impl_ref_for_jprimitive_array!(jbyte, "[B");
+impl_ref_for_jprimitive_array!(jchar, "[C");
+impl_ref_for_jprimitive_array!(jshort, "[S");
+impl_ref_for_jprimitive_array!(jint, "[I");
+impl_ref_for_jprimitive_array!(jlong, "[J");
+impl_ref_for_jprimitive_array!(jfloat, "[F");
+impl_ref_for_jprimitive_array!(jdouble, "[D");

@@ -2,7 +2,7 @@
 
 use std::thread::spawn;
 
-use jni::{jni_sig, objects::JString, AttachConfig};
+use jni::{jni_sig, jni_str, objects::JString, AttachConfig};
 
 mod util;
 use util::jvm;
@@ -21,8 +21,8 @@ fn attach_config() {
                     // Get the current Thread and query the name
                     let thread = env
                         .call_static_method(
-                            c"java/lang/Thread",
-                            c"currentThread",
+                            jni_str!("java/lang/Thread"),
+                            jni_str!("currentThread"),
                             jni_sig!("()Ljava/lang/Thread;"),
                             &[],
                         )
@@ -30,7 +30,12 @@ fn attach_config() {
                         .l()
                         .unwrap();
                     let name = env
-                        .call_method(thread, c"getName", jni_sig!("()Ljava/lang/String;"), &[])?
+                        .call_method(
+                            thread,
+                            jni_str!("getName"),
+                            jni_sig!("()Ljava/lang/String;"),
+                            &[],
+                        )?
                         .l()?;
                     let name = env.cast_local::<JString>(name).unwrap();
                     let name = name.mutf8_chars(env)?;
