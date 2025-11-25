@@ -101,6 +101,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Macros
 
 - The `#[jni_mangle()]` attribute proc macro can export an `extern "system"` native method with a mangled name like "Java_com_example_myMethod" so it can be automatically resolved within a shared library by the JVM ([#693](https://github.com/jni-rs/jni-rs/pull/693))
+- The `jni_str!` and `jni_cstr!` macros can encode a MUTF-8 `&'static JNIStr` or `&' static CStr` at compile time with full unicode support.
 
 ### Changed
 
