@@ -1,0 +1,15 @@
+error[E0308]: mismatched types
+  --> tests/ui/native_method_struct/fail/raw_wrong_parameter_type.rs:19:14
+   |
+16 |       let _method = native_method! {
+   |  ___________________-
+17 | |         name = "myMethod",
+18 | |         sig = (value: jint) -> void,
+19 | |         fn = my_method_impl,
+   | |              ^^^^^^^^^^^^^^ expected fn pointer, found fn item
+20 | |         raw = true,
+21 | |     };
+   | |_____- expected due to this
+   |
+   = note: expected fn pointer `extern "system" for<'local> fn(EnvUnowned<'local>, JObject<'local>, i32)`
+                 found fn item `extern "system" for<'local> fn(EnvUnowned<'local>, JObject<'local>, i64) {my_method_impl}`
