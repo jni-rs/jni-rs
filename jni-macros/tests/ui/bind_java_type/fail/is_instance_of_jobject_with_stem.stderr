@@ -1,0 +1,5 @@
+error: JObject should not be explicitly specified in is_instance_of - all types are already instances of JObject
+ --> tests/ui/bind_java_type/fail/is_instance_of_jobject_with_stem.rs:7:15
+  |
+7 |         obj = JObject,
+  |               ^^^^^^^

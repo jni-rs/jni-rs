@@ -1,0 +1,10 @@
+error: Cannot create binding for core Java type 'java.lang.Object'. Core types (java.lang.Object, java.lang.Class, java.lang.Throwable, and java.lang.String) are already provided by the jni crate and cannot be re-bound.
+ --> tests/ui/bind_java_type/fail/core_type_without_jni_core.rs:3:1
+  |
+3 | / jni_macros::bind_java_type! {
+4 | |     rust_type = MyObject,
+5 | |     java_type = "java.lang.Object",
+6 | | }
+  | |_^
+  |
+  = note: this error originates in the macro `jni_macros::bind_java_type` (in Nightly builds, run with -Z macro-backtrace for more info)

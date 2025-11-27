@@ -1,0 +1,5 @@
+error: Only native methods can have 'error_policy'
+ --> tests/ui/bind_java_type/fail/constructor_error_policy.rs:9:12
+  |
+9 |         fn new {
+  |            ^^^

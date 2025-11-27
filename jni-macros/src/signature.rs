@@ -1,4 +1,3 @@
-#![allow(unused)]
 //! Procedural macro for generating JNI signatures at compile time
 //!
 //! This module provides a `jni_sig!` macro that parses method and field signatures

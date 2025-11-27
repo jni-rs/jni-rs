@@ -1,4 +1,3 @@
-#![allow(unused)]
 use core::panic;
 use std::rc::Rc;
 

@@ -1,0 +1,5 @@
+error: Constructors must return void - either omit '-> type' or use explicit '-> void' or '-> ()'
+ --> tests/ui/bind_java_type/fail/constructor_return_type_shorthand.rs:9:12
+  |
+9 |         fn new() -> jint
+  |            ^^^

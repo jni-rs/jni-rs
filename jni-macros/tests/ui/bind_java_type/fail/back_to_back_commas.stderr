@@ -1,0 +1,5 @@
+error: expected identifier
+ --> tests/ui/bind_java_type/fail/back_to_back_commas.rs:7:41
+  |
+7 |     java_type = "com.example.TestClass",,
+  |                                         ^

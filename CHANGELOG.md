@@ -104,6 +104,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `jni_str!` and `jni_cstr!` macros can encode a MUTF-8 `&'static JNIStr` or `&' static CStr` at compile time with full unicode support. ([#696](https://github.com/jni-rs/jni-rs/pull/696))
 - The `jni_sig!`, `jni_sig_str!`, `jni_sig_cstr!` and `jni_sig_jstr!` macros can parse and compile signatures like `(arg0: jint, arg1: JString) -> JString` into `MethodSignature` and `FieldSignature` descriptors or JNI string literals like "(ILjava/lang/String;)Ljava/lang/String;" ([#697](https://github.com/jni-rs/jni-rs/pull/697))
 - The `native_method!` macro binds a single native method to a Rust function with type safety and optionally exports it too. ([#698](https://github.com/jni-rs/jni-rs/pull/698))
+- The `bind_java_type!` macro can generate full Rust bindings for Java types (classes and interfaces) with fields, constructors, methods and native methods ([#712](https://github.com/jni-rs/jni-rs/pull/712))
 
 ### Changed
 

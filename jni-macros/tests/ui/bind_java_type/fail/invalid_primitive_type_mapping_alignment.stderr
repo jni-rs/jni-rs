@@ -1,0 +1,10 @@
+error[E0080]: evaluation panicked: Alignment mismatch for primitive type MyInvalidHandle
+  --> tests/ui/bind_java_type/fail/invalid_primitive_type_mapping_alignment.rs:8:1
+   |
+ 8 | / bind_java_type! {
+ 9 | |     rust_type = JInvalidHandleType,
+10 | |     java_type = "com.example.HandleType",
+11 | |     type_map = {
+...  |
+14 | | }
+   | |_^ evaluation of `JInvalidHandleTypeAPI::get::{closure#0}::_` failed here

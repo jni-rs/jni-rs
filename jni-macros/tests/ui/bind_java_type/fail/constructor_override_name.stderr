@@ -1,0 +1,5 @@
+error: Cannot override 'name' for constructors - the Java constructor name is always '<init>'
+ --> tests/ui/bind_java_type/fail/constructor_override_name.rs:9:12
+  |
+9 |         fn new {
+  |            ^^^
