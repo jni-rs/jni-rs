@@ -1,0 +1,5 @@
+error: JObject should not be explicitly specified in is_instance_of - all types are already instances of JObject
+ --> tests/ui/bind_java_type/fail/is_instance_of_jobject_qualified.rs:7:9
+  |
+7 |         jni::objects::JObject,
+  |         ^^^^^^^^^^^^^^^^^^^^^

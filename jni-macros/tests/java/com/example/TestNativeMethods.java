@@ -53,45 +53,11 @@ public class TestNativeMethods {
         message = msg;
     }
 
-    // Wrapper methods that call native methods (for testing)
     public int callNativeAdd(int a, int b) {
         return nativeAdd(a, b);
     }
 
-    public void callNativeLog(String msg) {
-        nativeLog(msg);
-    }
-
-    public int[] callNativeArrayAdd(int[] arr, int value) {
-        return nativeArrayAdd(arr, value);
-    }
-
-    public void callNativeSetCounter(int value) {
-        nativeSetCounter(value);
-    }
-
-    public void callNativeSetMessage(String msg) {
-        nativeSetMessage(msg);
-    }
-
-    public String callNativeGetMessage() {
-        return nativeGetMessage();
-    }
-
-    // Wrapper methods for static native methods
     public static int callNativeGetVersion() {
         return nativeGetVersion();
-    }
-
-    public static boolean[][] callNative2DArrayInvert(boolean[][] arr) {
-        return native2DArrayInvert(arr);
-    }
-
-    public static String[] callNativeStringArrayEcho(String[] arr) {
-        return nativeStringArrayEcho(arr);
-    }
-
-    public static String[][] callNative2DStringArrayEcho(String[][] arr) {
-        return native2DStringArrayEcho(arr);
     }
 }

@@ -1,0 +1,5 @@
+error: expected `,`
+  --> tests/ui/bind_java_type/fail/missing_comma_after_methods_block.rs:11:5
+   |
+11 |     fields = {
+   |     ^^^^^^

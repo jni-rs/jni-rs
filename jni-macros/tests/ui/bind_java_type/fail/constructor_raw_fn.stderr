@@ -1,0 +1,5 @@
+error: Only native methods can have 'fn'
+  --> tests/ui/bind_java_type/fail/constructor_raw_fn.rs:15:12
+   |
+15 |         fn new {
+   |            ^^^

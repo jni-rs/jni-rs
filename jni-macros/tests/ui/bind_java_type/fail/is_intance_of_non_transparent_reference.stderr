@@ -1,0 +1,41 @@
+error[E0308]: mismatched types
+   --> tests/ui/bind_java_type/fail/is_intance_of_non_transparent_reference.rs:109:1
+    |
+109 | / jni::bind_java_type! {
+110 | |     rust_type = JTest,
+111 | |     java_type = "com.example.Test",
+...   |
+122 | |     },
+123 | | }
+    | | ^
+    | | |
+    | |_expected `NonTransparentMyType<'_>`, found `MyType<'_>`
+    |   expected `NonTransparentMyType<'local>` because of return type
+    |
+    = note: this error originates in the macro `jni::bind_java_type` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `refs::reference::transparent_reference::AssertEq<MyType<'_>, NonTransparentMyType<'_>>: refs::reference::transparent_reference::True` is not satisfied
+   --> tests/ui/bind_java_type/fail/is_intance_of_non_transparent_reference.rs:109:1
+    |
+109 | / jni::bind_java_type! {
+110 | |     rust_type = JTest,
+111 | |     java_type = "com.example.Test",
+...   |
+122 | |     },
+123 | | }
+    | |_^ unsatisfied trait bound
+    |
+    = help: the trait `refs::reference::transparent_reference::True` is not implemented for `refs::reference::transparent_reference::AssertEq<MyType<'_>, NonTransparentMyType<'_>>`
+    = help: the trait `refs::reference::transparent_reference::True` is implemented for `refs::reference::transparent_reference::AssertEq<T, T>`
+    = note: required for `NonTransparentMyType<'_>` to implement `TransparentReference`
+note: required by a bound in `assert_is_instance_of_type_is_ffi_safe`
+   --> tests/ui/bind_java_type/fail/is_intance_of_non_transparent_reference.rs:109:1
+    |
+109 | / jni::bind_java_type! {
+110 | |     rust_type = JTest,
+111 | |     java_type = "com.example.Test",
+...   |
+122 | |     },
+123 | | }
+    | |_^ required by this bound in `assert_is_instance_of_type_is_ffi_safe`
+    = note: this error originates in the macro `jni::bind_java_type` (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -1,0 +1,28 @@
+warning: unused import: `jint`
+ --> tests/ui/bind_java_type/fail/raw_fn_wrong_signature.rs:5:26
+  |
+5 | use jni::sys::{jboolean, jint, jlong};
+  |                          ^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+error[E0308]: mismatched types
+  --> tests/ui/bind_java_type/fail/raw_fn_wrong_signature.rs:26:20
+   |
+26 |             sig = (value: jint) -> jboolean,
+   |                    ^^^^^ expected `i64`, found `i32`
+27 |             fn = raw_check_positive,
+   |                  ------------------ arguments to this function are incorrect
+   |
+note: function defined here
+  --> tests/ui/bind_java_type/fail/raw_fn_wrong_signature.rs:8:20
+   |
+ 8 | extern "system" fn raw_check_positive<'local>(
+   |                    ^^^^^^^^^^^^^^^^^^
+...
+11 |     value: jlong, // Wrong! Should be jint
+   |     ------------
+help: you can convert an `i32` to an `i64`
+   |
+26 |             sig = (value.into(): jint) -> jboolean,
+   |                         +++++++

@@ -1,0 +1,5 @@
+error: expected `,`
+ --> tests/ui/bind_java_type/fail/missing_comma_between_properties.rs:8:5
+  |
+8 |     api = TestAPI
+  |     ^^^
