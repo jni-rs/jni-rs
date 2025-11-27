@@ -347,3 +347,8 @@ pub use jni_macros::jni_cstr;
 pub use jni_macros::jni_str;
 
 pub use jni_macros::jni_mangle;
+
+pub use jni_macros::jni_sig;
+pub use jni_macros::jni_sig_cstr;
+pub use jni_macros::jni_sig_jstr;
+pub use jni_macros::jni_sig_str;
