@@ -1,0 +1,20 @@
+error[E0308]: mismatched types
+  --> tests/ui/native_method/fail/raw_shorthand_wrong_parameter_type.rs:19:34
+   |
+19 |         raw fn MyClass::myMethod(value: jint) -> void,
+   |                                  ^^^^^ expected `i64`, found `i32`
+20 |         fn = my_method_impl
+   |              -------------- arguments to this function are incorrect
+   |
+note: function defined here
+  --> tests/ui/native_method/fail/raw_shorthand_wrong_parameter_type.rs:10:20
+   |
+10 | extern "system" fn my_method_impl<'local>(
+   |                    ^^^^^^^^^^^^^^
+...
+13 |     _value: jlong, // Wrong! Should be jint
+   |     -------------
+help: you can convert an `i32` to an `i64`
+   |
+19 |         raw fn MyClass::myMethod(value.into(): jint) -> void,
+   |                                       +++++++
