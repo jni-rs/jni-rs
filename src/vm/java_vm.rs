@@ -42,7 +42,7 @@ pub const DEFAULT_LOCAL_FRAME_CAPACITY: usize = 32;
 ///
 /// For example, this guarantee is relied on internally to avoid redundantly saving JavaVM pointers
 /// if know we can assume that `JavaVM::singleton()` will return a `JavaVM` when needed.
-static JAVA_VM_SINGLETON: once_cell::sync::OnceCell<JavaVM> = once_cell::sync::OnceCell::new();
+static JAVA_VM_SINGLETON: std::sync::OnceLock<JavaVM> = std::sync::OnceLock::new();
 
 /// The Java VM API, including (optional) [Invocation API][invocation-api] support.
 ///
@@ -319,9 +319,6 @@ impl JavaVM {
         args: InitArgs,
         libjvm_path: impl FnOnce() -> StartJvmResult<P>,
     ) -> StartJvmResult<Self> {
-        // Don't use .get_or_try_init() around all this code because `Self::with_create_fn_ptr`
-        // will call `JavaVM::from_raw` which will also try and set JAVA_VM_SINGLETON and create
-        // a deadlock
         if let Some(jvm) = JAVA_VM_SINGLETON.get() {
             Ok(jvm.clone())
         } else {
