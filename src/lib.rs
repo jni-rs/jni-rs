@@ -352,3 +352,5 @@ pub use jni_macros::jni_sig;
 pub use jni_macros::jni_sig_cstr;
 pub use jni_macros::jni_sig_jstr;
 pub use jni_macros::jni_sig_str;
+
+pub use jni_macros::native_method;
