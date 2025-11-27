@@ -1,0 +1,13 @@
+error[E0061]: this function takes 3 arguments but 4 arguments were supplied
+  --> tests/ui/native_method/fail/raw_wrong_parameter_count.rs:19:14
+   |
+18 |         sig = (a: jint, b: jint) -> void,
+   |                         - unexpected argument #4 of type `i32`
+19 |         fn = my_method_impl,
+   |              ^^^^^^^^^^^^^^
+   |
+note: function defined here
+  --> tests/ui/native_method/fail/raw_wrong_parameter_count.rs:8:20
+   |
+ 8 | extern "system" fn my_method_impl<'local>(
+   |                    ^^^^^^^^^^^^^^

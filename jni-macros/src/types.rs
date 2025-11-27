@@ -10,7 +10,13 @@ use syn::{
     token,
 };
 
+use crate::str::lit_cstr_mutf8;
+
 custom_keyword!(typealias);
+
+custom_keyword!(Always);
+custom_keyword!(UnsafeDebugOnly);
+custom_keyword!(UnsafeNever);
 
 /// Format a syn::Path as a string without spaces (for rustdoc links)
 pub fn path_to_string_no_spaces(path: &syn::Path) -> String {
@@ -418,6 +424,13 @@ pub struct RustType {
 }
 
 impl RustType {
+    pub fn primitive(&self) -> Option<PrimitiveType> {
+        if let RustTypeTarget::Primitive { primitive, .. } = &self.target {
+            Some(primitive.clone())
+        } else {
+            None
+        }
+    }
     pub fn is_builtin(&self) -> bool {
         match self.target {
             RustTypeTarget::Primitive { is_builtin, .. } => is_builtin,
@@ -519,6 +532,8 @@ pub struct TypeMappings {
     /// types will still have a `jni::` prefix, and it's only the
     /// `RustType::path` that will have the renamed crate path.
     alias_to_rust: std::collections::HashMap<String, Rc<RustType>>,
+    /// Set of all known Rust types
+    rust_types: std::collections::HashSet<Rc<RustType>>,
     /// Maps `RustType::path`s to Java class names
     ///
     /// Only includes the canonical Rust type paths, so make sure to resolve
@@ -548,6 +563,7 @@ impl TypeMappings {
     pub fn new(jni_crate: &syn::Path) -> Self {
         let mut type_mappings = Self {
             alias_to_rust: std::collections::HashMap::new(),
+            rust_types: std::collections::HashSet::new(),
             rust_to_java: std::collections::HashMap::new(),
             java_to_rust: std::collections::HashMap::new(),
             core_java: std::collections::HashSet::new(),
@@ -702,6 +718,60 @@ impl TypeMappings {
         type_mappings
     }
 
+    // Lookup the canonical RustType for a Reference type path
+    fn rust_reference_type(&mut self, path: &str, is_builtin: bool) -> Rc<RustType> {
+        let candidate = RustType {
+            target: RustTypeTarget::Reference {
+                path: path.to_string(),
+                is_builtin,
+            },
+        };
+        if let Some(existing) = self.rust_types.get(&candidate) {
+            // It would be a bug if a builtin type resolved to a non-builtin existing type
+            if is_builtin {
+                assert!(
+                    existing.is_builtin(),
+                    "Inconsistent is_builtin flag for existing Rust reference type '{}'",
+                    path
+                );
+            }
+            return existing.clone();
+        }
+        let rust_type = Rc::new(candidate);
+        self.rust_types.insert(rust_type.clone());
+        rust_type
+    }
+
+    // Lookup the canonical RustType for a Primitive type path
+    fn rust_prim_type(
+        &mut self,
+        primitive: PrimitiveType,
+        path: String,
+        is_builtin: bool,
+    ) -> Rc<RustType> {
+        let candidate = RustType {
+            target: RustTypeTarget::Primitive {
+                primitive,
+                path,
+                is_builtin,
+            },
+        };
+        if let Some(existing) = self.rust_types.get(&candidate) {
+            // It would be a bug if a builtin type resolved to a non-builtin existing type
+            if is_builtin {
+                assert!(
+                    existing.is_builtin(),
+                    "Inconsistent is_builtin flag for existing Rust primitive type '{}'",
+                    candidate.path()
+                );
+            }
+            return existing.clone();
+        }
+        let rust_type = Rc::new(candidate);
+        self.rust_types.insert(rust_type.clone());
+        rust_type
+    }
+
     /// Insert a mapping from a Rust `Reference` type path to a Java class
     ///
     /// If there is already a a Rust type mapping to the same Java class, the reverse
@@ -743,12 +813,7 @@ impl TypeMappings {
             ));
         }
 
-        let rust_type = Rc::new(RustType {
-            target: RustTypeTarget::Reference {
-                path: path.to_string(),
-                is_builtin,
-            },
-        });
+        let rust_type = self.rust_reference_type(path, is_builtin);
 
         // Check if this alias already has a mapping to a different Rust type
         if let Some(existing) = self.alias_to_rust.get(alias) {
@@ -787,13 +852,7 @@ impl TypeMappings {
         path: &str,
         is_builtin: bool,
     ) -> Result<()> {
-        let rust_type = Rc::new(RustType {
-            target: RustTypeTarget::Primitive {
-                primitive,
-                path: path.to_string(),
-                is_builtin,
-            },
-        });
+        let rust_type = self.rust_prim_type(primitive, path.to_string(), is_builtin);
 
         if let Some(existing) = self.alias_to_rust.get(alias) {
             if existing != &rust_type {
@@ -1035,6 +1094,11 @@ impl TypeMappings {
         self.java_to_rust.keys()
     }
 
+    /// Get an iterator over all Rust types
+    pub fn rust_types(&self) -> impl Iterator<Item = &Rc<RustType>> {
+        self.rust_types.iter()
+    }
+
     /// Get an iterator over rust_path -> java_class mappings
     pub fn rust_to_java_iter(&self) -> impl Iterator<Item = (&Rc<RustType>, &Rc<JavaClassName>)> {
         self.rust_to_java.iter()
@@ -1198,6 +1262,125 @@ pub fn sig_type_to_rust_type_core(
                 result = quote! { #jni::objects::JObjectArray<#lifetime, #result> };
             }
             result
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
+pub enum AbiCheck {
+    #[default]
+    Always,
+    UnsafeDebugOnly,
+    UnsafeNever,
+}
+
+impl AbiCheck {
+    pub fn requires_abi_check(&self) -> bool {
+        match self {
+            AbiCheck::Always => true,
+            AbiCheck::UnsafeDebugOnly => cfg!(debug_assertions),
+            AbiCheck::UnsafeNever => false,
+        }
+    }
+}
+
+impl Parse for AbiCheck {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let lookahead = input.lookahead1();
+        if lookahead.peek(Always) {
+            input.parse::<Always>()?;
+            Ok(AbiCheck::Always)
+        } else if lookahead.peek(UnsafeDebugOnly) {
+            input.parse::<UnsafeDebugOnly>()?;
+            Ok(AbiCheck::UnsafeDebugOnly)
+        } else if lookahead.peek(UnsafeNever) {
+            input.parse::<UnsafeNever>()?;
+            Ok(AbiCheck::UnsafeNever)
+        } else {
+            Err(lookahead.error())
+        }
+    }
+}
+
+/// Generate assertions that type mappings are correct
+///
+/// - Generates assertions to verify the Java class names match at runtime.
+/// - Generates compile-time assertions to verify primitive type sizes and alignments match.
+///
+/// Skips checks for the built-in jni crate types that are assumed to be correct.
+/// (note that we will still generate a compile-time error if attempting to map
+/// a built-in Rust type to a different Java type)
+pub fn generate_type_mapping_checks(type_mappings: &TypeMappings, jni: &syn::Path) -> TokenStream {
+    let mut type_checks = Vec::new();
+
+    // Generate runtime checks for all type mappings
+    for (rust_type, java_class) in type_mappings
+        .rust_to_java_iter()
+        .filter(|(rust_type, _)| !rust_type.is_builtin())
+    {
+        let rust_path: syn::Path = syn::parse_str(rust_type.path())
+            .unwrap_or_else(|_| panic!("Invalid Rust type path: {}", &rust_type.path()));
+
+        let java_class_dotted = java_class.to_java_dotted();
+        let java_class_cstr = lit_cstr_mutf8(&java_class_dotted);
+
+        type_checks.push(quote! {
+            {
+                // Safety: we have compile-time encoded the name of the Java class as MUTF8
+                // and therefore know it's safe to cast as a JNIStr
+                let expected_class_name = unsafe {
+                    #jni::strings::JNIStr::from_cstr_unchecked(#java_class_cstr)
+                };
+                let actual_class_name = <#rust_path as #jni::refs::Reference>::class_name();
+                assert!(
+                    actual_class_name.as_ref() == expected_class_name,
+                    "Type mapping mismatch for {}: expected {:?}, got {:?}",
+                    stringify!(#rust_path),
+                    expected_class_name,
+                    actual_class_name
+                );
+            }
+        });
+    }
+
+    // Generate compile-time size and alignment checks for primitive type mappings
+    for rust_type in type_mappings
+        .rust_types()
+        .filter(|rt| rt.primitive().is_some())
+        .filter(|rt| !rt.is_builtin())
+    {
+        let rust_path: syn::Path = syn::parse_str(rust_type.path())
+            .unwrap_or_else(|_| panic!("Invalid Rust type path: {}", &rust_type.path()));
+
+        let jni_sys_prim = match rust_type.primitive().unwrap() {
+            PrimitiveType::Void => {
+                unreachable!("Void type should not have a custom type mapping")
+            }
+            PrimitiveType::Boolean => quote! { jboolean },
+            PrimitiveType::Byte => quote! { jbyte },
+            PrimitiveType::Char => quote! { jchar },
+            PrimitiveType::Short => quote! { jshort },
+            PrimitiveType::Int => quote! { jint },
+            PrimitiveType::Long => quote! { jlong },
+            PrimitiveType::Float => quote! { jfloat },
+            PrimitiveType::Double => quote! { jdouble },
+        };
+
+        type_checks.push(quote! {
+            {
+                const _: () =  {
+                    assert!(std::mem::size_of::<#jni::sys::#jni_sys_prim>() == std::mem::size_of::<#rust_path>(), concat!("Size mismatch for primitive type ", stringify!(#rust_path)));
+                    assert!(std::mem::align_of::<#jni::sys::#jni_sys_prim>() == std::mem::align_of::<#rust_path>(), concat!("Alignment mismatch for primitive type ", stringify!(#rust_path)));
+                };
+            }
+        });
+    }
+
+    if type_checks.is_empty() {
+        quote! {}
+    } else {
+        quote! {
+            #(#type_checks)*
         }
     }
 }
