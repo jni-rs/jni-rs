@@ -4497,7 +4497,7 @@ impl<'local> EnvUnowned<'local> {
 }
 
 #[repr(transparent)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 /// Native method descriptor for use with [`Env::register_native_methods`].
 ///
 /// This is a `#[repr(transparent)]` / `repr(C)` wrapper around the [`crate::sys::JNINativeMethod`]
@@ -4530,7 +4530,7 @@ impl<'desc> NativeMethod<'desc> {
     /// or some specific `this` type like:
     ///
     /// `fn<'local>(unowned_env: EnvUnowned<'local>, this: MyType<'local>, arg0: jint) -> JString<'local>`.
-    pub unsafe fn from_raw_parts(
+    pub const unsafe fn from_raw_parts(
         name: &'desc JNIStr,
         sig: &'desc JNIStr,
         fn_ptr: *mut c_void,

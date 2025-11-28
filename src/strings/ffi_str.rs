@@ -318,7 +318,7 @@ impl JNIStr {
     /// <code>self.[as_cstr][JNIStr::as_cstr]().[as_ptr][CStr::as_ptr]()</code>.
     ///
     /// [modified UTF-8]: https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
-    pub fn as_ptr(&self) -> *const c_char {
+    pub const fn as_ptr(&self) -> *const c_char {
         self.as_cstr().as_ptr()
     }
 
@@ -377,7 +377,7 @@ impl JNIStr {
     /// To convert to a Rust string, use the [`JNIStr::to_str`] method instead.
     ///
     /// [modified UTF-8]: https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
-    pub fn as_cstr(&self) -> &CStr {
+    pub const fn as_cstr(&self) -> &CStr {
         &self.internal
     }
 
