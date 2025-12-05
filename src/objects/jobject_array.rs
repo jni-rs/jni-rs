@@ -203,11 +203,14 @@ impl<'local, E: Reference + 'local> JObjectArray<'local, E> {
     /// # Errors
     ///
     /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
-    pub fn cast_local<'any_local, O: Reference + 'static>(
+    pub fn cast_local<'any_local>(
         env: &mut Env<'_>,
         obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
-    ) -> Result<<JObjectArray<'any_local, O> as Reference>::Kind<'any_local>> {
-        env.cast_local::<JObjectArray<'any_local, O>>(obj)
+    ) -> Result<<JObjectArray<'any_local, E> as Reference>::Kind<'any_local>>
+    where
+        E: 'any_local,
+    {
+        env.cast_local::<JObjectArray<'any_local, E>>(obj)
     }
 
     /// Returns the length of the array.
