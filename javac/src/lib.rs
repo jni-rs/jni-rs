@@ -949,7 +949,7 @@ impl JavaCompiler {
     /// # }
     /// ```
     pub fn compile(&self) -> Vec<PathBuf> {
-        self.try_compile().expect("javac compilation failed")
+        self.try_compile().unwrap_or_else(|err| panic!("{err}"))
     }
 
     /// Try to compile the Java sources, returning a `Result`.
