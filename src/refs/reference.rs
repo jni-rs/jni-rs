@@ -168,7 +168,14 @@ pub unsafe trait Reference: Sized {
     ///
     /// You are responsible to knowing that `Self::Kind` is a suitable wrapper type for the given
     /// `reference`. E.g. because the `reference` came from an `into_raw` call from the same type.
-    unsafe fn kind_from_raw<'env>(reference: jobject) -> Self::Kind<'env>;
+    ///
+    /// The default implementation simply uses `std::mem::transmute_copy`, based on the invariant
+    /// that `Self::Kind` is required to be a transparent wrapper around a `jobject` JNI reference
+    /// (this is a `Safety` requirement of the `Reference` trait).
+    ///
+    unsafe fn kind_from_raw<'env>(reference: jobject) -> Self::Kind<'env> {
+        std::mem::transmute_copy(&reference)
+    }
 
     /// Returns a (`'static`) reference type based on [`Self::GlobalKind`] for the given `global_ref`.
     ///
@@ -181,7 +188,13 @@ pub unsafe trait Reference: Sized {
     /// given `global_ref` reference. E.g. because the `global_ref` came from an `into_raw`
     /// call from the same type.
     ///
-    unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind;
+    /// The default implementation simply uses `std::mem::transmute_copy`, based on the invariant
+    /// that `Self::GlobalKind` is required to be a transparent wrapper around a `jobject` JNI
+    /// reference (this is a `Safety` requirement of the `Reference` trait).
+    ///
+    unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
+        std::mem::transmute_copy(&global_ref)
+    }
 }
 
 /// Represents the context that influences how a class may be loaded.
