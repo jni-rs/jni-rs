@@ -307,17 +307,13 @@ pub fn parse_type(input: ParseStream, type_mappings: &TypeMappings) -> Result<Si
     let base_type = if let Ok(java_class) = input.parse::<JavaClassName>() {
         SigType::Object(java_class)
     } else {
-        // Not a Java class name, so it must be a path-ish TypeMappings type (could be primitive lie
-        // jint/i32 or Reference like JString/jni::objects::JString)
-        let first_ident = input.parse::<Ident>()?;
+        // Not a Java class name, so it must be a TypeMappings type (could be
+        // primitive lie jint/i32 or Reference like
+        // JString/jni::objects::JString)
+        let path = input.parse::<syn::Path>()?;
+        let path_str = path_to_string_no_spaces(&path);
 
-        let mut path_segments = vec![first_ident.to_string()];
-        while input.peek(Token![::]) {
-            input.parse::<Token![::]>()?;
-            let segment = input.parse::<Ident>()?;
-            path_segments.push(segment.to_string());
-        }
-        SigType::Alias(path_segments.join("::"))
+        SigType::Alias(path_str)
     };
 
     // Check for suffix array syntax (applies to all base types)
