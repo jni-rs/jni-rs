@@ -651,7 +651,12 @@ impl Build {
     /// Parses output like "javac 25.0.1" or "javac 1.8.0_472".
     /// Returns the major version number.
     fn check_javac_version(&self, javac: &Path) -> Result<u32> {
-        let output = Command::new(javac).arg("-version").output()?;
+        let output = Command::new(javac)
+            .arg("-version")
+            // Disable writing of perf data to /tmp/hsperfdata (shared memory), which can
+            // (often) lead to file locking collisions
+            .arg("-J-XX:+PerfDisableSharedMem")
+            .output()?;
 
         // Decode as UTF-8 (javac -version typically outputs UTF-8 or ASCII)
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -860,6 +865,10 @@ impl JavaCompiler {
         // JDK 19+ standard properties
         cmd.arg("-J-Dstdout.encoding=UTF-8");
         cmd.arg("-J-Dstderr.encoding=UTF-8");
+
+        // Disable writing of perf data to /tmp/hsperfdata (shared memory), which can
+        // (often) lead to file locking collisions
+        cmd.arg("-J-XX:+PerfDisableSharedMem");
 
         // Add output directory
         cmd.arg("-d").arg(&self.output_dir);
