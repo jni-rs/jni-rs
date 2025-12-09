@@ -572,9 +572,7 @@ impl Build {
     /// # }
     /// ```
     pub fn try_compile(&self) -> Result<Vec<PathBuf>> {
-        let compiler = self
-            .try_get_compiler()
-            .ok_or_else(|| Error::CompilerNotFound("javac compiler not found".to_string()))?;
+        let compiler = self.try_get_compiler()?;
         compiler.try_compile()
     }
 
@@ -600,29 +598,25 @@ impl Build {
     /// ```
     pub fn get_compiler(&self) -> JavaCompiler {
         self.try_get_compiler()
-            .expect("failed to find javac compiler")
+            .unwrap_or_else(|err| panic!("failed to find javac compiler: {err}"))
     }
 
-    /// Try to get a configured `JavaCompiler`, returning `None` if the compiler cannot be found.
+    /// Try to get a configured `JavaCompiler`, returning an error if the compiler cannot be found.
     ///
     /// This is the non-panicking version of `get_compiler()`.
     ///
     /// # Example
     ///
     /// ```no_run
-    /// # fn main() {
-    /// if let Some(compiler) = javac::Build::new()
+    /// # fn main() -> Result<(), javac::Error> {
+    /// let compiler = javac::Build::new()
     ///     .file("src/Foo.java")
-    ///     .try_get_compiler()
-    /// {
-    ///     println!("Using javac at: {}", compiler.path().display());
-    /// } else {
-    ///     println!("javac not found");
-    /// }
+    ///     .try_get_compiler()?;
+    /// # Ok(())
     /// # }
     /// ```
-    pub fn try_get_compiler(&self) -> Option<JavaCompiler> {
-        JavaCompiler::new(self).ok()
+    pub fn try_get_compiler(&self) -> Result<JavaCompiler> {
+        JavaCompiler::new(self)
     }
 
     /// Find the `javac` executable.
@@ -1578,8 +1572,8 @@ mod tests {
         let result = valid_build.try_get_compiler();
 
         // If javac is available on the system, this should succeed
-        // If not, it will return None which is also acceptable
-        if let Some(compiler) = result {
+        // If not, it will return Err which is also acceptable
+        if let Ok(compiler) = result {
             // Verify the compiler has a valid path
             let path = compiler.path();
             assert!(
