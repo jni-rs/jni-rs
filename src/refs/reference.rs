@@ -409,6 +409,23 @@ pub unsafe trait Reference: Sized {
     }
 }
 
+mod transparent_reference {
+    pub trait True {}
+    #[derive(Debug)]
+    pub struct AssertEq<A, B>(std::marker::PhantomData<(A, B)>);
+    impl<T> True for AssertEq<T, T> {}
+}
+
+/// A marker trait for Reference types that are FFI-safe transparent wrappers that match their
+/// associated Kind type
+pub trait TransparentReference: Reference {}
+impl<'local, T> TransparentReference for T
+where
+    T: Reference + 'local,
+    transparent_reference::AssertEq<<T as Reference>::Kind<'local>, T>: transparent_reference::True,
+{
+}
+
 /// Represents the context that influences how a class may be loaded.
 #[derive(Debug, Default)]
 pub enum LoaderContext<'any_local, 'a> {
