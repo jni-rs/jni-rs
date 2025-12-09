@@ -144,27 +144,18 @@ pub fn parse_parameter_with_index(
     index: usize,
     type_mappings: &TypeMappings,
 ) -> Result<Parameter> {
-    // Try to parse as `name: type` first
-    // We need to look ahead to see if there's a colon after the first identifier
-    let fork = input.fork();
-
-    // Try to parse identifier
-    if let Ok(_potential_name) = fork.parse::<Ident>() {
-        // Check if it's followed by a colon
-        if fork.peek(Token![:]) {
-            // This is a named parameter: `name: type`
-            let name = input.parse::<Ident>()?;
-            input.parse::<Token![:]>()?;
-            let ty = parse_type(input, type_mappings)?;
-            return Ok(Parameter { name, ty });
-        }
+    if input.peek(Ident) && input.peek2(Token![:]) {
+        // Named parameter
+        let name = input.parse::<Ident>()?;
+        input.parse::<Token![:]>()?;
+        let ty = parse_type(input, type_mappings)?;
+        Ok(Parameter { name, ty })
+    } else {
+        // Unnamed parameter - generate fallback name
+        let ty = parse_type(input, type_mappings)?;
+        let name = Ident::new(&format!("arg{}", index), Span::call_site());
+        Ok(Parameter { name, ty })
     }
-
-    // No colon found, so this is just a type - generate a fallback name
-    let ty = parse_type(input, type_mappings)?;
-    let name = Ident::new(&format!("arg{}", index), Span::call_site());
-
-    Ok(Parameter { name, ty })
 }
 
 /// Represents the full macro input with named properties
