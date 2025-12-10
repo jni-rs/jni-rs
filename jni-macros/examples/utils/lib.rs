@@ -170,8 +170,7 @@ macro_rules! define_stub_type {
             pub fn new(env: &mut Env<'local>) -> jni2::errors::Result<Self> {
                 let class = Self::lookup_class(env, &jni2::refs::LoaderContext::default())?;
                 let class: &JClass = class.as_ref();
-                let obj = env.new_object(class, jni::jni_str!("()V"), &[])?;
-                //let obj = env.new_object(class, jni::jni_sig!("()V"), &[])?;
+                let obj = env.new_object(class, jni::jni_sig!("()V"), &[])?;
                 Ok(Self(obj))
             }
         }

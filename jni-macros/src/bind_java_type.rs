@@ -2001,7 +2001,6 @@ fn generate_id_fields_and_inits(
 
         // Create CStr literals for both the name and signature
         let name_cstr = lit_cstr_mutf8(java_name);
-        let sig_cstr = lit_cstr_mutf8(signature);
 
         // Add field to API struct
         fields.push(quote! {
@@ -2010,7 +2009,7 @@ fn generate_id_fields_and_inits(
 
         // Add initialization
         inits.push(quote! {
-            #field_name: env.#lookup_fn(class, #jni::strings::JNIStr::from_cstr_unchecked(#name_cstr), #jni::strings::JNIStr::from_cstr_unchecked(#sig_cstr))?,
+            #field_name: env.#lookup_fn(class, #jni::strings::JNIStr::from_cstr_unchecked(#name_cstr), #jni::jni_sig!(jni=#jni, #signature))?,
         });
     }
 

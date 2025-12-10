@@ -1,6 +1,7 @@
 #![cfg(feature = "invocation")]
 
 use jni::{
+    jni_sig,
     objects::{IntoAuto, JList, JString},
     strings::JNIStr,
     sys::jint,
@@ -21,7 +22,10 @@ pub fn jlist_push_and_iterate() {
         ];
 
         // Create a new ArrayList
-        let list_object = unwrap(env.new_object(c"java/util/ArrayList", c"()V", &[]), env);
+        let list_object = unwrap(
+            env.new_object(c"java/util/ArrayList", jni_sig!("()V"), &[]),
+            env,
+        );
         let list = unwrap(JList::cast_local(env, list_object), env);
 
         // Add all strings to the list
@@ -64,7 +68,10 @@ pub fn jlist_push_and_iterate() {
 pub fn jlist_get_and_set() {
     attach_current_thread(|env| {
         // Create a new ArrayList
-        let list_object = unwrap(env.new_object(c"java/util/ArrayList", c"()V", &[]), env);
+        let list_object = unwrap(
+            env.new_object(c"java/util/ArrayList", jni_sig!("()V"), &[]),
+            env,
+        );
         let list = unwrap(JList::cast_local(env, list_object), env);
 
         // Add some initial elements
@@ -100,7 +107,10 @@ pub fn jlist_get_and_set() {
 pub fn jlist_insert_and_remove() {
     attach_current_thread(|env| {
         // Create a new ArrayList
-        let list_object = unwrap(env.new_object(c"java/util/ArrayList", c"()V", &[]), env);
+        let list_object = unwrap(
+            env.new_object(c"java/util/ArrayList", jni_sig!("()V"), &[]),
+            env,
+        );
         let list = unwrap(JList::cast_local(env, list_object), env);
 
         // Add initial elements
@@ -159,7 +169,10 @@ pub fn jlist_insert_and_remove() {
 pub fn jlist_size_and_remove() {
     attach_current_thread(|env| {
         // Create a new ArrayList
-        let list_object = unwrap(env.new_object(c"java/util/ArrayList", c"()V", &[]), env);
+        let list_object = unwrap(
+            env.new_object(c"java/util/ArrayList", jni_sig!("()V"), &[]),
+            env,
+        );
         let list = unwrap(JList::cast_local(env, list_object), env);
 
         // Test size on empty list
@@ -218,7 +231,10 @@ pub fn jlist_size_and_remove() {
 pub fn jlist_iterator_empty() {
     attach_current_thread(|env| {
         // Create an empty ArrayList
-        let list_object = unwrap(env.new_object(c"java/util/ArrayList", c"()V", &[]), env);
+        let list_object = unwrap(
+            env.new_object(c"java/util/ArrayList", jni_sig!("()V"), &[]),
+            env,
+        );
         let list = unwrap(JList::cast_local(env, list_object), env);
 
         // Test iterator on empty list
@@ -251,7 +267,10 @@ pub fn jlist_iterator_with_auto() {
         ];
 
         // Create a new ArrayList
-        let list_object = unwrap(env.new_object(c"java/util/ArrayList", c"()V", &[]), env);
+        let list_object = unwrap(
+            env.new_object(c"java/util/ArrayList", jni_sig!("()V"), &[]),
+            env,
+        );
         let list = unwrap(JList::cast_local(env, list_object), env);
 
         // Add all strings to the list

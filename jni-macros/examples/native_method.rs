@@ -8,7 +8,7 @@
 use jni::errors::LogErrorAndDefault;
 use jni::objects::{JClass, JIntArray, JObject, JString};
 use jni::sys::jint;
-use jni::{Env, EnvUnowned, NativeMethod, jni_str, native_method};
+use jni::{Env, EnvUnowned, NativeMethod, jni_sig, jni_str, native_method};
 
 #[path = "utils/lib.rs"]
 mod utils;
@@ -208,8 +208,7 @@ fn main() {
 
         // Create an instance
         println!("\n--- Creating Instance ---");
-        let obj = env.new_object(&class, jni_str!("()V"), &[])?;
-        //let obj = env.new_object(&class, &jni_sig!(()->void), &[])?; TODO
+        let obj = env.new_object(&class, &jni_sig!(()->void), &[])?;
         println!("Created NativeMethodOverview instance");
 
         // Call the test method that exercises all native methods
@@ -217,8 +216,7 @@ fn main() {
         let test_method = env.get_method_id(
             &class,
             jni_str!("testAllNativeMethods"),
-            jni_str!("()Ljava/lang/String;"),
-            //&jni_sig!(()->JString), TODO
+            &jni_sig!(()->JString),
         )?;
         let result = unsafe {
             env.call_method_unchecked(&obj, test_method, jni::signature::ReturnType::Object, &[])?
@@ -239,8 +237,7 @@ fn main() {
         let handle_method = env.get_method_id(
             &class,
             jni_str!("nativeProcessHandle"),
-            jni_str!("(J)Ljava/lang/String;"),
-            //&jni_sig!((jlong)->JString), TODO
+            &jni_sig!((jlong)->JString),
         )?;
         let response = unsafe {
             env.call_method_unchecked(

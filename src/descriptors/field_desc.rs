@@ -3,14 +3,15 @@ use crate::{
     env::Env,
     errors::*,
     objects::{JClass, JFieldID, JStaticFieldID},
+    signature::FieldSignature,
     strings::JNIStr,
 };
 
-unsafe impl<'local, 'other_local, T, U, V> Desc<'local, JFieldID> for (T, U, V)
+unsafe impl<'local, 'other_local, 'sig, T, U, V> Desc<'local, JFieldID> for (T, U, V)
 where
     T: Desc<'local, JClass<'other_local>>,
     U: AsRef<JNIStr>,
-    V: AsRef<JNIStr>,
+    V: AsRef<FieldSignature<'sig>>,
 {
     type Output = JFieldID;
 
@@ -19,11 +20,11 @@ where
     }
 }
 
-unsafe impl<'local, 'other_local, T, U, V> Desc<'local, JStaticFieldID> for (T, U, V)
+unsafe impl<'local, 'other_local, 'sig, T, U, V> Desc<'local, JStaticFieldID> for (T, U, V)
 where
     T: Desc<'local, JClass<'other_local>>,
     U: AsRef<JNIStr>,
-    V: AsRef<JNIStr>,
+    V: AsRef<FieldSignature<'sig>>,
 {
     type Output = JStaticFieldID;
 

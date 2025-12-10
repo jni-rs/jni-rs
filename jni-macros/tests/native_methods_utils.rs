@@ -215,12 +215,11 @@ macro_rules! native_method_test {
 #[macro_export]
 macro_rules! call_int_method {
     ($env:expr, $obj:expr, $method_name:literal, $arg:expr) => {{
-        use jni::jni_str;
+        use jni::{jni_sig, jni_str};
         let result = $env.call_method(
             $obj,
             jni_str!($method_name),
-            jni_str!("(I)I"),
-            //jni_sig!("(I)I"), TODO
+            jni_sig!("(I)I"),
             &[jni::objects::JValue::Int($arg)],
         )?;
         result.i()
@@ -239,12 +238,11 @@ macro_rules! call_int_method {
 #[macro_export]
 macro_rules! call_static_int_method {
     ($env:expr, $class:expr, $method_name:literal, $arg:expr) => {{
-        use jni::jni_str;
+        use jni::{jni_sig, jni_str};
         let result = $env.call_static_method(
             $class,
             jni_str!($method_name),
-            jni_str!("(I)I"),
-            //jni_sig!("(I)I"), TODO
+            jni_sig!("(I)I"),
             &[jni::objects::JValue::Int($arg)],
         )?;
         result.i()
@@ -263,8 +261,7 @@ macro_rules! call_static_int_method {
 #[macro_export]
 macro_rules! new_object {
     ($env:expr, $class:expr) => {{
-        use jni::jni_str;
-        $env.new_object(&$class, jni_str!("()V"), &[])
-        //$env.new_object(&$class, jni_sig!("()V"), &[]) TODO
+        use jni::jni_sig;
+        $env.new_object(&$class, jni_sig!("()V"), &[])
     }};
 }

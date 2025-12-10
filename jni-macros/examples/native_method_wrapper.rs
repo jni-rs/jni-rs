@@ -66,7 +66,6 @@ macro_rules! my_native_method {
     };
 }
 // For consistency, do the same for jni_sig! macro which we'll use to call the methods
-/* TODO: uncomment after landing JNI signature changes for method call APIs
 macro_rules! my_jni_sig {
     ($($tt:tt)*) => {
         ::jni2::jni_sig!(
@@ -79,8 +78,6 @@ macro_rules! my_jni_sig {
         )
     };
 }
-*/
-
 // and, for consistency, also rename the jni crate for the jni_str macro
 macro_rules! my_jni_str {
     ($($tt:tt)*) => {
@@ -160,8 +157,7 @@ fn main() {
             .call_method(
                 &obj,
                 my_jni_str!("processResource"),
-                my_jni_str!("(J)Ljava/lang/String;"),
-                //my_jni_sig!((jlong)->JString), TODO
+                my_jni_sig!((jlong)->JString),
                 &[JValue::Long(resource_handle.into())],
             )?
             .l()?;
@@ -178,10 +174,7 @@ fn main() {
             .call_static_method(
                 class,
                 my_jni_str!("mixTypes"),
-                my_jni_str!(
-                    "(Lcom/example/CommonBuiltinType;Lcom/example/CustomType;)Ljava/lang/String;"
-                ),
-                //my_jni_sig!((builtin: JBuiltinType, custom: com.example.CustomType)->JString), TODO
+                my_jni_sig!((builtin: JBuiltinType, custom: com.example.CustomType)->JString),
                 &[
                     JValue::Object(&builtin_obj.into()),
                     JValue::Object(&custom_obj.into()),

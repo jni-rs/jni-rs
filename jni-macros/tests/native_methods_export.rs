@@ -80,9 +80,8 @@ native_method_test! {
         let obj = new_object!(env, class)?;
 
         // Call through Java to ensure the native implementation is linked
-        use jni::jni_str;
-        let result_via_java = env.call_method(&obj, jni_str!("noArgs"), jni_str!("()I"), &[])?.i()?;
-        //let result_via_java = env.call_method(&obj, jni_str!("noArgs"), jni_sig!("()I"), &[])?.i()?; TODO
+        use jni::{jni_sig, jni_str};
+        let result_via_java = env.call_method(&obj, jni_str!("noArgs"), jni_sig!("()I"), &[])?.i()?;
         assert_eq!(result_via_java, 1234);
 
         // Also test calling the exported symbol directly

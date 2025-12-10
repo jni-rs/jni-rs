@@ -64,7 +64,7 @@ use crate::objects::Auto;
 ///
 /// ```rust,no_run
 /// # use std::borrow::Cow;
-/// # use jni::jni_str;
+/// # use jni::{jni_str, jni_sig};
 /// # use jni::objects::{JObject, JClass, JString, Global};
 /// # use jni::refs::{Reference, LoaderContext};
 /// # use jni::Env;
@@ -102,7 +102,7 @@ use crate::objects::Auto;
 ///             Ok(Self {
 ///                 class: env.new_global_ref(&class)?,
 ///                 my_method_id: env.get_method_id(
-///                     &class, jni_str!("myMethod"), jni_str!("(Ljava/lang/String;)Ljava/lang/String;"))?,
+///                     &class, jni_str!("myMethod"), jni_sig!((JString) -> JString))?,
 ///             })
 ///         })?;
 ///         let _ = API.set(api);
@@ -113,7 +113,7 @@ use crate::objects::Auto;
 /// impl<'local> MyType<'local> {
 ///     pub fn new(env: &mut Env<'local>) -> Result<Self> {
 ///         let api = MyTypeAPI::get(env, &LoaderContext::default())?;
-///         let obj = env.new_object(&api.class, jni_str!("()V"), &[])?;
+///         let obj = env.new_object(&api.class, jni_sig!("()V"), &[])?;
 ///         Ok(MyType(obj))
 ///     }
 ///     pub unsafe fn from_raw<'env>(env: &Env<'env>, raw: jobject) -> MyType<'env> {

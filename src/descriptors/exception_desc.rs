@@ -3,6 +3,7 @@ use crate::{
     env::Env,
     errors::*,
     objects::{Auto, IntoAuto as _, JClass, JObject, JString, JThrowable, JValue},
+    signature::{JavaType, MethodSignature, Primitive},
     strings::{JNIStr, JNIString},
 };
 
@@ -17,8 +18,16 @@ where
 
     fn lookup(self, env: &mut Env<'local>) -> Result<Self::Output> {
         let jmsg = JString::from_jni_str(env, self.1.as_ref())?.auto();
-        let obj: JObject =
-            env.new_object(self.0, c"(Ljava/lang/String;)V", &[JValue::from(&jmsg)])?;
+        let ctor_args = &[JavaType::Object];
+        // Safety: We are sure the arguments and return type are consistent with the signature string.
+        let ctor_sig = unsafe {
+            MethodSignature::from_raw_parts(
+                JNIStr::from_cstr(c"(Ljava/lang/String;)V"),
+                ctor_args,
+                JavaType::Primitive(Primitive::Void),
+            )
+        };
+        let obj: JObject = env.new_object(self.0, &ctor_sig, &[JValue::from(&jmsg)])?;
         let throwable = env.cast_local::<JThrowable>(obj)?;
         Ok(throwable.auto())
     }

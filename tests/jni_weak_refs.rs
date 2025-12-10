@@ -6,6 +6,7 @@ use std::{
 };
 
 use jni::{
+    jni_sig,
     objects::{IntoAuto as _, JObject, JValue, Weak},
     sys::jint,
     Env,
@@ -22,7 +23,7 @@ pub fn weak_ref_works_in_other_threads() {
         let atomic_integer_local = unwrap(
             env.new_object(
                 c"java/util/concurrent/atomic/AtomicInteger",
-                c"(I)V",
+                jni_sig!("(I)V"),
                 &[JValue::from(0)],
             ),
             env,
@@ -55,7 +56,7 @@ pub fn weak_ref_works_in_other_threads() {
                                     env.call_method(
                                         &atomic_integer,
                                         c"incrementAndGet",
-                                        c"()I",
+                                        jni_sig!("()I"),
                                         &[],
                                     ),
                                     env,
@@ -83,7 +84,7 @@ pub fn weak_ref_works_in_other_threads() {
                         env.call_method(
                             &atomic_integer_local,
                             c"getAndSet",
-                            c"(I)I",
+                            jni_sig!("(I)I"),
                             &[JValue::from(0)]
                         ),
                         env,
@@ -107,7 +108,7 @@ fn weak_ref_is_actually_weak() {
         fn run_gc(env: &mut Env) {
             unwrap(
                 env.with_local_frame(1, |env| {
-                    env.call_static_method(c"java/lang/System", c"gc", c"()V", &[])?;
+                    env.call_static_method(c"java/lang/System", c"gc", jni_sig!("()V"), &[])?;
                     Ok(())
                 }),
                 env,
@@ -117,7 +118,7 @@ fn weak_ref_is_actually_weak() {
         for _ in 0..100 {
             let obj_local = unwrap(
                 env.with_local_frame_returning_local::<_, JObject, _>(2, |env| {
-                    env.new_object(c"java/lang/Object", c"()V", &[])
+                    env.new_object(c"java/lang/Object", jni_sig!("()V"), &[])
                 }),
                 env,
             )

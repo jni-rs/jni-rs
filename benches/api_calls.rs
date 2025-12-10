@@ -1,5 +1,7 @@
 #![cfg(feature = "invocation")]
 
+use jni::jni_sig;
+use jni::signature::MethodSignature;
 use jni::strings::JNIStr;
 use jni_sys::jvalue;
 use lazy_static::lazy_static;
@@ -24,10 +26,10 @@ static METHOD_MATH_ABS: &JNIStr = JNIStr::from_cstr(c"abs");
 static METHOD_OBJECT_HASH_CODE: &JNIStr = JNIStr::from_cstr(c"hashCode");
 static METHOD_CTOR: &JNIStr = JNIStr::from_cstr(c"<init>");
 static METHOD_LOCAL_DATE_TIME_OF: &JNIStr = JNIStr::from_cstr(c"of");
-static SIG_OBJECT_CTOR: &JNIStr = JNIStr::from_cstr(c"()V");
-static SIG_MATH_ABS: &JNIStr = JNIStr::from_cstr(c"(I)I");
-static SIG_OBJECT_HASH_CODE: &JNIStr = JNIStr::from_cstr(c"()I");
-static SIG_LOCAL_DATE_TIME_OF: &JNIStr = JNIStr::from_cstr(c"(IIIIIII)Ljava/time/LocalDateTime;");
+static SIG_OBJECT_CTOR: MethodSignature = jni_sig!("()V");
+static SIG_MATH_ABS: MethodSignature = jni_sig!("(I)I");
+static SIG_OBJECT_HASH_CODE: MethodSignature = jni_sig!("()I");
+static SIG_LOCAL_DATE_TIME_OF: MethodSignature = jni_sig!("(IIIIIII)Ljava/time/LocalDateTime;");
 
 // 32 characters
 static TEST_STRING_UNICODE: &str = "_񍷕㳧~δ򗊁᪘׷ġ˥쩽|ņ/򖕡ٶԦ萴퀉֒ٞHy󢕒%ӓ娎񢞊ăꊦȮ񳗌";
@@ -40,14 +42,14 @@ fn native_abs(x: i32) -> i32 {
 fn jni_abs_safe(env: &mut Env, x: jint) -> jint {
     let x = JValue::from(x);
     let v = env
-        .call_static_method(CLASS_MATH, METHOD_MATH_ABS, SIG_MATH_ABS, &[x])
+        .call_static_method(CLASS_MATH, METHOD_MATH_ABS, &SIG_MATH_ABS, &[x])
         .unwrap();
     v.i().unwrap()
 }
 
 fn jni_hash_safe(env: &mut Env, obj: &JObject) -> jint {
     let v = env
-        .call_method(obj, METHOD_OBJECT_HASH_CODE, SIG_OBJECT_HASH_CODE, &[])
+        .call_method(obj, METHOD_OBJECT_HASH_CODE, &SIG_OBJECT_HASH_CODE, &[])
         .unwrap();
     v.i().unwrap()
 }
@@ -67,7 +69,7 @@ fn jni_local_date_time_of_safe<'local>(
         .call_static_method(
             CLASS_LOCAL_DATE_TIME,
             METHOD_LOCAL_DATE_TIME_OF,
-            SIG_LOCAL_DATE_TIME_OF,
+            &SIG_LOCAL_DATE_TIME_OF,
             &[
                 year.into(),
                 month.into(),
@@ -159,7 +161,7 @@ fn jni_call_static_abs_method_unchecked_str(c: &mut Criterion) {
     VM.attach_current_thread_for_scope(|env| -> jni::errors::Result<()> {
         let class = CLASS_MATH;
         let method_id = env
-            .get_static_method_id(class, METHOD_MATH_ABS, SIG_MATH_ABS)
+            .get_static_method_id(class, METHOD_MATH_ABS, &SIG_MATH_ABS)
             .unwrap();
 
         c.bench_function("jni_call_static_abs_method_unchecked_str", |b| {
@@ -174,7 +176,7 @@ fn jni_call_static_abs_method_unchecked_jclass(c: &mut Criterion) {
     VM.attach_current_thread_for_scope(|env| -> jni::errors::Result<()> {
         let class = Desc::<JClass>::lookup(CLASS_MATH, env).unwrap();
         let method_id = env
-            .get_static_method_id(&class, METHOD_MATH_ABS, SIG_MATH_ABS)
+            .get_static_method_id(&class, METHOD_MATH_ABS, &SIG_MATH_ABS)
             .unwrap();
 
         c.bench_function("jni_call_static_abs_method_unchecked_jclass", |b| {
@@ -202,7 +204,7 @@ fn jni_call_static_date_time_method_unchecked_jclass(c: &mut Criterion) {
     VM.attach_current_thread_for_scope(|env| -> jni::errors::Result<()> {
         let class = Desc::<JClass>::lookup(CLASS_LOCAL_DATE_TIME, env).unwrap();
         let method_id = env
-            .get_static_method_id(&class, METHOD_LOCAL_DATE_TIME_OF, SIG_LOCAL_DATE_TIME_OF)
+            .get_static_method_id(&class, METHOD_LOCAL_DATE_TIME_OF, &SIG_LOCAL_DATE_TIME_OF)
             .unwrap();
 
         c.bench_function("jni_call_static_date_time_method_unchecked_jclass", |b| {
@@ -248,7 +250,7 @@ fn jni_call_object_hash_method_unchecked(c: &mut Criterion) {
         let obj = black_box(JObject::from(s));
         let obj_class = env.get_object_class(&obj).unwrap();
         let method_id = env
-            .get_method_id(&obj_class, METHOD_OBJECT_HASH_CODE, SIG_OBJECT_HASH_CODE)
+            .get_method_id(&obj_class, METHOD_OBJECT_HASH_CODE, &SIG_OBJECT_HASH_CODE)
             .unwrap();
 
         c.bench_function("jni_call_object_hash_method_unchecked", |b| {
@@ -265,7 +267,7 @@ fn jni_new_object_str(c: &mut Criterion) {
 
         c.bench_function("jni_new_object_str", |b| {
             b.iter(|| {
-                let obj = env.new_object(class, SIG_OBJECT_CTOR, &[]).unwrap();
+                let obj = env.new_object(class, &SIG_OBJECT_CTOR, &[]).unwrap();
                 env.delete_local_ref(obj);
             })
         });
@@ -278,7 +280,7 @@ fn jni_new_object_by_id_str(c: &mut Criterion) {
     VM.attach_current_thread_for_scope(|env| -> jni::errors::Result<()> {
         let class = CLASS_OBJECT;
         let ctor_id = env
-            .get_method_id(class, METHOD_CTOR, SIG_OBJECT_CTOR)
+            .get_method_id(class, METHOD_CTOR, &SIG_OBJECT_CTOR)
             .unwrap();
 
         c.bench_function("jni_new_object_by_id_str", |b| {
@@ -298,7 +300,7 @@ fn jni_new_object_jclass(c: &mut Criterion) {
 
         c.bench_function("jni_new_object_jclass", |b| {
             b.iter(|| {
-                let obj = env.new_object(&class, SIG_OBJECT_CTOR, &[]).unwrap();
+                let obj = env.new_object(&class, &SIG_OBJECT_CTOR, &[]).unwrap();
                 env.delete_local_ref(obj);
             })
         });
@@ -311,7 +313,7 @@ fn jni_new_object_by_id_jclass(c: &mut Criterion) {
     VM.attach_current_thread_for_scope(|env| -> jni::errors::Result<()> {
         let class = Desc::<JClass>::lookup(CLASS_OBJECT, env).unwrap();
         let ctor_id = env
-            .get_method_id(&class, METHOD_CTOR, SIG_OBJECT_CTOR)
+            .get_method_id(&class, METHOD_CTOR, &SIG_OBJECT_CTOR)
             .unwrap();
 
         c.bench_function("jni_new_object_by_id_jclass", |b| {
@@ -328,7 +330,7 @@ fn jni_new_object_by_id_jclass(c: &mut Criterion) {
 fn jni_new_global_ref(c: &mut Criterion) {
     VM.attach_current_thread_for_scope(|env| -> jni::errors::Result<()> {
         let class = CLASS_OBJECT;
-        let obj = env.new_object(class, SIG_OBJECT_CTOR, &[]).unwrap();
+        let obj = env.new_object(class, &SIG_OBJECT_CTOR, &[]).unwrap();
         let global_ref = env.new_global_ref(&obj).unwrap();
         env.delete_local_ref(obj);
 
@@ -427,7 +429,7 @@ fn jni_with_local_frame_returning_local(c: &mut Criterion) {
         c.bench_function("jni_with_local_frame_returning_local", |b| {
             b.iter(|| {
                 env.with_local_frame_returning_local::<_, JObject, _>(LOCAL_FRAME_SIZE, |env| {
-                    env.new_object(&class, SIG_OBJECT_CTOR, &[])
+                    env.new_object(&class, &SIG_OBJECT_CTOR, &[])
                 })
             })
         });
@@ -450,7 +452,7 @@ fn jni_with_local_frame_returning_global_to_local(c: &mut Criterion) {
                     .with_local_frame::<_, Global<JObject<'static>>, jni::errors::Error>(
                         LOCAL_FRAME_SIZE,
                         |env| {
-                            let local = env.new_object(&class, SIG_OBJECT_CTOR, &[])?;
+                            let local = env.new_object(&class, &SIG_OBJECT_CTOR, &[])?;
                             let global = env.new_global_ref(local)?;
                             Ok(global)
                         },
@@ -524,7 +526,7 @@ fn jni_new_string_with_repeat_permanent_thread_attachments(c: &mut Criterion) {
 fn native_arc(c: &mut Criterion) {
     VM.attach_current_thread_for_scope(|env| -> jni::errors::Result<()> {
         let class = CLASS_OBJECT;
-        let obj = env.new_object(class, SIG_OBJECT_CTOR, &[]).unwrap();
+        let obj = env.new_object(class, &SIG_OBJECT_CTOR, &[]).unwrap();
         let global_ref = env.new_global_ref(&obj).unwrap();
         env.delete_local_ref(obj);
         let arc = Arc::new(global_ref);

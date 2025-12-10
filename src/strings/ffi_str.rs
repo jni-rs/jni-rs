@@ -175,7 +175,7 @@ impl JNIString {
     /// The `string` must be in [modified UTF-8] encoding.
     ///
     /// [modified UTF-8]: https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
-    pub unsafe fn from_cstring(string: CString) -> Self {
+    pub const unsafe fn from_cstring(string: CString) -> Self {
         Self { internal: string }
     }
 

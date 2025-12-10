@@ -4,7 +4,7 @@ use std::char::{CharTryFromError, DecodeUtf16Error};
 
 use thiserror::Error;
 
-use crate::signature::TypeSignature;
+use crate::signature::RuntimeMethodSignature;
 use crate::sys;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -31,7 +31,7 @@ pub enum Error {
     #[error("Invalid constructor return type (must be void)")]
     InvalidCtorReturn,
     #[error("Invalid number or type of arguments passed to java method: {0}")]
-    InvalidArgList(TypeSignature),
+    InvalidArgList(RuntimeMethodSignature),
     #[error("Object behind weak reference freed")]
     ObjectFreed,
     #[error("Class not found: {name:?}")]

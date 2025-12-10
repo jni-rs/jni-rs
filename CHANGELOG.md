@@ -190,6 +190,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `AutoElements[Critical]::discard()` now takes ownership of the elements and drops them to release the pointer after setting the mode to `NoCopyBack` ([#645](https://github.com/jni-rs/jni-rs/pull/645))
 - Mark `MonitorGuard` with `#[must_use]` to warn when the guard is dropped accidentally ([#676](https://github.com/jni-rs/jni-rs/pull/676))
 - `NativeMethod` (used with `Env::register_native_methods`) is a now a transparent `jni::sys::JNINativeWrapper` wrapper with an `unsafe` `::from_raw_parts` constructor.
+- All APIs that require a JNI signature (like `Env::get_method_id`, `Env::call_method` etc) now require a pre-parsed `MethodSignature` or `FieldSignature` type instead of a raw string. This enables compile-time signature parsing via the `jni_sig!` macro, and avoids runtime signature parsing costs. ([#714](https://github.com/jni-rs/jni-rs/pull/714))
 
 ### Fixed
 - `Env::get_string` no longer leaks local references. ([#528](https://github.com/jni-rs/jni-rs/pull/528), [#557](https://github.com/jni-rs/jni-rs/pull/557))
