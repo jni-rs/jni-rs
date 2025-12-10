@@ -1,0 +1,60 @@
+[package]
+description = "Rust bindings to the JNI"
+documentation = "https://docs.rs/jni"
+readme = "README.md"
+keywords = ["ffi", "jni", "java"]
+categories = ["api-bindings"]
+name = "jni"
+repository = "https://github.com/jni-rs/jni-rs"
+# ¡When bumping version please also update it in examples and documentation!
+version = "0.21.1"
+exclude = ["/benches", "/docs", "/example", "/tests", "/test_profile"]
+
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bench]]
+name = "api_calls"
+harness = false
+
+[dependencies]
+jni-macros.workspace = true
+jni-sys.workspace = true
+
+log.workspace = true
+thiserror.workspace = true
+
+cfg-if = "1.0.0"
+cesu8 = "1.1.0"
+combine = "4.1.0"
+paste = "1"
+
+[target.'cfg(windows)'.dependencies]
+windows-link = "0.2"
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+libloading = { workspace = true, optional = true }
+java-locator = { workspace = true, optional = true }
+
+[build-dependencies]
+walkdir = "2"
+
+[dev-dependencies]
+rusty-fork.workspace = true
+trybuild.workspace = true
+criterion = { version = "0.7", features = ["html_reports"] }
+assert_matches = "1.5.0"
+lazy_static = "1"
+static_assertions = "1"
+
+[target.'cfg(windows)'.dev-dependencies]
+bytemuck = "1.13.0"
+
+[features]
+invocation = ["dep:java-locator", "dep:libloading"]
+default = []
+
+[package.metadata.docs.rs]
+features = ["invocation"]

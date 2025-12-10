@@ -1,0 +1,28 @@
+[package]
+name = "javac"
+description = """
+A build-time dependency for Cargo build scripts and unit tests to assist in
+invoking the native Java compiler to compile Java source files into class files.
+"""
+documentation = "https://docs.rs/javac"
+readme = "README.md"
+keywords = ["build-dependencies", "java"]
+categories = ["development-tools::build-utils"]
+repository = "https://github.com/jni-rs/jni-rs"
+version = "0.1.0"
+include = ["src/**/*.rs"]
+
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+which = "8"
+
+[dev-dependencies]
+jni = { workspace = true, features = ["invocation"] }
+rusty-fork.workspace = true
+cafebabe.workspace = true
+encoding_rs = "0.8.35"
