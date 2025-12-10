@@ -20,7 +20,7 @@ use super::AsJArrayRaw;
 #[cfg(doc)]
 use crate::errors::Error;
 
-/// A `java.lang.Object[]` wrapper that is tied to a JNI local reference frame.
+/// A `java.lang.Object[]` reference, tied to a JNI local reference frame.
 ///
 /// See the [`JObject`] documentation for more information about reference
 /// wrappers, how to cast them, and local reference frame lifetimes.

@@ -165,7 +165,7 @@ fn main() {
                 &[JValue::Long(resource_handle.into())],
             )?
             .l()?;
-        let s = JString::cast_local(obj, env)?;
+        let s = JString::cast_local(env, obj)?;
         println!("Result: {}", s.try_to_string(env)?);
 
         // Test mix_types with JCommonBuiltinType and JCustomType
@@ -190,7 +190,7 @@ fn main() {
             .l()?;
         println!(
             "Result: {}",
-            JString::cast_local(result, env)?.try_to_string(env)?
+            JString::cast_local(env, result)?.try_to_string(env)?
         );
 
         println!("\n=== Example completed successfully ===");

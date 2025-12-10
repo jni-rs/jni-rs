@@ -1,145 +1,41 @@
-use jni_sys::jobject;
-use once_cell::sync::OnceCell;
-
 use crate::{
     errors::*,
-    objects::{
-        Cast, Global, JClass, JCollection, JIterator, JMethodID, JObject, JValue, LoaderContext,
-        Reference,
-    },
-    signature::{Primitive, ReturnType},
-    strings::JNIStr,
+    objects::{JIterator, JObject, Reference},
     sys::jint,
-    Env, DEFAULT_LOCAL_FRAME_CAPACITY,
+    Env,
 };
 
-use std::{borrow::Cow, ops::Deref};
-
-/// A `java.util.List` wrapper that is tied to a JNI local reference frame.
-///
-/// See the [`JObject`] documentation for more information about reference
-/// wrappers, how to cast them, and local reference frame lifetimes.
-///
-#[repr(transparent)]
-#[derive(Debug, Default)]
-pub struct JList<'local>(JObject<'local>);
-
-impl<'local> AsRef<JList<'local>> for JList<'local> {
-    fn as_ref(&self) -> &JList<'local> {
-        self
-    }
-}
-
-impl<'local> AsRef<JObject<'local>> for JList<'local> {
-    fn as_ref(&self) -> &JObject<'local> {
-        self
-    }
-}
-
-impl<'local> ::std::ops::Deref for JList<'local> {
-    type Target = JObject<'local>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<'local> From<JList<'local>> for JObject<'local> {
-    fn from(other: JList<'local>) -> JObject<'local> {
-        other.0
-    }
-}
-
-impl<'local> From<JList<'local>> for JCollection<'local> {
-    fn from(other: JList<'local>) -> JCollection<'local> {
-        // SAFETY: Any `java.lang.List` is also a `java.util.Collection`
-        unsafe { JCollection::kind_from_raw(other.into_raw()) }
-    }
-}
-
-struct JListAPI {
-    class: Global<JClass<'static>>,
-    get_method: JMethodID,
-    add_idx_method: JMethodID,
-    remove_method: JMethodID,
-}
-
-impl JListAPI {
-    fn get<'any_local>(
-        env: &Env<'_>,
-        loader_context: &LoaderContext<'any_local, '_>,
-    ) -> Result<&'static Self> {
-        static JLIST_API: OnceCell<JListAPI> = OnceCell::new();
-        JLIST_API.get_or_try_init(|| {
-            env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
-                let class = loader_context.load_class_for_type::<JList>(env, true)?;
-                let class = env.new_global_ref(&class).unwrap();
-
-                let get_method = env.get_method_id(&class, c"get", c"(I)Ljava/lang/Object;")?;
-                let add_idx_method =
-                    env.get_method_id(&class, c"add", c"(ILjava/lang/Object;)V")?;
-                let remove_method =
-                    env.get_method_id(&class, c"remove", c"(I)Ljava/lang/Object;")?;
-
-                Ok(Self {
-                    class,
-                    get_method,
-                    add_idx_method,
-                    remove_method,
-                })
-            })
-        })
+crate::bind_java_type! {
+    rust_type = JList,
+    java_type = "java.util.List",
+    is_instance_of {
+        collection = JCollection,
+    },
+    methods = {
+        /// Returns the list element at the given `idx`
+        ///
+        /// # Throws
+        ///
+        /// - `IndexOutOfBoundsException` - if the index is out of range (index < 0 || index >= size())
+        fn get(index: jint) -> JObject,
+        /// Insert an element at a specific index
+        fn insert {
+            name = "add",
+            sig = (index: jint, element: JObject) -> void,
+        },
+        /// Remove an element from the list by index
+        ///
+        /// Returns the removed element
+        ///
+        /// # Throws
+        ///
+        /// - `UnsupportedOperationException` - if the remove operation is not supported
+        /// - `IndexOutOfBoundsException` - if the index is out of bounds
+        fn remove(index: jint) -> JObject,
     }
 }
 
 impl<'local> JList<'local> {
-    /// Creates a [`JList`] that wraps the given `raw` [`jobject`]
-    ///
-    /// # Safety
-    ///
-    /// - `raw` must be a valid raw JNI local reference (or `null`).
-    /// - `raw` must be an instance of `java.util.List`.
-    /// - There must not be any other owning [`Reference`] wrapper for the same reference.
-    /// - The local reference must belong to the current thread and not outlive the
-    ///   JNI stack frame associated with the [Env] `'env_local` lifetime.
-    pub unsafe fn from_raw<'env_local>(env: &Env<'env_local>, raw: jobject) -> JList<'env_local> {
-        JList(JObject::from_raw(env, raw))
-    }
-
-    /// Creates a new null reference.
-    ///
-    /// Null references are always valid and do not belong to a local reference frame. Therefore,
-    /// the returned `JList` always has the `'static` lifetime.
-    pub const fn null() -> JList<'static> {
-        JList(JObject::null())
-    }
-
-    /// Unwrap to the raw jni type.
-    pub const fn into_raw(self) -> jobject {
-        self.0.into_raw()
-    }
-
-    /// Cast a local reference to a [`JList`]
-    ///
-    /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.util.List`.
-    ///
-    /// Also see these other options for casting local or global references to a [`JList`]:
-    /// - [Env::as_cast]
-    /// - [Env::new_cast_local_ref]
-    /// - [Env::cast_local]
-    /// - [Env::new_cast_global_ref]
-    /// - [Env::cast_global]
-    ///
-    /// # Errors
-    ///
-    /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
-    pub fn cast_local<'any_local>(
-        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
-        env: &mut Env<'_>,
-    ) -> Result<JList<'any_local>> {
-        env.cast_local::<JList>(obj)
-    }
-
     /// Cast a local reference to a `JList`
     ///
     /// See [`JList::cast_local`] for more information.
@@ -148,96 +44,15 @@ impl<'local> JList<'local> {
         note = "use JList::cast_local instead or Env::new_cast_local_ref/cast_local/as_cast_local or Env::new_cast_global_ref/cast_global/as_cast_global"
     )]
     pub fn from_env<'any_local>(
-        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
         env: &mut Env<'_>,
+        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
     ) -> Result<JList<'any_local>> {
         env.cast_local::<JList>(obj)
     }
 
-    /// Casts this `JList` to a `JCollection`
-    ///
-    /// This does not require a runtime type check since any `java.lang.List` is also a `java.util.Collection`
-    pub fn as_collection(&self) -> Cast<'local, '_, JCollection<'local>> {
-        // SAFETY: we know that any `java.lang.List` is also a `java.util.Collection`
-        unsafe { Cast::<JCollection>::new_unchecked(self) }
-    }
-
-    /// Look up the value for a key. Returns `Some` if it's found and `None` if
-    /// a null pointer would be returned.
-    pub fn get<'top_local>(
-        &self,
-        env: &mut Env<'top_local>,
-        idx: jint,
-    ) -> Result<Option<JObject<'top_local>>> {
-        let api = JListAPI::get(env, &LoaderContext::None)?;
-        // SAFETY: We keep the class loaded, and fetched the method ID for this function.
-        // The arguments and return type match the method signature
-        let result = unsafe {
-            env.call_method_unchecked(
-                self,
-                api.get_method,
-                ReturnType::Object,
-                &[JValue::from(idx).as_jni()],
-            )
-        };
-
-        match result {
-            Ok(val) => Ok(Some(val.l()?)),
-            Err(e) => match e {
-                Error::NullPtr(_) => Ok(None),
-                _ => Err(e),
-            },
-        }
-    }
-
     /// Append an element to the list
-    pub fn add(&self, env: &mut Env, value: &JObject) -> Result<bool> {
-        self.as_collection().add(value, env)
-    }
-
-    /// Insert an element at a specific index
-    pub fn insert(&self, env: &mut Env, idx: jint, value: &JObject) -> Result<()> {
-        let api = JListAPI::get(env, &LoaderContext::None)?;
-        // SAFETY: We keep the class loaded, and fetched the method ID for this function.
-        // The arguments and return type match the method signature
-        let result = unsafe {
-            env.call_method_unchecked(
-                self,
-                api.add_idx_method,
-                ReturnType::Primitive(Primitive::Void),
-                &[JValue::from(idx).as_jni(), JValue::from(value).as_jni()],
-            )
-        };
-
-        let _ = result?;
-        Ok(())
-    }
-
-    /// Remove an element from the list by index
-    ///
-    /// Returns the removed element
-    ///
-    /// # Throws
-    ///
-    /// - `UnsupportedOperationException` - if the remove operation is not supported
-    /// - `IndexOutOfBoundsException` - if the index is out of bounds
-    pub fn remove<'other_local_2>(
-        &self,
-        env: &mut Env<'other_local_2>,
-        idx: jint,
-    ) -> Result<JObject<'other_local_2>> {
-        let api = JListAPI::get(env, &LoaderContext::None)?;
-        // SAFETY: We keep the class loaded, and fetched the method ID for this function.
-        // The arguments and return type match the method signature
-        unsafe {
-            env.call_method_unchecked(
-                self,
-                api.remove_method,
-                ReturnType::Object,
-                &[JValue::from(idx).as_jni()],
-            )?
-            .l()
-        }
+    pub fn add(&self, env: &Env, value: &JObject) -> Result<bool> {
+        self.as_collection().add(env, value)
     }
 
     /// Removes the first occurrence of `value` from this [JList], if it's present.
@@ -249,8 +64,8 @@ impl<'local> JList<'local> {
     /// - `UnsupportedOperationException` - if the remove operation is not supported
     /// - `ClassCastException` - if the element type isn't compatible with the set
     /// - `NullPointerException` - if the given element is null and the set does not allow null values
-    pub fn remove_item(&self, env: &mut Env<'_>, value: &JObject) -> Result<bool> {
-        self.as_collection().remove(value, env)
+    pub fn remove_item(&self, env: &Env<'_>, value: &JObject) -> Result<bool> {
+        self.as_collection().remove(env, value)
     }
 
     /// Removes all of the elements from this list.
@@ -258,27 +73,27 @@ impl<'local> JList<'local> {
     /// # Throws
     ///
     /// - `UnsupportedOperationException` - if the clear operation is not supported
-    pub fn clear(&self, env: &mut Env<'_>) -> Result<()> {
+    pub fn clear(&self, env: &Env<'_>) -> Result<()> {
         self.as_collection().clear(env)
     }
 
-    // FIXME: this shouldn't need a mutable Env reference since it doesn't create any
-    // new local references that are returned to the caller. Currently it's required
-    // because we don't have an alternative to `call_method_unchecked` that takes a shared
-    // reference, based on the assertion that the method returns a primitive type.
     /// Get the size of the list
-    pub fn size(&self, env: &mut Env) -> Result<jint> {
+    pub fn size(&self, env: &Env) -> Result<jint> {
         self.as_collection().size(env)
     }
 
     /// Returns `true` if this list is empty.
-    pub fn is_empty(&self, env: &mut Env<'_>) -> Result<bool> {
+    pub fn is_empty(&self, env: &Env<'_>) -> Result<bool> {
         self.as_collection().is_empty(env)
     }
 
     /// Pop the last element from the list
     ///
-    /// Note that this calls `size()` to determine the last index.
+    /// # Deprecated
+    ///
+    /// Note that this is a non-standard utility API that first calls `size()`
+    /// to determine the last index and so it's inherently race condition-prone
+    /// and it's not recommended to use.
     #[deprecated(
         since = "0.22.0",
         note = "java.util.List has no pop() method. This non-standard utility will be removed from a future version"
@@ -326,35 +141,5 @@ impl<'local> JList<'local> {
     /// the local references at once.
     pub fn iter<'env_local>(&self, env: &mut Env<'env_local>) -> Result<JIterator<'env_local>> {
         self.as_collection().iterator(env)
-    }
-}
-
-// SAFETY: JList is a transparent JObject wrapper with no Drop side effects
-unsafe impl Reference for JList<'_> {
-    type Kind<'env> = JList<'env>;
-    type GlobalKind = JList<'static>;
-
-    fn as_raw(&self) -> jobject {
-        self.0.as_raw()
-    }
-
-    fn class_name() -> Cow<'static, JNIStr> {
-        Cow::Borrowed(JNIStr::from_cstr(c"java.util.List"))
-    }
-
-    fn lookup_class<'caller>(
-        env: &Env<'_>,
-        loader_context: &LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'caller> {
-        let api = JListAPI::get(env, loader_context)?;
-        Ok(&api.class)
-    }
-
-    unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        JList(JObject::kind_from_raw(local_ref))
-    }
-
-    unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
-        JList(JObject::global_kind_from_raw(global_ref))
     }
 }

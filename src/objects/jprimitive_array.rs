@@ -18,10 +18,10 @@ use super::TypeArray;
 #[cfg(doc)]
 use crate::{errors::Error, objects::JObjectArray, MonitorGuard};
 
-/// A primitive array wrapper that is tied to a JNI local reference frame.
+/// A primitive array reference, tied to a JNI local reference frame.
 ///
-/// This is a wrapper type for a local JNI reference that's used to
-/// differentiate primitive array types like `boolean[]` or `int[]`.
+/// This is a `#[transparent]` reference wrapper for primitive array types like `boolean[]` or
+/// `int[]`.
 ///
 /// For convenience it's recommended to use one of the type aliases like:
 /// - [JBooleanArray]
@@ -35,8 +35,8 @@ use crate::{errors::Error, objects::JObjectArray, MonitorGuard};
 ///
 /// See [JObjectArray] for non-primitive object arrays.
 ///
-/// See the [`JObject`] documentation for more information about reference
-/// wrappers, how to cast them, and local reference frame lifetimes.
+/// See the [`JObject`] documentation for more information about reference wrappers, how to cast
+/// them, and local reference frame lifetimes.
 ///
 #[repr(transparent)]
 #[derive(Debug)]
@@ -331,28 +331,28 @@ impl<'local, T: TypeArray> JPrimitiveArray<'local, T> {
     }
 }
 
-/// A wrapper for a `boolean[]` array reference that is tied to a JNI local reference frame
+/// A `boolean[]` array reference, tied to a JNI local reference frame
 pub type JBooleanArray<'local> = JPrimitiveArray<'local, crate::sys::jboolean>;
 
-/// A wrapper for a `byte[]` array reference that is tied to a JNI local reference frame
+/// A `byte[]` array reference, tied to a JNI local reference frame
 pub type JByteArray<'local> = JPrimitiveArray<'local, crate::sys::jbyte>;
 
-/// A wrapper for a `char[]` array reference that is tied to a JNI local reference frame
+/// A `char[]` array reference, tied to a JNI local reference frame
 pub type JCharArray<'local> = JPrimitiveArray<'local, crate::sys::jchar>;
 
-/// A wrapper for a `short[]` array reference that is tied to a JNI local reference frame
+/// A `short[]` array reference, tied to a JNI local reference frame
 pub type JShortArray<'local> = JPrimitiveArray<'local, crate::sys::jshort>;
 
-/// A wrapper for a `int[]` array reference that is tied to a JNI local reference frame
+/// A `int[]` array reference, tied to a JNI local reference frame
 pub type JIntArray<'local> = JPrimitiveArray<'local, crate::sys::jint>;
 
-/// A wrapper for a `long[]` array reference that is tied to a JNI local reference frame
+/// A `long[]` array reference, tied to a JNI local reference frame
 pub type JLongArray<'local> = JPrimitiveArray<'local, crate::sys::jlong>;
 
-/// A wrapper for a `float[]` array reference that is tied to a JNI local reference frame
+/// A `float[]` array reference, tied to a JNI local reference frame
 pub type JFloatArray<'local> = JPrimitiveArray<'local, crate::sys::jfloat>;
 
-/// A wrapper for a `double[]` array reference that is tied to a JNI local reference frame
+/// A `double[]` array reference, tied to a JNI local reference frame
 pub type JDoubleArray<'local> = JPrimitiveArray<'local, crate::sys::jdouble>;
 
 /// Trait to access the raw `jarray` pointer for types that wrap an array reference

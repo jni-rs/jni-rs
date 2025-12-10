@@ -13,7 +13,7 @@ use super::Reference;
 #[cfg(doc)]
 use crate::{objects::JString, refs::Weak};
 
-/// A `java.lang.Object` wrapper that is tied to a JNI local reference frame.
+/// A `java.lang.Object` reference, tied to a JNI local reference frame.
 ///
 /// This is a `#[repr(transparent)]` wrapper around a `jobject` JNI reference.
 ///

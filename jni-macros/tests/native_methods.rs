@@ -95,7 +95,7 @@ fn native_get_message_impl<'local>(
         &[],
     )?;
     // Use cast_local to safely convert JObject to JString
-    let result = JString::cast_local(result.l()?, env)?;
+    let result = JString::cast_local(env, result.l()?)?;
     Ok(result)
 }
 
@@ -325,7 +325,7 @@ native_method_test! {
             &[],
         )?.l()?;
         // Use cast_local to safely convert JObject to JString
-        let message = JString::cast_local(message, env)?;
+        let message = JString::cast_local(env, message)?;
         assert_eq!(message.to_string(), "initial");
 
         Ok(())

@@ -4,13 +4,14 @@ use jni_sys::jobject;
 
 use crate::{
     errors::Error,
-    objects::{Global, JClass, JClassLoader, JObject, JThread},
+    objects::{Global, JClass, JClassLoader, JObject, JString, JThread},
+    refs::IntoAuto as _,
     strings::{JNIStr, JNIString},
     Env,
 };
 
 #[cfg(doc)]
-use crate::objects::{Auto, JString};
+use crate::objects::Auto;
 
 /// A trait for types that represents a JNI reference (could be local, global or weak global as well
 /// as wrapper types like [`Auto`] and [`Global`])
@@ -144,7 +145,7 @@ use crate::objects::{Auto, JString};
 ///                 &[JValue::Object(arg.as_ref()).as_jni()]
 ///             )?.l()?
 ///        };
-///        JString::cast_local(ret, env)
+///        JString::cast_local(env, ret)
 ///     }
 /// }
 ///
@@ -519,8 +520,9 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
             initialize: bool,
             loader: &JClassLoader<'any_loader>,
         ) -> crate::errors::Result<JClass<'any_local>> {
+            let name_ref = JString::from_jni_str(env, name)?.auto();
             // May throw ClassNotFoundException
-            match JClass::for_name_with_loader(name, initialize, loader, env) {
+            match JClass::for_name_with_loader(env, name_ref, initialize, loader) {
                 Ok(class) => Ok(class),
                 Err(Error::JavaException) => {
                     // Assume it's a ClassNotFoundException
