@@ -1,53 +1,24 @@
-use std::{borrow::Cow, ops::Deref};
-
-use once_cell::sync::OnceCell;
 use thiserror::Error;
 
 use crate::{
     errors::Result,
-    objects::{Global, JClass, JMethodID, JObject, LoaderContext},
     strings::{JNIStr, JNIString, MUTF8Chars},
-    sys::{jobject, jstring},
-    Env, JavaVM, DEFAULT_LOCAL_FRAME_CAPACITY,
+    Env, JavaVM,
 };
 
-use super::Reference;
+use super::Reference as _;
 
 #[cfg(doc)]
 use crate::errors::Error;
 
-/// A `java.lang.String` wrapper that is tied to a JNI local reference frame.
-///
-/// See the [`JObject`] documentation for more information about reference
-/// wrappers, how to cast them, and local reference frame lifetimes.
-///
-#[repr(transparent)]
-#[derive(Debug, Default)]
-pub struct JString<'local>(JObject<'local>);
-
-impl<'local> AsRef<JString<'local>> for JString<'local> {
-    fn as_ref(&self) -> &JString<'local> {
-        self
-    }
-}
-
-impl<'local> AsRef<JObject<'local>> for JString<'local> {
-    fn as_ref(&self) -> &JObject<'local> {
-        self
-    }
-}
-
-impl<'local> ::std::ops::Deref for JString<'local> {
-    type Target = JObject<'local>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<'local> From<JString<'local>> for JObject<'local> {
-    fn from(other: JString) -> JObject {
-        other.0
+crate::bind_java_type! {
+    rust_type = JString,
+    java_type = "java.lang.String",
+    __jni_core = true,
+    __sys_type = jstring,
+    methods {
+        /// Returns a canonical, interned version of this string.
+        fn intern() -> JString,
     }
 }
 
@@ -128,34 +99,6 @@ impl<'local> std::fmt::Display for JString<'local> {
     }
 }
 
-struct JStringAPI {
-    class: Global<JClass<'static>>,
-    intern_method: JMethodID,
-}
-
-impl JStringAPI {
-    fn get<'any_local>(
-        env: &Env<'_>,
-        loader_context: &LoaderContext<'any_local, '_>,
-    ) -> Result<&'static Self> {
-        static JSTRING_API: OnceCell<JStringAPI> = OnceCell::new();
-        JSTRING_API.get_or_try_init(|| {
-            env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
-                let class = loader_context.load_class_for_type::<JString>(env, true)?;
-                let class = env.new_global_ref(&class).unwrap();
-                let intern_method = env
-                    .get_method_id(&class, c"intern", c"()Ljava/lang/String;")
-                    .expect("JString.intern method not found");
-
-                Ok(Self {
-                    class,
-                    intern_method,
-                })
-            })
-        })
-    }
-}
-
 impl JString<'_> {
     /// Encodes a Rust `&str` to MUTF-8 and creates a `JString` (`java.lang.String` object).
     ///
@@ -166,7 +109,8 @@ impl JString<'_> {
     /// The input string is re-encoded to modified UTF-8, so this involves a copy of your input to
     /// encode, before calling into JNI to create the `JString`.
     ///
-    /// To avoid the overhead of encoding and copying, use [`Self::from_jni_str`].
+    /// To avoid the overhead of encoding and copying, use [`Self::from_jni_str`] and the
+    /// [crate::jni_str!] macro to encode strings to MUTF-8 at compile time.
     pub fn new<'env_local>(
         env: &mut Env<'env_local>,
         from: impl AsRef<str>,
@@ -181,7 +125,8 @@ impl JString<'_> {
     /// The input string is re-encoded to modified UTF-8, so this involves a copy of your input to
     /// encode, before calling into JNI to create the `JString`.
     ///
-    /// To avoid the overhead of encoding and copying, use [`Self::from_jni_str`].
+    /// To avoid the overhead of encoding and copying, use [`Self::from_jni_str`] and the
+    /// [crate::jni_str!] macro to encode strings to MUTF-8 at compile time.
     pub fn from_str<'env_local>(
         env: &mut Env<'env_local>,
         from: impl AsRef<str>,
@@ -190,6 +135,9 @@ impl JString<'_> {
     }
 
     /// Creates a `JString` (`java.lang.String` object) from a [JNIStr] (modified UTF-8).
+    ///
+    /// For simple string literals, consider using the [crate::jni_str!] macro to create / encode
+    /// [JNIStr] literals at compile time.
     pub fn from_jni_str<'env_local>(
         env: &mut Env<'env_local>,
         from: impl AsRef<JNIStr>,
@@ -202,73 +150,6 @@ impl JString<'_> {
             jni_call_check_ex_and_null_ret!(env, v1_1, NewStringUTF, ffi_str.as_ptr())
                 .map(|s| JString::from_raw(env, s))
         }
-    }
-
-    /// Creates a [`JString`] that wraps the given `raw` [`jstring`]
-    ///
-    /// # Safety
-    ///
-    /// - `raw` must be a valid raw JNI local reference (or `null`).
-    /// - `raw` must be an instance of `java.lang.String`.
-    /// - There must not be any other owning [`Reference`] wrapper for the same reference.
-    /// - The local reference must belong to the current thread and not outlive the
-    ///   JNI stack frame associated with the [Env] `'local` lifetime.
-    pub unsafe fn from_raw<'local>(env: &Env<'local>, raw: jstring) -> JString<'local> {
-        JString(JObject::from_raw(env, raw as jobject))
-    }
-
-    /// Creates a new null reference.
-    ///
-    /// Null references are always valid and do not belong to a local reference frame. Therefore,
-    /// the returned `JString` always has the `'static` lifetime.
-    pub const fn null() -> JString<'static> {
-        JString(JObject::null())
-    }
-
-    /// Unwrap to the raw jni type.
-    pub const fn into_raw(self) -> jstring {
-        self.0.into_raw() as jstring
-    }
-
-    /// Cast a local reference to a [`JString`]
-    ///
-    /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.lang.String`.
-    ///
-    /// Also see these other options for casting local or global references to a [`JString`]:
-    /// - [Env::as_cast]
-    /// - [Env::new_cast_local_ref]
-    /// - [Env::cast_local]
-    /// - [Env::new_cast_global_ref]
-    /// - [Env::cast_global]
-    ///
-    /// # Errors
-    ///
-    /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
-    pub fn cast_local<'any_local>(
-        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
-        env: &mut Env<'_>,
-    ) -> Result<JString<'any_local>> {
-        env.cast_local::<JString>(obj)
-    }
-
-    /// Returns a canonical, interned version of this string.
-    pub fn intern<'local>(&self, env: &mut Env<'local>) -> Result<JString<'local>> {
-        let api = JStringAPI::get(env, &LoaderContext::None)?;
-
-        // Safety: We know that `intern` is a valid method on `java/lang/String` that has no
-        // arguments and it returns a valid `String` instance.
-        let interned = unsafe {
-            let interned = env
-                .call_method_unchecked(
-                    self,
-                    api.intern_method,
-                    crate::signature::ReturnType::Object,
-                    &[],
-                )?
-                .l()?;
-            JString::from_raw(env, interned.into_raw() as jstring)
-        };
-        Ok(interned)
     }
 
     /// Gets the contents of this string, in [modified UTF-8] encoding (via `GetStringUTFChars`).
@@ -340,35 +221,5 @@ impl JString<'_> {
     pub fn try_to_string(&self, env: &Env<'_>) -> Result<String> {
         let mutf8_chars = self.mutf8_chars(env)?;
         Ok(mutf8_chars.to_string())
-    }
-}
-
-// SAFETY: JString is a transparent JObject wrapper with no Drop side effects
-unsafe impl Reference for JString<'_> {
-    type Kind<'env> = JString<'env>;
-    type GlobalKind = JString<'static>;
-
-    fn as_raw(&self) -> jobject {
-        self.0.as_raw()
-    }
-
-    fn class_name() -> Cow<'static, JNIStr> {
-        Cow::Borrowed(JNIStr::from_cstr(c"java.lang.String"))
-    }
-
-    fn lookup_class<'caller>(
-        env: &Env<'_>,
-        loader_context: &LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'caller> {
-        let api = JStringAPI::get(env, loader_context)?;
-        Ok(&api.class)
-    }
-
-    unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        JString(JObject::kind_from_raw(local_ref))
-    }
-
-    unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
-        JString(JObject::global_kind_from_raw(global_ref))
     }
 }

@@ -1,147 +1,115 @@
-use jni_sys::jobject;
-use once_cell::sync::OnceCell;
-
 use crate::{
     errors::*,
-    objects::{
-        Global, JClass, JIterator, JMethodID, JObject, JSet, JValue, LoaderContext, Reference,
-    },
-    signature::{Primitive, ReturnType},
-    strings::JNIStr,
-    Env, DEFAULT_LOCAL_FRAME_CAPACITY,
+    objects::{JIterator, JObject, Reference},
+    Env,
 };
 
-use std::{borrow::Cow, ops::Deref};
+use std::ops::Deref;
 
-/// A `java.util.Map` wrapper that is tied to a JNI local reference frame.
-///
-/// See the [`JObject`] documentation for more information about reference
-/// wrappers, how to cast them, and local reference frame lifetimes.
-///
-#[repr(transparent)]
-#[derive(Debug, Default)]
-pub struct JMap<'local>(JObject<'local>);
+#[cfg(doc)]
+use crate::objects::JSet;
 
-impl<'local> AsRef<JMap<'local>> for JMap<'local> {
-    fn as_ref(&self) -> &JMap<'local> {
-        self
-    }
-}
-
-impl<'local> AsRef<JObject<'local>> for JMap<'local> {
-    fn as_ref(&self) -> &JObject<'local> {
-        self
-    }
-}
-
-impl<'local> ::std::ops::Deref for JMap<'local> {
-    type Target = JObject<'local>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<'local> From<JMap<'local>> for JObject<'local> {
-    fn from(other: JMap<'local>) -> JObject<'local> {
-        other.0
-    }
-}
-
-struct JMapAPI {
-    class: Global<JClass<'static>>,
-    get_method: JMethodID,
-    put_method: JMethodID,
-    remove_method: JMethodID,
-    entry_set_method: JMethodID,
-}
-
-impl JMapAPI {
-    fn get<'any_local>(
-        env: &Env<'_>,
-        loader_context: &LoaderContext<'any_local, '_>,
-    ) -> Result<&'static Self> {
-        static JMAP_API: OnceCell<JMapAPI> = OnceCell::new();
-        JMAP_API.get_or_try_init(|| {
-            env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
-                let class = loader_context.load_class_for_type::<JMap>(env, true)?;
-                let class = env.new_global_ref(&class).unwrap();
-
-                let get_method =
-                    env.get_method_id(&class, c"get", c"(Ljava/lang/Object;)Ljava/lang/Object;")?;
-                let put_method = env.get_method_id(
-                    &class,
-                    c"put",
-                    c"(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
-                )?;
-                let remove_method = env.get_method_id(
-                    &class,
-                    c"remove",
-                    c"(Ljava/lang/Object;)Ljava/lang/Object;",
-                )?;
-                let entry_set_method =
-                    env.get_method_id(&class, c"entrySet", c"()Ljava/util/Set;")?;
-
-                Ok(Self {
-                    class,
-                    get_method,
-                    put_method,
-                    remove_method,
-                    entry_set_method,
-                })
-            })
-        })
+crate::bind_java_type! {
+    rust_type = JMap,
+    java_type = "java.util.Map",
+    methods = {
+        /// Returns the number of key-value mappings in this map
+        ///
+        /// If the map contains more than `jint::MAX` mappings, returns `jint::MAX`.
+        fn size() -> jint,
+        /// Returns `true` if this map contains no key-value mappings
+        fn is_empty() -> bool,
+        /// Look up the value for a key
+        priv fn _get(key: JObject) -> JObject,
+        /// Get the value for a key, or return the default value if the key is not present
+        ///
+        /// # Throws
+        ///
+        /// - `ClassCastException` - if the key is of an inappropriate type for this map
+        /// - `NullPointerException` - if the key is null and this map does not allow null keys
+        fn get_or_default(key: JObject, default_value: JObject) -> JObject,
+        // Associates the specified value with the specified key in this map
+        priv fn _put(key: JObject, value: JObject) -> JObject,
+        /// Copies all of the mappings from the specified map to this map
+        ///
+        /// # Throws
+        ///
+        /// - `UnsupportedOperationException` - if the putAll operation is not supported by this map
+        /// - `ClassCastException` - if a key or value in the specified map is of an inappropriate type for this map
+        /// - `NullPointerException` - if the given map is null, or if a key or value in the specified map is null and this map does not allow null keys or values
+        /// - `IllegalArgumentException` - if some property of a key or value in the specified map prevents it from being stored by this map
+        fn put_all(other_map: JMap),
+        /// If the specified key is not already associated with a value, associate it with the given value.
+        ///
+        /// # Throws
+        ///
+        /// - `UnsupportedOperationException` - if the `putIfAbsent` operation is not supported by this map
+        /// - `ClassCastException` - if the key or value are of an inappropriate type for this map
+        /// - `NullPointerException` - if the key or value is null and this map does not allow null keys or values
+        /// - `IllegalArgumentException` - if some property of the key or value prevents it from being stored by this map
+        fn put_if_absent(key: JObject, value: JObject) -> JObject,
+        /// Remove a mapping for a key from the map
+        priv fn _remove(key: JObject) -> JObject,
+        /// Removes the entry for the specified key only if it is currently mapped to the specified value
+        ///
+        /// # Throws
+        ///
+        /// - `UnsupportedOperationException` - if the remove operation is not supported by this map
+        /// - `ClassCastException` - if the key is of an inappropriate type for this map
+        /// - `NullPointerException` - if the key is null and this map does not allow null keys
+        priv fn remove_value {
+            name = "remove",
+            sig = (key: JObject, value: JObject) -> bool,
+        },
+        /// Replaces the entry for the specified key only if it is currently mapped to some value
+        ///
+        /// # Throws
+        ///
+        /// - `UnsupportedOperationException` - if the replace operation is not supported by this map
+        /// - `ClassCastException` - if the key or value are of an inappropriate type for this map
+        /// - `NullPointerException` - if the key or value is null and this map does not allow null keys or values
+        /// - `IllegalArgumentException` - if some property of the value prevents it from being stored by this map
+        fn replace(key: JObject, value: JObject) -> JObject,
+        /// Replaces the entry for the specified key only if currently mapped to a given value
+        ///
+        /// # Throws
+        ///
+        /// - `UnsupportedOperationException` - if the replace operation is not supported by this map
+        /// - `ClassCastException` - if the key or value are of an inappropriate type for this map
+        /// - `NullPointerException` - if the key, new_value or old_value is null and this map does not allow null keys or values
+        /// - `IllegalArgumentException` - if some property of the value prevents it from being stored by this map
+        fn replace_value {
+            name = "replace",
+            sig = (key: JObject, old_value: JObject, new_value: JObject) -> bool,
+        },
+        /// Removes all of the mappings from this map
+        fn clear(),
+        /// Determines if the map contains a mapping for the specified key
+        ///
+        /// # Throws
+        /// - `ClassCastException` - if the key is of an inappropriate type for this map
+        /// - `NullPointerException` - if the key is null and this map does not allow null keys
+        fn contains_key(key: JObject) -> bool,
+        /// Determines if the map maps one or more keys to the specified value
+        ///
+        /// # Throws
+        /// - `ClassCastException` - if the key is of an inappropriate type for this map
+        /// - `NullPointerException` - if the key is null and this map does not allow null keys
+        fn contains_value(value: JObject) -> bool,
+        /// Get a `JSet` view of the mappings contained in this map
+        ///
+        /// Returns a [JSet] view of the mappings contained in the map, which can be used to iterate over the key/value pairs.
+        ///
+        /// Also see [JSet::iterator] and [Self::iter]
+        fn entry_set() -> JSet,
+        /// Get a `JSet` view of the keys contained in this map
+        fn key_set() -> JSet,
+        /// Get a `JCollection` view of the values contained in this map
+        fn values() -> JCollection,
     }
 }
 
 impl<'local> JMap<'local> {
-    /// Creates a [`JMap`] that wraps the given `raw` [`jobject`]
-    ///
-    /// # Safety
-    ///
-    /// - `raw` must be a valid raw JNI local reference (or `null`).
-    /// - `raw` must be an instance of `java.util.Map`.
-    /// - There must not be any other owning [`Reference`] wrapper for the same reference.
-    /// - The local reference must belong to the current thread and not outlive the
-    ///   JNI stack frame associated with the [Env] `'env_local` lifetime.
-    pub unsafe fn from_raw<'env_local>(env: &Env<'env_local>, raw: jobject) -> JMap<'env_local> {
-        JMap(JObject::from_raw(env, raw))
-    }
-
-    /// Creates a new null reference.
-    ///
-    /// Null references are always valid and do not belong to a local reference frame. Therefore,
-    /// the returned `JMap` always has the `'static` lifetime.
-    pub const fn null() -> JMap<'static> {
-        JMap(JObject::null())
-    }
-
-    /// Unwrap to the raw jni type.
-    pub const fn into_raw(self) -> jobject {
-        self.0.into_raw()
-    }
-
-    /// Cast a local reference to a [`JMap`]
-    ///
-    /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.util.Map`.
-    ///
-    /// Also see these other options for casting local or global references to a [`JMap`]:
-    /// - [Env::as_cast]
-    /// - [Env::new_cast_local_ref]
-    /// - [Env::cast_local]
-    /// - [Env::new_cast_global_ref]
-    /// - [Env::cast_global]
-    ///
-    /// # Errors
-    ///
-    /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
-    pub fn cast_local<'any_local>(
-        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
-        env: &mut Env<'_>,
-    ) -> Result<JMap<'any_local>> {
-        env.cast_local::<JMap>(obj)
-    }
-
     /// Cast a local reference to a `JMap`
     ///
     /// See [`JMap::cast_local`] for more information.
@@ -150,111 +118,91 @@ impl<'local> JMap<'local> {
         note = "use JMap::cast_local instead or Env::new_cast_local_ref/cast_local/as_cast_local or Env::new_cast_global_ref/cast_global/as_cast_global"
     )]
     pub fn from_env<'any_local>(
-        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
         env: &mut Env<'_>,
+        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
     ) -> Result<JMap<'any_local>> {
         env.cast_local::<JMap>(obj)
     }
 
-    /// Look up the value for a key. Returns `Some` if it's found and `None` if
-    /// a null pointer would be returned.
-    pub fn get<'top_local>(
+    /// Look up the value for a key.
+    ///
+    /// Returns `Some` if a non-null value is found and `None` if a null pointer
+    /// would be returned.
+    ///
+    /// If the map permits null values, this method cannot distinguish between a
+    /// key that is not present and a key that is explicitly mapped to `null`.
+    /// In that case, use [JMap::contains_key] to determine if the key is
+    /// present.
+    ///
+    /// # Throws
+    ///
+    /// - `ClassCastException` - if the key is of an inappropriate type for this map
+    /// - `NullPointerException` - if the key is null and this map does not allow null keys
+    pub fn get<'env_local>(
         &self,
-        env: &mut Env<'top_local>,
+        env: &mut Env<'env_local>,
         key: &JObject,
-    ) -> Result<Option<JObject<'top_local>>> {
-        let api = JMapAPI::get(env, &LoaderContext::None)?;
-        // SAFETY: We keep the class loaded, and fetched the method ID for this function.
-        // Provided argument is statically known as a JObject/null, rather than another primitive type.
-        let result = unsafe {
-            env.call_method_unchecked(
-                self,
-                api.get_method,
-                ReturnType::Object,
-                &[JValue::from(key).as_jni()],
-            )
-        };
-
-        match result {
-            Ok(val) => Ok(Some(val.l()?)),
-            Err(e) => match e {
-                Error::NullPtr(_) => Ok(None),
-                _ => Err(e),
-            },
+    ) -> Result<Option<JObject<'env_local>>> {
+        let value = self._get(env, key)?;
+        if value.is_null() {
+            Ok(None)
+        } else {
+            Ok(Some(value))
         }
     }
 
-    /// Look up the value for a key. Returns `Some` with the old value if the
-    /// key already existed and `None` if it's a new key.
-    pub fn put<'other_local_2>(
+    /// Associates the specified value with the specified key in this map
+    ///
+    /// Returns `Some` with the old value if the key already existed and `None`
+    /// if it's a new key.
+    ///
+    /// If the map permits null values, a `None` return value could also indicate
+    /// that the previous value associated with the key was explicitly `null`.
+    ///
+    /// # Throws
+    ///
+    /// - `UnsupportedOperationException` - if the put operation is not supported by this map
+    /// - `ClassCastException` - if the key or value are of an inappropriate type
+    /// - `NullPointerException` - if the key or value is null and this map does not allow null keys or values
+    /// - `IllegalArgumentException` - if some property of the key or value prevents it
+    pub fn put<'env_local>(
         &self,
-        env: &mut Env<'other_local_2>,
+        env: &mut Env<'env_local>,
         key: &JObject,
         value: &JObject,
-    ) -> Result<Option<JObject<'other_local_2>>> {
-        let api = JMapAPI::get(env, &LoaderContext::None)?;
-        // SAFETY: We keep the class loaded, and fetched the method ID for this function.
-        // Provided argument is statically known as a JObject/null, rather than another primitive type.
-        let result = unsafe {
-            env.call_method_unchecked(
-                self,
-                api.put_method,
-                ReturnType::Object,
-                &[JValue::from(key).as_jni(), JValue::from(value).as_jni()],
-            )
-        };
-
-        match result {
-            Ok(val) => Ok(Some(val.l()?)),
-            Err(e) => match e {
-                Error::NullPtr(_) => Ok(None),
-                _ => Err(e),
-            },
+    ) -> Result<Option<JObject<'env_local>>> {
+        let old = self._put(env, key, value)?;
+        if old.is_null() {
+            Ok(None)
+        } else {
+            Ok(Some(old))
         }
     }
 
-    /// Remove a value from the map. Returns `Some` with the removed value and
-    /// `None` if there was no value for the key.
-    pub fn remove<'other_local_2>(
+    /// Remove a mapping for a key from the map
+    ///
+    /// Returns `Some` with the non-null removed value and `None` if there was no value
+    /// for the key, or if the removed value was `null`.
+    ///
+    /// If the map permits null values, this method cannot distinguish between a
+    /// key that was not present and a key that was explicitly mapped to `null`.
+    ///
+    /// # Throws
+    ///
+    /// - `UnsupportedOperationException` - if the remove operation is not supported by this map
+    /// - `ClassCastException` - if the key is of an inappropriate type for this map
+    /// - `NullPointerException` - if the key is null and this map does not allow null keys
+    pub fn remove<'env_local>(
         &self,
-        env: &mut Env<'other_local_2>,
+        env: &mut Env<'env_local>,
         key: &JObject,
-    ) -> Result<Option<JObject<'other_local_2>>> {
-        let api = JMapAPI::get(env, &LoaderContext::None)?;
-        // SAFETY: We keep the class loaded, and fetched the method ID for this function.
-        // Provided argument is statically known as a JObject/null, rather than another primitive type.
-        let result = unsafe {
-            env.call_method_unchecked(
-                self,
-                api.remove_method,
-                ReturnType::Object,
-                &[JValue::from(key).as_jni()],
-            )
-        };
-
-        match result {
-            Ok(val) => Ok(Some(val.l()?)),
-            Err(e) => match e {
-                Error::NullPtr(_) => Ok(None),
-                _ => Err(e),
-            },
+    ) -> Result<Option<JObject<'env_local>>> {
+        let old = self._remove(env, key)?;
+        if old.is_null() {
+            Ok(None)
+        } else {
+            Ok(Some(old))
         }
-    }
-
-    /// Get the entry set for the map.
-    ///
-    /// This returns a [JSet] view of the mappings contained in the map, which can be used to iterate over the key/value pairs.
-    ///
-    /// Also see [JSet::iterator] and [Self::iter]
-    pub fn entry_set<'env_local>(&self, env: &mut Env<'env_local>) -> Result<JSet<'env_local>> {
-        let api = JMapAPI::get(env, &LoaderContext::None)?;
-        // SAFETY: We keep the class loaded, and fetched the method ID for this function. Arg list is known empty.
-        let entry_set = unsafe {
-            env.call_method_unchecked(self, api.entry_set_method, ReturnType::Object, &[])
-        }?
-        .l()?;
-        let set = JSet::cast_local(entry_set, env)?;
-        Ok(set)
     }
 
     /// Get key/value iterator for the map. This is done by getting the
@@ -297,240 +245,38 @@ impl<'local> JMap<'local> {
     }
 }
 
-// SAFETY: JMap is a transparent JObject wrapper with no Drop side effects
-unsafe impl Reference for JMap<'_> {
-    type Kind<'env> = JMap<'env>;
-    type GlobalKind = JMap<'static>;
-
-    fn as_raw(&self) -> jobject {
-        self.0.as_raw()
-    }
-
-    fn class_name() -> Cow<'static, JNIStr> {
-        Cow::Borrowed(JNIStr::from_cstr(c"java.util.Map"))
-    }
-
-    fn lookup_class<'caller>(
-        env: &Env<'_>,
-        loader_context: &LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'caller> {
-        let api = JMapAPI::get(env, loader_context)?;
-        Ok(&api.class)
-    }
-
-    unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        JMap(JObject::kind_from_raw(local_ref))
-    }
-
-    unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
-        JMap(JObject::global_kind_from_raw(global_ref))
-    }
-}
-
-/// A `java.util.Map.Entry` wrapper that is tied to a JNI local reference frame.
-///
-/// See the [`JObject`] documentation for more information about reference
-/// wrappers, how to cast them, and local reference frame lifetimes.
-///
-#[repr(transparent)]
-#[derive(Debug, Default)]
-pub struct JMapEntry<'local>(JObject<'local>);
-
-impl<'local> AsRef<JMapEntry<'local>> for JMapEntry<'local> {
-    fn as_ref(&self) -> &JMapEntry<'local> {
-        self
-    }
-}
-
-impl<'local> AsRef<JObject<'local>> for JMapEntry<'local> {
-    fn as_ref(&self) -> &JObject<'local> {
-        self
-    }
-}
-
-impl<'local> ::std::ops::Deref for JMapEntry<'local> {
-    type Target = JObject<'local>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<'local> From<JMapEntry<'local>> for JObject<'local> {
-    fn from(other: JMapEntry<'local>) -> JObject<'local> {
-        other.0
-    }
-}
-
-struct JMapEntryAPI {
-    class: Global<JClass<'static>>,
-    get_key_method: JMethodID,
-    get_value_method: JMethodID,
-    set_value_method: JMethodID,
-}
-
-impl JMapEntryAPI {
-    fn get<'any_local>(
-        env: &Env<'_>,
-        loader_context: &LoaderContext<'any_local, '_>,
-    ) -> Result<&'static Self> {
-        static JMAPENTRY_API: OnceCell<JMapEntryAPI> = OnceCell::new();
-        JMAPENTRY_API.get_or_try_init(|| {
-            env.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
-                let class = loader_context.load_class_for_type::<JMapEntry>(env, true)?;
-                let class = env.new_global_ref(&class).unwrap();
-
-                let get_key_method =
-                    env.get_method_id(&class, c"getKey", c"()Ljava/lang/Object;")?;
-                let get_value_method =
-                    env.get_method_id(&class, c"getValue", c"()Ljava/lang/Object;")?;
-                let set_value_method = env.get_method_id(
-                    &class,
-                    c"setValue",
-                    c"(Ljava/lang/Object;)Ljava/lang/Object;",
-                )?;
-                Ok(Self {
-                    class,
-                    get_key_method,
-                    get_value_method,
-                    set_value_method,
-                })
-            })
-        })
-    }
-}
-
-impl<'local> JMapEntry<'local> {
-    /// Creates a [`JMapEntry`] that wraps the given `raw` [`jobject`]
-    ///
-    /// # Safety
-    ///
-    /// - `raw` must be a valid raw JNI local reference (or `null`).
-    /// - `raw` must be an instance of `java.util.Map.Entry`.
-    /// - There must not be any other owning [`Reference`] wrapper for the same reference.
-    /// - The local reference must belong to the current thread and not outlive the
-    ///   JNI stack frame associated with the [Env] `'env_local` lifetime.
-    pub unsafe fn from_raw<'env_local>(
-        env: &Env<'env_local>,
-        raw: jobject,
-    ) -> JMapEntry<'env_local> {
-        JMapEntry(JObject::from_raw(env, raw))
-    }
-
-    /// Creates a new null reference.
-    ///
-    /// Null references are always valid and do not belong to a local reference frame. Therefore,
-    /// the returned `JMapEntry` always has the `'static` lifetime.
-    pub const fn null() -> JMapEntry<'static> {
-        JMapEntry(JObject::null())
-    }
-
-    /// Unwrap to the raw jni type.
-    pub const fn into_raw(self) -> jobject {
-        self.0.into_raw()
-    }
-
-    /// Cast a local reference to a [`JMapEntry`]
-    ///
-    /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `java.util.Map.Entry`.
-    ///
-    /// Also see these other options for casting local or global references to a [`JMapEntry`]:
-    /// - [Env::as_cast]
-    /// - [Env::new_cast_local_ref]
-    /// - [Env::cast_local]
-    /// - [Env::new_cast_global_ref]
-    /// - [Env::cast_global]
-    ///
-    /// # Errors
-    ///
-    /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
-    pub fn cast_local<'any_local>(
-        obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
-        env: &mut Env<'_>,
-    ) -> Result<JMapEntry<'any_local>> {
-        env.cast_local::<JMapEntry>(obj)
-    }
-
-    /// Get the key of the map entry by calling the `getKey` method.
-    ///
-    /// # Throws
-    ///
-    /// May throw `IllegalStateException` if the entry has been removed from the map (depending on implementation)
-    pub fn key<'env_local>(&self, env: &mut Env<'env_local>) -> Result<JObject<'env_local>> {
-        let api = JMapEntryAPI::get(env, &LoaderContext::None)?;
-        unsafe {
-            env.call_method_unchecked(self, api.get_key_method, ReturnType::Object, &[])?
-                .l()
-        }
-    }
-
-    /// Get the value of the map entry by calling the `getValue` method.
-    ///
-    /// # Throws
-    ///
-    /// May throw `IllegalStateException` if the entry has been removed from the map (depending on implementation)
-    pub fn value<'env_local>(&self, env: &mut Env<'env_local>) -> Result<JObject<'env_local>> {
-        let api = JMapEntryAPI::get(env, &LoaderContext::None)?;
-        unsafe {
-            env.call_method_unchecked(self, api.get_value_method, ReturnType::Object, &[])?
-                .l()
-        }
-    }
-
-    /// Set the value of the map entry by calling the `setValue` method.
-    ///
-    /// # Throws
-    ///
-    /// - `UnsupportedOperationException` if the backing map does not support the put operation
-    /// - `ClassCastException` if the value is not of a compatible type
-    /// - `NullPointerException` if a null value is given and the backing map doesn't allow storing null values
-    /// - `IllegalArgumentException` if the values has a property that prevents it from being stored by the backing map
-    /// - May throw `IllegalStateException` if the entry has been removed from the map (depending on implementation)
-    pub fn set_value<'any_local, 'env_local>(
-        &self,
-        value: &JObject<'any_local>,
-        env: &mut Env<'env_local>,
-    ) -> Result<JObject<'env_local>> {
-        let api = JMapEntryAPI::get(env, &LoaderContext::None)?;
-        unsafe {
-            env.call_method_unchecked(
-                self,
-                api.set_value_method,
-                ReturnType::Primitive(Primitive::Void),
-                &[JValue::from(value).as_jni()],
-            )?
-            .l()
-        }
-    }
-}
-
-// SAFETY: JMapEntry is a transparent JObject wrapper with no Drop side effects
-unsafe impl Reference for JMapEntry<'_> {
-    type Kind<'env> = JMapEntry<'env>;
-    type GlobalKind = JMapEntry<'static>;
-
-    fn as_raw(&self) -> jobject {
-        self.0.as_raw()
-    }
-
-    fn class_name() -> Cow<'static, JNIStr> {
-        Cow::Borrowed(JNIStr::from_cstr(c"java.util.Map$Entry"))
-    }
-
-    fn lookup_class<'caller>(
-        env: &Env<'_>,
-        loader_context: &LoaderContext,
-    ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'caller> {
-        let api = JMapEntryAPI::get(env, loader_context)?;
-        Ok(&api.class)
-    }
-
-    unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-        JMapEntry(JObject::kind_from_raw(local_ref))
-    }
-
-    unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
-        JMapEntry(JObject::global_kind_from_raw(global_ref))
+crate::bind_java_type! {
+    rust_type = JMapEntry,
+    java_type = "java.util.Map$Entry",
+    methods = {
+        /// Get the key of the map entry by calling the `getKey` method.
+        ///
+        /// # Throws
+        ///
+        /// May throw `IllegalStateException` if the entry has been removed from the map (depending on implementation)
+        fn key {
+            name = "getKey",
+            sig = () -> JObject,
+        },
+        /// Get the value of the map entry by calling the `getValue` method.
+        ///
+        /// # Throws
+        ///
+        /// May throw `IllegalStateException` if the entry has been removed from the map (depending on implementation)
+        fn value {
+            name = "getValue",
+            sig = () -> JObject,
+        },
+        /// Set the value of the map entry by calling the `setValue` method.
+        ///
+        /// # Throws
+        ///
+        /// - `UnsupportedOperationException` if the backing map does not support the put operation
+        /// - `ClassCastException` if the value is not of a compatible type
+        /// - `NullPointerException` if a null value is given and the backing map doesn't allow storing null values
+        /// - `IllegalArgumentException` if the values has a property that prevents it from being stored by the backing map
+        /// - May throw `IllegalStateException` if the entry has been removed from the map (depending on implementation)
+        fn set_value(value: JObject) -> JObject,
     }
 }
 

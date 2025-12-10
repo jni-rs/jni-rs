@@ -72,6 +72,14 @@ fn main() {
         let size_from = as_list_from.size(env)?;
         println!("  List size (via AsRef): {}", size_from);
 
+        println!("\nUsing AsRef trait to convert &JList to &JCollection:");
+        let as_collection_via_list: &JCollection = as_list_from.as_ref();
+        let size_collection_via_list = as_collection_via_list.size(env)?;
+        println!(
+            "  Collection size (via AsRef from &JList): {}",
+            size_collection_via_list
+        );
+
         println!("\nUsing Into trait to convert JInstanceOf to JCollection:");
         let as_collection_from: JCollection = instance.into();
         let size_collection_from = as_collection_from.size(env)?;

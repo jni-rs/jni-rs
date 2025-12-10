@@ -22,7 +22,7 @@ pub fn jlist_push_and_iterate() {
 
         // Create a new ArrayList
         let list_object = unwrap(env.new_object(c"java/util/ArrayList", c"()V", &[]), env);
-        let list = unwrap(JList::cast_local(list_object, env), env);
+        let list = unwrap(JList::cast_local(env, list_object), env);
 
         // Add all strings to the list
         unwrap(
@@ -65,26 +65,24 @@ pub fn jlist_get_and_set() {
     attach_current_thread(|env| {
         // Create a new ArrayList
         let list_object = unwrap(env.new_object(c"java/util/ArrayList", c"()V", &[]), env);
-        let list = unwrap(JList::cast_local(list_object, env), env);
+        let list = unwrap(JList::cast_local(env, list_object), env);
 
         // Add some initial elements
-        let hello_str = unwrap(JString::from_str(env, "hello"), env);
-        let world_str = unwrap(JString::from_str(env, "world"), env);
+        let hello_str = unwrap(env.new_string("hello"), env);
+        let world_str = unwrap(env.new_string("world"), env);
 
         unwrap(list.add(env, &hello_str.into()), env);
         unwrap(list.add(env, &world_str.into()), env);
 
         // Test get method
-        let first = unwrap(list.get(env, 0), env);
-        assert!(first.is_some());
-        let first_obj = first.unwrap();
+        let first_obj = unwrap(list.get(env, 0), env);
+        assert!(!first_obj.is_null());
         let first_jstring = unwrap(env.cast_local::<JString>(first_obj), env);
         let first_str = unwrap(first_jstring.mutf8_chars(env), env);
         assert_eq!(first_str.to_str().as_ref(), "hello");
 
-        let second = unwrap(list.get(env, 1), env);
-        assert!(second.is_some());
-        let second_obj = second.unwrap();
+        let second_obj = unwrap(list.get(env, 1), env);
+        assert!(!second_obj.is_null());
         let second_jstring = unwrap(env.cast_local::<JString>(second_obj), env);
         let second_str = unwrap(second_jstring.mutf8_chars(env), env);
         assert_eq!(second_str.to_str().as_ref(), "world");
@@ -103,18 +101,18 @@ pub fn jlist_insert_and_remove() {
     attach_current_thread(|env| {
         // Create a new ArrayList
         let list_object = unwrap(env.new_object(c"java/util/ArrayList", c"()V", &[]), env);
-        let list = unwrap(JList::cast_local(list_object, env), env);
+        let list = unwrap(JList::cast_local(env, list_object), env);
 
         // Add initial elements
-        let first_str = unwrap(JString::from_str(env, "first"), env);
-        let third_str = unwrap(JString::from_str(env, "third"), env);
+        let first_str = unwrap(env.new_string("first"), env);
+        let third_str = unwrap(env.new_string("third"), env);
 
         unwrap(list.add(env, &first_str.into()), env);
         unwrap(list.add(env, &third_str.into()), env);
 
         // Insert in the middle
-        let second_str = unwrap(JString::from_str(env, "second"), env);
-        unwrap(list.insert(env, 1, &second_str.into()), env);
+        let second_str = unwrap(env.new_string("second"), env);
+        unwrap(list.insert(env, 1, &second_str), env);
 
         // Verify the size is now 3
         let size = unwrap(list.size(env), env);
@@ -123,7 +121,7 @@ pub fn jlist_insert_and_remove() {
         // Verify the order
         let items: Vec<String> = (0..3)
             .map(|i| {
-                let obj = unwrap(list.get(env, i), env).unwrap();
+                let obj = unwrap(list.get(env, i), env);
                 let jstring = unwrap(env.cast_local::<JString>(obj), env);
                 String::from(unwrap(jstring.mutf8_chars(env), env))
             })
@@ -142,12 +140,12 @@ pub fn jlist_insert_and_remove() {
         assert_eq!(size, 2);
 
         // Verify remaining elements
-        let first_remaining = unwrap(list.get(env, 0), env).unwrap();
+        let first_remaining = unwrap(list.get(env, 0), env);
         let first_jstring = unwrap(env.cast_local::<JString>(first_remaining), env);
         let first_str = unwrap(first_jstring.mutf8_chars(env), env);
         assert_eq!(first_str.to_str().as_ref(), "first");
 
-        let second_remaining = unwrap(list.get(env, 1), env).unwrap();
+        let second_remaining = unwrap(list.get(env, 1), env);
         let second_jstring = unwrap(env.cast_local::<JString>(second_remaining), env);
         let second_str = unwrap(second_jstring.mutf8_chars(env), env);
         assert_eq!(second_str.to_str().as_ref(), "third");
@@ -162,7 +160,7 @@ pub fn jlist_size_and_remove() {
     attach_current_thread(|env| {
         // Create a new ArrayList
         let list_object = unwrap(env.new_object(c"java/util/ArrayList", c"()V", &[]), env);
-        let list = unwrap(JList::cast_local(list_object, env), env);
+        let list = unwrap(JList::cast_local(env, list_object), env);
 
         // Test size on empty list
         let size = unwrap(list.size(env), env);
@@ -221,7 +219,7 @@ pub fn jlist_iterator_empty() {
     attach_current_thread(|env| {
         // Create an empty ArrayList
         let list_object = unwrap(env.new_object(c"java/util/ArrayList", c"()V", &[]), env);
-        let list = unwrap(JList::cast_local(list_object, env), env);
+        let list = unwrap(JList::cast_local(env, list_object), env);
 
         // Test iterator on empty list
         let mut collected = Vec::new();
@@ -254,7 +252,7 @@ pub fn jlist_iterator_with_auto() {
 
         // Create a new ArrayList
         let list_object = unwrap(env.new_object(c"java/util/ArrayList", c"()V", &[]), env);
-        let list = unwrap(JList::cast_local(list_object, env), env);
+        let list = unwrap(JList::cast_local(env, list_object), env);
 
         // Add all strings to the list
         unwrap(

@@ -2805,7 +2805,7 @@ See the jni-rs Env documentation for more details.
         &mut self,
         obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
     ) -> Result<JList<'any_local>> {
-        JList::cast_local(obj, self)
+        JList::cast_local(self, obj)
     }
 
     /// Cast a [JObject] to a [JMap].
@@ -2819,7 +2819,7 @@ See the jni-rs Env documentation for more details.
         &mut self,
         obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
     ) -> Result<JMap<'any_local>> {
-        JMap::cast_local(obj, self)
+        JMap::cast_local(self, obj)
     }
 
     /// Gets the contents of a Java string, in [modified UTF-8] encoding.
@@ -2879,7 +2879,8 @@ See the jni-rs Env documentation for more details.
     /// This requires a re-encoding of rusts UTF-8 strings to JNI's modified UTF-8 format before
     /// calling the JNI function `NewStringUTF`.
     ///
-    /// To avoid this intermediate copy + encoding, consider using [`JString::from_jni_str`].
+    /// To avoid this intermediate copy + encoding, consider using [`JString::from_jni_str`], and
+    /// using the [`crate::jni_str`] macro to encode string literals at compile time.
     pub fn new_string(&mut self, from: impl AsRef<str>) -> Result<JString<'local>> {
         JString::new(self, from)
     }

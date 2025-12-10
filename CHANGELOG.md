@@ -172,7 +172,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Env::with_local_frame_returning_local` can now return any kind of local `Reference`, not just `JObject`
 - `JList` is a simpler, transparent reference wrapper implementing `Reference`, like `JObject`, `JClass`, `JString` etc
 - `JList::add` returns the boolean returned by the Java API
-- `JList::remove` no longer returns an `Option` since there's nothing special about getting a `null` from the Java `remove` API.
+- `JList::get` and `JList::remove` no longer returns an `Option` since there's nothing special about getting a `null` from the Java `List` API.
 - `JList::pop` is deprecated since this doesn't map to standard Java `List` method.
 - `JList::iter` returns a `JIterator` instead of a `JListIter`
 - `Env::get_list` has been deprecated, in favor of `JList::cast_local`, or other generic `Env` `cast_local/cast_global` APIs.
