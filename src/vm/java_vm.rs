@@ -1,12 +1,18 @@
 use std::{
-    cell::{Cell, RefCell},
+    cell::Cell,
     os::raw::c_char,
     ptr,
     sync::atomic::{AtomicUsize, Ordering},
     thread::{current, Thread},
 };
 
-use log::{debug, error};
+#[cfg(not(windows))]
+use std::cell::RefCell;
+
+use log::debug;
+
+#[cfg(not(windows))]
+use log::error;
 
 use crate::{
     env::Env,
@@ -20,6 +26,9 @@ use crate::{
 use std::{os::raw::c_void, path::PathBuf};
 #[cfg(feature = "invocation")]
 use {crate::InitArgs, std::ffi::OsStr};
+
+#[cfg(windows)]
+use super::fls_attach_guard;
 
 #[cfg(doc)]
 use {
@@ -297,7 +306,10 @@ impl JavaVM {
         // ignored while the thread is already attached.
         //
         // This will track the new attachment in TLS, under `THREAD_ATTACH_GUARD`
+        #[cfg(not(windows))]
         TLSAttachGuard::attach_current_thread(&vm, &Default::default())?;
+        #[cfg(windows)]
+        windows_attach::attach_current_thread(&vm, &Default::default())?;
 
         Ok(vm)
     }
@@ -648,7 +660,14 @@ impl JavaVM {
                             let jni = sys_attach_current_thread(self, &config, &current())?;
                             AttachGuard::from_owned(jni)
                         } else {
-                            TLSAttachGuard::attach_current_thread(self, &config)?
+                            #[cfg(not(windows))]
+                            {
+                                TLSAttachGuard::attach_current_thread(self, &config)?
+                            }
+                            #[cfg(windows)]
+                            {
+                                windows_attach::attach_current_thread(self, &config)?
+                            }
                         }
                     }
                     Err(err) => Err(err)?,
@@ -684,7 +703,14 @@ impl JavaVM {
     /// attachment via [`JavaVM::attach_current_thread_for_scope`] could be used so that the
     /// detachment would happen automatically.
     pub fn detach_current_thread(&self) -> Result<()> {
-        TLSAttachGuard::detach()
+        #[cfg(not(windows))]
+        {
+            TLSAttachGuard::detach()
+        }
+        #[cfg(windows)]
+        {
+            windows_attach::detach()
+        }
     }
 
     /// Returns the current number of threads attached to the JVM.
@@ -1000,9 +1026,9 @@ impl<'a> AttachConfig<'a> {
     }
 }
 
-static ATTACHED_THREADS: AtomicUsize = AtomicUsize::new(0);
+pub(super) static ATTACHED_THREADS: AtomicUsize = AtomicUsize::new(0);
 
-unsafe fn sys_attach_current_thread(
+pub(super) unsafe fn sys_attach_current_thread(
     vm: &JavaVM,
     config: &AttachConfig,
     thread: &Thread,
@@ -1047,7 +1073,10 @@ unsafe fn sys_attach_current_thread(
 /// Although `DetachCurrentThread` is part of the `JavaVM` "invocation" API and doesn't require a
 /// `Env` pointer, we want to constrain this code to only ever detach threads if we own the
 /// current attachment.
-unsafe fn sys_detach_current_thread(env_ptr: *mut jni_sys::JNIEnv, thread: &Thread) -> Result<()> {
+pub(super) unsafe fn sys_detach_current_thread(
+    env_ptr: *mut jni_sys::JNIEnv,
+    thread: &Thread,
+) -> Result<()> {
     assert_eq!(JavaVM::thread_attach_guard_level(), 0);
 
     unsafe {
@@ -1358,12 +1387,14 @@ impl Drop for AttachGuard<'_> {
     }
 }
 
+#[cfg(not(windows))]
 thread_local! {
     // There's a false-positive Clippy bug: https://github.com/rust-lang/rust-clippy/issues/13422
     #[cfg_attr(target_os = "android", allow(clippy::missing_const_for_thread_local))]
     static THREAD_ATTACH_GUARD: RefCell<Option<TLSAttachGuard>> = const { RefCell::new(None) }
 }
 
+#[cfg(not(windows))]
 #[derive(Debug)]
 struct TLSAttachGuard {
     env: *mut jni_sys::JNIEnv,
@@ -1376,6 +1407,7 @@ struct TLSAttachGuard {
     thread: Thread,
 }
 
+#[cfg(not(windows))]
 impl TLSAttachGuard {
     /// Detach a thread before the thread terminates **IFF** it was previously attached via
     /// [`JavaVM::attach_current_thread`] **AND** there is no active [`AttachGuard`] in use
@@ -1385,6 +1417,7 @@ impl TLSAttachGuard {
             return Err(Error::ThreadAttachmentGuarded);
         }
 
+        // On non-Windows platforms, use TLS
         THREAD_ATTACH_GUARD.with(move |f| {
             if let Some(guard) = f.borrow_mut().take() {
                 // Safety: we use `std::mem::forget` to ensure we don't also
@@ -1404,12 +1437,15 @@ impl TLSAttachGuard {
     ) -> Result<AttachGuard<'local>> {
         let thread = current();
         let env = sys_attach_current_thread(java_vm, config, &thread)?;
+
+        // On non-Windows platforms, use regular TLS
         THREAD_ATTACH_GUARD.with(move |f| {
             *f.borrow_mut() = Some(Self {
                 env,
                 thread: current(),
             });
         });
+
         Ok(unsafe { AttachGuard::from_unowned(env) })
     }
 
@@ -1423,6 +1459,38 @@ impl TLSAttachGuard {
     }
 }
 
+#[cfg(windows)]
+mod windows_attach {
+    use super::*;
+
+    /// Detach a thread before the thread terminates **IFF** it was previously attached via
+    /// [`JavaVM::attach_current_thread`] **AND** there is no active [`AttachGuard`] in use
+    /// for this thread.
+    pub(super) fn detach() -> Result<()> {
+        if THREAD_GUARD_NEST_LEVEL.get() != 0 {
+            return Err(Error::ThreadAttachmentGuarded);
+        }
+
+        // On Windows, use FLS detachment
+        fls_attach_guard::fls_detach_current_thread()?;
+        Ok(())
+    }
+
+    pub(super) unsafe fn attach_current_thread<'local>(
+        java_vm: &JavaVM,
+        config: &AttachConfig,
+    ) -> Result<AttachGuard<'local>> {
+        let thread = current();
+        let env = sys_attach_current_thread(java_vm, config, &thread)?;
+
+        // On Windows, use FLS to track attachments to avoid loader lock deadlocks
+        unsafe { fls_attach_guard::fls_attach_current_thread(env)? };
+
+        Ok(unsafe { AttachGuard::from_unowned(env) })
+    }
+}
+
+#[cfg(not(windows))]
 impl Drop for TLSAttachGuard {
     fn drop(&mut self) {
         if let Err(e) = unsafe { self.detach_impl() } {

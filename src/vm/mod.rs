@@ -5,3 +5,6 @@ pub use self::init_args::*;
 
 mod java_vm;
 pub use self::java_vm::*;
+
+#[cfg(windows)]
+mod fls_attach_guard;
