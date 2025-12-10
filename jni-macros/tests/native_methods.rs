@@ -1,4 +1,3 @@
-#![allow(unused)]
 mod native_methods_utils;
 mod util;
 
@@ -75,8 +74,7 @@ fn native_set_counter_impl<'local>(
     env.call_method(
         this,
         jni_str!("setCounter"),
-        jni_str!("(I)V"),
-        //jni_sig!("(I)V"), TODO
+        jni_sig!("(I)V"),
         &[jni::objects::JValue::Int(value)],
     )?;
     Ok(())
@@ -90,8 +88,7 @@ fn native_get_message_impl<'local>(
     let result = env.call_method(
         this,
         jni_str!("getMessage"),
-        jni_str!("()Ljava/lang/String;"),
-        //jni_sig!("()Ljava/lang/String;"), TODO
+        jni_sig!("()Ljava/lang/String;"),
         &[],
     )?;
     // Use cast_local to safely convert JObject to JString
@@ -143,8 +140,7 @@ native_method_test! {
         let result = env.call_method(
             &obj,
             jni_str!("callNativeAdd"),
-            jni_str!("(II)I"),
-            //jni_sig!("(II)I"), TODO
+            jni_sig!("(II)I"),
             &[jni::objects::JValue::Int(10), jni::objects::JValue::Int(20)],
         )?.i()?;
         assert_eq!(result, 30);
@@ -152,8 +148,7 @@ native_method_test! {
         let result = env.call_method(
             &obj,
             jni_str!("callNativeAdd"),
-            jni_str!("(II)I"),
-            //jni_sig!("(II)I"), TODO
+            jni_sig!("(II)I"),
             &[jni::objects::JValue::Int(-5), jni::objects::JValue::Int(7)],
         )?.i()?;
         assert_eq!(result, 2);
@@ -184,8 +179,7 @@ native_method_test! {
         env.call_method(
             &obj,
             jni_str!("nativeLog"),
-            jni_str!("(Ljava/lang/String;)V"),
-            //jni_sig!("(Ljava/lang/String;)V"), TODO
+            jni_sig!("(Ljava/lang/String;)V"),
             &[jni::objects::JValue::Object(&message)],
         )?;
 
@@ -217,8 +211,7 @@ native_method_test! {
         let result = env.call_method(
             &obj,
             jni_str!("nativeArrayAdd"),
-            jni_str!("([II)[I"),
-            //jni_sig!("([II)[I"), TODO
+            jni_sig!("([II)[I"),
             &[jni::objects::JValue::Object(&arr), jni::objects::JValue::Int(10)],
         )?.l()?;
         // Use cast_local to safely convert JObject to JPrimitiveArray
@@ -260,8 +253,7 @@ native_method_test! {
         let result = env.call_static_method(
             class,
             jni_str!("native2DArrayInvert"),
-            jni_str!("([[Z)[[Z"),
-            //jni_sig!("([[Z)[[Z"), TODO
+            jni_sig!("([[Z)[[Z"),
             &[jni::objects::JValue::Object(&outer)],
         )?.l()?;
         // Use cast_local to safely convert JObject to JObjectArray
@@ -307,21 +299,18 @@ native_method_test! {
         env.call_method(
             &obj,
             jni_str!("nativeSetCounter"),
-            jni_str!("(I)V"),
-            //jni_sig!("(I)V"), TODO
+            jni_sig!("(I)V"),
             &[jni::objects::JValue::Int(42)],
         )?;
 
-        let counter = env.call_method(&obj, jni_str!("getCounter"), jni_str!("()I"), &[])?.i()?;
-        //let counter = env.call_method(&obj, jni_str!("getCounter"), jni_sig!("()I"), &[])?.i()?;
+        let counter = env.call_method(&obj, jni_str!("getCounter"), jni_sig!("()I"), &[])?.i()?;
         assert_eq!(counter, 42);
 
         // Test native method can call Java getter (via method call)
         let message = env.call_method(
             &obj,
             jni_str!("nativeGetMessage"),
-            jni_str!("()Ljava/lang/String;"),
-            //jni_sig!("()Ljava/lang/String;"), TODO
+            jni_sig!("()Ljava/lang/String;"),
             &[],
         )?.l()?;
         // Use cast_local to safely convert JObject to JString
@@ -350,8 +339,7 @@ native_method_test! {
         let version = env.call_static_method(
             class,
             jni_str!("callNativeGetVersion"),
-            jni_str!("()I"),
-            //jni_sig!("()I"), TODO
+            jni_sig!("()I"),
             &[],
         )?.i()?;
         assert_eq!(version, 100);
@@ -384,8 +372,7 @@ native_method_test! {
         let result = env.call_static_method(
             class,
             jni_str!("nativeStringArrayEcho"),
-            jni_str!("([Ljava/lang/String;)[Ljava/lang/String;"),
-            //jni_sig!("([Ljava/lang/String;)[Ljava/lang/String;"), TODO
+            jni_sig!("([Ljava/lang/String;)[Ljava/lang/String;"),
             &[jni::objects::JValue::Object(&arr)],
         )?.l()?;
         // Use cast_local to safely convert JObject to JObjectArray
@@ -434,8 +421,7 @@ native_method_test! {
         let result = env.call_static_method(
             class,
             jni_str!("native2DStringArrayEcho"),
-            jni_str!("([[Ljava/lang/String;)[[Ljava/lang/String;"),
-            //jni_sig!("([[Ljava/lang/String;)[[Ljava/lang/String;"), TODO
+            jni_sig!("([[Ljava/lang/String;)[[Ljava/lang/String;"),
             &[jni::objects::JValue::Object(&arr)],
         )?.l()?;
         let result = JObjectArray::<JObjectArray<JString>>::cast_local(env, result)?;

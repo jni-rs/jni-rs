@@ -3,14 +3,15 @@ use crate::{
     env::Env,
     errors::*,
     objects::{JClass, JMethodID, JStaticMethodID},
+    signature::MethodSignature,
     strings::JNIStr,
 };
 
-unsafe impl<'local, 'other_local, T, U, V> Desc<'local, JMethodID> for (T, U, V)
+unsafe impl<'local, 'other_local, 'sig, 'sig_args, T, U, V> Desc<'local, JMethodID> for (T, U, V)
 where
     T: Desc<'local, JClass<'other_local>>,
     U: AsRef<JNIStr>,
-    V: AsRef<JNIStr>,
+    V: AsRef<MethodSignature<'sig, 'sig_args>>,
 {
     type Output = JMethodID;
 
@@ -19,10 +20,11 @@ where
     }
 }
 
-unsafe impl<'local, 'other_local, T, Signature> Desc<'local, JMethodID> for (T, Signature)
+unsafe impl<'local, 'other_local, 'sig, 'sig_args, T, Signature> Desc<'local, JMethodID>
+    for (T, Signature)
 where
     T: Desc<'local, JClass<'other_local>>,
-    Signature: AsRef<JNIStr>,
+    Signature: AsRef<MethodSignature<'sig, 'sig_args>>,
 {
     type Output = JMethodID;
 
@@ -31,11 +33,12 @@ where
     }
 }
 
-unsafe impl<'local, 'other_local, T, U, V> Desc<'local, JStaticMethodID> for (T, U, V)
+unsafe impl<'local, 'other_local, 'sig, 'sig_args, T, U, V> Desc<'local, JStaticMethodID>
+    for (T, U, V)
 where
     T: Desc<'local, JClass<'other_local>>,
     U: AsRef<JNIStr>,
-    V: AsRef<JNIStr>,
+    V: AsRef<MethodSignature<'sig, 'sig_args>>,
 {
     type Output = JStaticMethodID;
 

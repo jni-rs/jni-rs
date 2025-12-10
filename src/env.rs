@@ -4,10 +4,10 @@ use std::{
     os::raw::{c_char, c_void},
     panic::{catch_unwind, resume_unwind, AssertUnwindSafe},
     ptr,
-    str::FromStr,
     sync::{Mutex, MutexGuard},
 };
 
+use jni_macros::jni_sig;
 use jni_sys::jobject;
 
 use crate::{
@@ -18,7 +18,7 @@ use crate::{
         JClassLoader, JFieldID, JList, JMap, JMethodID, JObject, JStaticFieldID, JStaticMethodID,
         JString, JThrowable, JValue, JValueOwned, ReleaseMode, TypeArray, Weak,
     },
-    signature::{JavaType, Primitive, TypeSignature},
+    signature::{FieldSignature, JavaType, MethodSignature, Primitive},
     strings::{JNIStr, MUTF8Chars},
     sys::{
         self, jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jshort, jsize, jvalue,
@@ -241,7 +241,8 @@ use crate::{objects::JThread, strings::JNIString};
 /// calls to that function may not compile:
 ///
 /// ```rust,compile_fail
-/// # use jni::{errors::Result, Env, objects::*};
+/// # extern crate self as jni;
+/// # use jni::{jni_sig, errors::Result, Env, objects::*};
 /// #
 /// # fn f(env: &mut Env) -> Result<()> {
 /// fn example_function(
@@ -256,7 +257,7 @@ use crate::{objects::JThread, strings::JNIString};
 ///     // ERROR: cannot borrow `*env` as mutable more than once at a time
 ///     &env.new_object(
 ///         c"com/example/SomeClass",
-///         c"()V",
+///         jni_sig!("()V"),
 ///         &[],
 ///     )?,
 /// )
@@ -267,7 +268,7 @@ use crate::{objects::JThread, strings::JNIString};
 /// To fix this, the `Env` parameter needs to come *last*:
 ///
 /// ```rust,no_run
-/// # use jni::{errors::Result, Env, objects::*};
+/// # use jni::{jni_sig, errors::Result, Env, objects::*};
 /// #
 /// # fn f(env: &mut Env) -> Result<()> {
 /// fn example_function(
@@ -280,7 +281,7 @@ use crate::{objects::JThread, strings::JNIString};
 /// example_function(
 ///     &env.new_object(
 ///         c"com/example/SomeClass",
-///         c"()V",
+///         jni_sig!("()V"),
 ///         &[],
 ///     )?,
 ///     env,
@@ -1215,10 +1216,10 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{errors::Result, Env, objects::*};
+    /// # use jni::{jni_sig, errors::Result, Env, objects::*};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// let local_obj: JObject = env.new_object(c"java/lang/String", c"()V", &[])?;
+    /// let local_obj: JObject = env.new_object(c"java/lang/String", jni_sig!("()V"), &[])?;
     /// let global_string = env.new_cast_global_ref::<JString>(local_obj)?;
     /// // global_string is now a `Global<JString>` that persists beyond local frames
     ///
@@ -1282,10 +1283,10 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{errors::Result, Env, objects::*};
+    /// # use jni::{jni_sig, errors::Result, Env, objects::*};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// let local_obj: JObject = env.new_object(c"java/lang/String", c"()V", &[])?;
+    /// let local_obj: JObject = env.new_object(c"java/lang/String", jni_sig!("()V"), &[])?;
     /// let global_obj: Global<JObject<'static>> = env.new_global_ref(&local_obj)?;
     /// let global_string = env.cast_global::<JString>(global_obj)?;
     ///
@@ -1436,7 +1437,7 @@ See the jni-rs Env documentation for more details.
     /// reference:
     ///
     /// ```no_run
-    /// # use jni::{Env, objects::*, strings::*};
+    /// # use jni::{jni_sig, Env, objects::*, strings::*};
     /// # use std::fmt::Display;
     /// #
     /// # type SomeOtherErrorType = Box<dyn Display>;
@@ -1482,7 +1483,7 @@ See the jni-rs Env documentation for more details.
     ///
     ///                 env.new_object(
     ///                     c"java/lang/Error",
-    ///                     c"(Ljava/lang/String;)V",
+    ///                     jni_sig!("(Ljava/lang/String;)V"),
     ///                     &[
     ///                         (&error_string).into(),
     ///                     ],
@@ -1556,10 +1557,10 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{errors::Result, Env, objects::*};
+    /// # use jni::{jni_sig, errors::Result, Env, objects::*};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// let local_obj: JObject = env.new_object(c"java/lang/String", c"()V", &[])?;
+    /// let local_obj: JObject = env.new_object(c"java/lang/String", jni_sig!("()V"), &[])?;
     /// let local_string = env.new_cast_local_ref::<JString>(&local_obj)?;
     /// // local_string is now a JString<'local> in the current frame
     /// # Ok(())
@@ -1600,10 +1601,10 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{errors::Result, Env, objects::*};
+    /// # use jni::{jni_sig, errors::Result, Env, objects::*};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// let obj: JObject = env.new_object(c"java/lang/String", c"()V", &[])?;
+    /// let obj: JObject = env.new_object(c"java/lang/String", jni_sig!("()V"), &[])?;
     /// let string: JString = env.cast_local::<JString>(obj)?;
     ///
     /// // For upcasting, From trait is more efficient:
@@ -1647,10 +1648,10 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{errors::Result, Env, objects::*};
+    /// # use jni::{jni_sig, errors::Result, Env, objects::*};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// let obj: JObject = env.new_object(c"java/lang/String", c"()V", &[])?;
+    /// let obj: JObject = env.new_object(c"java/lang/String", jni_sig!("()V"), &[])?;
     /// let string_ref = env.as_cast::<JString>(&obj)?;
     /// // obj is still valid here
     /// let empty_string_contents = string_ref.to_string();
@@ -1683,10 +1684,10 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{errors::Result, Env, objects::*};
+    /// # use jni::{jni_sig, errors::Result, Env, objects::*};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// let obj: JObject = env.new_object(c"java/lang/String", c"()V", &[])?;
+    /// let obj: JObject = env.new_object(c"java/lang/String", jni_sig!("()V"), &[])?;
     /// let string_ref = unsafe { env.as_cast_unchecked::<JString>(&obj) };
     /// // obj is still valid here
     /// let empty_string_contents = string_ref.to_string();
@@ -2040,22 +2041,22 @@ See the jni-rs Env documentation for more details.
     //
     /// Common functionality for finding methods.
     #[allow(clippy::redundant_closure_call)]
-    fn get_method_id_base<'other_local_1, T, U, V, C, R>(
+    fn get_method_id_base<'other_local_1, 'sig, 'sig_args, C, N, S, M, R>(
         &mut self,
-        class: T,
-        name: U,
-        sig: V,
-        get_method: C,
+        class: C,
+        name: N,
+        sig: S,
+        get_method: M,
     ) -> Result<R>
     where
-        T: Desc<'local, JClass<'other_local_1>>,
-        U: AsRef<JNIStr>,
-        V: AsRef<JNIStr>,
-        C: for<'other_local_2> Fn(
+        C: Desc<'local, JClass<'other_local_1>>,
+        N: AsRef<JNIStr>,
+        S: AsRef<MethodSignature<'sig, 'sig_args>>,
+        M: for<'other_local_2, 'callback_sig, 'callback_sig_args> Fn(
             &mut Self,
             &JClass<'other_local_2>,
             &JNIStr,
-            &JNIStr,
+            &MethodSignature<'callback_sig, 'callback_sig_args>,
         ) -> Result<R>,
     {
         let class = class.lookup(self)?;
@@ -2069,7 +2070,7 @@ See the jni-rs Env documentation for more details.
             Err(e) => match e {
                 Error::NullPtr(_) => {
                     let name: String = ffi_name.to_str().into();
-                    let sig: String = sig.to_str().into();
+                    let sig: String = sig.as_ref().sig().to_string();
                     Err(Error::MethodNotFound { name, sig })
                 }
                 _ => Err(e),
@@ -2085,24 +2086,24 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{errors::Result, Env, objects::JMethodID};
+    /// # use jni::{jni_sig, errors::Result, Env, objects::JMethodID};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
     /// let method_id: JMethodID =
-    ///     env.get_method_id(c"java/lang/String", c"substring", c"(II)Ljava/lang/String;")?;
+    ///     env.get_method_id(c"java/lang/String", c"substring", jni_sig!("(II)Ljava/lang/String;"))?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn get_method_id<'other_local, T, U, V>(
+    pub fn get_method_id<'other_local, 'sig, 'sig_args, C, N, S>(
         &mut self,
-        class: T,
-        name: U,
-        sig: V,
+        class: C,
+        name: N,
+        sig: S,
     ) -> Result<JMethodID>
     where
-        T: Desc<'local, JClass<'other_local>>,
-        U: AsRef<JNIStr>,
-        V: AsRef<JNIStr>,
+        C: Desc<'local, JClass<'other_local>>,
+        N: AsRef<JNIStr>,
+        S: AsRef<MethodSignature<'sig, 'sig_args>>,
     {
         self.get_method_id_base(class, name, sig, |env, class, name, sig| unsafe {
             jni_call_check_ex_and_null_ret!(
@@ -2111,7 +2112,7 @@ See the jni-rs Env documentation for more details.
                 GetMethodID,
                 class.as_raw(),
                 name.as_ptr(),
-                sig.as_ptr()
+                sig.as_ref().sig().as_ptr()
             )
             .map(|method_id| JMethodID::from_raw(method_id))
         })
@@ -2125,24 +2126,23 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{errors::Result, Env, objects::JStaticMethodID};
-    /// #
+    /// # use jni::{jni_sig, errors::Result, Env, objects::JStaticMethodID};
     /// # fn example(env: &mut Env) -> Result<()> {
     /// let method_id: JStaticMethodID =
-    ///     env.get_static_method_id(c"java/lang/String", c"valueOf", c"(I)Ljava/lang/String;")?;
+    ///     env.get_static_method_id(c"java/lang/String", c"valueOf", jni_sig!("(I)Ljava/lang/String;"))?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn get_static_method_id<'other_local, T, U, V>(
+    pub fn get_static_method_id<'other_local, 'sig, 'sig_args, C, N, S>(
         &mut self,
-        class: T,
-        name: U,
-        sig: V,
+        class: C,
+        name: N,
+        sig: S,
     ) -> Result<JStaticMethodID>
     where
-        T: Desc<'local, JClass<'other_local>>,
-        U: AsRef<JNIStr>,
-        V: AsRef<JNIStr>,
+        C: Desc<'local, JClass<'other_local>>,
+        N: AsRef<JNIStr>,
+        S: AsRef<MethodSignature<'sig, 'sig_args>>,
     {
         self.get_method_id_base(class, name, sig, |env, class, name, sig| unsafe {
             jni_call_check_ex_and_null_ret!(
@@ -2151,7 +2151,7 @@ See the jni-rs Env documentation for more details.
                 GetStaticMethodID,
                 class.as_raw(),
                 name.as_ptr(),
-                sig.as_ptr()
+                sig.as_ref().sig().as_ptr()
             )
             .map(|method_id| JStaticMethodID::from_raw(method_id))
         })
@@ -2164,23 +2164,23 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{errors::Result, Env, objects::JFieldID};
+    /// # use jni::{jni_sig, errors::Result, Env, objects::JFieldID};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// let field_id: JFieldID = env.get_field_id(c"com/my/Class", c"intField", c"I")?;
+    /// let field_id: JFieldID = env.get_field_id(c"com/my/Class", c"intField", jni_sig!("I"))?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn get_field_id<'other_local, T, U, V>(
+    pub fn get_field_id<'other_local, 'sig, C, N, S>(
         &mut self,
-        class: T,
-        name: U,
-        sig: V,
+        class: C,
+        name: N,
+        sig: S,
     ) -> Result<JFieldID>
     where
-        T: Desc<'local, JClass<'other_local>>,
-        U: AsRef<JNIStr>,
-        V: AsRef<JNIStr>,
+        C: Desc<'local, JClass<'other_local>>,
+        N: AsRef<JNIStr>,
+        S: AsRef<FieldSignature<'sig>>,
     {
         let class = class.lookup(self)?;
         let ffi_name = name.as_ref();
@@ -2193,7 +2193,7 @@ See the jni-rs Env documentation for more details.
                 GetFieldID,
                 class.as_ref().as_raw(),
                 ffi_name.as_ptr(),
-                ffi_sig.as_ptr()
+                ffi_sig.sig().as_ptr()
             )
             .map(|field_id| JFieldID::from_raw(field_id))
         };
@@ -2203,7 +2203,7 @@ See the jni-rs Env documentation for more details.
             Err(e) => match e {
                 Error::NullPtr(_) => {
                     let name: String = ffi_name.to_str().into();
-                    let sig: String = ffi_sig.to_str().into();
+                    let sig: String = ffi_sig.sig().to_str().into();
                     Err(Error::FieldNotFound { name, sig })
                 }
                 _ => Err(e),
@@ -2218,14 +2218,14 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use jni::{errors::Result, Env, objects::JStaticFieldID};
+    /// # use jni::{jni_sig, errors::Result, Env, objects::JStaticFieldID};
     /// #
     /// # fn example(env: &mut Env) -> Result<()> {
-    /// let field_id: JStaticFieldID = env.get_static_field_id(c"com/my/Class", c"intField", c"I")?;
+    /// let field_id: JStaticFieldID = env.get_static_field_id(c"com/my/Class", c"intField", jni_sig!("I"))?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn get_static_field_id<'other_local, T, U, V>(
+    pub fn get_static_field_id<'other_local, 'sig, T, U, V>(
         &mut self,
         class: T,
         name: U,
@@ -2234,7 +2234,7 @@ See the jni-rs Env documentation for more details.
     where
         T: Desc<'local, JClass<'other_local>>,
         U: AsRef<JNIStr>,
-        V: AsRef<JNIStr>,
+        V: AsRef<FieldSignature<'sig>>,
     {
         let class = class.lookup(self)?;
         let ffi_name = name.as_ref();
@@ -2247,7 +2247,7 @@ See the jni-rs Env documentation for more details.
                 GetStaticFieldID,
                 class.as_ref().as_raw(),
                 ffi_name.as_ptr(),
-                ffi_sig.as_ptr()
+                ffi_sig.sig().as_ptr()
             )
             .map(|field_id| JStaticFieldID::from_raw(field_id))
         };
@@ -2260,7 +2260,7 @@ See the jni-rs Env documentation for more details.
             Err(e) => match e {
                 Error::NullPtr(_) => {
                     let name: String = ffi_name.to_str().into();
-                    let sig: String = ffi_sig.to_str().into();
+                    let sig: String = ffi_sig.sig().to_str().into();
                     Err(Error::FieldNotFound { name, sig })
                 }
                 _ => Err(e),
@@ -2512,27 +2512,25 @@ See the jni-rs Env documentation for more details.
     /// Calls an object method safely. This comes with a number of
     /// lookups/checks. It
     ///
-    /// * Parses the type signature to find the number of arguments and return
-    ///   type
-    /// * Looks up the JClass for the given object.
-    /// * Looks up the JMethodID for the class/name/signature combination
+    /// * Looks up the [JClass] for the given object.
+    /// * Looks up the [JMethodID] for the class/name/signature combination
     /// * Ensures that the number/types of args matches the signature
     ///   * Cannot check an object's type - but primitive types are matched against each other (including Object)
-    /// * Calls `call_method_unchecked` with the verified safe arguments.
+    /// * Calls [`Self::call_method_unchecked`] with the verified safe arguments.
     ///
     /// Note: this may cause a Java exception if the arguments are the wrong
     /// type, in addition to if the method itself throws.
-    pub fn call_method<'other_local, O, S, T>(
+    pub fn call_method<'other_local, 'sig, 'sig_args, O, N, S>(
         &mut self,
         obj: O,
-        name: S,
-        sig: T,
+        name: N,
+        sig: S,
         args: &[JValue],
     ) -> Result<JValueOwned<'local>>
     where
         O: AsRef<JObject<'other_local>>,
-        S: AsRef<JNIStr>,
-        T: AsRef<JNIStr>,
+        N: AsRef<JNIStr>,
+        S: AsRef<MethodSignature<'sig, 'sig_args>>,
     {
         // Runtime check that the 'local reference lifetime will be tied to
         // Env lifetime for the top JNI stack frame
@@ -2541,15 +2539,13 @@ See the jni-rs Env documentation for more details.
         let obj = null_check!(obj, "call_method obj argument")?;
         let sig = sig.as_ref();
 
-        // parse the signature
-        let parsed = TypeSignature::from_str(sig.to_str())?;
-        if parsed.args.len() != args.len() {
-            return Err(Error::InvalidArgList(parsed));
+        if sig.args().len() != args.len() {
+            return Err(Error::InvalidArgList(sig.into()));
         }
 
         // check arguments types
-        let base_types_match = parsed
-            .args
+        let base_types_match = sig
+            .args()
             .iter()
             .zip(args.iter())
             .all(|(exp, act)| match exp {
@@ -2557,7 +2553,7 @@ See the jni-rs Env documentation for more details.
                 JavaType::Object | JavaType::Array => act.primitive_type().is_none(),
             });
         if !base_types_match {
-            return Err(Error::InvalidArgList(parsed));
+            return Err(Error::InvalidArgList(sig.into()));
         }
 
         let class = self.get_object_class(obj)?.auto();
@@ -2567,45 +2563,42 @@ See the jni-rs Env documentation for more details.
         // SAFETY: We've obtained the method_id above, so it is valid for this class.
         // We've also validated the argument counts and types using the same type signature
         // we fetched the original method ID from.
-        unsafe { self.call_method_unchecked(obj, (&class, name, sig), parsed.ret, &args) }
+        unsafe { self.call_method_unchecked(obj, (&class, name, sig), sig.ret(), &args) }
     }
 
     /// Calls a static method safely. This comes with a number of
     /// lookups/checks. It
     ///
-    /// * Parses the type signature to find the number of arguments and return
-    ///   type
-    /// * Looks up the JMethodID for the class/name/signature combination
+    /// * Looks up the [JMethodID] for the class/name/signature combination
     /// * Ensures that the number/types of args matches the signature
     ///   * Cannot check an object's type - but primitive types are matched against each other (including Object)
-    /// * Calls `call_static_method_unchecked` with the verified safe arguments.
+    /// * Calls [`Self::call_static_method_unchecked`] with the verified safe arguments.
     ///
     /// Note: this may cause a Java exception if the arguments are the wrong
     /// type, in addition to if the method itself throws.
-    pub fn call_static_method<'other_local, T, U, V>(
+    pub fn call_static_method<'other_local, 'sig, 'sig_args, C, N, S>(
         &mut self,
-        class: T,
-        name: U,
-        sig: V,
+        class: C,
+        name: N,
+        sig: S,
         args: &[JValue],
     ) -> Result<JValueOwned<'local>>
     where
-        T: Desc<'local, JClass<'other_local>>,
-        U: AsRef<JNIStr>,
-        V: AsRef<JNIStr>,
+        C: Desc<'local, JClass<'other_local>>,
+        N: AsRef<JNIStr>,
+        S: AsRef<MethodSignature<'sig, 'sig_args>>,
     {
         // Runtime check that the 'local reference lifetime will be tied to
         // Env lifetime for the top JNI stack frame
         self.assert_top();
         let sig = sig.as_ref();
-        let parsed = TypeSignature::from_str(sig.to_str())?;
-        if parsed.args.len() != args.len() {
-            return Err(Error::InvalidArgList(parsed));
+        if sig.args().len() != args.len() {
+            return Err(Error::InvalidArgList(sig.into()));
         }
 
         // check arguments types
-        let base_types_match = parsed
-            .args
+        let base_types_match = sig
+            .args()
             .iter()
             .zip(args.iter())
             .all(|(exp, act)| match exp {
@@ -2613,7 +2606,7 @@ See the jni-rs Env documentation for more details.
                 JavaType::Object | JavaType::Array => act.primitive_type().is_none(),
             });
         if !base_types_match {
-            return Err(Error::InvalidArgList(parsed));
+            return Err(Error::InvalidArgList(sig.into()));
         }
 
         // go ahead and look up the class since we'll need that for the next call.
@@ -2625,34 +2618,32 @@ See the jni-rs Env documentation for more details.
         // SAFETY: We've obtained the method_id above, so it is valid for this class.
         // We've also validated the argument counts and types using the same type signature
         // we fetched the original method ID from.
-        unsafe { self.call_static_method_unchecked(class, (class, name, sig), parsed.ret, &args) }
+        unsafe { self.call_static_method_unchecked(class, (class, name, sig), sig.ret(), &args) }
     }
 
     /// Calls a non-virtual method safely. This comes with a number of
     /// lookups/checks. It
     ///
-    /// * Parses the type signature to find the number of arguments and return
-    ///   type
-    /// * Looks up the JMethodID for the class/name/signature combination
+    /// * Looks up the [JMethodID] for the class/name/signature combination
     /// * Ensures that the number/types of args matches the signature
     ///   * Cannot check an object's type - but primitive types are matched against each other (including Object)
-    /// * Calls `call_nonvirtual_method_unchecked` with the verified safe arguments.
+    /// * Calls [`Self::call_nonvirtual_method_unchecked`] with the verified safe arguments.
     ///
     /// Note: this may cause a Java exception if the arguments are the wrong
     /// type, in addition to if the method itself throws.
-    pub fn call_nonvirtual_method<'other_local, O, T, U, V>(
+    pub fn call_nonvirtual_method<'other_local, 'sig, 'sig_args, O, C, N, S>(
         &mut self,
         obj: O,
-        class: T,
-        name: U,
-        sig: V,
+        class: C,
+        name: N,
+        sig: S,
         args: &[JValue],
     ) -> Result<JValueOwned<'local>>
     where
         O: AsRef<JObject<'other_local>>,
-        T: Desc<'local, JClass<'other_local>>,
-        U: AsRef<JNIStr>,
-        V: AsRef<JNIStr>,
+        C: Desc<'local, JClass<'other_local>>,
+        N: AsRef<JNIStr>,
+        S: AsRef<MethodSignature<'sig, 'sig_args>>,
     {
         // Runtime check that the 'local reference lifetime will be tied to
         // Env lifetime for the top JNI stack frame
@@ -2660,15 +2651,13 @@ See the jni-rs Env documentation for more details.
         let obj = obj.as_ref();
         let obj = null_check!(obj, "call_method obj argument")?;
         let sig = sig.as_ref();
-
-        let parsed = TypeSignature::from_str(sig.to_str())?;
-        if parsed.args.len() != args.len() {
-            return Err(Error::InvalidArgList(parsed));
+        if sig.args().len() != args.len() {
+            return Err(Error::InvalidArgList(sig.into()));
         }
 
         // check arguments types
-        let base_types_match = parsed
-            .args
+        let base_types_match = sig
+            .args()
             .iter()
             .zip(args.iter())
             .all(|(exp, act)| match exp {
@@ -2676,7 +2665,7 @@ See the jni-rs Env documentation for more details.
                 JavaType::Object | JavaType::Array => act.primitive_type().is_none(),
             });
         if !base_types_match {
-            return Err(Error::InvalidArgList(parsed));
+            return Err(Error::InvalidArgList(sig.into()));
         }
 
         // go ahead and look up the class since we'll need that for the next call.
@@ -2689,50 +2678,47 @@ See the jni-rs Env documentation for more details.
         // We've also validated the argument counts and types using the same type signature
         // we fetched the original method ID from.
         unsafe {
-            self.call_nonvirtual_method_unchecked(obj, class, (class, name, sig), parsed.ret, &args)
+            self.call_nonvirtual_method_unchecked(obj, class, (class, name, sig), sig.ret(), &args)
         }
     }
 
     /// Create a new object using a constructor. This is done safely using
     /// checks similar to those in `call_static_method`.
-    pub fn new_object<'other_local, T, U>(
+    pub fn new_object<'other_local, 'sig, 'sig_args, C, S>(
         &mut self,
-        class: T,
-        ctor_sig: U,
+        class: C,
+        ctor_sig: S,
         ctor_args: &[JValue],
     ) -> Result<JObject<'local>>
     where
-        T: Desc<'local, JClass<'other_local>>,
-        U: AsRef<JNIStr>,
+        C: Desc<'local, JClass<'other_local>>,
+        S: AsRef<MethodSignature<'sig, 'sig_args>>,
     {
         // Runtime check that the 'local reference lifetime will be tied to
         // Env lifetime for the top JNI stack frame
         self.assert_top();
         let ctor_sig = ctor_sig.as_ref();
-        // parse the signature
-        let parsed = TypeSignature::from_str(ctor_sig.to_str())?;
 
         // check arguments length
-        if parsed.args.len() != ctor_args.len() {
-            return Err(Error::InvalidArgList(parsed));
+        if ctor_sig.args().len() != ctor_args.len() {
+            return Err(Error::InvalidArgList(ctor_sig.into()));
         }
 
         // check arguments types
-        let base_types_match =
-            parsed
-                .args
-                .iter()
-                .zip(ctor_args.iter())
-                .all(|(exp, act)| match exp {
-                    JavaType::Primitive(p) => act.primitive_type() == Some(*p),
-                    JavaType::Object | JavaType::Array => act.primitive_type().is_none(),
-                });
+        let base_types_match = ctor_sig
+            .args()
+            .iter()
+            .zip(ctor_args.iter())
+            .all(|(exp, act)| match exp {
+                JavaType::Primitive(p) => act.primitive_type() == Some(*p),
+                JavaType::Object | JavaType::Array => act.primitive_type().is_none(),
+            });
         if !base_types_match {
-            return Err(Error::InvalidArgList(parsed));
+            return Err(Error::InvalidArgList(ctor_sig.into()));
         }
 
         // check return value
-        if parsed.ret != ReturnType::Primitive(Primitive::Void) {
+        if ctor_sig.ret() != ReturnType::Primitive(Primitive::Void) {
             return Err(Error::InvalidCtorReturn);
         }
 
@@ -3478,7 +3464,7 @@ See the jni-rs Env documentation for more details.
         &mut self,
         obj: O,
         field: F,
-        ty: ReturnType,
+        ty: JavaType,
     ) -> Result<JValueOwned<'local>>
     where
         O: AsRef<JObject<'other_local>>,
@@ -3579,7 +3565,7 @@ See the jni-rs Env documentation for more details.
 
     /// Get a field. Requires an object class lookup and a field id lookup
     /// internally.
-    pub fn get_field<'other_local, O, N, S>(
+    pub fn get_field<'other_local, 'sig, O, N, S>(
         &mut self,
         obj: O,
         name: N,
@@ -3588,7 +3574,7 @@ See the jni-rs Env documentation for more details.
     where
         O: AsRef<JObject<'other_local>>,
         N: AsRef<JNIStr>,
-        S: AsRef<JNIStr>,
+        S: AsRef<FieldSignature<'sig>>,
     {
         // Runtime check that the 'local reference lifetime will be tied to
         // Env lifetime for the top JNI stack frame
@@ -3597,7 +3583,7 @@ See the jni-rs Env documentation for more details.
         let class = self.get_object_class(obj)?.auto();
 
         let sig = sig.as_ref();
-        let field_ty = JavaType::from_str(&sig.to_str())?;
+        let field_ty = sig.ty();
         let field_id: JFieldID = Desc::<JFieldID>::lookup((&class, name, sig), self)?;
 
         // Safety: Since we have explicitly looked up the field ID based on the given
@@ -3607,7 +3593,7 @@ See the jni-rs Env documentation for more details.
 
     /// Set a field. Does the same lookups as `get_field` and ensures that the
     /// type matches the given value.
-    pub fn set_field<'other_local, O, N, S>(
+    pub fn set_field<'other_local, 'sig, O, N, S>(
         &mut self,
         obj: O,
         name: N,
@@ -3617,11 +3603,11 @@ See the jni-rs Env documentation for more details.
     where
         O: AsRef<JObject<'other_local>>,
         N: AsRef<JNIStr>,
-        S: AsRef<JNIStr>,
+        S: AsRef<FieldSignature<'sig>>,
     {
         let obj = obj.as_ref();
         let sig = sig.as_ref();
-        let field_ty = JavaType::from_str(&sig.to_str())?;
+        let field_ty = sig.ty();
 
         if value.java_type() != field_ty {
             return Err(Error::WrongJValueType(value.type_name(), "see java field"));
@@ -3647,7 +3633,7 @@ See the jni-rs Env documentation for more details.
         &mut self,
         class: C,
         field: F,
-        ty: ReturnType,
+        ty: JavaType,
     ) -> Result<JValueOwned<'local>>
     where
         C: Desc<'local, JClass<'other_local>>,
@@ -3757,7 +3743,7 @@ See the jni-rs Env documentation for more details.
 
     /// Get a static field. Requires a class lookup and a field id lookup
     /// internally.
-    pub fn get_static_field<'other_local, C, N, S>(
+    pub fn get_static_field<'other_local, 'sig, C, N, S>(
         &mut self,
         class: C,
         name: N,
@@ -3766,13 +3752,13 @@ See the jni-rs Env documentation for more details.
     where
         C: Desc<'local, JClass<'other_local>>,
         N: AsRef<JNIStr>,
-        S: AsRef<JNIStr>,
+        S: AsRef<FieldSignature<'sig>>,
     {
         // Runtime check that the 'local reference lifetime will be tied to
         // Env lifetime for the top JNI stack frame
         self.assert_top();
         let sig = sig.as_ref();
-        let field_ty = JavaType::from_str(&sig.to_str())?;
+        let field_ty = sig.ty();
 
         // go ahead and look up the class since we'll need that for the next call.
         let class = class.lookup(self)?;
@@ -3784,7 +3770,7 @@ See the jni-rs Env documentation for more details.
     }
 
     /// Set a static field. Requires a class lookup and a field id lookup internally.
-    pub fn set_static_field<'other_local, C, N, S>(
+    pub fn set_static_field<'other_local, 'sig, C, N, S>(
         &mut self,
         class: C,
         name: N,
@@ -3794,10 +3780,10 @@ See the jni-rs Env documentation for more details.
     where
         C: Desc<'local, JClass<'other_local>>,
         N: AsRef<JNIStr>,
-        S: AsRef<JNIStr>,
+        S: AsRef<FieldSignature<'sig>>,
     {
         let sig = sig.as_ref();
-        let field_ty = JavaType::from_str(&sig.to_str())?;
+        let field_ty = sig.ty();
 
         if value.java_type() != field_ty {
             return Err(Error::WrongJValueType(value.type_name(), "see java field"));
@@ -3838,7 +3824,8 @@ See the jni-rs Env documentation for more details.
         self.with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, |env| {
             let obj = obj.as_ref();
             let class = env.get_object_class(obj)?;
-            let field_id: JFieldID = Desc::<JFieldID>::lookup((&class, &field, c"J"), env)?;
+            let field_id: JFieldID =
+                Desc::<JFieldID>::lookup((&class, &field, jni_sig!("J")), env)?;
             let guard = self.lock_obj(obj)?;
             Ok((guard, field_id))
         })

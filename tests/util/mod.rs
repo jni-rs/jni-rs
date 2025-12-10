@@ -1,6 +1,8 @@
 use std::sync::{Arc, Once};
 
-use jni::{errors::Result, objects::JValue, sys::jint, Env, InitArgsBuilder, JNIVersion, JavaVM};
+use jni::{
+    errors::Result, jni_sig, objects::JValue, sys::jint, Env, InitArgsBuilder, JNIVersion, JavaVM,
+};
 
 mod example_proxy;
 
@@ -36,7 +38,7 @@ pub fn call_java_abs(env: &mut Env, value: i32) -> i32 {
     env.call_static_method(
         c"java/lang/Math",
         c"abs",
-        c"(I)I",
+        jni_sig!("(I)I"),
         &[JValue::from(value as jint)],
     )
     .unwrap()

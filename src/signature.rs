@@ -5,7 +5,13 @@ use combine::{
     ParseError, Parser, RangeStream, StdParseResult, Stream,
 };
 
-use crate::{errors::*, strings::JNIStr};
+use crate::{
+    errors::*,
+    strings::{JNIStr, JNIString},
+};
+
+#[cfg(doc)]
+use crate::{jni_sig, Env};
 
 /// A primitive java type. These are the things that can be represented without
 /// an object.
@@ -90,11 +96,18 @@ pub type ReturnType = JavaType;
 
 /// A parsed JNI method signature
 ///
-/// This is a structured representation of a JNI method signature, such
-/// as `(Ljava/lang/String;)Z`.
+/// This is a structured representation of a JNI method signature, such as
+/// `(Ljava/lang/String;)Z`.
 ///
 /// The decomposed types are guaranteed to match the signature string and so
 /// they can be used for safe JNI calls without further validation.
+///
+/// Most of the time you should use the [`jni_sig!`] macro to derive method
+/// signatures at compile time.
+///
+/// If you need to parse method signatures at runtime, use
+/// [`RuntimeMethodSignature::from_str`] followed by
+/// [`RuntimeMethodSignature::method_signature`].
 #[allow(missing_docs)]
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct MethodSignature<'sig, 'args> {
@@ -148,6 +161,13 @@ impl<'sig, 'args> From<&MethodSignature<'sig, 'args>> for MethodSignature<'sig, 
 ///
 /// The field type is guaranteed to match the signature string and so
 /// it can be used for safe JNI calls without further validation.
+///
+/// Most of the time you should use the [`jni_sig!`] macro to derive field
+/// signatures at compile time.
+///
+/// If you need to parse field signatures at runtime, use
+/// [`RuntimeFieldSignature::from_str`] followed by
+/// [`RuntimeFieldSignature::field_signature`].
 #[allow(missing_docs)]
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct FieldSignature<'sig> {
@@ -180,32 +200,67 @@ impl<'sig> FieldSignature<'sig> {
 
 /// A runtime-parsed JNI method signature.
 ///
-/// This is a structured representation of a JNI method signature, such as
-/// `(Ljava/lang/String;)Z`.
+/// This is a structured representation of a JNI method signature, such
+/// as `(Ljava/lang/String;)Z`.
 ///
 /// The decomposed types are guaranteed to match the signature string and so
 /// they can be used for safe JNI calls without further validation.
 ///
-/// Used by the `call_(object|static)_method` functions on jnienv to ensure
-/// safety.
+/// A reference to `RuntimeSignature` can be converted into a `Signature`, which
+/// is used by the JNI functions, such as `call_(object|static)_method`.
 #[allow(missing_docs)]
 #[derive(Eq, PartialEq, Debug, Clone)]
-pub struct TypeSignature {
-    pub args: Vec<JavaType>,
-    pub ret: ReturnType,
+pub struct RuntimeMethodSignature {
+    sig: JNIString,
+    args: Vec<JavaType>,
+    ret: JavaType,
 }
 
-impl TypeSignature {
-    /// Parse a signature string into a TypeSignature enum.
-    // Clippy suggests implementing `FromStr` or renaming it which is not possible in our case.
+impl<'sig, 'args> AsRef<MethodSignature<'sig, 'args>> for MethodSignature<'sig, 'args> {
+    fn as_ref(&self) -> &MethodSignature<'sig, 'args> {
+        self
+    }
+}
+
+impl<'a> From<&'a RuntimeMethodSignature> for MethodSignature<'a, 'a> {
+    fn from(sig: &'a RuntimeMethodSignature) -> Self {
+        Self {
+            sig: &sig.sig,
+            args: &sig.args,
+            ret: sig.ret,
+        }
+    }
+}
+
+impl<'sig, 'args, M> From<M> for RuntimeMethodSignature
+where
+    M: AsRef<MethodSignature<'sig, 'args>>,
+{
+    fn from(sig: M) -> Self {
+        let sig = sig.as_ref();
+        Self {
+            sig: sig.sig().into(),
+            args: sig.args().to_vec(),
+            ret: sig.ret(),
+        }
+    }
+}
+
+impl RuntimeMethodSignature {
+    /// Parse a method signature string into a RuntimeMethodSignature enum.
     #[allow(clippy::should_implement_trait)]
-    pub fn from_str<S: AsRef<str>>(s: S) -> Result<TypeSignature> {
-        parser(parse_sig)
+    pub fn from_str<S: AsRef<str>>(s: S) -> Result<RuntimeMethodSignature> {
+        parser(parse_method_sig)
             .parse(s.as_ref())
             .map_err(|e| Error::ParseFailed(format!("Failed to parse '{}': {e}", s.as_ref())))
-            .map(|(sig, tail)| {
+            .map(|(RuntimeMethodSignature { sig: _, args, ret }, tail)| {
                 if tail.is_empty() {
-                    Ok(sig)
+                    Ok(RuntimeMethodSignature {
+                        // Note: the parser initially returns a placeholder, empty signature string,
+                        sig: JNIString::new(s.as_ref()),
+                        args,
+                        ret,
+                    })
                 } else {
                     Err(Error::ParseFailed(format!(
                         "Trailing input: '{tail}' while parsing '{}'",
@@ -214,17 +269,25 @@ impl TypeSignature {
                 }
             })?
     }
-}
 
-impl FromStr for TypeSignature {
-    type Err = Error;
-
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        TypeSignature::from_str(s)
+    /// Convert to a [MethodSignature] (for use with [Env] calls like [`Env::call_method`]).
+    ///
+    /// This is a cheap conversion, which borrows the signature string and
+    /// slices the argument vector, without any allocations.
+    pub fn method_signature(&self) -> MethodSignature<'_, '_> {
+        self.into()
     }
 }
 
-impl fmt::Display for TypeSignature {
+impl FromStr for RuntimeMethodSignature {
+    type Err = Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        RuntimeMethodSignature::from_str(s)
+    }
+}
+
+impl fmt::Display for RuntimeMethodSignature {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "(")?;
         for a in &self.args {
@@ -233,6 +296,96 @@ impl fmt::Display for TypeSignature {
         write!(f, ")")?;
         write!(f, "{}", self.ret)?;
         Ok(())
+    }
+}
+
+/// A runtime-parsed JNI field signature.
+///
+/// This is a structured representation of a JNI field signature, such as `[Ljava/lang/String;`.
+///
+/// The field type is guaranteed to match the signature string and so it can be
+/// used for safe JNI calls without further validation.
+///
+/// A reference to `RuntimeFieldSignature` can be converted into a
+/// `FieldSignature`, which is used by the JNI functions, such as
+/// `(get|set)_(static)_field`.
+#[allow(missing_docs)]
+#[derive(Eq, PartialEq, Debug, Clone)]
+pub struct RuntimeFieldSignature {
+    sig: JNIString,
+    ty: JavaType,
+}
+
+impl<'sig> AsRef<FieldSignature<'sig>> for FieldSignature<'sig> {
+    fn as_ref(&self) -> &FieldSignature<'sig> {
+        self
+    }
+}
+impl<'a> From<&'a RuntimeFieldSignature> for FieldSignature<'a> {
+    fn from(sig: &'a RuntimeFieldSignature) -> Self {
+        Self {
+            sig: &sig.sig,
+            ty: sig.ty,
+        }
+    }
+}
+
+impl<'sig, F> From<F> for RuntimeFieldSignature
+where
+    F: AsRef<FieldSignature<'sig>>,
+{
+    fn from(sig: F) -> Self {
+        let sig = sig.as_ref();
+        Self {
+            sig: sig.sig().into(),
+            ty: sig.ty(),
+        }
+    }
+}
+
+impl RuntimeFieldSignature {
+    /// Parse a field signature string into a RuntimeFieldSignature.
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str<S: AsRef<str>>(s: S) -> Result<RuntimeFieldSignature> {
+        parser(parse_field_sig)
+            .parse(s.as_ref())
+            .map_err(|e| Error::ParseFailed(format!("Failed to parse '{}': {e}", s.as_ref())))
+            .map(|(RuntimeFieldSignature { sig: _, ty }, tail)| {
+                if tail.is_empty() {
+                    // Note: the parser initially returns a placeholder, empty signature string,
+                    Ok(RuntimeFieldSignature {
+                        sig: JNIString::new(s.as_ref()),
+                        ty,
+                    })
+                } else {
+                    Err(Error::ParseFailed(format!(
+                        "Trailing input: '{tail}' while parsing '{}'",
+                        s.as_ref()
+                    )))
+                }
+            })?
+    }
+
+    /// Convert to a [FieldSignature] (for use with [Env] calls like [`Env::get_field`]).
+    ///
+    /// This is a cheap conversion, which borrows the signature string and
+    /// slices the argument vector, without any allocations.
+    pub fn field_signature(&self) -> FieldSignature<'_> {
+        self.into()
+    }
+}
+
+impl FromStr for RuntimeFieldSignature {
+    type Err = Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        RuntimeFieldSignature::from_str(s)
+    }
+}
+
+impl fmt::Display for RuntimeFieldSignature {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.ty)
     }
 }
 
@@ -263,13 +416,38 @@ where
     .into()
 }
 
+fn parse_non_void_primitive<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<Primitive, S>
+where
+    S::Error: ParseError<char, S::Range, S::Position>,
+{
+    let boolean = token('Z').map(|_| Primitive::Boolean);
+    let byte = token('B').map(|_| Primitive::Byte);
+    let char_type = token('C').map(|_| Primitive::Char);
+    let double = token('D').map(|_| Primitive::Double);
+    let float = token('F').map(|_| Primitive::Float);
+    let int = token('I').map(|_| Primitive::Int);
+    let long = token('J').map(|_| Primitive::Long);
+    let short = token('S').map(|_| Primitive::Short);
+
+    (boolean
+        .or(byte)
+        .or(char_type)
+        .or(double)
+        .or(float)
+        .or(int)
+        .or(long)
+        .or(short))
+    .parse_stream(input)
+    .into()
+}
+
 fn parse_array<'a, S>(input: &mut S) -> StdParseResult<JavaType, S>
 where
     S: RangeStream<Token = char, Range = &'a str>,
     S::Error: ParseError<char, S::Range, S::Position>,
 {
     let marker = token('[');
-    (marker, parser(parse_type))
+    (marker, parser(parse_non_void_type))
         .map(|(_, _ty)| JavaType::Array)
         .parse_stream(input)
         .into()
@@ -314,6 +492,19 @@ where
         .into()
 }
 
+fn parse_non_void_type<'a, S>(input: &mut S) -> StdParseResult<JavaType, S>
+where
+    S: RangeStream<Token = char, Range = &'a str>,
+    S::Error: ParseError<char, &'a str, S::Position>,
+{
+    parser(parse_non_void_primitive)
+        .map(JavaType::Primitive)
+        .or(parser(parse_array))
+        .or(parser(parse_object))
+        .parse_stream(input)
+        .into()
+}
+
 fn parse_args<'a, S>(input: &mut S) -> StdParseResult<Vec<JavaType>, S>
 where
     S: RangeStream<Token = char, Range = &'a str>,
@@ -324,13 +515,33 @@ where
         .into()
 }
 
-fn parse_sig<'a, S>(input: &mut S) -> StdParseResult<TypeSignature, S>
+fn parse_method_sig<'a, S>(input: &mut S) -> StdParseResult<RuntimeMethodSignature, S>
 where
     S: RangeStream<Token = char, Range = &'a str>,
     S::Error: ParseError<char, S::Range, S::Position>,
 {
+    // Note: we initially return a placeholder signature string, which is replaced later
     (parser(parse_args), parser(parse_type))
-        .map(|(a, r)| TypeSignature { args: a, ret: r })
+        .map(|(a, r)| RuntimeMethodSignature {
+            sig: JNIString::new(""),
+            args: a,
+            ret: r,
+        })
+        .parse_stream(input)
+        .into()
+}
+
+fn parse_field_sig<'a, S>(input: &mut S) -> StdParseResult<RuntimeFieldSignature, S>
+where
+    S: RangeStream<Token = char, Range = &'a str>,
+    S::Error: ParseError<char, S::Range, S::Position>,
+{
+    // Note: we initially return a placeholder signature string, which is replaced later
+    (parser(parse_non_void_type))
+        .map(|ty| RuntimeFieldSignature {
+            sig: JNIString::new(""),
+            ty,
+        })
         .parse_stream(input)
         .into()
 }
@@ -375,6 +586,10 @@ mod test {
             JavaType::Primitive(Primitive::Double)
         );
         assert_eq!(
+            "V".parse::<JavaType>().unwrap(),
+            JavaType::Primitive(Primitive::Void)
+        );
+        assert_eq!(
             "Ljava/lang/String;".parse::<JavaType>().unwrap(),
             JavaType::Object
         );
@@ -396,48 +611,67 @@ mod test {
         assert_matches!("L/java/lang/String;".parse::<JavaType>(), Err(_));
         assert_matches!("L/;".parse::<JavaType>(), Err(_));
         assert_matches!("L;".parse::<JavaType>(), Err(_));
+
+        // Void field types are invalid
+        assert_matches!("V".parse::<RuntimeFieldSignature>(), Err(_));
+
+        // Void arrays are invalid
+        assert_matches!("[V".parse::<JavaType>(), Err(_));
+        assert_matches!("[V".parse::<RuntimeFieldSignature>(), Err(_));
     }
 
     #[test]
     fn test_parser_signatures() {
         assert_eq!(
-            "()V".parse::<TypeSignature>().unwrap(),
-            TypeSignature {
+            "()V".parse::<RuntimeMethodSignature>().unwrap(),
+            RuntimeMethodSignature {
+                sig: JNIString::new("()V"),
                 args: vec![],
                 ret: ReturnType::Primitive(Primitive::Void)
             }
         );
         assert_eq!(
-            "(I)V".parse::<TypeSignature>().unwrap(),
-            TypeSignature {
+            "(I)V".parse::<RuntimeMethodSignature>().unwrap(),
+            RuntimeMethodSignature {
+                sig: JNIString::new("(I)V"),
                 args: vec![JavaType::Primitive(Primitive::Int)],
                 ret: ReturnType::Primitive(Primitive::Void)
             }
         );
         assert_eq!(
-            "(Ljava/lang/String;)I".parse::<TypeSignature>().unwrap(),
-            TypeSignature {
+            "(Ljava/lang/String;)I"
+                .parse::<RuntimeMethodSignature>()
+                .unwrap(),
+            RuntimeMethodSignature {
+                sig: JNIString::new("(Ljava/lang/String;)I"),
                 args: vec![JavaType::Object],
                 ret: ReturnType::Primitive(Primitive::Int)
             }
         );
         assert_eq!(
-            "([I)I".parse::<TypeSignature>().unwrap(),
-            TypeSignature {
+            "([I)I".parse::<RuntimeMethodSignature>().unwrap(),
+            RuntimeMethodSignature {
+                sig: JNIString::new("([I)I"),
                 args: vec![JavaType::Array],
                 ret: ReturnType::Primitive(Primitive::Int)
             }
         );
         assert_eq!(
-            "([Ljava/lang/String;)I".parse::<TypeSignature>().unwrap(),
-            TypeSignature {
+            "([Ljava/lang/String;)I"
+                .parse::<RuntimeMethodSignature>()
+                .unwrap(),
+            RuntimeMethodSignature {
+                sig: JNIString::new("([Ljava/lang/String;)I"),
                 args: vec![JavaType::Array],
                 ret: ReturnType::Primitive(Primitive::Int)
             }
         );
         assert_eq!(
-            "(I[Ljava/lang/String;Z)I".parse::<TypeSignature>().unwrap(),
-            TypeSignature {
+            "(I[Ljava/lang/String;Z)I"
+                .parse::<RuntimeMethodSignature>()
+                .unwrap(),
+            RuntimeMethodSignature {
+                sig: JNIString::new("(I[Ljava/lang/String;Z)I"),
                 args: vec![
                     JavaType::Primitive(Primitive::Int),
                     JavaType::Array,
@@ -447,17 +681,28 @@ mod test {
             }
         );
 
-        assert_matches!("".parse::<TypeSignature>(), Err(_));
-        assert_matches!("()".parse::<TypeSignature>(), Err(_));
-        assert_matches!("V".parse::<TypeSignature>(), Err(_));
-        assert_matches!("(I".parse::<TypeSignature>(), Err(_));
-        assert_matches!("I)I".parse::<TypeSignature>(), Err(_));
-        assert_matches!("(I)".parse::<TypeSignature>(), Err(_));
-        assert_matches!("(Invalid)I".parse::<TypeSignature>(), Err(_));
+        assert_matches!("".parse::<RuntimeMethodSignature>(), Err(_));
+        assert_matches!("()".parse::<RuntimeMethodSignature>(), Err(_));
+        assert_matches!("V".parse::<RuntimeMethodSignature>(), Err(_));
+        assert_matches!("(I".parse::<RuntimeMethodSignature>(), Err(_));
+        assert_matches!("I)I".parse::<RuntimeMethodSignature>(), Err(_));
+        assert_matches!("(I)".parse::<RuntimeMethodSignature>(), Err(_));
+        assert_matches!("(Invalid)I".parse::<RuntimeMethodSignature>(), Err(_));
         // We shouldn't recursively allow method signatures as method argument types (#597)
-        assert_matches!("((()I)I)I".parse::<TypeSignature>(), Err(_));
-        assert_matches!("(I)V ".parse::<TypeSignature>(), Err(_));
-        assert_matches!("()java/lang/List".parse::<TypeSignature>(), Err(_));
-        assert_matches!("(L/java/lang/String)V".parse::<TypeSignature>(), Err(_));
+        assert_matches!("((()I)I)I".parse::<RuntimeMethodSignature>(), Err(_));
+        assert_matches!("(I)V ".parse::<RuntimeMethodSignature>(), Err(_));
+        assert_matches!("()java/lang/List".parse::<RuntimeMethodSignature>(), Err(_));
+        assert_matches!(
+            "(L/java/lang/String)V".parse::<RuntimeMethodSignature>(),
+            Err(_)
+        );
+
+        // Void arrays are invalid in method arguments
+        assert_matches!("([V)V".parse::<RuntimeMethodSignature>(), Err(_));
+        assert_matches!("(I[V)V".parse::<RuntimeMethodSignature>(), Err(_));
+        assert_matches!("([VI)V".parse::<RuntimeMethodSignature>(), Err(_));
+        // Void arrays are invalid as return types
+        assert_matches!("()[V".parse::<RuntimeMethodSignature>(), Err(_));
+        assert_matches!("(I)[V".parse::<RuntimeMethodSignature>(), Err(_));
     }
 }
