@@ -1,12 +1,12 @@
 use std::{
-    cell::{Cell, RefCell},
+    cell::Cell,
     os::raw::c_char,
     ptr,
     sync::atomic::{AtomicUsize, Ordering},
     thread::{Thread, current},
 };
 
-use log::{debug, error};
+use log::debug;
 
 use crate::{
     JNIVersion,
@@ -21,6 +21,11 @@ use crate::{
 use std::{os::raw::c_void, path::PathBuf};
 #[cfg(feature = "invocation")]
 use {crate::InitArgs, std::ffi::OsStr};
+
+#[cfg(use_fls_attach_guard)]
+use super::fls_attach_guard;
+#[cfg(use_tls_attach_guard)]
+use super::tls_attach_guard;
 
 #[cfg(doc)]
 use {
@@ -299,8 +304,15 @@ impl JavaVM {
         // `sys_attach_current_thread` and the `Default` `config` is benign here because it will be
         // ignored while the thread is already attached.
         //
-        // This will track the new attachment in TLS, under `THREAD_ATTACH_GUARD`
-        unsafe { TLSAttachGuard::attach_current_thread(&vm, &Default::default())? };
+        // This will track the new attachment in TLS/FLS
+        #[cfg(use_tls_attach_guard)]
+        unsafe {
+            tls_attach_guard::tls_attach_current_thread(&vm, &Default::default())?
+        };
+        #[cfg(use_fls_attach_guard)]
+        unsafe {
+            fls_attach_guard::fls_attach_current_thread(&vm, &Default::default())?
+        };
 
         Ok(vm)
     }
@@ -637,18 +649,32 @@ impl JavaVM {
         // - The minimum supported JNI version is >= 1.4
         // - The caller is responsible for managing the returned guard safely
         let guard = unsafe {
-            if let Some(guard) = Self::tls_get_env_attachment() {
+            // Note: Even Windows (where we track permanent attachments via FLS) we use TLS to track
+            // active AttachGuards for the current thread because we assume that fibers using JNI must
+            // not be switched out or freed while they have active AttachGuards.
+            if let Some(guard) = Self::try_get_nested_env_attach_guard::<'scope>() {
                 guard
             } else {
+                // If we don't have an active AttachGuard we _always_ check the real JNI GetEnv
+                // state even if we have a permanent attachment recorded in TLS/FLS. We want to be
+                // resilient to external code detaching the thread, so long as there are no active
+                // AttachGuards.
                 match self.sys_get_env_attachment() {
                     Ok(guard) => guard,
                     Err(Error::JniCall(JniError::ThreadDetached)) => {
                         let config = config();
                         if config.scoped {
-                            let jni = sys_attach_current_thread(self, &config, &current())?;
+                            let jni = sys_attach_current_thread(self, &config, &current(), true)?;
                             AttachGuard::from_owned(jni)
                         } else {
-                            TLSAttachGuard::attach_current_thread(self, &config)?
+                            #[cfg(use_tls_attach_guard)]
+                            {
+                                tls_attach_guard::tls_attach_current_thread(self, &config)?
+                            }
+                            #[cfg(use_fls_attach_guard)]
+                            {
+                                fls_attach_guard::fls_attach_current_thread(self, &config)?
+                            }
                         }
                     }
                     Err(err) => Err(err)?,
@@ -670,12 +696,18 @@ impl JavaVM {
     /// Detaching a non-attached thread is a no-op that won't return an error (assuming there's no
     /// active [`AttachGuard`] as noted above).
     ///
-    /// This API has no effect on scoped attachments that were created via
-    /// [`JavaVM::attach_current_thread_for_scope`]. Or in other words it's not applicable to scoped
-    /// attachments because it's an error to call while there are active [`AttachGuard`]s.
+    /// This API has no effect on thread attachments that were created outside of this crate's API
+    /// (such as other JNI language bindings).
     ///
-    /// _**Note**: It's _rarely_ necessary to use this API because a thread that is attached
-    /// via [`JavaVM::attach_current_thread`] will automatically detach when that thread terminates.
+    /// This API is not applicable to scoped attachments because it's an error to call while there
+    /// are active [`AttachGuard`]s.
+    ///
+    /// **Windows Note**: On Windows, in the unlikely event that you have multiple fibers scheduled
+    /// on the same thread, this API only has an effect within the context of a fiber that previously
+    /// attached the thread to the JVM via [`JavaVM::attach_current_thread`].
+    ///
+    /// _**Note**: It's _rarely_ necessary to use this API because a thread that is attached via
+    /// [`JavaVM::attach_current_thread`] will automatically detach when that thread terminates.
     ///
     /// Explicitly detaching the thread could lead to overheads later if the same thread needs to
     /// get re-attached.
@@ -684,12 +716,28 @@ impl JavaVM {
     /// attachment via [`JavaVM::attach_current_thread_for_scope`] could be used so that the
     /// detachment would happen automatically.
     pub fn detach_current_thread(&self) -> Result<()> {
-        TLSAttachGuard::detach()
+        if THREAD_GUARD_NEST_LEVEL.get() != 0 {
+            return Err(Error::ThreadAttachmentGuarded);
+        }
+
+        #[cfg(use_tls_attach_guard)]
+        {
+            tls_attach_guard::tls_detach_current_thread()
+        }
+
+        #[cfg(use_fls_attach_guard)]
+        {
+            fls_attach_guard::fls_detach_current_thread()
+        }
     }
 
     /// Returns the current number of threads attached to the JVM.
     ///
-    /// This method is provided mostly for diagnostic purposes.
+    /// This only counts the thread attachments made via this library's API.
+    ///
+    /// This method is provided mostly for diagnostic purposes / unit tests.
+    ///
+    /// Check the docs for `ATTACHED_THREADS` for more details - including caveats for Windows with FLS.
     #[doc(hidden)]
     pub fn threads_attached(&self) -> usize {
         ATTACHED_THREADS.load(Ordering::SeqCst)
@@ -751,8 +799,10 @@ impl JavaVM {
         }
     }
 
-    /// Returns an [`AttachGuard`] for the [`Env`] associated with the current thread or, `None` if
-    /// JNI is not attached to the Java VM.
+    /// Returns an [`AttachGuard`] for the [`Env`] associated with the current thread, if there is
+    /// already at least one `AttachGuard` on the stack for the current thread.
+    ///
+    /// Returns None if there is no `AttachGuard` on the stack for the current thread.
     ///
     /// This serves a similar purpose to [`sys::JNIInvokeInterface__1_2::GetEnv`] in that it
     /// provides access to the current thread's JNI environment if JNI is attached.
@@ -761,13 +811,18 @@ impl JavaVM {
     /// [`AttachGuard::from_unowned`]). I.e. the implementation only checks crate-specific thread
     /// local storage and will not actually call [`sys::JNIInvokeInterface__1_2::GetEnv`].
     ///
-    /// Consider using [`Self::with_local_frame`] or [`Self::with_top_local_frame`] as safe
-    /// alternatives for running code against the currently attached JNI environment.
+    /// More-specifically, this will only recognise attachments while there is an `AttachGuard` on
+    /// the stack for the current thread. Once all `AttachGuard`s for the current thread have been
+    /// dropped, this API will return `None` even if a permanent attachment exists, that is being
+    /// tracked via TLS/FLS outside of an `AttachGuard`.
+    ///
+    /// This API can be used speculatively before calling sys_get_env_attachment to avoid making a
+    /// JNI call to query the current JNI environment.
     ///
     /// # Safety
     ///
     /// See the 'Safety' rules for [`AttachGuard`]
-    pub(crate) unsafe fn tls_get_env_attachment<'local>() -> Option<AttachGuard<'local>> {
+    pub(crate) unsafe fn try_get_nested_env_attach_guard<'local>() -> Option<AttachGuard<'local>> {
         let env_ptr = THREAD_ATTACHMENT.get();
         if env_ptr.is_null() {
             None
@@ -800,7 +855,7 @@ impl JavaVM {
         _scope: &'scope mut ScopeToken,
     ) -> Result<AttachGuard<'scope>> {
         unsafe {
-            match Self::tls_get_env_attachment() {
+            match Self::try_get_nested_env_attach_guard() {
                 Some(guard) => Ok(guard),
                 None => self.sys_get_env_attachment(),
             }
@@ -1002,13 +1057,30 @@ impl<'a> AttachConfig<'a> {
     }
 }
 
-static ATTACHED_THREADS: AtomicUsize = AtomicUsize::new(0);
+/// Tracks the number of logical attachments managed by this crate.
+///
+/// This is unconditionally incremented for each call to `sys_attach_current_thread` and decremented
+/// for each call to `sys_detach_current_thread`.
+///
+/// **Windows with FLS caveats:**
+///
+/// On Windows with FLS, this still typically corresponds to the number of OS threads attached,
+/// because only one fiber per-OS-thread will be responsible for attaching to the JVM (others would
+/// observe that something has already attached the OS thread).
+///
+/// In the unlikely situation where JNI is manually used to detach an OS thread (allowed if there
+/// are no active AttachGuards), then multiple fibers could separately attach the same OS thread and
+/// both increment this counter. They will also both decrement the counter when they are freed (or
+/// if detach_current_thread() is called from each fiber).
+pub(super) static ATTACHED_THREADS: AtomicUsize = AtomicUsize::new(0);
 
-unsafe fn sys_attach_current_thread(
+pub(super) unsafe fn sys_attach_current_thread(
     vm: &JavaVM,
     config: &AttachConfig,
     thread: &Thread,
+    inc_attached_count: bool,
 ) -> Result<*mut sys::JNIEnv> {
+    assert_eq!(JavaVM::thread_attach_guard_level(), 0);
     let mut env_ptr = ptr::null_mut();
     let mut args = sys::JavaVMAttachArgs {
         version: JNIVersion::V1_4.into(),
@@ -1034,7 +1106,17 @@ unsafe fn sys_attach_current_thread(
     };
     jni_error_code_to_result(res)?;
 
-    ATTACHED_THREADS.fetch_add(1, Ordering::SeqCst);
+    // Increment the attached thread count only if requested.
+    //
+    // This is used to avoid double-counting when re-attaching a permanently-attached thread that
+    // got manually detached outside of this crate's APIs (e.g., via raw JNI calls).
+    //
+    // I.e. the only time this should be false is when we are re-attaching via
+    // tls_attach_current_thread or fls_attach_current_thread after detecting that the thread
+    // already had a permanent attachment.
+    if inc_attached_count {
+        ATTACHED_THREADS.fetch_add(1, Ordering::SeqCst);
+    }
 
     debug!(
         "Attached thread {} ({:?}). {} threads attached",
@@ -1046,34 +1128,71 @@ unsafe fn sys_attach_current_thread(
     Ok(env_ptr as *mut sys::JNIEnv)
 }
 
-/// Detach a thread, asserting that we own the current attachment and have a valid `Env` pointer
+/// Detach a thread from the JVM.
 ///
-/// Although `DetachCurrentThread` is part of the `JavaVM` "invocation" API and doesn't require a
-/// `Env` pointer, we want to constrain this code to only ever detach threads if we own the
-/// current attachment.
-unsafe fn sys_detach_current_thread(env_ptr: *mut jni_sys::JNIEnv, thread: &Thread) -> Result<()> {
+/// If `cross_check_env` is provided, this function will verify that the env pointer matches the
+/// current thread's attachment before detaching. This provides a defensive check that we "own" the
+/// current attachment. We only use this when detaching scoped attachments.
+///
+/// If `cross_check_env` is None, the check is skipped. This is useful in scenarios where the env
+/// pointer may have become stale (e.g., when multiple Windows fibers on the same thread each
+/// attempt to detach after one has already succeeded).
+///
+/// The `ATTACHED_THREADS` count is always decremented when this is called, even if the thread
+/// was already detached by other means (e.g., manual `DetachCurrentThread` call via raw JNI API,
+/// or by another fiber on Windows). This maintains correct logical accounting - we track how many
+/// times *we* attached, not the actual JVM attachment state.
+pub(super) unsafe fn sys_detach_current_thread(
+    cross_check_env: Option<*mut jni_sys::JNIEnv>,
+    thread: &Thread,
+) -> Result<()> {
     assert_eq!(JavaVM::thread_attach_guard_level(), 0);
 
-    unsafe {
-        let mut guard = AttachGuard::from_unowned(env_ptr);
-        let env = guard.borrow_env_mut();
-        let vm = env.get_java_vm();
+    let vm = JavaVM::singleton()?;
 
-        let vm_get_env_guard = vm.sys_get_env_attachment()?;
-
-        // Maybe just assert_eq!() ?
-        if vm_get_env_guard.env.raw != env_ptr {
-            return Err(Error::JniCall(JniError::InvalidArguments));
+    // Check if thread is actually attached before attempting to detach
+    let was_attached = match unsafe { vm.sys_get_env_attachment() } {
+        Ok(guard) => {
+            // Optional defensive cross-check: verify env matches current thread
+            if let Some(expected_env) = cross_check_env {
+                if guard.env.raw != expected_env {
+                    return Err(Error::JniCall(JniError::InvalidArguments));
+                }
+            }
+            drop(guard);
+            true
         }
+        Err(Error::JniCall(JniError::ThreadDetached)) => false,
+        Err(e) => return Err(e),
+    };
 
-        java_vm_call_unchecked!(vm, v1_1, DetachCurrentThread);
+    if was_attached {
+        // Only actually detach if thread is still attached
+        unsafe {
+            java_vm_call_unchecked!(vm, v1_1, DetachCurrentThread);
+        }
+        debug!(
+            "Detached thread {} ({:?})",
+            thread.name().unwrap_or_default(),
+            thread.id()
+        );
+    } else {
+        // Thread already detached (e.g., by another fiber on Windows, or manual DetachCurrentThread)
+        debug!(
+            "Thread {} ({:?}) already detached (skipping DetachCurrentThread)",
+            thread.name().unwrap_or_default(),
+            thread.id()
+        );
     }
+
+    // ALWAYS decrement the logical count, even if thread was already detached.
+    // This maintains correct bookkeeping:
+    // - On Windows with FLS: each fiber attachment increments this counter
+    // - On other platforms with TLS: each thread attachment increments this counter
     ATTACHED_THREADS.fetch_sub(1, Ordering::SeqCst);
 
     debug!(
-        "Detached thread {} ({:?}). {} threads remain attached",
-        thread.name().unwrap_or_default(),
-        thread.id(),
+        "{} attachments remain (logical count)",
         ATTACHED_THREADS.load(Ordering::SeqCst)
     );
 
@@ -1085,7 +1204,7 @@ thread_local! {
     #[cfg_attr(target_os = "android", allow(clippy::missing_const_for_thread_local))]
     static THREAD_ATTACHMENT: Cell<*mut jni_sys::JNIEnv> = const { Cell::new(std::ptr::null_mut()) };
     #[cfg_attr(target_os = "android", allow(clippy::missing_const_for_thread_local))]
-    static THREAD_GUARD_NEST_LEVEL: Cell<usize> = const { Cell::new(0) };
+    pub(super) static THREAD_GUARD_NEST_LEVEL: Cell<usize> = const { Cell::new(0) };
 }
 
 /// Represents a JNI attachment of the current thread to a Java VM, which is
@@ -1323,7 +1442,7 @@ impl<'local> AttachGuard<'local> {
                 new_level, 0,
                 "Spurious AttachGuard that owns its attachment but is nested under another guard"
             );
-            unsafe { sys_detach_current_thread(self.env.raw, &std::thread::current()) }
+            unsafe { sys_detach_current_thread(Some(self.env.raw), &std::thread::current()) }
         } else {
             Ok(())
         }
@@ -1358,84 +1477,6 @@ impl Drop for AttachGuard<'_> {
         if let Err(err) = unsafe { self.detach_impl() } {
             // This probably means that something `unsafe` happened to detach the thread already
             log::error!("Failed to detach current JNI thread: {err}");
-        }
-    }
-}
-
-thread_local! {
-    // There's a false-positive Clippy bug: https://github.com/rust-lang/rust-clippy/issues/13422
-    #[cfg_attr(target_os = "android", allow(clippy::missing_const_for_thread_local))]
-    static THREAD_ATTACH_GUARD: RefCell<Option<TLSAttachGuard>> = const { RefCell::new(None) }
-}
-
-#[derive(Debug)]
-struct TLSAttachGuard {
-    env: *mut jni_sys::JNIEnv,
-    /// A call std::thread::current() function can panic in case the local data has been destroyed
-    /// before the thead local variables. The possibility of this happening depends on the platform
-    /// implementation of the sys_common::thread_local_dtor::register_dtor_fallback.
-    ///
-    /// Since this struct will be saved as a thread-local variable, we capture the thread meta-data
-    /// during creation
-    thread: Thread,
-}
-
-impl TLSAttachGuard {
-    /// Detach a thread before the thread terminates **IFF** it was previously attached via
-    /// [`JavaVM::attach_current_thread`] **AND** there is no active [`AttachGuard`] in use
-    /// for this thread.
-    fn detach() -> Result<()> {
-        if THREAD_GUARD_NEST_LEVEL.get() != 0 {
-            return Err(Error::ThreadAttachmentGuarded);
-        }
-
-        THREAD_ATTACH_GUARD.with(move |f| {
-            if let Some(guard) = f.borrow_mut().take() {
-                // Safety: we use `std::mem::forget` to ensure we don't also
-                // run the `Drop` implementation
-                let res = unsafe { guard.detach_impl() };
-                std::mem::forget(guard);
-                res
-            } else {
-                Ok(())
-            }
-        })
-    }
-
-    unsafe fn attach_current_thread<'local>(
-        java_vm: &JavaVM,
-        config: &AttachConfig,
-    ) -> Result<AttachGuard<'local>> {
-        let thread = current();
-        let env = unsafe { sys_attach_current_thread(java_vm, config, &thread)? };
-        THREAD_ATTACH_GUARD.with(move |f| {
-            *f.borrow_mut() = Some(Self {
-                env,
-                thread: current(),
-            });
-        });
-        Ok(unsafe { AttachGuard::from_unowned(env) })
-    }
-
-    /// Detach the current thread after checking there are no active [`AttachGuard`]s
-    ///
-    /// # Safety
-    /// Since this is used in the implementation of `Drop` you must make sure
-    /// to not let `Drop` run if this is called explicitly.
-    unsafe fn detach_impl(&self) -> Result<()> {
-        unsafe { sys_detach_current_thread(self.env, &self.thread) }
-    }
-}
-
-impl Drop for TLSAttachGuard {
-    fn drop(&mut self) {
-        if let Err(e) = unsafe { self.detach_impl() } {
-            error!(
-                "Error detaching current thread: {:#?}\nThread {} id={:?}",
-                e,
-                self.thread.name().unwrap_or_default(),
-                self.thread.id(),
-            );
         }
     }
 }

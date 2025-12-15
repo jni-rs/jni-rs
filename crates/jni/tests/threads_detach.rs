@@ -10,6 +10,8 @@ use util::{
 
 use rusty_fork::rusty_fork_test;
 
+use crate::util::sys_detach_current_thread;
+
 rusty_fork_test! {
 #[test]
 fn thread_detaches_for_tls_attachment_when_finished() {
@@ -24,6 +26,66 @@ fn thread_detaches_for_tls_attachment_when_finished() {
     });
 
     thread.join().unwrap();
+    assert_eq!(jvm().threads_attached(), 0);
+    assert!(!util::is_thread_attached());
+}
+}
+
+// So long as there are no active AttachGuards the jni crate aims to handle the possibility that
+// external code may detach the thread from the JVM.
+//
+// In this case the threads_attached counter will temporarily be out-of-sync until the next time
+// attach_current_thread() is called, at which point the thread should be re-attached but the
+// counter should not be double incremented.
+//rusty_fork_test! {
+rusty_fork_test! {
+fn threads_external_detach() {
+    // A newly created VM will be attached
+    assert_eq!(jvm().threads_attached(), 1);
+
+    // Safety: there are no active AttachGuards on this thread
+    unsafe { sys_detach_current_thread(); }
+    assert!(!util::is_thread_attached());
+    assert_eq!(jvm().threads_attached(), 1);
+
+    let thread = spawn(|| {
+        attach_current_thread(|env| {
+            let val = call_java_abs(env, -2);
+            assert_eq!(val, 2);
+            assert_eq!(jvm().threads_attached(), 2);
+
+            Ok(())
+        }).unwrap();
+
+        assert!(util::is_thread_attached());
+        assert_eq!(jvm().threads_attached(), 2);
+
+        // Safety: there are no active AttachGuards on this thread
+        unsafe { sys_detach_current_thread(); }
+        assert!(!util::is_thread_attached());
+        assert_eq!(jvm().threads_attached(), 2);
+    });
+
+    thread.join().unwrap();
+
+    // Since the main thread was detached manually the counter should still be 1
+    // while the main thread is detached
+    assert_eq!(jvm().threads_attached(), 1);
+    assert!(!util::is_thread_attached());
+
+    eprintln!("Calling attach_current_thread(), which should re-attach the main thread");
+    attach_current_thread(|env| {
+        assert!(util::is_thread_attached());
+        let val = call_java_abs(env, -3);
+        assert_eq!(val, 3);
+        assert_eq!(jvm().threads_attached(), 1);
+        Ok(())
+    }).unwrap();
+
+    assert!(util::is_thread_attached());
+    assert_eq!(jvm().threads_attached(), 1);
+
+    util::detach_current_thread().unwrap();
     assert_eq!(jvm().threads_attached(), 0);
     assert!(!util::is_thread_attached());
 }

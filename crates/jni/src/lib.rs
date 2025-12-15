@@ -251,6 +251,9 @@ pub use jni_sys as sys;
 mod version;
 pub use self::version::*;
 
+#[cfg(windows)]
+mod windows_sys;
+
 #[macro_use]
 mod macros;
 

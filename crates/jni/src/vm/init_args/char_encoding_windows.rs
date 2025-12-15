@@ -1,6 +1,5 @@
 use super::{JvmError, char_encoding_generic::*};
-#[path = "../../windows_sys.rs"]
-mod winnls;
+use crate::windows_sys;
 use std::{
     borrow::Cow,
     convert::TryInto,
@@ -75,7 +74,7 @@ pub(super) fn str_to_cstr_win32(
         | 65000
         | 65001 => 0,
 
-        _ => winnls::WC_COMPOSITECHECK | winnls::WC_NO_BEST_FIT_CHARS,
+        _ => windows_sys::WC_COMPOSITECHECK | windows_sys::WC_NO_BEST_FIT_CHARS,
     };
 
     // Find out how much buffer space will be needed for the output and whether the string is
@@ -84,7 +83,7 @@ pub(super) fn str_to_cstr_win32(
         // All characters are representable in UTF-7 and UTF-8, and moreover
         // `WideCharToMultiByte` will fail if the target encoding is UTF-7 or UTF-8 and this is not
         // `None`.
-        winnls::CP_UTF7 | winnls::CP_UTF8 => None,
+        windows_sys::CP_UTF7 | windows_sys::CP_UTF8 => None,
         _ => Some(MaybeUninit::uninit()),
     };
 
@@ -92,7 +91,7 @@ pub(super) fn str_to_cstr_win32(
     // length. `lpDefaultChar` is null. `lpUsedDefaultChar` is either null or valid. `cbMultiByte`
     // is zero.
     let required_buffer_space = unsafe {
-        winnls::WideCharToMultiByte(
+        windows_sys::WideCharToMultiByte(
             needed_codepage,
             conversion_flags,
             s_utf16.as_ptr(),
@@ -145,7 +144,7 @@ pub(super) fn str_to_cstr_win32(
     // `chunk_output_ptr` is a valid pointer, and `required_buffer_space` is its length.
     // All other raw pointers are null.
     let used_buffer_space = unsafe {
-        winnls::WideCharToMultiByte(
+        windows_sys::WideCharToMultiByte(
             needed_codepage,
             conversion_flags,
             s_utf16.as_ptr(),
@@ -190,9 +189,9 @@ pub(super) fn str_to_cstr_win32_default_codepage(s: Cow<str>) -> Result<Cow<CStr
     // Windows convert the string to the expected code page first.
 
     // Safety: This function isn't actually unsafe.
-    let needed_codepage = unsafe { winnls::GetACP() };
+    let needed_codepage = unsafe { windows_sys::GetACP() };
 
-    if needed_codepage == winnls::CP_UTF8 {
+    if needed_codepage == windows_sys::CP_UTF8 {
         // The code page is UTF-8! Lucky us.
         return utf8_to_cstr(s);
     }
@@ -224,7 +223,7 @@ fn codepage_to_string_win32(
 
     // Safety: All of these pointers and lengths are valid and checked for overflow.
     let utf16_units_transcoded = unsafe {
-        winnls::MultiByteToWideChar(
+        windows_sys::MultiByteToWideChar(
             codepage,
             0,
             codepage_string_slice.as_ptr() as *const _,
@@ -256,7 +255,7 @@ fn test() {
     use assert_matches::assert_matches;
 
     {
-        let result = str_to_cstr_win32("Hello, world 😎".into(), winnls::CP_UTF8).unwrap();
+        let result = str_to_cstr_win32("Hello, world 😎".into(), windows_sys::CP_UTF8).unwrap();
         assert_eq!(
             result.to_bytes_with_nul(),
             b"Hello, world \xf0\x9f\x98\x8e\0"
@@ -265,7 +264,7 @@ fn test() {
     }
 
     {
-        let result = str_to_cstr_win32("Hello, world 😎\0".into(), winnls::CP_UTF8).unwrap();
+        let result = str_to_cstr_win32("Hello, world 😎\0".into(), windows_sys::CP_UTF8).unwrap();
         assert_eq!(
             result.to_bytes_with_nul(),
             b"Hello, world \xf0\x9f\x98\x8e\0"
@@ -368,7 +367,7 @@ fn test_overflow() {
         //eprintln!("Transcoding ASCII string that's too long");
         expect_opt_string_too_long(
             &string,
-            str_to_cstr_win32(string.as_str().into(), winnls::CP_UTF8),
+            str_to_cstr_win32(string.as_str().into(), windows_sys::CP_UTF8),
         );
 
         // But if we remove one character…
@@ -378,7 +377,7 @@ fn test_overflow() {
         //eprintln!("Transcoding ASCII string that's not too long");
         expect_successful_roundtrip(
             &string,
-            str_to_cstr_win32(string.as_str().into(), winnls::CP_UTF8),
+            str_to_cstr_win32(string.as_str().into(), windows_sys::CP_UTF8),
         );
     }
 
@@ -398,20 +397,26 @@ fn test_overflow() {
 
         // Again, the string should transcode without overflow.
         //eprintln!("Transcoding non-ASCII to UTF-8");
-        expect_successful_roundtrip(string, str_to_cstr_win32(string.into(), winnls::CP_UTF8));
+        expect_successful_roundtrip(
+            string,
+            str_to_cstr_win32(string.into(), windows_sys::CP_UTF8),
+        );
 
         // This should work even with UTF-7. This is the real reason we're using U+07FF: we need
         // to check that the highest code point that fits under the limit will not overflow even
         // with the worst-case code page.
         {
             //eprintln!("Transcoding non-ASCII to UTF-7");
-            let result = expect_success(string, str_to_cstr_win32(string.into(), winnls::CP_UTF7));
+            let result = expect_success(
+                string,
+                str_to_cstr_win32(string.into(), windows_sys::CP_UTF7),
+            );
 
             // *And* it should roundtrip back to UTF-8.
             //eprintln!("Transcoding UTF-7 back to UTF-8");
             let result: String = codepage_to_string_win32(
                 result.to_bytes(),
-                winnls::CP_UTF7,
+                windows_sys::CP_UTF7,
                 (string.len() / 2).try_into().unwrap(),
             )
             .unwrap();
