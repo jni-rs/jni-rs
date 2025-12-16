@@ -7,7 +7,7 @@ categories = ["api-bindings"]
 name = "jni"
 repository = "https://github.com/jni-rs/jni-rs"
 # ¡When bumping version please also update it in examples and documentation!
-version = "0.21.1"
+version = "0.22.0"
 exclude = ["/benches", "/docs", "/example", "/tests", "/test_profile"]
 
 authors.workspace = true
@@ -51,6 +51,7 @@ static_assertions = "1"
 
 [target.'cfg(windows)'.dev-dependencies]
 bytemuck = "1.13.0"
+windows-sys = { version = "0.61", features = ["Win32_System_Threading", "Win32_Foundation"] }
 
 [features]
 invocation = ["dep:java-locator", "dep:libloading"]

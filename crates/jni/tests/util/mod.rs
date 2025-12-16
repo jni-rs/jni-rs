@@ -75,6 +75,23 @@ pub fn detach_current_thread() -> Result<()> {
     jvm().detach_current_thread()
 }
 
+/// Manually detach the current thread from the JVM, bypassing the jni crate's
+/// tracking.
+///
+/// This simulates external code detaching the thread. (The jni crate handles
+/// this so long as there are no active AttachGuards.)
+///
+/// # Safety
+///
+/// There must be no active AttachGuards for the thread when this is called,
+/// otherwise we're breaking jni crate safety invariants.
+#[allow(dead_code)]
+pub unsafe fn sys_detach_current_thread() {
+    let vm = jvm();
+    let jvm: *mut jni_sys::JavaVM = vm.get_raw();
+    unsafe { ((*(*jvm)).v1_4.DetachCurrentThread)(jvm) };
+}
+
 pub fn print_exception(env: &Env) {
     let exception_occurred = env.exception_check();
     if exception_occurred {
