@@ -1,6 +1,7 @@
 [workspace]
 members = ["crates/*"]
 exclude = ["crates/jni-gen-windows-bindings"]
+resolver = "3"
 
 [workspace.package]
 # Keep in sync with ci.yml
