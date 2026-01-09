@@ -1,8 +1,7 @@
 use crate::jni_str;
 
 crate::bind_java_type! {
-    rust_type = JClass,
-    java_type = "java.lang.Class",
+    pub JClass => "java.lang.Class",
     __jni_core = true,
     __sys_type = jclass,
     hooks {

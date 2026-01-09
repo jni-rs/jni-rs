@@ -10,13 +10,33 @@ The name of the Rust wrapper type to generate.
 # use jni::bind_java_type;
 bind_java_type! {
     rust_type = MyType,
+    rust_type_vis = pub,
     java_type = com.example.MyClass,
 }
 ```
 
+Normally it's recommended to use the shorthand syntax for the `rust_type`, `rust_type_vis`, and `java_type`:
+
+```rust
+# use jni::bind_java_type;
+bind_java_type! {
+    pub MyType => com.example.MyClass,
+}
+```
+
+## `rust_type_vis` (optional)
+
+The visibility of the generated Rust wrapper type. Defaults to private.
+
+Normally it's recommended to use the shorthand syntax for the `rust_type`, `rust_type_vis`, and `java_type`,
+as shown in the `rust_type` section above.
+
 ## `java_type` (required)
 
 The fully-qualified Java class name. Can be specified as dot-separated identifiers or as a string literal.
+
+Normally it's recommended to use the shorthand syntax for the `rust_type`, `rust_type_vis`, and `java_type`,
+as shown in the `rust_type` section above.
 
 **Syntax options:**
 
@@ -28,17 +48,17 @@ The fully-qualified Java class name. Can be specified as dot-separated identifie
 # use jni::bind_java_type;
 // Using identifiers
 bind_java_type! {
-    MyType => com.example.MyClass,
+    pub MyType => com.example.MyClass,
 }
 
 // Using string literal (useful for inner classes)
 bind_java_type! {
-    MyInner => "com.example.Outer$Inner",
+    pub MyInner => "com.example.Outer$Inner",
 }
 
 // Default package class
 bind_java_type! {
-    MyDefaultPkg => .DefaultPackageClass,
+    pub MyDefaultPkg => .DefaultPackageClass,
 }
 ```
 
@@ -52,7 +72,7 @@ Multiple `type_map` blocks can be specified and will be merged.
 ```rust,ignore
 # use jni::bind_java_type;
 bind_java_type! {
-    MyType => com.example.MyClass,
+    pub MyType => com.example.MyClass,
     type_map = {
         // Map Rust type to Java class
         CustomType => com.example.CustomClass,
@@ -92,7 +112,7 @@ Declares that this type can be safely cast to other [Reference] types. The macro
 # use jni::bind_java_type;
 # bind_java_type! { BaseClass => com.example.Base }
 bind_java_type! {
-    MyType => com.example.MyClass,
+    pub MyType => com.example.MyClass,
     is_instance_of = {
         // With stem: generates as_base() method + From traits
         base: BaseClass,
@@ -143,7 +163,7 @@ The `fields` block defines bindings for instance and static fields, generating g
 # use jni::bind_java_type;
 # use jni::objects::JString;
 bind_java_type! {
-    MyType => com.example.MyClass,
+    pub MyType => com.example.MyClass,
     fields {
         // Shorthand: instance fields
         value: jint,
@@ -186,7 +206,7 @@ after the colon. In block syntax, it's explicitly specified with the `sig` prope
 # use jni::bind_java_type;
 # use jni::objects::JString;
 bind_java_type! {
-    MyType => com.example.MyClass,
+    pub MyType => com.example.MyClass,
     fields {
         // Shorthand
         value: jint,
@@ -210,7 +230,7 @@ specify a different Java field name.
 ```rust
 # use jni::sys::jint;
 # use jni::bind_java_type;
-# bind_java_type! { MyType => com.example.MyClass,
+# bind_java_type! { pub MyType => com.example.MyClass,
 # fields {
 rust_name {
     sig = jint,
@@ -237,7 +257,7 @@ Omit `set` to create a read-only field binding.
 ```rust,ignore
 # use jni::sys::jint;
 # use jni::bind_java_type;
-# bind_java_type! { MyType => com.example.MyClass,
+# bind_java_type! { pub MyType => com.example.MyClass,
 # fields {
 // Read-only field (no setter)
 static CONSTANT {
@@ -275,7 +295,7 @@ and setter methods:
 # use jni::bind_java_type;
 # use jni::objects::JString;
 bind_java_type! {
-    MyType => com.example.MyClass,
+    pub MyType => com.example.MyClass,
     fields {
         /// This documentation appears on the getter
         value: jint,
@@ -333,7 +353,7 @@ All three method blocks support two syntax forms with common qualifiers:
 # use jni::bind_java_type;
 # use jni::objects::JString;
 bind_java_type! {
-    MyType => com.example.MyClass,
+    pub MyType => com.example.MyClass,
     constructors {
         fn new(),
         fn with_value(value: jint),
@@ -382,7 +402,7 @@ For constructors the return type must always be void.
 # use jni::bind_java_type;
 # use jni::objects::JString;
 bind_java_type! {
-    MyType => com.example.MyClass,
+    pub MyType => com.example.MyClass,
     constructors {
         fn new(),
         fn with_value(value: jint),
@@ -403,7 +423,7 @@ specify a different Java method name.
 
 ```rust
 # use jni::bind_java_type;
-# bind_java_type! { MyType => com.example.MyClass,
+# bind_java_type! { pub MyType => com.example.MyClass,
 # methods {
 fn rust_name {
     sig = (),
@@ -424,7 +444,7 @@ Defines constructor bindings that call the Java class's `<init>` methods.
 # use jni::bind_java_type;
 # use jni::objects::JString;
 bind_java_type! {
-    MyType => com.example.MyClass,
+    pub MyType => com.example.MyClass,
     constructors {
         fn new(),
         fn with_value(value: jint),
@@ -451,7 +471,7 @@ Defines bindings for instance and static methods.
 # use jni::bind_java_type;
 # use jni::objects::JString;
 bind_java_type! {
-    MyType => com.example.MyClass,
+    pub MyType => com.example.MyClass,
     methods {
         // Instance methods
         fn get_value() -> jint,
@@ -487,7 +507,7 @@ Defines native methods that are implemented in Rust and called from Java.
 # use jni::bind_java_type;
 # use jni::objects::JString;
 bind_java_type! {
-    MyType => com.example.MyClass,
+    pub MyType => com.example.MyClass,
     native_methods {
         // Exported instance method (implemented via trait)
         extern fn native_add(a: jint, b: jint) -> jint,
@@ -519,7 +539,7 @@ Instead of implementing the native methods trait, you can provide a direct funct
 # use jni::sys::jint;
 # use jni::bind_java_type;
 # use jni::Env;
-# bind_java_type! { MyType => com.example.MyClass,
+# bind_java_type! { pub MyType => com.example.MyClass,
 # native_methods {
 fn native_method {
     sig = (value: jint) -> jint,
@@ -548,7 +568,7 @@ The `extern` qualifier in shorthand syntax is equivalent to `export = true`.
 # use jni::sys::jint;
 # use jni::bind_java_type;
 bind_java_type! {
-    MyType => com.example.MyClass,
+    pub MyType => com.example.MyClass,
     native_methods_export = false,  // Don't export by default (otherwise export = true / extern are redundant)
     native_methods {
         // Exported with standard name (extern is shorthand for export = true)
@@ -594,7 +614,7 @@ for errors and returns a default value.
 # use jni::sys::jint;
 # use jni::bind_java_type;
 bind_java_type! {
-    MyType => com.example.MyClass,
+    pub MyType => com.example.MyClass,
     native_methods {
         fn native_method {
             sig = (value: jint) -> jint,
@@ -621,7 +641,7 @@ Controls whether the native method wrapper catches Rust panics. Defaults to `tru
 # use jni::sys::jint;
 # use jni::bind_java_type;
 bind_java_type! {
-    MyType => com.example.MyClass,
+    pub MyType => com.example.MyClass,
     native_methods {
         fn native_method {
             sig = (value: jint) -> jint,
@@ -647,7 +667,7 @@ By default, native methods are implemented via a generated trait. For example:
 # use jni::objects::JString;
 # use jni::sys::jint;
 # bind_java_type! {
-#     MyType => com.example.MyClass,
+#     pub MyType => com.example.MyClass,
 #     native_methods {
 #         extern fn native_add(a: jint, b: jint) -> jint,
 #     }
@@ -693,7 +713,7 @@ Custom name for the generated native methods trait. Default is `{Type}NativeInte
 ```rust,ignore
 # use jni::bind_java_type;
 bind_java_type! {
-    MyType => com.example.MyClass,
+    pub MyType => com.example.MyClass,
     native_trait = MyCustomNativeTrait,
     native_methods {
         extern fn native_method() -> jint,
@@ -710,7 +730,7 @@ Individual methods can override with `export = true/false` or the `extern` quali
 # use jni::sys::jint;
 # use jni::bind_java_type;
 bind_java_type! {
-    MyType => com.example.MyClass,
+    pub MyType => com.example.MyClass,
     native_methods_export = false,  // Don't export by default
     native_methods {
         // Not exported
@@ -749,7 +769,7 @@ exceptions and default values.
 # use jni::sys::jint;
 # use jni::bind_java_type;
 bind_java_type! {
-    MyType => com.example.MyClass,
+    pub MyType => com.example.MyClass,
     native_methods_error_policy = jni::errors::LogErrorAndDefault,
     native_methods {
         extern fn native_method() -> jint,  // Uses global policy
@@ -778,7 +798,7 @@ Individual methods can override with `catch_unwind = true/false`.
 # use jni::sys::jint;
 # use jni::bind_java_type;
 bind_java_type! {
-    MyType => com.example.MyClass,
+    pub MyType => com.example.MyClass,
     native_methods_catch_unwind = false,  // Don't catch panics by default
     native_methods {
         // No panic catching (unsafe!)
@@ -825,7 +845,7 @@ Controls validation of type mappings at compile-time and runtime. Defaults to `A
 # #[repr(transparent)] #[derive(Copy, Clone)] struct Handle(*const u8);
 # bind_java_type! { CustomType => com.example.CustomClass }
 bind_java_type! {
-    MyType => com.example.MyClass,
+    pub MyType => com.example.MyClass,
     abi_check = Always,  // Enable checks in all builds
     type_map = {
         // Compile-time: validates Handle has the size and alignment of a jlong
@@ -866,7 +886,7 @@ For advanced use cases, you can inject custom data into the API struct.
 # unsafe impl Send for MyCustomData {}
 # unsafe impl Sync for MyCustomData {}
 bind_java_type! {
-    MyType => com.example.MyClass,
+    pub MyType => com.example.MyClass,
     priv_type = MyCustomData,
     hooks = {
         init_priv = |_env, _class, _load_context| {
@@ -892,7 +912,7 @@ Override the default class loading behavior with a custom class loader.
 ```rust,ignore
 # use jni::bind_java_type;
 bind_java_type! {
-    MyType => com.example.MyClass,
+    pub MyType => com.example.MyClass,
     hooks = {
         load_class = |env, load_context, initialize| {
             // Custom loading logic here

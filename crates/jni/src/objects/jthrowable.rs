@@ -1,6 +1,5 @@
 crate::bind_java_type! {
-    rust_type = JThrowable,
-    java_type = "java.lang.Throwable",
+    pub JThrowable => "java.lang.Throwable",
     __jni_core = true,
     __sys_type = jthrowable,
     methods {

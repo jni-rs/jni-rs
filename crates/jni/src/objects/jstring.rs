@@ -12,8 +12,7 @@ use super::Reference as _;
 use crate::errors::Error;
 
 crate::bind_java_type! {
-    rust_type = JString,
-    java_type = "java.lang.String",
+    pub JString => "java.lang.String",
     __jni_core = true,
     __sys_type = jstring,
     methods {

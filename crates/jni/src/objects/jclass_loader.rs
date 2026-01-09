@@ -1,8 +1,7 @@
 use crate::jni_str;
 
 crate::bind_java_type! {
-    rust_type = JClassLoader,
-    java_type = "java.lang.ClassLoader",
+    pub JClassLoader => "java.lang.ClassLoader",
     hooks {
         load_class = |env, _loader_context, _initialize| {
             // As a special-case; we ignore loader_context and use `env.find_class` just to be clear that there's no risk of

@@ -1,6 +1,5 @@
 crate::bind_java_type! {
-    rust_type = JCollection,
-    java_type = "java.util.Collection",
+    pub JCollection => "java.util.Collection",
     methods {
         /// Adds the given element to this set if it is not already present
         ///

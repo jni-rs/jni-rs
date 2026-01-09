@@ -6,8 +6,7 @@ use crate::{
 };
 
 crate::bind_java_type! {
-    rust_type = JList,
-    java_type = "java.util.List",
+    pub JList => "java.util.List",
     is_instance_of {
         collection = JCollection,
     },

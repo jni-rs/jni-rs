@@ -7,8 +7,7 @@ use crate::{
 };
 
 bind_java_type! {
-    rust_type = JIterator,
-    java_type = "java.util.Iterator",
+    pub JIterator => "java.util.Iterator",
     methods {
         /// Returns true if the iteration has more elements.
         fn has_next() -> bool,

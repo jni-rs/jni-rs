@@ -32,6 +32,7 @@ use crate::{str::lit_cstr_mutf8, types::ConcreteType};
 // Custom keywords
 custom_keyword!(jni);
 custom_keyword!(rust_type);
+custom_keyword!(rust_type_vis);
 custom_keyword!(java_type);
 custom_keyword!(type_map);
 custom_keyword!(api);
@@ -832,6 +833,7 @@ fn parse_fields(input: ParseStream, type_mappings: &TypeMappings) -> Result<Vec<
 /// The main input structure for bind_java_type!
 struct BindClassInput {
     type_name: Ident,
+    type_visibility: Option<VisibilitySpec>,
     type_attrs: Vec<syn::Attribute>,
     java_class: JavaClassName,
     api_name: Option<Ident>,
@@ -874,6 +876,7 @@ impl Parse for BindClassInput {
         // ```
 
         // Initialize all possible properties
+        let mut type_visibility = None;
         let mut type_name_opt = None;
         let mut type_attrs = Vec::new();
         let mut java_class_opt = None;
@@ -898,7 +901,7 @@ impl Parse for BindClassInput {
             let mut prop_attrs = input.call(syn::Attribute::parse_outer)?;
 
             // Try to peek for <ident> = pattern or <ident> { ... }
-            // (anything else is treated as `RustType => java.Type` shorthand)
+            // (anything else is treated as `[vis] RustType => java.Type` shorthand)
             let fork = input.fork();
             let is_prop = if let Ok(_ident) = fork.call(Ident::parse_any) {
                 // Note: we need to rule out `=>` before checking for `=` otherwise we could split the `=>` token
@@ -920,8 +923,29 @@ impl Parse for BindClassInput {
                         ));
                     }
                     input.parse::<Token![=]>()?;
+
+                    if let Some(vis) = parse_visibility(input)? {
+                        type_visibility = Some(vis);
+                    }
+
                     type_name_opt = Some(input.parse()?);
                     type_attrs = std::mem::take(&mut prop_attrs);
+                } else if lookahead.peek(rust_type_vis) {
+                    let prop_ident: Ident = input.parse()?;
+                    if type_visibility.is_some() {
+                        return Err(syn::Error::new(
+                            prop_ident.span(),
+                            "Type visibility already specified",
+                        ));
+                    }
+                    input.parse::<Token![=]>()?;
+                    let Some(vis) = parse_visibility(input)? else {
+                        return Err(syn::Error::new(
+                            prop_ident.span(),
+                            "Expected visibility specifier after 'type_visibility ='",
+                        ));
+                    };
+                    type_visibility = Some(vis);
                 } else if lookahead.peek(java_type) {
                     let prop_ident: Ident = input.parse()?;
                     if java_class_opt.is_some() {
@@ -1141,7 +1165,9 @@ impl Parse for BindClassInput {
                     }
                 }
             } else {
-                // Expect shorthand syntax: RustType => java.Type
+                // Expect shorthand syntax: [vis] RustType => java.Type
+                type_visibility = parse_visibility(input)?;
+
                 let rust_type: Ident = input.parse()?;
                 input.parse::<Token![=>]>()?;
                 let java_type: JavaClassName = input.parse()?;
@@ -1208,6 +1234,7 @@ impl Parse for BindClassInput {
 
         Ok(BindClassInput {
             type_name,
+            type_visibility,
             type_attrs,
             java_class,
             api_name,
@@ -1259,7 +1286,13 @@ pub fn bind_java_type_impl(input: TokenStream) -> Result<TokenStream> {
         .unwrap_or_else(|| format_ident!("{}API", type_name));
 
     // Generate the type struct
-    let type_struct = generate_type_struct(type_name, &input.type_attrs, &java_class_dotted, jni);
+    let type_struct = generate_type_struct(
+        type_name,
+        input.type_visibility,
+        &input.type_attrs,
+        &java_class_dotted,
+        jni,
+    );
 
     // Generate constructor method ID fields and initialization code
     let (constructor_method_id_fields, constructor_method_id_inits) =
@@ -1367,6 +1400,7 @@ pub fn bind_java_type_impl(input: TokenStream) -> Result<TokenStream> {
 /// Generate the type struct definition
 fn generate_type_struct(
     type_name: &Ident,
+    type_visibility: Option<VisibilitySpec>,
     type_attrs: &[syn::Attribute],
     java_class: &str,
     jni: &syn::Path,
@@ -1393,12 +1427,15 @@ how to cast them, and local reference frame lifetimes.
         }
     };
 
+    let type_visibility = type_visibility.unwrap_or(VisibilitySpec::PubSelf);
+    let type_visibility = type_visibility.to_tokens();
+
     quote! {
         #(#type_attrs)*
         #doc_attr
         #[repr(transparent)]
         #[derive(Debug, Default)]
-        pub struct #type_name<'local>(#jni::objects::JObject<'local>);
+        #type_visibility struct #type_name<'local>(#jni::objects::JObject<'local>);
 
         impl<'local> ::core::convert::AsRef<#type_name<'local>> for #type_name<'local> {
             #[inline]

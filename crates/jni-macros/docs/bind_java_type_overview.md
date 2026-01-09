@@ -22,7 +22,7 @@ The simplest form uses shorthand syntax for trivial bindings:
 use jni::bind_java_type;
 
 // Minimal binding - just creates the wrapper type
-bind_java_type! { MyType => com.example.MyClass }
+bind_java_type! { pub MyType => com.example.MyClass }
 ```
 
 For more complete bindings with methods and fields:
@@ -94,7 +94,7 @@ The macro supports two forms:
 **Shorthand syntax** for simple bindings:
 ```rust
 # use jni::bind_java_type;
-bind_java_type! { MyType => com.example.MyClass }
+bind_java_type! { pub MyType => com.example.MyClass }
 ```
 
 **Block syntax** for full control:
@@ -102,6 +102,7 @@ bind_java_type! { MyType => com.example.MyClass }
 # use jni::bind_java_type;
 bind_java_type! {
     rust_type = MyType,
+    rust_type_vis = pub,
     java_type = com.example.MyClass,
     // ... additional properties
 }
@@ -111,7 +112,7 @@ Both forms can be mixed - you can use shorthand for the type names and add block
 ```rust
 # use jni::bind_java_type;
 bind_java_type! {
-    MyType => com.example.MyClass,
+    pub MyType => com.example.MyClass,
     constructors { fn new() },
 }
 ```
@@ -123,7 +124,7 @@ Methods and fields also support shorthand and block syntax.
 **Shorthand syntax** (recommended when possible):
 ```rust
 # use jni::bind_java_type;
-# bind_java_type! { MyType => com.example.MyClass,
+# bind_java_type! { pub MyType => com.example.MyClass,
 methods {
     fn add(a: jint, b: jint) -> jint,
     static fn get_version() -> jint,
@@ -135,7 +136,7 @@ methods {
 ```rust
 # use jni::bind_java_type;
 # use jni::objects::JString;
-# bind_java_type! { MyType => com.example.MyClass,
+# bind_java_type! { pub MyType => com.example.MyClass,
 methods {
     fn my_method {
         sig = (value: jint),
@@ -180,7 +181,7 @@ Names with existing uppercase letters are preserved as-is (e.g., `MY_CONSTANT` s
 You can always override the Java name explicitly:
 ```rust
 # use jni::bind_java_type;
-# bind_java_type! { MyType => com.example.MyClass,
+# bind_java_type! { pub MyType => com.example.MyClass,
 methods {
     fn my_method {
         sig = (),

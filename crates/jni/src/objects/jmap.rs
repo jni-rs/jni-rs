@@ -10,8 +10,7 @@ use std::ops::Deref;
 use crate::objects::JSet;
 
 crate::bind_java_type! {
-    rust_type = JMap,
-    java_type = "java.util.Map",
+    pub JMap => "java.util.Map",
     methods = {
         /// Returns the number of key-value mappings in this map
         ///
@@ -246,8 +245,7 @@ impl<'local> JMap<'local> {
 }
 
 crate::bind_java_type! {
-    rust_type = JMapEntry,
-    java_type = "java.util.Map$Entry",
+    pub JMapEntry => "java.util.Map$Entry",
     methods = {
         /// Get the key of the map entry by calling the `getKey` method.
         ///

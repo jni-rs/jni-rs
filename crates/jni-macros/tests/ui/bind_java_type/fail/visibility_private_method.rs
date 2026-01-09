@@ -5,6 +5,7 @@ mod inner {
 
     bind_java_type! {
         rust_type = TestClass,
+        rust_type_vis = pub,
         java_type = "com.example.TestClass",
         methods {
             // Private method using pub(self)

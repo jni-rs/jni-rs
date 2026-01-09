@@ -1,6 +1,5 @@
 crate::bind_java_type! {
-    rust_type = JStackTraceElement,
-    java_type = "java.lang.StackTraceElement",
+    pub JStackTraceElement => "java.lang.StackTraceElement",
     methods {
         /// Get the class name of the stack trace element.
         fn get_class_name() -> JString,
