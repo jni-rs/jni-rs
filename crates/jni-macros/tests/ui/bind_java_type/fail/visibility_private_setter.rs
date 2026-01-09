@@ -4,8 +4,7 @@ mod inner {
     use jni::bind_java_type;
 
     bind_java_type! {
-        rust_type = TestClass,
-        java_type = "com.example.TestClass",
+        pub TestClass => "com.example.TestClass",
         fields {
             // Public getter, private setter
             mixed_field {

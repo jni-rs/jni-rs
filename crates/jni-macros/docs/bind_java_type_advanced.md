@@ -28,7 +28,7 @@ use jni::{Env, bind_java_type};
 use jni::refs::LoaderContext;
 
 # bind_java_type! {
-#     ExampleType => com.example.ExampleType,
+#     pub ExampleType => com.example.ExampleType,
 #     native_methods { extern fn native_method() -> jint }
 # }
 # impl ExampleTypeNativeInterface for ExampleTypeAPI {
@@ -62,7 +62,7 @@ symbols that the JVM can resolve when loading a shared library:
 use jni::bind_java_type;
 
 bind_java_type! {
-    MyType => com.example.MyType,
+    pub MyType => com.example.MyType,
     native_methods {
         // Generates: Java_com_example_MyType_earlyMethod__
         extern fn early_method() -> jint,
@@ -88,7 +88,7 @@ Registration without export symbols is useful in specific scenarios:
 use jni::bind_java_type;
 
 bind_java_type! {
-    MyType => com.example.MyType,
+    pub MyType => com.example.MyType,
     native_methods_export = false,  // Disable exports
     native_methods {
         fn registration_only() -> jint,
@@ -110,7 +110,7 @@ compatibility:
 use jni::bind_java_type;
 
 bind_java_type! {
-    MyType => com.example.MyType,
+    pub MyType => com.example.MyType,
     // Default: native_methods_export = true
     native_methods {
         extern fn both_exported_and_registered() -> jint,
@@ -147,7 +147,7 @@ Set a default policy for all native methods in a binding:
 use jni::{Env, bind_java_type};
 
 bind_java_type! {
-    MyType => com.example.MyType,
+    pub MyType => com.example.MyType,
     native_methods_error_policy = jni::errors::LogErrorAndDefault,
     native_methods {
         extern fn method1() -> jint,  // Uses global policy
@@ -171,7 +171,7 @@ Override the global policy for specific methods:
 use jni::{Env, bind_java_type};
 
 bind_java_type! {
-    MyType => com.example.MyType,
+    pub MyType => com.example.MyType,
     native_methods_error_policy = jni::errors::LogErrorAndDefault,  // Global default
     native_methods {
         extern fn quiet_method() -> jint,  // Uses LogErrorAndDefault
@@ -208,7 +208,7 @@ Raw native methods (`raw`) bypass error handling entirely:
 use jni::{EnvUnowned, bind_java_type};
 
 bind_java_type! {
-    MyType => com.example.MyType,
+    pub MyType => com.example.MyType,
     native_methods {
         // No catch_unwind, no error policy for raw methods
         raw extern fn raw_method() -> jint,
@@ -240,7 +240,7 @@ from unwinding across the JNI boundary (which will cause the program to abort).
 use jni::bind_java_type;
 
 bind_java_type! {
-    MyType => com.example.MyType,
+    pub MyType => com.example.MyType,
     native_methods {
         // Automatically wrapped with catch_unwind
         extern fn safe_method() -> jint,
@@ -275,7 +275,7 @@ yourself, you can disable the `catch_unwind` wrapper:
 use jni::bind_java_type;
 
 bind_java_type! {
-    MyType => com.example.MyType,
+    pub MyType => com.example.MyType,
     native_methods {
         fn no_unwind {
             sig = () -> jint,
@@ -301,7 +301,7 @@ Raw methods (`raw`) never use `catch_unwind`:
 use jni::{EnvUnowned, bind_java_type};
 
 bind_java_type! {
-    MyType => com.example.MyType,
+    pub MyType => com.example.MyType,
     native_methods {
         // No catch_unwind wrapper
         raw extern fn raw_fast() -> jint,
@@ -337,7 +337,7 @@ impl From<Handle> for jlong {
 }
 
 bind_java_type! {
-    MyType => com.example.MyType,
+    pub MyType => com.example.MyType,
     type_map = {
         // Generates compile-time size/alignment assertions
         unsafe Handle => long,
@@ -368,7 +368,7 @@ use jni::bind_java_type;
 # use jni::objects::JObject;
 
 bind_java_type! {
-    MyType => com.example.MyType,
+    pub MyType => com.example.MyType,
     type_map = {
         // Validates at runtime that CustomType is actually com.example.CustomClass
         CustomType => com.example.CustomClass,
@@ -383,10 +383,10 @@ be disabled:
 
 ```rust,ignore
 use jni::bind_java_type;
-# bind_java_type! { BaseClass => com.example.Base }
+# bind_java_type! { pub BaseClass => com.example.Base }
 
 bind_java_type! {
-    MyType => com.example.MyType,
+    pub MyType => com.example.MyType,
     is_instance_of = {
         // Validates at runtime that MyType is an instance of BaseClass
         base: BaseClass,
@@ -405,7 +405,7 @@ validates that the second parameter matches the method type:
 use jni::bind_java_type;
 
 bind_java_type! {
-    MyType => com.example.MyType,
+    pub MyType => com.example.MyType,
     native_methods {
         // Validates receiver is an instance
         extern fn instance_method(value: jint) -> jint,
@@ -430,7 +430,7 @@ you may need to disable the checks:
 use jni::bind_java_type;
 
 bind_java_type! {
-    MyType => com.example.MyType,
+    pub MyType => com.example.MyType,
     abi_check = UnsafeNever,  // Disable all checks globally
     type_map = {
         unsafe Handle => long,
@@ -438,7 +438,7 @@ bind_java_type! {
     },
 }
 # impl From<Handle> for jni::sys::jlong { fn from(h: Handle) -> Self { h.0 as jni::sys::jlong } }
-# bind_java_type! { CustomType => com.example.CustomClass }
+# bind_java_type! { pub CustomType => com.example.CustomClass }
 ```
 
 Or per-native-method:
@@ -448,7 +448,7 @@ Or per-native-method:
 use jni::bind_java_type;
 
 bind_java_type! {
-    MyType => com.example.MyType,
+    pub MyType => com.example.MyType,
     type_map = {
         unsafe Handle => long,
     },
@@ -485,7 +485,7 @@ struct MyContext {
 }
 
 bind_java_type! {
-    MyType => com.example.MyType,
+    pub MyType => com.example.MyType,
     priv_type = MyContext,
     hooks = {
         init_priv = |_env, _class, _load_context| {
@@ -519,7 +519,7 @@ Override the default class loading behavior with a `load_class` hook:
 use jni::bind_java_type;
 
 bind_java_type! {
-    MyType => com.example.MyType,
+    pub MyType => com.example.MyType,
     hooks = {
         load_class = |env, load_context, initialize| {
             // Custom class loading logic
@@ -556,8 +556,8 @@ Create custom wrapper macros to encapsulate common configuration across multiple
 use jni::bind_java_type;
 
 // Define common types
-bind_java_type! { UserId => com.example.types.UserId }
-bind_java_type! { Timestamp => com.example.types.Timestamp }
+bind_java_type! { pub UserId => com.example.types.UserId }
+bind_java_type! { pub Timestamp => com.example.types.Timestamp }
 
 // Create a wrapper macro
 macro_rules! my_bind {
@@ -578,7 +578,7 @@ macro_rules! my_bind {
 
 // Use the wrapper - no need to repeat type_map or error_policy
 my_bind! {
-    User => com.example.User,
+    pub User => com.example.User,
     fields {
         id: UserId,
         created: Timestamp,
@@ -586,7 +586,7 @@ my_bind! {
 }
 
 my_bind! {
-    Post => com.example.Post,
+    pub Post => com.example.Post,
     fields {
         author_id: UserId,
         posted: Timestamp,

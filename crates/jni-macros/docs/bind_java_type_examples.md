@@ -9,7 +9,7 @@ The simplest binding just creates a wrapper type for a Java class:
 ```rust
 use jni::bind_java_type;
 
-bind_java_type! { MyType => com.example.MyClass }
+bind_java_type! { pub MyType => com.example.MyClass }
 ```
 
 This generates a `MyType<'local>` wrapper and `MyTypeAPI` struct, but no constructors or methods.
@@ -24,7 +24,7 @@ use jni::Env;
 use jni::objects::JString;
 
 bind_java_type! {
-    Counter => com.example.Counter,
+    pub Counter => com.example.Counter,
     constructors {
         fn new(),
         fn with_initial(value: jint),
@@ -58,7 +58,7 @@ use jni::Env;
 use jni::objects::JString;
 
 bind_java_type! {
-    Counter => com.example.Counter,
+    pub Counter => com.example.Counter,
     constructors {
         fn new(),
     },
@@ -99,9 +99,9 @@ use jni::Env;
 use jni::objects::JString;
 use jni::sys::jint;
 
-# bind_java_type! { Counter => com.example.Counter }
+# bind_java_type! { pub Counter => com.example.Counter }
 bind_java_type! {
-    Utils => com.example.Utils,
+    pub Utils => com.example.Utils,
     type_map = {
         Counter => com.example.Counter,
     },
@@ -136,7 +136,7 @@ use jni::Env;
 use jni::objects::JString;
 
 bind_java_type! {
-    Person => com.example.Person,
+    pub Person => com.example.Person,
     constructors {
         fn new(),
     },
@@ -187,7 +187,7 @@ use jni::Env;
 use jni::objects::{JIntArray, JObjectArray, JString};
 
 bind_java_type! {
-    ArrayUtils => com.example.ArrayUtils,
+    pub ArrayUtils => com.example.ArrayUtils,
     methods {
         // 1D primitive array
         static fn sum_array(values: jint[]) -> jint,
@@ -237,12 +237,12 @@ use jni::bind_java_type;
 use jni::Env;
 
 // First, define bindings for custom types
-bind_java_type! { CustomType => com.example.CustomType, constructors { fn new() } }
-bind_java_type! { OtherType => com.example.OtherType }
+bind_java_type! { pub CustomType => com.example.CustomType, constructors { fn new() } }
+bind_java_type! { pub OtherType => com.example.OtherType }
 
 // Then use them in type_map
 bind_java_type! {
-    Container => com.example.Container,
+    pub Container => com.example.Container,
     type_map = {
         CustomType => com.example.CustomType,
         OtherType => com.example.OtherType,
@@ -282,7 +282,7 @@ use jni::objects::{JClass, JString};
 use jni::sys::jint;
 
 bind_java_type! {
-    Calculator => com.example.Calculator,
+    pub Calculator => com.example.Calculator,
     constructors {
         fn new(),
     },
@@ -357,7 +357,7 @@ use jni::{Env, EnvUnowned, bind_java_type};
 use jni::sys::jint;
 
 bind_java_type! {
-    FastCalc => com.example.FastCalc,
+    pub FastCalc => com.example.FastCalc,
     native_methods {
         // Raw method - no catch_unwind, no error handling
         raw extern fn fast_add(a: jint, b: jint) -> jint,
@@ -388,7 +388,7 @@ use jni::{Env, bind_java_type};
 use jni::sys::jint;
 
 bind_java_type! {
-    DirectCalc => com.example.DirectCalc,
+    pub DirectCalc => com.example.DirectCalc,
     native_methods {
         fn native_square {
             sig = (value: jint) -> jint,
@@ -417,12 +417,12 @@ use jni::Env;
 use jni::objects::JObject;
 
 bind_java_type! {
-    BaseClass => com.example.Base,
+    pub BaseClass => com.example.Base,
     constructors { fn new() },
 }
 
 bind_java_type! {
-    DerivedClass => com.example.Derived,
+    pub DerivedClass => com.example.Derived,
     type_map = {
         BaseClass => com.example.Base,
     },
@@ -457,7 +457,7 @@ use jni::Env;
 use jni::objects::JString;
 
 bind_java_type! {
-    MyType => com.example.MyType,
+    pub MyType => com.example.MyType,
     constructors {
         fn new(),
     },
@@ -486,7 +486,7 @@ use jni::bind_java_type;
 use jni::objects::JString;
 
 bind_java_type! {
-    Config => com.example.Config,
+    pub Config => com.example.Config,
     fields {
         // Custom Java field name
         internal_value {
@@ -519,7 +519,7 @@ use jni::bind_java_type;
 use jni::objects::JString;
 
 bind_java_type! {
-    Counter => com.example.Counter,
+    pub Counter => com.example.Counter,
     constructors {
         /// Creates a new counter with initial value 0
         fn new(),
@@ -560,11 +560,10 @@ use jni::sys::jint;
 use jni::refs::LoaderContext;
 
 // Define related types
-bind_java_type! { CustomData => com.example.Data }
+bind_java_type! { pub CustomData => com.example.Data }
 
 bind_java_type! {
-    rust_type = CompleteExample,
-    java_type = com.example.CompleteExample,
+    pub CompleteExample => com.example.CompleteExample,
 
     type_map = {
         CustomData => com.example.Data,

@@ -5,8 +5,7 @@ use crate::{
 };
 
 crate::bind_java_type! {
-    rust_type = JSet,
-    java_type = "java.util.Set",
+    pub JSet => "java.util.Set",
     is_instance_of {
         collection = JCollection,
     }

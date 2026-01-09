@@ -1,1 +1,1 @@
-crate::bind_java_type! { JByteBuffer => "java.nio.ByteBuffer" }
+crate::bind_java_type! { pub JByteBuffer => "java.nio.ByteBuffer" }

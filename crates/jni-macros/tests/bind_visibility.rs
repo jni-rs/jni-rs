@@ -3,8 +3,7 @@ mod inner {
 
     // Test visibility specifiers on methods using shorthand syntax
     bind_java_type! {
-        rust_type = TestVisibility,
-        java_type = "com.example.TestVisibility",
+        pub TestVisibility => "com.example.TestVisibility",
         methods {
             // Public method (default)
             fn public_method() -> void,
