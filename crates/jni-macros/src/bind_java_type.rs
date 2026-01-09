@@ -1157,6 +1157,34 @@ impl Parse for BindClassInput {
                 java_class_opt = Some(java_type);
             }
 
+            // As soon as we know the type name and java class, we can can register
+            // a Self type mapping
+            if let (Some(type_name), Some(java_class)) = (&type_name_opt, &java_class_opt) {
+                let type_path_str = type_name.to_string();
+                // A Self type mapping already exists (e.g. from a type_map block or builtin type)
+                // then we let that take precedence. This avoids conflicting with shared type_maps
+                // in a project that may also use fully qualified Rust type names that will look
+                // like a type mismatch if we call insert_ref_type again here.
+                #[allow(clippy::collapsible_if)]
+                if !type_mappings.is_core_java_type(java_class)
+                    && type_mappings.map_alias(&type_path_str).is_none()
+                {
+                    // Note: if the type mapping already exists (e.g. from a type_map block or builtin type)
+                    // this will validate that the type matches the existing mapping
+                    if let Err(err) = type_mappings.insert_ref_type(
+                        &type_path_str,
+                        &type_path_str,
+                        java_class.clone(),
+                        false, // implied because the type isn't already mapped
+                    ) {
+                        return Err(syn::Error::new(
+                            type_name.span(),
+                            format!("Failed to register Self type mapping: {}", err),
+                        ));
+                    }
+                }
+            }
+
             // Require comma after each property, except trailing comma is optional
             if !input.is_empty() {
                 input.parse::<Token![,]>()?;
