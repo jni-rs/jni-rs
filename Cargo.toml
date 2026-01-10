@@ -20,7 +20,7 @@ jni-sys = "0.4"
 
 log = "0.4.4"
 thiserror = "2"
-libloading = "0.8"
+libloading = "0.9"
 java-locator = "0.1.3"
 cafebabe = "0.9"
 
