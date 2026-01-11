@@ -11,6 +11,7 @@ include = ["build.rs", "src/**", "examples/**"]
 
 [lib]
 proc-macro = true
+doctest = false
 
 [build-dependencies]
 rustc_version = "0.4"
@@ -23,7 +24,6 @@ proc-macro-crate = "3"
 cesu8 = "1.1.0"
 
 [dev-dependencies]
-jni = { workspace = true, features = ["invocation"] }
 javac.workspace = true
 rusty-fork.workspace = true
 trybuild = "1"
