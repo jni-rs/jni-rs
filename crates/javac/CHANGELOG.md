@@ -7,11 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0] - 2025-11-25
+## [0.1.0] - 2026-01-11
 
 ### Added
 
 - Initial implementation
 
-[unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/jni-rs/jni-rs/releases/tag/v0.1.0
+[unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.1.0-javac...HEAD
+[0.1.0]: https://github.com/jni-rs/jni-rs/releases/tag/v0.1.0-javac
