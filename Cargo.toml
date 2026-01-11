@@ -17,7 +17,7 @@ jni-macros = { path = "./crates/jni-macros", version = "0.22.0" }
 javac = { path = "./crates/javac", version = "0.1.0" }
 jni = { path = "./crates/jni", version = "0.22.0" }
 
-jni-sys = "0.4"
+jni-sys = "0.4.1"
 
 log = "0.4.4"
 thiserror = "2"
