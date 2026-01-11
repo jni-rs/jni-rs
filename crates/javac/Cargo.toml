@@ -22,7 +22,6 @@ thiserror.workspace = true
 which = "8"
 
 [dev-dependencies]
-jni = { workspace = true, features = ["invocation"] }
 rusty-fork.workspace = true
 cafebabe.workspace = true
 encoding_rs = "0.8.35"
