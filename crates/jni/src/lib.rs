@@ -300,7 +300,10 @@ pub use env::*;
 
 #[deprecated(
     since = "0.22.0",
-    note = r#"Since 0.22, `JNIEnv` (renamed `Env`) is not an FFI safe pointer wrapper any more.
+    note = r#"Since 0.22, `JNIEnv` has been split into `Env` and `EnvUnowned`
+
+- `EnvUnowned` is FFI safe and can be accepted as an argument for native methods
+- `Env` is what provides the full JNI environment API and is not FFI safe.
 
 To remain safe by default, `jni::JNIEnv` is now an alias for `EnvUnowned` (which is FFI safe).
 
