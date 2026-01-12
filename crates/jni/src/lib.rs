@@ -6,7 +6,7 @@
 
 //! # Safe JNI Bindings in Rust
 //!
-//! This crate provides a (mostly) safe way to interface with Java and Kotlin
+//! This crate provides a safe way to interface with Java and Kotlin
 //! using the Java Native Interface (JNI).
 //!
 //! ## Getting Started by implementing a native method

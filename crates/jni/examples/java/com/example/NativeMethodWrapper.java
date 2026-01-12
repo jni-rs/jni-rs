@@ -1,3 +1,4 @@
+// Support class for examples/native_method_wrapper.rs
 package com.example;
 
 class CommonBuiltinType {

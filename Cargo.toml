@@ -27,3 +27,6 @@ cafebabe = "0.9"
 
 trybuild = "1"
 rusty-fork = "0.3.0"
+
+[patch.crates-io]
+adb_client = { path = "../../rust-mobile/adb_client/adb_client/adb_client" }

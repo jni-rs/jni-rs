@@ -1,0 +1,32 @@
+[package]
+name = "testactivity"
+version = "0.1.0"
+edition = "2024"
+
+# Exclude from parent workspace
+[workspace]
+
+[dependencies]
+jni = { path = "../../jni" }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = [
+    "fmt",
+    "env-filter",
+    "tracing-log",
+] }
+paranoid-android = "0.2"
+
+[build-dependencies]
+jbindgen = { path = ".." }
+javac = { path = "../../javac" }
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+sdk_util_time_utils = []
+sdk_os_build = []
+sdk_os_binder = []
+sdk_bluetooth = []
+sdk_content_intent = []
+sdk_net_uri = []

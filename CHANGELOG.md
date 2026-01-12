@@ -106,7 +106,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 #### JavaVM / Thread Attachment APIs
-- JNI version requirements are more explicit in the API and the crate now requires at least JNI `>= 1.4`. It needs `>= 1.2` so it can check for exceptions and needs `>= 1.4` to avoid runtime checks for direct byte buffers ([#478](https://github.com/jni-rs/jni-rs/issues/478))
+- The jni crate now explicitly requires at least JNI `>= 1.4`. It needs `>= 1.2` so it can check for exceptions and needs `>= 1.4` to avoid runtime checks for direct byte buffers ([#478](https://github.com/jni-rs/jni-rs/issues/478))
 - At a low-level (unsafe), all thread attachments (not just scoped attachments) are now represented by an owned or unowned `AttachGuard`
 - `AttachGuard` usage is now considered `unsafe` since the type must be pinned to the stack (but that can't be guaranteed by the Rust type system alone).
 - To allow safe thread attachments (that ensure their `AttachGuard` is pinned to the stack), attachment APIs take a `FnOnce` whose `&mut Env` arg borrows from a hidden `AttachGuard`

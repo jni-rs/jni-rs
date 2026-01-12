@@ -1,3 +1,4 @@
+// Support class for examples/bind_java_type_wrapper.rs
 package com.example;
 
 class CommonBuiltinType {

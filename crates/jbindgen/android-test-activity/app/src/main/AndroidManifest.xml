@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application android:icon="@mipmap/ic_launcher" android:label="Activity Subclass + JNI" android:roundIcon="@mipmap/ic_launcher_round" android:supportsRtl="true" android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+
+        <!--
+        Note: launchMode="singleTop" should result in onNewIntent being called
+        if you try and launch the same application multiple times, which we can use
+        to test the onNewIntent notifications
+        -->
+        <activity android:name=".TestActivity" android:launchMode="singleTop" android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- <meta-data android:name="android.app.lib_name" android:value="testactivity" /> -->
+        </activity>
+    </application>
+
+</manifest>

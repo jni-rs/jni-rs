@@ -1,0 +1,41 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    ndkVersion "25.2.9519653"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.github.jni.jbindgen.testactivity"
+        minSdk 31
+        targetSdk 35
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            minifyEnabled false
+            //packagingOptions {
+            //    doNotStrip '**/*.so'
+            //}
+            //debuggable true
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_10
+        targetCompatibility JavaVersion.VERSION_1_10
+    }
+    namespace 'com.github.jni.jbindgen.testactivity'
+}
+
+dependencies {
+
+
+}
+

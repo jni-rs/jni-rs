@@ -1,3 +1,5 @@
+// Support class for examples/bind_java_type.rs
+
 package com.example;
 
 public class BindJavaTypeOverview {

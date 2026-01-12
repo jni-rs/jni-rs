@@ -1,3 +1,5 @@
+// Support class for examples/native_method.rs for demonstrating how to use
+// the native_method! macro
 package com.example;
 
 public class NativeMethodOverview {

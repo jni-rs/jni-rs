@@ -1,0 +1,29 @@
+[package]
+name = "jbindgen"
+version = "0.1.0"
+rust-version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "jbindgen"
+path = "src/bin/main.rs"
+
+[dependencies]
+log.workspace = true
+pretty_env_logger = "0.5"
+cafebabe.workspace = true
+thiserror.workspace = true
+clap = { version = "4", features = ["derive"] }
+zip = "2"
+jni = { workspace = true, features = ["invocation"] }
+
+[build-dependencies]
+javac.workspace = true
+zip = "2"
+
+[dev-dependencies]
+javac.workspace = true
+adb_client = "3.0"
