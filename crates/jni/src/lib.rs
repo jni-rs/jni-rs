@@ -346,16 +346,28 @@ pub use self::vm::*;
 // ref: https://github.com/bkchr/proc-macro-crate/issues/11
 extern crate self as jni;
 
+#[doc(inline)]
 pub use jni_macros::jni_cstr;
+#[doc = include_str!("../../jni/docs/macros/jni_str.md")]
 pub use jni_macros::jni_str;
 
+#[doc(inline)]
 pub use jni_macros::jni_mangle;
 
+#[doc = include_str!("../../jni/docs/macros/jni_sig.md")]
 pub use jni_macros::jni_sig;
+#[doc(inline)]
 pub use jni_macros::jni_sig_cstr;
+#[doc(inline)]
 pub use jni_macros::jni_sig_jstr;
+#[doc(inline)]
 pub use jni_macros::jni_sig_str;
 
+#[doc = include_str!("../docs/macros/bind_java_type_0_overview.md")]
+#[doc = include_str!("../docs/macros/bind_java_type_1_properties.md")]
+#[doc = include_str!("../docs/macros/bind_java_type_2_examples.md")]
+#[doc = include_str!("../docs/macros/bind_java_type_3_advanced.md")]
 pub use jni_macros::bind_java_type;
 
+#[doc = include_str!("../docs/macros/native_method.md")]
 pub use jni_macros::native_method;

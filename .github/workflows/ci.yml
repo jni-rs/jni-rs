@@ -113,8 +113,18 @@ jobs:
         # 'invocation' feature for Android
         run: cargo ndk -t arm64-v8a test --package jni --lib --tests --no-run -- --nocapture
       - name: Test Docs
-        if: ${{ matrix.rust-version == 'stable' && !cancelled() }}
-        run: cargo test --workspace --doc ${{ matrix.target_arg }} --all-features
+        if: ${{ matrix.rust-version == 'stable' && matrix.target_os != 'android' && !cancelled() }}
+        run: cargo test --workspace --doc --all-features
+        # Note: When doc tests are built for android we rely on the noop runner configured in .cargo/config.toml
+      - name: Test Docs
+        if: ${{ matrix.rust-version == 'stable' && matrix.target_os == 'android' && !cancelled() }}
+        # Note: we need to block cargo-ndk from automatically configuring the runner since it will
+        # fail with no device/emulator
+        # FIXME: ideally cargo-ndk would have an option to not set the runner
+        run: |
+          source <(cargo ndk-env -t arm64-v8a)
+          unset CARGO_TARGET_AARCH64_LINUX_ANDROID_RUNNER
+          cargo test -p jni -p jni-macros --doc --all-features
       - name: Documentation
         if: ${{ matrix.rust-version == 'stable' && !cancelled() }}
         run: cargo doc --workspace ${{ matrix.target_arg }} --all-features --no-deps

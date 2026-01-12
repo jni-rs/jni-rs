@@ -1,5 +1,8 @@
 Proc macros for the [jni](https://crates.io/crates/jni) crate.
 
+These macros are only expected to be used via the `jni` crate and only expected
+to be compatible with the `jni` crate version that re-exports them.
+
 See the [jni docs](https://docs.rs/jni/latest/jni/) for more details, since
 these macros are re-exported by the `jni` crate.
 
