@@ -1,0 +1,7 @@
+# This is a effectively a workaround for `cargo test --doc` not accepting `--no-run`
+# (which we need for android targets since we can't run the tests on the host).
+#
+# Note: this isn't ideal because we're pointing at a shell script that may not run
+# on Windows, although the main use case is for the CI that runs on Linux
+[target.aarch64-linux-android]
+runner = [".cargo/noop-test-runner.sh"]
