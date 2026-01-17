@@ -1484,7 +1484,7 @@ fn generate_api_struct(
 
     quote! {
         #[allow(non_snake_case)]
-        struct #api_name {
+        pub(crate) struct #api_name {
             class: #jni::refs::Global<#jni::objects::JClass<'static>>,
             #priv_field
             #(#method_id_fields)*
