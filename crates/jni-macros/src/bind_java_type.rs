@@ -3559,6 +3559,7 @@ fn generate_single_native_export(
     };
 
     Ok(quote! {
+        #[doc(hidden)]
         #no_mangle_attr
         #[allow(non_snake_case)]
         pub unsafe extern "system" fn #mangled_ident<#lifetime>(
