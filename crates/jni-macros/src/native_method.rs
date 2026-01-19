@@ -687,6 +687,7 @@ pub fn native_method_impl(input: TokenStream) -> Result<TokenStream> {
         // The export wrapper calls the wrapper function (for wrapped) or user function (for raw)
         Ok(quote! {
             const {
+                #[doc(hidden)]
                 #export_name_attr
                 pub extern "system" fn __native_method_export<#lifetime>(
                     #(#raw_params),*
