@@ -13,13 +13,16 @@ the `jni` crate.
   - Supports parsing source code within a .jar file (such as Android SDK source stubs)
   - Supports `@Deprecated` annotations
   - Supports `@RustName` annotation for overriding generated Rust names from Java source code
+  - Supports `@RustPrimitive` parameter annotation for specifying custom Rust primitive type mappings
+    (e.g. newtype wrappers around `long` for boxed native handles)
   - Supports extracting Javadoc comments for documentation
 - Parse `.class` files and `.jar` files containing compiled bytecode
   - Uses the `cafebabe` crate for parsing Java class files
 - Android SDK bindings support
   - Parses both `android.jar` (bytecode) and `android-stubs-src.jar` (source stubs) to get complete
     public API surface
-  - Supports filtering using `hiddenapi-flags.csv` to exclude hidden/non-public APIs
+  - Supports filtering using `hiddenapi-flags.csv` to exclude hidden/non-public APIs (using unsupported
+    Android APIs can lead to runtime crashes and Play Store rejections)
 - Generates `jni::bind_java_type!` based JNI bindings
   - Supports constructors, methods, native methods and fields
   - Supports calling and/or implementing native methods (generates safe trait for implementation of

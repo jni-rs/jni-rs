@@ -871,11 +871,11 @@ fn parse_type_map_args(type_map_args: &[String]) -> Result<Vec<(String, String)>
                     continue;
                 }
 
-                // Parse "path::to::RustType => \"java.foo.Type\"" format
+                // Parse "path::to::RustType => \"java.foo.Type\"" or "unsafe RustType => javaPrimitive" format
                 let parts: Vec<&str> = line.split("=>").collect();
                 if parts.len() != 2 {
                     return Err(format!(
-                        "Invalid type-map format in file '{}' at line {}: '{}'. Expected format: RustType => \"java.foo.Type\"",
+                        "Invalid type-map format in file '{}' at line {}: '{}'. Expected format: RustType => \"java.foo.Type\" or unsafe RustType => javaPrimitive",
                         arg,
                         line_num + 1,
                         line
@@ -896,11 +896,11 @@ fn parse_type_map_args(type_map_args: &[String]) -> Result<Vec<(String, String)>
                 mappings.push((rust_type, java_type));
             }
         } else {
-            // Parse as direct mapping: "RustType=>java.foo.Type" format
+            // Parse as direct mapping: "RustType=>java.foo.Type" or "unsafe RustType=>javaPrimitive" format
             let parts: Vec<&str> = arg.split("=>").collect();
             if parts.len() != 2 {
                 return Err(format!(
-                    "Invalid type-map format '{}'. Expected format: RustType=>java.foo.Type or path to file",
+                    "Invalid type-map format '{}'. Expected format: RustType=>java.foo.Type or unsafe RustType=>javaPrimitive or path to file",
                     arg
                 ));
             }
@@ -922,6 +922,8 @@ fn parse_type_map_args(type_map_args: &[String]) -> Result<Vec<(String, String)>
 /// Embedded annotation source files
 const RUST_NAME_JAVA: &str =
     include_str!("../../annotations/src/main/java/io/github/jni_rs/jbindgen/RustName.java");
+const RUST_PRIMITIVE_JAVA: &str =
+    include_str!("../../annotations/src/main/java/io/github/jni_rs/jbindgen/RustPrimitive.java");
 const PACKAGE_INFO_JAVA: &str =
     include_str!("../../annotations/src/main/java/io/github/jni_rs/jbindgen/package-info.java");
 
@@ -943,6 +945,14 @@ fn handle_annotations(output: Option<PathBuf>) {
     }
     println!("Created: {}", rust_name_path.display());
 
+    // Write RustPrimitive.java
+    let rust_primitive_path = package_dir.join("RustPrimitive.java");
+    if let Err(e) = fs::write(&rust_primitive_path, RUST_PRIMITIVE_JAVA) {
+        eprintln!("Error writing {}: {}", rust_primitive_path.display(), e);
+        process::exit(1);
+    }
+    println!("Created: {}", rust_primitive_path.display());
+
     // Write package-info.java
     let package_info_path = package_dir.join("package-info.java");
     if let Err(e) = fs::write(&package_info_path, PACKAGE_INFO_JAVA) {
@@ -957,7 +967,10 @@ fn handle_annotations(output: Option<PathBuf>) {
     );
     println!("\nYou can now use these annotations in your Java code:");
     println!("  import io.github.jni_rs.jbindgen.RustName;");
+    println!("  import io.github.jni_rs.jbindgen.RustPrimitive;");
     println!("\nExample usage:");
     println!("  @RustName(\"CustomName\")");
     println!("  public class MyClass {{ }}");
+    println!();
+    println!("  public native String myMethod(@RustPrimitive(\"ThingHandle\") long handle);");
 }

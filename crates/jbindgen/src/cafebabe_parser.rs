@@ -137,6 +137,7 @@ fn parse_method_descriptor(descriptor: &str) -> Result<(Vec<ArgInfo>, TypeInfo)>
         arguments.push(ArgInfo {
             name: None, // Bytecode doesn't contain parameter names
             type_info,
+            rust_primitive: None, // Bytecode doesn't contain @RustPrimitive annotations
         });
     }
 

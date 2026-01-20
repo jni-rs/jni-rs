@@ -455,6 +455,24 @@ public class Parser {
             paramDesc.descriptor = typeDesc.descriptor;
             paramDesc.arrayDimensions = typeDesc.arrayDimensions;
             paramDesc.isPrimitive = typeDesc.isPrimitive;
+
+            // Check for @RustPrimitive annotation
+            paramDesc.rustPrimitive = null;
+            for (AnnotationMirror annotation : param.getAnnotationMirrors()) {
+                String annotationType = annotation.getAnnotationType().toString();
+                if (annotationType.equals("io.github.jni_rs.jbindgen.RustPrimitive")) {
+                    // Extract the value from the annotation
+                    for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> entry : annotation
+                            .getElementValues().entrySet()) {
+                        if (entry.getKey().getSimpleName().toString().equals("value")) {
+                            paramDesc.rustPrimitive = entry.getValue().getValue().toString();
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
+
             parameters.add(paramDesc);
         }
         desc.parameters = parameters.toArray(new ParameterDescription[0]);
@@ -646,6 +664,7 @@ public class Parser {
         public String descriptor; // JNI descriptor
         public int arrayDimensions; // 0 for non-array, 1 for T[], 2 for T[][], etc.
         public boolean isPrimitive; // true for primitive element types
+        public String rustPrimitive; // Rust type name from @RustPrimitive annotation (may be null)
     }
 
     public static class TypeDescription {

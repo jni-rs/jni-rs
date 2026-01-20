@@ -77,6 +77,8 @@ pub struct ArgInfo {
     pub name: Option<String>,
     /// Type information
     pub type_info: TypeInfo,
+    /// Optional Rust primitive type name from @RustPrimitive annotation
+    pub rust_primitive: Option<String>,
 }
 
 /// Java type information

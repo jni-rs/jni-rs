@@ -692,6 +692,7 @@ mod tests {
                             array_dimensions: 0,
                             is_primitive: true,
                         },
+                        rust_primitive: None,
                     },
                     crate::parser_types::ArgInfo {
                         name: None,
@@ -700,6 +701,7 @@ mod tests {
                             array_dimensions: 0,
                             is_primitive: true,
                         },
+                        rust_primitive: None,
                     },
                     crate::parser_types::ArgInfo {
                         name: None,
@@ -708,6 +710,7 @@ mod tests {
                             array_dimensions: 0,
                             is_primitive: true,
                         },
+                        rust_primitive: None,
                     },
                     crate::parser_types::ArgInfo {
                         name: None,
@@ -716,6 +719,7 @@ mod tests {
                             array_dimensions: 0,
                             is_primitive: false,
                         },
+                        rust_primitive: None,
                     },
                 ],
                 return_type: TypeInfo {

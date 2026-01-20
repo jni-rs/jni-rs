@@ -41,6 +41,7 @@ jni::bind_java_type! {
         descriptor: JString,
         array_dimensions: jint,
         is_primitive: jboolean,
+        rust_primitive: JString,
     },
 }
 
@@ -406,6 +407,14 @@ fn java_to_arg_info(
     let array_dimensions = param_desc.array_dimensions(env)? as usize;
     let is_primitive = param_desc.is_primitive(env)?;
 
+    // Extract rust_primitive if present (may be null)
+    let rust_primitive_jstring = param_desc.rust_primitive(env)?;
+    let rust_primitive = if rust_primitive_jstring.is_null() {
+        None
+    } else {
+        Some(rust_primitive_jstring.to_string())
+    };
+
     Ok(ArgInfo {
         name: Some(name),
         type_info: TypeInfo {
@@ -413,6 +422,7 @@ fn java_to_arg_info(
             array_dimensions,
             is_primitive,
         },
+        rust_primitive,
     })
 }
 

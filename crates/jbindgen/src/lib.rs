@@ -129,7 +129,12 @@ impl Bindings {
     }
 
     /// Create a new Bindings instance from module bindings.
-    fn new(module_bindings: Vec<ModuleBinding>, generate_jni_init: bool, input_type_mappings: Vec<(String, String)>, root_path: String) -> Self {
+    fn new(
+        module_bindings: Vec<ModuleBinding>,
+        generate_jni_init: bool,
+        input_type_mappings: Vec<(String, String)>,
+        root_path: String,
+    ) -> Self {
         let mut root_modules = HashMap::new();
 
         for binding in module_bindings {
@@ -716,7 +721,11 @@ impl Bindings {
         self.write_type_map_internal(path, Some(pub_root_path))
     }
 
-    fn write_type_map_internal<P: AsRef<Path>>(&self, path: P, pub_root_path: Option<&str>) -> Result<()> {
+    fn write_type_map_internal<P: AsRef<Path>>(
+        &self,
+        path: P,
+        pub_root_path: Option<&str>,
+    ) -> Result<()> {
         let type_map = self.type_map(pub_root_path);
         let mut file = fs::File::create(path)?;
 
@@ -782,6 +791,7 @@ pub struct Builder {
     rust_type_name: Option<String>,
     name_prefix: Option<String>,
     type_map: Vec<(String, String)>,
+    primitive_type_map: Vec<(String, String)>,
     generate_native_interfaces: bool,
     generate_jni_init: bool,
     hidden_api_filter: android::HiddenApiFilter,
@@ -807,6 +817,7 @@ impl Builder {
             rust_type_name: None,
             name_prefix: None,
             type_map: Vec::new(),
+            primitive_type_map: Vec::new(),
             generate_native_interfaces: true,
             generate_jni_init: true,
             hidden_api_filter: android::HiddenApiFilter::default(),
@@ -988,26 +999,44 @@ impl Builder {
     ///
     /// # Arguments
     ///
-    /// * `rust_type` - The Rust type name to use
-    /// * `java_type` - The fully qualified Java type name
+    /// * `rust_type` - The Rust type name to use (can be prefixed with "unsafe " for primitive mappings)
+    /// * `java_type` - The fully qualified Java type name or primitive type
     ///
     /// # Example
     ///
     /// ```rust,ignore
     /// builder.type_mapping("MyBundle", "android.os.Bundle")
+    /// builder.type_mapping("unsafe ThingHandle", "long")
     /// ```
     pub fn type_mapping<S1: Into<String>, S2: Into<String>>(
         mut self,
         rust_type: S1,
         java_type: S2,
     ) -> Self {
-        self.type_map.push((rust_type.into(), java_type.into()));
+        let rust_type_str = rust_type.into();
+        let java_type_str = java_type.into();
+
+        // Check if this is an unsafe primitive mapping
+        if let Some(stripped) = rust_type_str.strip_prefix("unsafe ") {
+            self.primitive_type_map
+                .push((stripped.trim().to_string(), java_type_str));
+        } else {
+            self.type_map.push((rust_type_str, java_type_str));
+        }
         self
     }
 
     /// Add multiple type mappings.
     pub fn type_mappings(mut self, mappings: Vec<(String, String)>) -> Self {
-        self.type_map.extend(mappings);
+        for (rust_type, java_type) in mappings {
+            // Check if this is an unsafe primitive mapping
+            if let Some(stripped) = rust_type.strip_prefix("unsafe ") {
+                self.primitive_type_map
+                    .push((stripped.trim().to_string(), java_type));
+            } else {
+                self.type_map.push((rust_type, java_type));
+            }
+        }
         self
     }
 
@@ -1136,6 +1165,7 @@ impl Builder {
             root_path: self.root_path.clone(),
             skip_signatures: self.skip_signatures.clone(),
             name_overrides: self.name_overrides.clone(),
+            primitive_type_map: self.primitive_type_map.iter().cloned().collect(),
         };
 
         let root_path = self.root_path.clone();
@@ -1145,16 +1175,31 @@ impl Builder {
         match input {
             InputSource::ClassFile(path) => {
                 let binding = generate_bindings_with_type_map(&path, &options, type_map.clone())?;
-                Ok(Bindings::new(vec![binding], generate_jni_init, type_map, root_path))
+                Ok(Bindings::new(
+                    vec![binding],
+                    generate_jni_init,
+                    type_map,
+                    root_path,
+                ))
             }
             InputSource::ClassBytes(bytes) => {
                 let binding = generate_bindings_from_bytes(&bytes, &options, type_map.clone())?;
-                Ok(Bindings::new(vec![binding], generate_jni_init, type_map, root_path))
+                Ok(Bindings::new(
+                    vec![binding],
+                    generate_jni_init,
+                    type_map,
+                    root_path,
+                ))
             }
             InputSource::JarFile { path, patterns } => {
                 let bindings =
                     generate_bindings_from_jar(&path, &patterns, &options, type_map.clone())?;
-                Ok(Bindings::new(bindings, generate_jni_init, type_map, root_path))
+                Ok(Bindings::new(
+                    bindings,
+                    generate_jni_init,
+                    type_map,
+                    root_path,
+                ))
             }
             InputSource::Sources {
                 source_paths,
@@ -1168,7 +1213,12 @@ impl Builder {
                     &options,
                     type_map.clone(),
                 )?;
-                Ok(Bindings::new(bindings, generate_jni_init, type_map, root_path))
+                Ok(Bindings::new(
+                    bindings,
+                    generate_jni_init,
+                    type_map,
+                    root_path,
+                ))
             }
             InputSource::AndroidSdk {
                 api_level,
@@ -1188,7 +1238,12 @@ impl Builder {
                     &android_options,
                     type_map.clone(),
                 )?;
-                Ok(Bindings::new(bindings, generate_jni_init, type_map, root_path))
+                Ok(Bindings::new(
+                    bindings,
+                    generate_jni_init,
+                    type_map,
+                    root_path,
+                ))
             }
         }
     }

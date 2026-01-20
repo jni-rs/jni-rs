@@ -1,6 +1,6 @@
 //! Code generator for Rust bindings
 
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::parser_types::{ClassInfo, MethodInfo};
 use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
@@ -182,6 +182,8 @@ pub struct BindgenOptions {
     pub skip_signatures: Vec<String>,
     /// Map of DEX signatures to override Rust names
     pub name_overrides: HashMap<String, String>,
+    /// Unsafe primitive type mappings (RustType => javaPrimitive)
+    pub primitive_type_map: HashMap<String, String>,
 }
 
 impl Default for BindgenOptions {
@@ -195,6 +197,7 @@ impl Default for BindgenOptions {
             root_path: String::from("crate"),
             skip_signatures: Vec::new(),
             name_overrides: HashMap::new(),
+            primitive_type_map: HashMap::new(),
         }
     }
 }
@@ -405,6 +408,8 @@ pub fn generate_with_type_map(
 ) -> Result<ModuleBinding> {
     // Track which types from type_map are actually used
     let mut used_types = HashSet::new();
+    // Track which primitive type mappings are actually used
+    let mut used_primitive_types = HashSet::new();
 
     // Extract package name and module path from class_info
     let module_path = class_info.package.clone();
@@ -508,7 +513,13 @@ pub fn generate_with_type_map(
                     &ctor_names[idx]
                 };
 
-                let sig = generate_method_signature_with_deps(ctor, type_map, &mut used_types)?;
+                let sig = generate_method_signature_with_deps(
+                    ctor,
+                    type_map,
+                    options,
+                    &mut used_types,
+                    &mut used_primitive_types,
+                )?;
 
                 // Add constructor documentation if available
                 if let Some(doc) = &ctor.documentation {
@@ -703,7 +714,13 @@ pub fn generate_with_type_map(
                 }
 
                 let modifier = if method.is_static { "static " } else { "" };
-                let sig = generate_method_signature_with_deps(method, type_map, &mut used_types)?;
+                let sig = generate_method_signature_with_deps(
+                    method,
+                    type_map,
+                    options,
+                    &mut used_types,
+                    &mut used_primitive_types,
+                )?;
 
                 // Check if there's a name override for this method
                 let dex_sig = generate_dex_signature(&class_info.class_name, method);
@@ -824,8 +841,13 @@ pub fn generate_with_type_map(
 
                     let modifier = if method.is_static { "static " } else { "" };
                     let visibility = if method.is_public { "pub " } else { "" };
-                    let sig =
-                        generate_method_signature_with_deps(method, type_map, &mut used_types)?;
+                    let sig = generate_method_signature_with_deps(
+                        method,
+                        type_map,
+                        options,
+                        &mut used_types,
+                        &mut used_primitive_types,
+                    )?;
 
                     // Check if there's a name override for this method
                     let dex_sig = generate_dex_signature(&class_info.class_name, method);
@@ -939,22 +961,39 @@ pub fn generate_with_type_map(
 
     // Generate type_map block with only the types that were actually used
     // Note: we exclude the self type (java_type) because bind_java_type adds it automatically
-    if !used_types.is_empty() {
-        // Filter the type_map to only include used types, excluding self
-        let mut filtered_mappings: Vec<_> = type_map
-            .iter()
-            .filter(|(java, _)| used_types.contains(*java) && *java != &java_type)
-            .collect();
+    if !used_types.is_empty() || !used_primitive_types.is_empty() {
+        output.push_str("    type_map = {\n");
 
-        if !filtered_mappings.is_empty() {
-            filtered_mappings.sort_by_key(|(java, _)| java.as_str());
+        // First add regular type mappings
+        if !used_types.is_empty() {
+            // Filter the type_map to only include used types, excluding self
+            let mut filtered_mappings: Vec<_> = type_map
+                .iter()
+                .filter(|(java, _)| used_types.contains(*java) && *java != &java_type)
+                .collect();
 
-            output.push_str("    type_map = {\n");
-            for (java_type, rust_type) in filtered_mappings {
-                output.push_str(&format!("        {} => \"{}\",\n", rust_type, java_type));
+            if !filtered_mappings.is_empty() {
+                filtered_mappings.sort_by_key(|(java, _)| java.as_str());
+
+                for (java_type, rust_type) in filtered_mappings {
+                    output.push_str(&format!("        {} => \"{}\",\n", rust_type, java_type));
+                }
             }
-            output.push_str("    },\n");
         }
+
+        // Then add primitive type mappings
+        if !used_primitive_types.is_empty() {
+            let mut sorted_prims: Vec<_> = used_primitive_types.iter().collect();
+            sorted_prims.sort();
+
+            for rust_prim in sorted_prims {
+                if let Some(java_prim) = options.primitive_type_map.get(rust_prim) {
+                    output.push_str(&format!("        unsafe {} => {},\n", rust_prim, java_prim));
+                }
+            }
+        }
+
+        output.push_str("    },\n");
     }
 
     // Add the body (constructors, methods, fields, etc.)
@@ -1357,7 +1396,9 @@ fn sanitize_rust_keyword(name: &str) -> String {
 fn generate_method_signature_with_deps(
     method: &MethodInfo,
     type_map: &TypeMap,
+    options: &BindgenOptions,
     used_types: &mut HashSet<String>,
+    used_primitive_types: &mut HashSet<String>,
 ) -> Result<String> {
     let mut sig = String::from("(");
 
@@ -1372,11 +1413,37 @@ fn generate_method_signature_with_deps(
             format!("arg{}", i)
         };
         sig.push_str(&format!("{}: ", arg_name));
-        sig.push_str(&resolve_type_with_deps(
-            &arg.type_info,
-            type_map,
-            used_types,
-        )?);
+
+        // Check if this argument has a @RustPrimitive annotation
+        if let Some(rust_prim) = &arg.rust_primitive {
+            // Validate that this primitive type mapping exists
+            if let Some(java_prim) = options.primitive_type_map.get(rust_prim) {
+                // Verify that the actual Java type matches the expected primitive
+                if arg.type_info.is_primitive && java_prim == &arg.type_info.name {
+                    // Use the Rust primitive type name directly
+                    sig.push_str(rust_prim);
+                    // Track that this primitive type was used
+                    used_primitive_types.insert(rust_prim.clone());
+                } else {
+                    return Err(Error::CodeGen(format!(
+                        "Type mismatch for @RustPrimitive(\"{}\") on parameter '{}': expected Java type '{}' but got '{}'",
+                        rust_prim, arg_name, java_prim, arg.type_info.name
+                    )));
+                }
+            } else {
+                return Err(Error::CodeGen(format!(
+                    "No unsafe primitive type mapping found for @RustPrimitive(\"{}\") on parameter '{}'. Add: unsafe {} => {}",
+                    rust_prim, arg_name, rust_prim, arg.type_info.name
+                )));
+            }
+        } else {
+            // No @RustPrimitive annotation, use normal type resolution
+            sig.push_str(&resolve_type_with_deps(
+                &arg.type_info,
+                type_map,
+                used_types,
+            )?);
+        }
     }
 
     sig.push(')');
@@ -1397,7 +1464,15 @@ fn generate_method_signature_with_deps(
 /// Generate the method signature string for bind_java_type! macro
 fn generate_method_signature(method: &MethodInfo, type_map: &TypeMap) -> Result<String> {
     let mut unused = HashSet::new();
-    generate_method_signature_with_deps(method, type_map, &mut unused)
+    let mut unused_prims = HashSet::new();
+    let default_options = BindgenOptions::default();
+    generate_method_signature_with_deps(
+        method,
+        type_map,
+        &default_options,
+        &mut unused,
+        &mut unused_prims,
+    )
 }
 
 /// Converts a snake_case identifier to lowerCamelCase.
@@ -1675,14 +1750,17 @@ mod tests {
                         ArgInfo {
                             name: Some("arg0".to_string()),
                             type_info: string_type.clone(),
+                            rust_primitive: None,
                         },
                         ArgInfo {
                             name: Some("arg1".to_string()),
                             type_info: string_type.clone(),
+                            rust_primitive: None,
                         },
                         ArgInfo {
                             name: Some("arg2".to_string()),
                             type_info: int_type.clone(),
+                            rust_primitive: None,
                         },
                     ],
                     return_type: void_type.clone(),
@@ -1701,6 +1779,7 @@ mod tests {
                     arguments: vec![ArgInfo {
                         name: Some("arg0".to_string()),
                         type_info: string_type.clone(),
+                        rust_primitive: None,
                     }],
                     return_type: void_type.clone(),
                 },
@@ -1719,10 +1798,12 @@ mod tests {
                         ArgInfo {
                             name: Some("arg0".to_string()),
                             type_info: int_type.clone(),
+                            rust_primitive: None,
                         },
                         ArgInfo {
                             name: Some("arg1".to_string()),
                             type_info: string_type.clone(),
+                            rust_primitive: None,
                         },
                     ],
                     return_type: void_type.clone(),
@@ -1742,10 +1823,12 @@ mod tests {
                         ArgInfo {
                             name: Some("arg0".to_string()),
                             type_info: string_type.clone(),
+                            rust_primitive: None,
                         },
                         ArgInfo {
                             name: Some("arg1".to_string()),
                             type_info: string_type.clone(),
+                            rust_primitive: None,
                         },
                     ],
                     return_type: void_type.clone(),
@@ -1801,14 +1884,17 @@ mod tests {
                     ArgInfo {
                         name: None, // No name provided
                         type_info: int_type.clone(),
+                        rust_primitive: None,
                     },
                     ArgInfo {
                         name: Some("namedArg".to_string()), // Name provided
                         type_info: int_type.clone(),
+                        rust_primitive: None,
                     },
                     ArgInfo {
                         name: None, // No name provided
                         type_info: int_type.clone(),
+                        rust_primitive: None,
                     },
                 ],
                 return_type: void_type,
@@ -1882,10 +1968,12 @@ mod tests {
                             ArgInfo {
                                 name: None,
                                 type_info: string_type.clone(),
+                                rust_primitive: None,
                             },
                             ArgInfo {
                                 name: None,
                                 type_info: string_type.clone(),
+                                rust_primitive: None,
                             },
                         ],
                         return_type: void_type.clone(),
@@ -1921,10 +2009,12 @@ mod tests {
                             ArgInfo {
                                 name: None,
                                 type_info: int_type.clone(),
+                                rust_primitive: None,
                             },
                             ArgInfo {
                                 name: None,
                                 type_info: string_type.clone(),
+                                rust_primitive: None,
                             },
                         ],
                         return_type: void_type.clone(),
@@ -1944,6 +2034,7 @@ mod tests {
                         arguments: vec![ArgInfo {
                             name: None,
                             type_info: int_type.clone(),
+                            rust_primitive: None,
                         }],
                         return_type: void_type.clone(),
                     },
