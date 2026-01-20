@@ -344,11 +344,9 @@ fn format_javadoc_as_rustdoc(javadoc: &str) -> String {
             if let Some(rest) = trimmed.strip_prefix("@param") {
                 let rest = rest.trim();
                 if let Some((param_name, desc)) = rest.split_once(char::is_whitespace) {
-                    output.push_str(&format!(
-                        "/// * `{}` - {}\n",
-                        param_name.trim(),
-                        desc.trim()
-                    ));
+                    // Convert parameter name to snake_case
+                    let rust_param_name = java_name_to_rust(param_name.trim()).0;
+                    output.push_str(&format!("/// * `{}` - {}\n", rust_param_name, desc.trim()));
                 }
             }
             continue;
@@ -419,11 +417,11 @@ pub fn generate_with_type_map(
     let use_statements = vec!["use jni::bind_java_type;".to_string()];
 
     // Determine the Rust type name
-    // Priority: class_info.rust_name_override > options.rust_type_name > derived name
-    let rust_type_override = class_info
-        .rust_name_override
+    // Priority: options.rust_type_name > class_info.rust_name_override > derived name
+    let rust_type_override = options
+        .rust_type_name
         .as_deref()
-        .or(options.rust_type_name.as_deref());
+        .or(class_info.rust_name_override.as_deref());
 
     let rust_name = derive_rust_type_name(
         &class_info.class_name,
@@ -537,6 +535,11 @@ pub fn generate_with_type_map(
                     body_buffer.push_str("        #[deprecated]\n");
                 }
 
+                // Add #[allow(non_snake_case)] if the name is not snake_case
+                if !is_snake_case(ctor_name) {
+                    body_buffer.push_str("        #[allow(non_snake_case)]\n");
+                }
+
                 body_buffer.push_str(&format!("        fn {}{}", ctor_name, sig));
                 body_buffer.push_str(",\n");
             }
@@ -567,11 +570,11 @@ pub fn generate_with_type_map(
                 let overridden_name = options.name_overrides.get(&dex_sig);
 
                 let (mut rust_name, mut is_reversible) =
-                    if let Some(override_name) = field.rust_name_override.as_ref() {
-                        // Priority 1: Use @RustName annotation from source
+                    if let Some(override_name) = overridden_name {
+                        // Priority 1: Use the CLI/config overridden name
                         (override_name.clone(), false)
-                    } else if let Some(override_name) = overridden_name {
-                        // Priority 2: Use the CLI/config overridden name
+                    } else if let Some(override_name) = field.rust_name_override.as_ref() {
+                        // Priority 2: Use @RustName annotation from source
                         (override_name.clone(), false)
                     } else {
                         // Priority 3: Derive from Java name
@@ -625,6 +628,11 @@ pub fn generate_with_type_map(
                 // Add #[deprecated] attribute if needed
                 if field.is_deprecated {
                     body_buffer.push_str("        #[deprecated]\n");
+                }
+
+                // Add #[allow(non_snake_case)] if the name is not snake_case
+                if !is_snake_case(&rust_name) {
+                    body_buffer.push_str("        #[allow(non_snake_case)]\n");
                 }
 
                 let modifier = if field.is_static { "static " } else { "" };
@@ -728,11 +736,11 @@ pub fn generate_with_type_map(
 
                 // Determine rust name and reversibility
                 let (mut rust_name, mut is_reversible) =
-                    if let Some(override_name) = method.rust_name_override.as_ref() {
-                        // Priority 1: Use @RustName annotation from source
+                    if let Some(override_name) = overridden_name {
+                        // Priority 1: Use the CLI/config overridden name
                         (override_name.clone(), false)
-                    } else if let Some(override_name) = overridden_name {
-                        // Priority 2: Use the CLI/config overridden name
+                    } else if let Some(override_name) = method.rust_name_override.as_ref() {
+                        // Priority 2: Use @RustName annotation from source
                         (override_name.clone(), false)
                     } else if is_overloaded {
                         // Priority 3: Overloaded methods use generated unique names
@@ -773,10 +781,18 @@ pub fn generate_with_type_map(
 
                 if is_reversible {
                     // Use shorthand syntax when name is reversible
+                    // Add #[allow(non_snake_case)] if the name is not snake_case
+                    if !is_snake_case(&rust_name) {
+                        body_buffer.push_str("        #[allow(non_snake_case)]\n");
+                    }
                     body_buffer.push_str(&format!("        {}fn {}{}", modifier, rust_name, sig));
                     body_buffer.push_str(",\n");
                 } else {
                     // Use property syntax when name isn't reversible (including overloads)
+                    // Add #[allow(non_snake_case)] if the name is not snake_case
+                    if !is_snake_case(&rust_name) {
+                        body_buffer.push_str("        #[allow(non_snake_case)]\n");
+                    }
                     body_buffer.push_str(&format!("        {}fn {} {{\n", modifier, rust_name));
                     body_buffer.push_str(&format!("            name = \"{}\",\n", java_name));
                     body_buffer.push_str(&format!("            sig = {},\n", sig));
@@ -855,11 +871,11 @@ pub fn generate_with_type_map(
 
                     // Determine rust name and reversibility
                     let (mut rust_name, mut is_reversible) =
-                        if let Some(override_name) = method.rust_name_override.as_ref() {
-                            // Priority 1: Use @RustName annotation from source
+                        if let Some(override_name) = overridden_name {
+                            // Priority 1: Use the CLI/config overridden name
                             (override_name.clone(), false)
-                        } else if let Some(override_name) = overridden_name {
-                            // Priority 2: Use the CLI/config overridden name
+                        } else if let Some(override_name) = method.rust_name_override.as_ref() {
+                            // Priority 2: Use @RustName annotation from source
                             (override_name.clone(), false)
                         } else if is_overloaded {
                             // Priority 3: Overloaded methods use generated unique names
@@ -904,6 +920,10 @@ pub fn generate_with_type_map(
 
                     if is_reversible {
                         // Use shorthand syntax when name is reversible
+                        // Add #[allow(non_snake_case)] if the name is not snake_case
+                        if !is_snake_case(&rust_name) {
+                            body_buffer.push_str("        #[allow(non_snake_case)]\n");
+                        }
                         body_buffer.push_str(&format!(
                             "        {}{}fn {}{}",
                             visibility, modifier, rust_name, sig
@@ -911,6 +931,10 @@ pub fn generate_with_type_map(
                         body_buffer.push_str(",\n");
                     } else {
                         // Use property syntax when name isn't reversible (including overloads)
+                        // Add #[allow(non_snake_case)] if the name is not snake_case
+                        if !is_snake_case(&rust_name) {
+                            body_buffer.push_str("        #[allow(non_snake_case)]\n");
+                        }
                         body_buffer.push_str(&format!(
                             "        {}{}fn {} {{\n",
                             visibility, modifier, rust_name
@@ -1392,6 +1416,10 @@ fn sanitize_rust_keyword(name: &str) -> String {
     }
 }
 
+fn is_snake_case(name: &str) -> bool {
+    name.chars().all(|c| c.is_lowercase() || c == '_')
+}
+
 /// Generate the method signature string for bind_java_type! macro, tracking type dependencies
 fn generate_method_signature_with_deps(
     method: &MethodInfo,
@@ -1408,7 +1436,9 @@ fn generate_method_signature_with_deps(
         }
 
         let arg_name = if let Some(arg_name) = arg.name.as_deref() {
-            sanitize_rust_keyword(arg_name)
+            // Convert to snake_case then sanitize keywords
+            let snake_case_name = java_name_to_rust(arg_name).0;
+            sanitize_rust_keyword(&snake_case_name)
         } else {
             format!("arg{}", i)
         };
@@ -1912,15 +1942,16 @@ mod tests {
 
         let sig = generate_method_signature(&method, &type_map).unwrap();
 
-        // Should generate: (arg0: jint, namedArg: jint, arg2: jint)
+        // Should generate: (arg0: jint, named_arg: jint, arg2: jint)
+        // Note: namedArg is converted to snake_case (named_arg)
         assert!(
             sig.contains("arg0: jint"),
             "Expected 'arg0: jint' in signature, got: {}",
             sig
         );
         assert!(
-            sig.contains("namedArg: jint"),
-            "Expected 'namedArg: jint' in signature, got: {}",
+            sig.contains("named_arg: jint"),
+            "Expected 'named_arg: jint' (converted from namedArg) in signature, got: {}",
             sig
         );
         assert!(

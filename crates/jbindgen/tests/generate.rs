@@ -350,6 +350,32 @@ fn test_documentation_generation() {
         "Should have instance field documentation"
     );
 
+    // Check that parameter names are converted to snake_case
+    assert!(
+        bindings_from_source.contains("fn new_int(initial_value: jint)"),
+        "Constructor parameter 'initialValue' should be converted to 'initial_value'"
+    );
+    assert!(
+        bindings_from_source.contains("fn set_value(new_value: jint)"),
+        "Method parameter 'newValue' should be converted to 'new_value'"
+    );
+
+    // Check that JavaDoc parameter names are also converted to snake_case
+    assert!(
+        bindings_from_source.contains("/// * `initial_value` - the initial value to set"),
+        "JavaDoc parameter 'initialValue' should be converted to 'initial_value'"
+    );
+    assert!(
+        bindings_from_source.contains("/// * `new_value` - the new value to set"),
+        "JavaDoc parameter 'newValue' should be converted to 'new_value'"
+    );
+
+    // Check that #[allow(non_snake_case)] is emitted for MAX_VALUE
+    assert!(
+        bindings_from_source.contains("#[allow(non_snake_case)]"),
+        "Should have #[allow(non_snake_case)] attribute for MAX_VALUE"
+    );
+
     println!("Generated bindings from source:\n{}", bindings_from_source);
 }
 

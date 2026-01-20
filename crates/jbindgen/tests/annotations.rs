@@ -193,8 +193,9 @@ fn test_rust_primitive_annotation() {
     );
 
     // Verify OtherHandle is used in the parameter (not return type which remains jlong)
+    // Note: existingHandle is converted to snake_case (existing_handle)
     assert!(
-        code.contains("fn create_handle") && code.contains("existingHandle: OtherHandle"),
+        code.contains("fn create_handle") && code.contains("existing_handle: OtherHandle"),
         "Native method should use OtherHandle for annotated parameters"
     );
 
@@ -208,16 +209,16 @@ fn test_rust_primitive_annotation() {
         "First handle parameter should use ThingHandle"
     );
     assert!(
-        code.contains("normalInt: jint"),
-        "Non-annotated int should use jint"
+        code.contains("normal_int: jint"),
+        "Non-annotated int should use jint (converted to snake_case)"
     );
     assert!(
         code.contains("handle2: ThingHandle"),
         "Second handle parameter should use ThingHandle"
     );
     assert!(
-        code.contains("normalLong: jlong"),
-        "Non-annotated long should use jlong"
+        code.contains("normal_long: jlong"),
+        "Non-annotated long should use jlong (converted to snake_case)"
     );
 
     // Verify static native method works
