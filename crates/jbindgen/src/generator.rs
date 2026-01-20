@@ -969,7 +969,7 @@ pub fn generate_with_type_map(
             // Filter the type_map to only include used types, excluding self
             let mut filtered_mappings: Vec<_> = type_map
                 .iter()
-                .filter(|(java, _)| used_types.contains(*java) && *java != &java_type)
+                .filter(|(java, _)| used_types.contains(*java))
                 .collect();
 
             if !filtered_mappings.is_empty() {

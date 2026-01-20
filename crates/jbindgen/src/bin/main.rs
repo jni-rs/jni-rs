@@ -920,12 +920,26 @@ fn parse_type_map_args(type_map_args: &[String]) -> Result<Vec<(String, String)>
 }
 
 /// Embedded annotation source files
-const RUST_NAME_JAVA: &str =
-    include_str!("../../annotations/src/main/java/io/github/jni_rs/jbindgen/RustName.java");
-const RUST_PRIMITIVE_JAVA: &str =
-    include_str!("../../annotations/src/main/java/io/github/jni_rs/jbindgen/RustPrimitive.java");
-const PACKAGE_INFO_JAVA: &str =
-    include_str!("../../annotations/src/main/java/io/github/jni_rs/jbindgen/package-info.java");
+const ANNOTATION_FILES: &[(&str, &str)] = &[
+    (
+        "RustName.java",
+        include_str!("../../annotations/src/main/java/io/github/jni_rs/jbindgen/RustName.java"),
+    ),
+    (
+        "RustPrimitive.java",
+        include_str!(
+            "../../annotations/src/main/java/io/github/jni_rs/jbindgen/RustPrimitive.java"
+        ),
+    ),
+    (
+        "RustSkip.java",
+        include_str!("../../annotations/src/main/java/io/github/jni_rs/jbindgen/RustSkip.java"),
+    ),
+    (
+        "package-info.java",
+        include_str!("../../annotations/src/main/java/io/github/jni_rs/jbindgen/package-info.java"),
+    ),
+];
 
 fn handle_annotations(output: Option<PathBuf>) {
     let base_dir = output.unwrap_or_else(|| PathBuf::from("."));
@@ -937,29 +951,15 @@ fn handle_annotations(output: Option<PathBuf>) {
         process::exit(1);
     }
 
-    // Write RustName.java
-    let rust_name_path = package_dir.join("RustName.java");
-    if let Err(e) = fs::write(&rust_name_path, RUST_NAME_JAVA) {
-        eprintln!("Error writing {}: {}", rust_name_path.display(), e);
-        process::exit(1);
+    // Write all annotation files
+    for (filename, content) in ANNOTATION_FILES {
+        let file_path = package_dir.join(filename);
+        if let Err(e) = fs::write(&file_path, content) {
+            eprintln!("Error writing {}: {}", file_path.display(), e);
+            process::exit(1);
+        }
+        println!("Created: {}", file_path.display());
     }
-    println!("Created: {}", rust_name_path.display());
-
-    // Write RustPrimitive.java
-    let rust_primitive_path = package_dir.join("RustPrimitive.java");
-    if let Err(e) = fs::write(&rust_primitive_path, RUST_PRIMITIVE_JAVA) {
-        eprintln!("Error writing {}: {}", rust_primitive_path.display(), e);
-        process::exit(1);
-    }
-    println!("Created: {}", rust_primitive_path.display());
-
-    // Write package-info.java
-    let package_info_path = package_dir.join("package-info.java");
-    if let Err(e) = fs::write(&package_info_path, PACKAGE_INFO_JAVA) {
-        eprintln!("Error writing {}: {}", package_info_path.display(), e);
-        process::exit(1);
-    }
-    println!("Created: {}", package_info_path.display());
 
     println!(
         "\nAnnotation files have been written to: {}",
@@ -968,6 +968,7 @@ fn handle_annotations(output: Option<PathBuf>) {
     println!("\nYou can now use these annotations in your Java code:");
     println!("  import io.github.jni_rs.jbindgen.RustName;");
     println!("  import io.github.jni_rs.jbindgen.RustPrimitive;");
+    println!("  import io.github.jni_rs.jbindgen.RustSkip;");
     println!("\nExample usage:");
     println!("  @RustName(\"CustomName\")");
     println!("  public class MyClass {{ }}");

@@ -152,7 +152,10 @@ public class Parser {
                             // Check if this class matches the pattern
                             if (classPattern == null || matchesPattern(binaryName, classPattern)) {
                                 ClassDescription classDesc = analyzeClass(typeElement, elements, types);
-                                classes.add(classDesc);
+                                // Only add if not null (could be null if class has @RustSkip)
+                                if (classDesc != null) {
+                                    classes.add(classDesc);
+                                }
                             }
                         }
                         return super.visitClass(node, p);
@@ -286,6 +289,11 @@ public class Parser {
     }
 
     private ClassDescription analyzeClass(TypeElement element, Elements elements, Types types) {
+        // Skip classes with @RustSkip annotation
+        if (hasRustSkipAnnotation(element)) {
+            return null;
+        }
+
         ClassDescription desc = new ClassDescription();
 
         // Build the binary name (with $ for inner classes) by walking the enclosing
@@ -348,6 +356,10 @@ public class Parser {
         // Analyze members
         for (Element enclosed : element.getEnclosedElements()) {
             if (enclosed.getKind() == ElementKind.FIELD) {
+                // Skip fields with @RustSkip annotation
+                if (hasRustSkipAnnotation(enclosed)) {
+                    continue;
+                }
                 FieldDescription field = analyzeField((VariableElement) enclosed, types, elements);
                 if (field != null) {
                     fields.add(field);
@@ -358,12 +370,20 @@ public class Parser {
                 if (!constructorElement.getModifiers().contains(Modifier.PUBLIC)) {
                     continue;
                 }
+                // Skip constructors with @RustSkip annotation
+                if (hasRustSkipAnnotation(constructorElement)) {
+                    continue;
+                }
                 MethodDescription method = analyzeMethod(constructorElement, types, elements, true);
                 if (method != null) {
                     constructors.add(method);
                 }
             } else if (enclosed.getKind() == ElementKind.METHOD) {
                 ExecutableElement methodElement = (ExecutableElement) enclosed;
+                // Skip methods with @RustSkip annotation
+                if (hasRustSkipAnnotation(methodElement)) {
+                    continue;
+                }
                 boolean isNative = methodElement.getModifiers().contains(Modifier.NATIVE);
 
                 MethodDescription method = analyzeMethod(methodElement, types, elements, false);
@@ -627,6 +647,26 @@ public class Parser {
             }
         }
         return null;
+    }
+
+    /**
+     * Check if an element has a @RustSkip annotation.
+     * Returns true if the annotation is present, indicating the element should be
+     * skipped.
+     *
+     * Supports both io.github.jni_rs.jbindgen.RustSkip and unqualified RustSkip
+     * for backwards compatibility.
+     */
+    private boolean hasRustSkipAnnotation(Element element) {
+        for (AnnotationMirror annotation : element.getAnnotationMirrors()) {
+            String annotationName = annotation.getAnnotationType().toString();
+            if (annotationName.equals("io.github.jni_rs.jbindgen.RustSkip")
+                    || annotationName.equals("RustSkip")
+                    || annotationName.endsWith(".RustSkip")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // Data classes for JSON serialization

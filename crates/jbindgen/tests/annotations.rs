@@ -278,3 +278,106 @@ fn test_rust_primitive_without_type_mapping_fails() {
         err_msg
     );
 }
+
+#[test]
+fn test_rust_skip_annotation() {
+    let test_file = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/java/RustSkipTest.java");
+
+    let annotations_dir =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("annotations/src/main/java");
+
+    let sources = vec![test_file];
+    let classpath = vec![annotations_dir];
+    let patterns = vec!["io.github.jni_rs.jbindgen.test.*".to_string()];
+
+    let output = Builder::new()
+        .input_sources(sources, classpath, patterns)
+        .root_path("crate")
+        .generate()
+        .expect("Failed to generate bindings");
+
+    let code = output.to_string();
+
+    // RustSkipTest class should be included
+    assert!(
+        code.contains("pub RustSkipTest =>"),
+        "RustSkipTest class should be included in generated code"
+    );
+
+    // SkippedClass should be completely absent
+    assert!(
+        !code.contains("SkippedClass"),
+        "SkippedClass should not appear in generated code"
+    );
+
+    // MixedClass should be included
+    assert!(
+        code.contains("pub MixedClass =>"),
+        "MixedClass should be included in generated code"
+    );
+
+    // In RustSkipTest: includedField should be present, skippedField should not
+    assert!(
+        code.contains("included_field"),
+        "included_field should be in generated code"
+    );
+    assert!(
+        !code.contains("skipped_field"),
+        "skipped_field should not be in generated code"
+    );
+
+    // In RustSkipTest: includedMethod should be present, skippedMethod should not
+    assert!(
+        code.contains("included_method"),
+        "included_method should be in generated code"
+    );
+    assert!(
+        !code.contains("skipped_method"),
+        "skipped_method should not be in generated code"
+    );
+
+    // In RustSkipTest: parameterless constructor should be present,
+    // constructor with int parameter should not
+    // The default constructor creates a "new" method
+    assert!(
+        code.contains("fn new()"),
+        "Default constructor should be in generated code"
+    );
+    // The skipped constructor would create a method with an int parameter
+    // We need to verify it's not there - check that there's only one constructor
+    let constructor_count = code.matches("fn new").count();
+    assert_eq!(
+        constructor_count, 1,
+        "Should only have one constructor (the non-skipped one)"
+    );
+
+    // In RustSkipTest: getIncludedField should be present, getSkippedField should not
+    assert!(
+        code.contains("get_included_field"),
+        "get_included_field method should be in generated code"
+    );
+    assert!(
+        !code.contains("get_skipped_field"),
+        "get_skipped_field method should not be in generated code"
+    );
+
+    // In MixedClass: normalField should be present, internalField should not
+    assert!(
+        code.contains("normal_field"),
+        "normal_field should be in generated code"
+    );
+    assert!(
+        !code.contains("internal_field"),
+        "internal_field should not be in generated code"
+    );
+
+    // In MixedClass: publicMethod should be present, internalMethod should not
+    assert!(
+        code.contains("public_method"),
+        "public_method should be in generated code"
+    );
+    assert!(
+        !code.contains("internal_method"),
+        "internal_method should not be in generated code"
+    );
+}

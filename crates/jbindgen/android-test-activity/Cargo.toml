@@ -20,6 +20,10 @@ paranoid-android = "0.2"
 jbindgen = { path = ".." }
 javac = { path = "../../javac" }
 
+[dev-dependencies]
+javac = { path = "../../javac" }
+adb_client = "3.0"
+
 [lib]
 crate-type = ["cdylib"]
 
@@ -30,3 +34,6 @@ sdk_os_binder = []
 sdk_bluetooth = []
 sdk_content_intent = []
 sdk_net_uri = []
+
+[patch.crates-io]
+adb_client = { git = "https://github.com/rib/adb_client.git", branch = "rib/pr/shell-v2-decode" }
