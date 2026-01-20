@@ -29,6 +29,8 @@ pub struct ModuleBinding {
     pub rust_type_name: String,
     /// The Rust API type name (e.g., "MyClassAPI")
     pub rust_api_type_name: String,
+    /// The Java type name (e.g., "MyClass" or "MyClass$Inner")
+    pub java_type_name: String,
 }
 
 /// Builtin JNI type information
@@ -206,7 +208,7 @@ pub struct TypeMap {
 
 impl TypeMap {
     /// Create a new TypeMap from a collection of ClassInfo
-    pub fn from_classes<'a>(
+    pub(crate) fn from_classes<'a>(
         classes: impl IntoIterator<Item = &'a ClassInfo>,
         options: &BindgenOptions,
     ) -> Self {
@@ -278,6 +280,30 @@ impl TypeMap {
     /// Check if the map is empty
     pub fn is_empty(&self) -> bool {
         self.map.is_empty()
+    }
+
+    /// Create a new empty TypeMap
+    pub fn new() -> Self {
+        TypeMap {
+            map: HashMap::new(),
+        }
+    }
+
+    /// Insert a single type mapping
+    pub fn insert(&mut self, java_type: String, rust_type: String) {
+        // Check if this is a core builtin type that cannot be remapped
+        let is_core = builtin_jni_types()
+            .iter()
+            .any(|b| b.java_name == java_type && b.is_core);
+
+        if !is_core {
+            self.map.insert(java_type, rust_type);
+        }
+    }
+
+    /// Get the number of mappings
+    pub fn len(&self) -> usize {
+        self.map.len()
     }
 }
 
@@ -924,6 +950,7 @@ pub fn generate_with_type_map(
         binding_code: output,
         rust_type_name: rust_name,
         rust_api_type_name,
+        java_type_name: class_info.class_name.split('/').next_back().unwrap_or(&class_info.class_name).to_string(),
     })
 }
 

@@ -73,6 +73,14 @@ enum Command {
         /// Format: SIGNATURE=new_name (e.g., Landroid/content/Intent;->toURI(I)Ljava/lang/String;=to_uri_deprecated)
         #[arg(long = "name", value_name = "SIGNATURE=NAME")]
         name_overrides: Vec<String>,
+
+        /// Write the final type map to a file
+        #[arg(long, value_name = "FILE")]
+        output_type_map: Option<PathBuf>,
+
+        /// Public root path for type map output (e.g., "crate" instead of "crate::bindings")
+        #[arg(long, value_name = "PATH")]
+        public_root: Option<String>,
     },
 
     /// Generate bindings from Java source files
@@ -135,6 +143,14 @@ enum Command {
         /// Format: SIGNATURE=new_name (e.g., Landroid/content/Intent;->toURI(I)Ljava/lang/String;=to_uri_deprecated)
         #[arg(long = "name", value_name = "SIGNATURE=NAME")]
         name_overrides: Vec<String>,
+
+        /// Write the final type map to a file
+        #[arg(long, value_name = "FILE")]
+        output_type_map: Option<PathBuf>,
+
+        /// Public root path for type map output (e.g., "crate" instead of "crate::bindings")
+        #[arg(long, value_name = "PATH")]
+        public_root: Option<String>,
     },
 
     /// Generate bindings from Android SDK
@@ -199,6 +215,14 @@ enum Command {
         /// Format: SIGNATURE=new_name (e.g., Landroid/content/Intent;->toURI(I)Ljava/lang/String;=to_uri_deprecated)
         #[arg(long = "name", value_name = "SIGNATURE=NAME")]
         name_overrides: Vec<String>,
+
+        /// Write the final type map to a file
+        #[arg(long, value_name = "FILE")]
+        output_type_map: Option<PathBuf>,
+
+        /// Public root path for type map output (e.g., "crate" instead of "crate::bindings")
+        #[arg(long, value_name = "PATH")]
+        public_root: Option<String>,
     },
 }
 
@@ -225,6 +249,8 @@ fn main() {
             no_jni_init,
             skip_signatures,
             name_overrides,
+            output_type_map,
+            public_root,
         } => {
             handle_classfile(
                 root,
@@ -240,6 +266,8 @@ fn main() {
                 no_jni_init,
                 skip_signatures,
                 name_overrides,
+                output_type_map,
+                public_root,
             );
         }
         Command::Java {
@@ -257,6 +285,8 @@ fn main() {
             no_jni_init,
             skip_signatures,
             name_overrides,
+            output_type_map,
+            public_root,
         } => {
             handle_java(
                 root,
@@ -273,6 +303,8 @@ fn main() {
                 no_jni_init,
                 skip_signatures,
                 name_overrides,
+                output_type_map,
+                public_root,
             );
         }
         Command::Android {
@@ -290,6 +322,8 @@ fn main() {
             no_jni_init,
             skip_signatures,
             name_overrides,
+            output_type_map,
+            public_root,
         } => {
             handle_android(
                 root,
@@ -306,6 +340,8 @@ fn main() {
                 no_jni_init,
                 skip_signatures,
                 name_overrides,
+                output_type_map,
+                public_root,
             );
         }
     }
@@ -325,6 +361,8 @@ fn handle_classfile(
     no_jni_init: bool,
     skip_signatures: Vec<String>,
     name_overrides: Vec<String>,
+    output_type_map: Option<PathBuf>,
+    public_root: Option<String>,
 ) {
     if !input.exists() {
         eprintln!("Error: Input file not found: {}", input.display());
@@ -389,6 +427,21 @@ fn handle_classfile(
                     process::exit(1);
                 }
             };
+
+            // Write type map if requested
+            if let Some(ref type_map_path) = output_type_map {
+                let write_result = if let Some(ref pub_root) = public_root {
+                    bindings.write_pub_type_map(type_map_path, pub_root)
+                } else {
+                    bindings.write_type_map(type_map_path)
+                };
+                
+                if let Err(e) = write_result {
+                    eprintln!("Error writing type map: {}", e);
+                    process::exit(1);
+                }
+                eprintln!("Type map written to {}", type_map_path.display());
+            }
 
             // Write output
             if let Some(ref output_path) = output {
@@ -468,6 +521,21 @@ fn handle_classfile(
                 return;
             }
 
+            // Write type map if requested
+            if let Some(ref type_map_path) = output_type_map {
+                let write_result = if let Some(ref pub_root) = public_root {
+                    bindings.write_pub_type_map(type_map_path, pub_root)
+                } else {
+                    bindings.write_type_map(type_map_path)
+                };
+                
+                if let Err(e) = write_result {
+                    eprintln!("Error writing type map: {}", e);
+                    process::exit(1);
+                }
+                eprintln!("Type map written to {}", type_map_path.display());
+            }
+
             // For JAR files, bindings are now organized by module
             // If output_dir is specified, create a module hierarchy
             if let Some(ref output_dir) = output_dir {
@@ -504,6 +572,8 @@ fn handle_java(
     no_jni_init: bool,
     skip_signatures: Vec<String>,
     name_overrides: Vec<String>,
+    output_type_map: Option<PathBuf>,
+    public_root: Option<String>,
 ) {
     // Verify all inputs exist and collect source paths
     let mut source_paths = Vec::new();
@@ -602,6 +672,21 @@ fn handle_java(
         return;
     }
 
+    // Write type map if requested
+    if let Some(ref type_map_path) = output_type_map {
+        let write_result = if let Some(ref pub_root) = public_root {
+            bindings.write_pub_type_map(type_map_path, pub_root)
+        } else {
+            bindings.write_type_map(type_map_path)
+        };
+        
+        if let Err(e) = write_result {
+            eprintln!("Error writing type map: {}", e);
+            process::exit(1);
+        }
+        eprintln!("Type map written to {}", type_map_path.display());
+    }
+
     // For Java source files, bindings are now organized by module
     // If output_dir is specified, create a module hierarchy
     if let Some(ref output_dir) = output_dir {
@@ -632,6 +717,8 @@ fn handle_android(
     no_jni_init: bool,
     skip_signatures: Vec<String>,
     name_overrides: Vec<String>,
+    output_type_map: Option<PathBuf>,
+    public_root: Option<String>,
 ) {
     // Parse name overrides from SIGNATURE:NAME format
     // Note: Field signatures contain ':' (e.g., Lclass;->field:Ltype;), so split at last ':'
@@ -718,6 +805,21 @@ fn handle_android(
 
     eprintln!("Generated {} binding(s)", bindings.len());
 
+    // Write type map if requested
+    if let Some(ref type_map_path) = output_type_map {
+        let write_result = if let Some(ref pub_root) = public_root {
+            bindings.write_pub_type_map(type_map_path, pub_root)
+        } else {
+            bindings.write_type_map(type_map_path)
+        };
+        
+        if let Err(e) = write_result {
+            eprintln!("Error writing type map: {}", e);
+            process::exit(1);
+        }
+        eprintln!("Type map written to {}", type_map_path.display());
+    }
+
     // For Android bindings, bindings are now organized by module
     // If output_dir is specified, create a module hierarchy
     if let Some(ref output_dir) = output_dir {
@@ -749,23 +851,53 @@ fn parse_type_map_args(type_map_args: &[String]) -> Result<Vec<(String, String)>
     let mut mappings = Vec::new();
 
     for arg in type_map_args {
-        // Parse "RustType=>java.foo.Type" format
-        let parts: Vec<&str> = arg.split("=>").collect();
-        if parts.len() != 2 {
-            return Err(format!(
-                "Invalid type-map format '{}'. Expected format: RustType=>java.foo.Type",
-                arg
-            ));
+        // Check if this is a file path
+        if let Ok(content) = fs::read_to_string(arg) {
+            // Read type mappings from file
+            for (line_num, line) in content.lines().enumerate() {
+                let line = line.trim();
+                // Skip empty lines and comments
+                if line.is_empty() || line.starts_with('#') || line.starts_with("//") {
+                    continue;
+                }
+
+                // Parse "path::to::RustType => \"java.foo.Type\"" format
+                let parts: Vec<&str> = line.split("=>").collect();
+                if parts.len() != 2 {
+                    return Err(format!(
+                        "Invalid type-map format in file '{}' at line {}: '{}'. Expected format: RustType => \"java.foo.Type\"",
+                        arg, line_num + 1, line
+                    ));
+                }
+
+                let rust_type = parts[0].trim().to_string();
+                let java_type = parts[1].trim().to_string();
+
+                if rust_type.is_empty() || java_type.is_empty() {
+                    return Err(format!("Empty type name in type-map file '{}' at line {}", arg, line_num + 1));
+                }
+
+                mappings.push((rust_type, java_type));
+            }
+        } else {
+            // Parse as direct mapping: "RustType=>java.foo.Type" format
+            let parts: Vec<&str> = arg.split("=>").collect();
+            if parts.len() != 2 {
+                return Err(format!(
+                    "Invalid type-map format '{}'. Expected format: RustType=>java.foo.Type or path to file",
+                    arg
+                ));
+            }
+
+            let rust_type = parts[0].trim().to_string();
+            let java_type = parts[1].trim().to_string();
+
+            if rust_type.is_empty() || java_type.is_empty() {
+                return Err(format!("Empty type name in type-map '{}'", arg));
+            }
+
+            mappings.push((rust_type, java_type));
         }
-
-        let rust_type = parts[0].trim().to_string();
-        let java_type = parts[1].trim().to_string();
-
-        if rust_type.is_empty() || java_type.is_empty() {
-            return Err(format!("Empty type name in type-map '{}'", arg));
-        }
-
-        mappings.push((rust_type, java_type));
     }
 
     Ok(mappings)

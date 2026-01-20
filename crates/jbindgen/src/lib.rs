@@ -31,7 +31,7 @@ mod parser_types;
 pub use android::HiddenApiFilter;
 pub use android_sdk::AndroidSdk;
 pub use error::{Error, Result};
-pub use generator::{BindgenOptions, ModuleBinding, ModuleEvent};
+pub use generator::{BindgenOptions, ModuleBinding, ModuleEvent, TypeMap};
 pub use parser_types::{
     ArgInfo, ClassInfo, FieldInfo, InstanceOfInfo, MethodInfo, MethodSignature, TypeInfo,
 };
@@ -50,6 +50,10 @@ pub struct BindingInfo {
     pub rust_api_type_name: String,
     /// The generated binding code
     pub code: String,
+    /// The Java type name (e.g., "MyClass" or "MyClass$Inner")
+    pub java_type_name: String,
+    /// The Java package (e.g., "com.example")
+    pub package: String,
 }
 
 /// A hierarchical module containing bindings
@@ -83,6 +87,8 @@ impl Module {
                 rust_type_name: binding.rust_type_name,
                 rust_api_type_name: binding.rust_api_type_name,
                 code: binding.binding_code,
+                java_type_name: binding.java_type_name,
+                package: binding.package,
             });
 
             // Merge use statements, avoiding duplicates
@@ -110,6 +116,10 @@ pub struct Bindings {
     root_modules: HashMap<String, Module>,
     /// Whether to generate jni_init methods
     generate_jni_init: bool,
+    /// Input type mappings that were provided to the generator
+    input_type_mappings: Vec<(String, String)>,
+    /// Root path used for generated bindings
+    root_path: String,
 }
 
 impl Bindings {
@@ -119,7 +129,7 @@ impl Bindings {
     }
 
     /// Create a new Bindings instance from module bindings.
-    fn new(module_bindings: Vec<ModuleBinding>, generate_jni_init: bool) -> Self {
+    fn new(module_bindings: Vec<ModuleBinding>, generate_jni_init: bool, input_type_mappings: Vec<(String, String)>, root_path: String) -> Self {
         let mut root_modules = HashMap::new();
 
         for binding in module_bindings {
@@ -132,6 +142,8 @@ impl Bindings {
                     rust_type_name: binding.rust_type_name,
                     rust_api_type_name: binding.rust_api_type_name,
                     code: binding.binding_code,
+                    java_type_name: binding.java_type_name,
+                    package: binding.package,
                 });
                 for use_stmt in binding.use_statements {
                     if !root.use_statements.contains(&use_stmt) {
@@ -152,6 +164,8 @@ impl Bindings {
         Self {
             root_modules,
             generate_jni_init,
+            input_type_mappings,
+            root_path,
         }
     }
 
@@ -606,6 +620,116 @@ impl Bindings {
     pub fn is_empty(&self) -> bool {
         self.root_modules.is_empty()
     }
+
+    /// Get a complete TypeMap including input mappings and generated bindings.
+    ///
+    /// This creates a TypeMap that includes all the type mappings that were
+    /// provided as input to the generator, plus mappings for all generated bindings.
+    ///
+    /// # Arguments
+    ///
+    /// * `pub_root_path` - Optional public root path to use instead of the internal root path.
+    ///   For example, if bindings were generated with root_path "crate" but the crate's public
+    ///   API uses "my_crate", pass Some("my_crate") to map internal paths to public paths.
+    ///
+    /// # Returns
+    ///
+    /// A TypeMap containing all input mappings plus mappings for generated bindings.
+    pub fn type_map(&self, pub_root_path: Option<&str>) -> TypeMap {
+        let mut type_map = TypeMap::new();
+
+        // Add input mappings
+        for (rust_type, java_type) in &self.input_type_mappings {
+            type_map.insert(java_type.clone(), rust_type.clone());
+        }
+
+        // Add generated bindings
+        for (root_name, root_module) in &self.root_modules {
+            let mut path = Vec::new();
+            if !root_name.is_empty() {
+                path.push(root_name.clone());
+            }
+            self.collect_type_mappings(root_module, &path, &mut type_map, pub_root_path);
+        }
+
+        type_map
+    }
+
+    /// Helper to recursively collect type mappings from modules
+    fn collect_type_mappings(
+        &self,
+        module: &Module,
+        current_path: &[String],
+        type_map: &mut TypeMap,
+        pub_root_path: Option<&str>,
+    ) {
+        // Add bindings from this module
+        for binding in &module.bindings {
+            // Build rust path: root::path::to::module::TypeName
+            let root_path = pub_root_path.unwrap_or(&self.root_path);
+            let mut rust_path = root_path.to_string();
+            for segment in current_path {
+                rust_path.push_str("::");
+                rust_path.push_str(segment);
+            }
+            rust_path.push_str("::");
+            rust_path.push_str(&binding.rust_type_name);
+
+            // Build java type: package.TypeName
+            let java_type = if binding.package.is_empty() {
+                format!(".{}", binding.java_type_name)
+            } else {
+                format!("{}.{}", binding.package, binding.java_type_name)
+            };
+
+            type_map.insert(java_type, rust_path);
+        }
+
+        // Recurse into children
+        for (child_name, child_module) in &module.children {
+            let mut child_path = current_path.to_vec();
+            child_path.push(child_name.clone());
+            self.collect_type_mappings(child_module, &child_path, type_map, pub_root_path);
+        }
+    }
+
+    /// Write the type map to a file.
+    ///
+    /// Writes one mapping per line in the format: `path::to::RustType => "com.example.JavaType"`
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The file path to write to
+    pub fn write_type_map<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+        self.write_type_map_internal(path, None)
+    }
+
+    /// Write the type map to a file using a public root path.
+    ///
+    /// Writes one mapping per line in the format: `path::to::RustType => "com.example.JavaType"`
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The file path to write to
+    /// * `pub_root_path` - Public root path to use instead of the internal root path
+    pub fn write_pub_type_map<P: AsRef<Path>>(&self, path: P, pub_root_path: &str) -> Result<()> {
+        self.write_type_map_internal(path, Some(pub_root_path))
+    }
+
+    fn write_type_map_internal<P: AsRef<Path>>(&self, path: P, pub_root_path: Option<&str>) -> Result<()> {
+        let type_map = self.type_map(pub_root_path);
+        let mut file = fs::File::create(path)?;
+
+        // Collect and sort mappings for deterministic output
+        let mut mappings: Vec<_> = type_map.iter().collect();
+        mappings.sort_by_key(|(java, _)| java.as_str());
+
+        for (java_type, rust_type) in mappings {
+            writeln!(file, "{} => \"{}\"", rust_type, java_type)?;
+        }
+
+        Ok(())
+    }
 }
 
 /// Input source for generating bindings.
@@ -1005,28 +1129,32 @@ impl Builder {
 
         let options = BindgenOptions {
             public_type: self.public_type,
-            rust_type_name: self.rust_type_name,
-            name_prefix: self.name_prefix,
+            rust_type_name: self.rust_type_name.clone(),
+            name_prefix: self.name_prefix.clone(),
             generate_native_interfaces: self.generate_native_interfaces,
             generate_jni_init: self.generate_jni_init,
-            root_path: self.root_path,
-            skip_signatures: self.skip_signatures,
-            name_overrides: self.name_overrides,
+            root_path: self.root_path.clone(),
+            skip_signatures: self.skip_signatures.clone(),
+            name_overrides: self.name_overrides.clone(),
         };
+
+        let root_path = self.root_path.clone();
+        let type_map = self.type_map.clone();
+        let generate_jni_init = self.generate_jni_init;
 
         match input {
             InputSource::ClassFile(path) => {
-                let binding = generate_bindings_with_type_map(&path, &options, self.type_map)?;
-                Ok(Bindings::new(vec![binding], self.generate_jni_init))
+                let binding = generate_bindings_with_type_map(&path, &options, type_map.clone())?;
+                Ok(Bindings::new(vec![binding], generate_jni_init, type_map, root_path))
             }
             InputSource::ClassBytes(bytes) => {
-                let binding = generate_bindings_from_bytes(&bytes, &options, self.type_map)?;
-                Ok(Bindings::new(vec![binding], self.generate_jni_init))
+                let binding = generate_bindings_from_bytes(&bytes, &options, type_map.clone())?;
+                Ok(Bindings::new(vec![binding], generate_jni_init, type_map, root_path))
             }
             InputSource::JarFile { path, patterns } => {
                 let bindings =
-                    generate_bindings_from_jar(&path, &patterns, &options, self.type_map)?;
-                Ok(Bindings::new(bindings, self.generate_jni_init))
+                    generate_bindings_from_jar(&path, &patterns, &options, type_map.clone())?;
+                Ok(Bindings::new(bindings, generate_jni_init, type_map, root_path))
             }
             InputSource::Sources {
                 source_paths,
@@ -1038,9 +1166,9 @@ impl Builder {
                     &classpath,
                     &patterns,
                     &options,
-                    self.type_map,
+                    type_map.clone(),
                 )?;
-                Ok(Bindings::new(bindings, self.generate_jni_init))
+                Ok(Bindings::new(bindings, generate_jni_init, type_map, root_path))
             }
             InputSource::AndroidSdk {
                 api_level,
@@ -1058,9 +1186,9 @@ impl Builder {
                     hiddenapi_flags_path.as_deref(),
                     &self.hidden_api_filter,
                     &android_options,
-                    self.type_map,
+                    type_map.clone(),
                 )?;
-                Ok(Bindings::new(bindings, self.generate_jni_init))
+                Ok(Bindings::new(bindings, generate_jni_init, type_map, root_path))
             }
         }
     }
