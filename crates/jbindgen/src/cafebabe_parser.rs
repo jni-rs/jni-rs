@@ -181,6 +181,7 @@ pub fn parse_class(class: &ClassFile) -> Result<ClassInfo> {
         let field_info = FieldInfo {
             name,
             documentation: None, // Not available from bytecode
+            rust_name_override: None, // Not available from bytecode
             type_info,
             is_static,
             is_final,
@@ -209,6 +210,7 @@ pub fn parse_class(class: &ClassFile) -> Result<ClassInfo> {
         let method_info = MethodInfo {
             name,
             documentation: None, // Not available from bytecode
+            rust_name_override: None, // Not available from bytecode
             signature: MethodSignature {
                 arguments,
                 return_type,
@@ -258,6 +260,7 @@ pub fn parse_class(class: &ClassFile) -> Result<ClassInfo> {
         package,
         simple_name,
         documentation: None, // Not available from bytecode
+        rust_name_override: None, // Not available from bytecode
         constructors,
         methods,
         fields,

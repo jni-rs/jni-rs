@@ -14,6 +14,8 @@ pub struct ClassInfo {
     pub simple_name: String,
     /// Optional Javadoc documentation for the class
     pub documentation: Option<String>,
+    /// Optional Rust type name override from @RustName annotation
+    pub rust_name_override: Option<String>,
     /// List of constructors
     pub constructors: Vec<MethodInfo>,
     /// List of methods (both instance and static)
@@ -43,6 +45,8 @@ pub struct MethodInfo {
     pub name: String,
     /// Optional Javadoc documentation for the method
     pub documentation: Option<String>,
+    /// Optional Rust method name override from @RustName annotation
+    pub rust_name_override: Option<String>,
     /// Method signature
     pub signature: MethodSignature,
     /// Whether this is a static method
@@ -95,6 +99,8 @@ pub struct FieldInfo {
     pub name: String,
     /// Optional Javadoc documentation for the field
     pub documentation: Option<String>,
+    /// Optional Rust field name override from @RustName annotation
+    pub rust_name_override: Option<String>,
     /// Field type information
     pub type_info: TypeInfo,
     /// Whether this is a static field

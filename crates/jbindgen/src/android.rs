@@ -348,6 +348,7 @@ fn intersect_class_members(jar_class: &ClassInfo, stub_class: &ClassInfo) -> Cla
         package: stub_class.package.clone(),
         simple_name: stub_class.simple_name.clone(),
         documentation: stub_class.documentation.clone(),
+        rust_name_override: stub_class.rust_name_override.clone(),
         constructors,
         methods,
         fields,
@@ -556,6 +557,7 @@ fn filter_class_hidden_apis(class: ClassInfo, hidden_apis: &HashSet<String>) -> 
         package: class.package,
         simple_name: class.simple_name,
         documentation: class.documentation,
+        rust_name_override: class.rust_name_override,
         constructors,
         methods,
         fields,
@@ -680,6 +682,7 @@ mod tests {
         let method = MethodInfo {
             name: "getTimeZone".to_string(),
             documentation: None,
+            rust_name_override: None,
             signature: MethodSignature {
                 arguments: vec![
                     crate::parser_types::ArgInfo {
@@ -740,6 +743,7 @@ mod tests {
         let constructor = MethodInfo {
             name: "<init>".to_string(),
             documentation: None,
+            rust_name_override: None,
             signature: MethodSignature {
                 arguments: vec![],
                 return_type: TypeInfo {
@@ -764,6 +768,7 @@ mod tests {
         let field = FieldInfo {
             name: "BOARD".to_string(),
             documentation: None,
+            rust_name_override: None,
             type_info: TypeInfo {
                 name: "java.lang.String".to_string(),
                 array_dimensions: 0,

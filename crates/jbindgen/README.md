@@ -11,7 +11,8 @@ the `jni` crate.
   - Uses an embedded Java compiler, based on `javax.tools.JavaCompiler` API (not shelling out to
     `javac`)
   - Supports parsing source code within a .jar file (such as Android SDK source stubs)
-  - Supports @Deprecated annotations
+  - Supports `@Deprecated` annotations
+  - Supports `@RustName` annotation for overriding generated Rust names from Java source code
   - Supports extracting Javadoc comments for documentation
 - Parse `.class` files and `.jar` files containing compiled bytecode
   - Uses the `cafebabe` crate for parsing Java class files

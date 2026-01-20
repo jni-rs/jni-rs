@@ -54,6 +54,7 @@ jni::bind_java_type! {
     fields {
         name: JString,
         documentation: JString,
+        rust_name: JString,
         is_static: jboolean,
         is_constructor: jboolean,
         is_native: jboolean,
@@ -70,6 +71,7 @@ jni::bind_java_type! {
     fields {
         name: JString,
         documentation: JString,
+        rust_name: JString,
         type_name: JString,
         descriptor: JString,
         array_dimensions: jint,
@@ -92,6 +94,7 @@ jni::bind_java_type! {
         package_name: JString,
         simple_name: JString,
         documentation: JString,
+        rust_name: JString,
         constructors: MethodDescription[],
         methods: MethodDescription[],
         fields: FieldDescription[],
@@ -309,6 +312,14 @@ fn java_to_class_info(
         package,
         simple_name,
         documentation: Some(class_desc.documentation(env)?.to_string()),
+        rust_name_override: {
+            let rust_name_jstring = class_desc.rust_name(env)?;
+            if rust_name_jstring.is_null() {
+                None
+            } else {
+                Some(rust_name_jstring.to_string())
+            }
+        },
         constructors,
         methods,
         fields,
@@ -365,6 +376,14 @@ fn java_to_method_info(
     Ok(MethodInfo {
         name,
         documentation: Some(documentation),
+        rust_name_override: {
+            let rust_name_jstring = method_desc.rust_name(env)?;
+            if rust_name_jstring.is_null() {
+                None
+            } else {
+                Some(rust_name_jstring.to_string())
+            }
+        },
         signature: MethodSignature {
             arguments,
             return_type,
@@ -447,6 +466,14 @@ fn java_to_field_info(
     Ok(FieldInfo {
         name,
         documentation: Some(documentation),
+        rust_name_override: {
+            let rust_name_jstring = field_desc.rust_name(env)?;
+            if rust_name_jstring.is_null() {
+                None
+            } else {
+                Some(rust_name_jstring.to_string())
+            }
+        },
         type_info: TypeInfo {
             name: type_name,
             array_dimensions,

@@ -414,9 +414,15 @@ pub fn generate_with_type_map(
     let use_statements = vec!["use jni::bind_java_type;".to_string()];
 
     // Determine the Rust type name
+    // Priority: class_info.rust_name_override > options.rust_type_name > derived name
+    let rust_type_override = class_info
+        .rust_name_override
+        .as_deref()
+        .or(options.rust_type_name.as_deref());
+
     let rust_name = derive_rust_type_name(
         &class_info.class_name,
-        options.rust_type_name.as_deref(),
+        rust_type_override,
         options.name_prefix.as_deref(),
     );
 
@@ -488,11 +494,15 @@ pub fn generate_with_type_map(
             let ctor_names = generate_unique_overload_names("new", &ctor_refs, &mut used_names);
 
             for (idx, ctor) in sorted_constructors.iter().enumerate() {
-                // Check if there's a name override for this constructor
+                // Check for name override with priority:
+                // 1. rust_name_override from annotation
+                // 2. options.name_overrides (manual overrides)
+                // 3. generated name
                 let dex_sig = generate_dex_signature(&class_info.class_name, ctor);
-                let overridden_name = options.name_overrides.get(&dex_sig);
 
-                let ctor_name = if let Some(override_name) = overridden_name {
+                let ctor_name = if let Some(override_name) = &ctor.rust_name_override {
+                    override_name.as_str()
+                } else if let Some(override_name) = options.name_overrides.get(&dex_sig) {
                     override_name
                 } else {
                     &ctor_names[idx]
@@ -546,10 +556,14 @@ pub fn generate_with_type_map(
                 let overridden_name = options.name_overrides.get(&dex_sig);
 
                 let (mut rust_name, mut is_reversible) =
-                    if let Some(override_name) = overridden_name {
-                        // Use the overridden name and force non-reversible (explicit name required)
+                    if let Some(override_name) = field.rust_name_override.as_ref() {
+                        // Priority 1: Use @RustName annotation from source
+                        (override_name.clone(), false)
+                    } else if let Some(override_name) = overridden_name {
+                        // Priority 2: Use the CLI/config overridden name
                         (override_name.clone(), false)
                     } else {
+                        // Priority 3: Derive from Java name
                         java_name_to_rust(&field.name)
                     };
 
@@ -697,13 +711,17 @@ pub fn generate_with_type_map(
 
                 // Determine rust name and reversibility
                 let (mut rust_name, mut is_reversible) =
-                    if let Some(override_name) = overridden_name {
-                        // Use the overridden name and force non-reversible (explicit name required)
+                    if let Some(override_name) = method.rust_name_override.as_ref() {
+                        // Priority 1: Use @RustName annotation from source
+                        (override_name.clone(), false)
+                    } else if let Some(override_name) = overridden_name {
+                        // Priority 2: Use the CLI/config overridden name
                         (override_name.clone(), false)
                     } else if is_overloaded {
-                        // Overloaded methods are never reversible (even if the first one could be)
+                        // Priority 3: Overloaded methods use generated unique names
                         (method_names[idx].clone(), false)
                     } else {
+                        // Priority 4: Derive from Java name
                         (rust_base_name.clone(), base_is_reversible)
                     };
 
@@ -815,13 +833,17 @@ pub fn generate_with_type_map(
 
                     // Determine rust name and reversibility
                     let (mut rust_name, mut is_reversible) =
-                        if let Some(override_name) = overridden_name {
-                            // Use the overridden name and force non-reversible (explicit name required)
+                        if let Some(override_name) = method.rust_name_override.as_ref() {
+                            // Priority 1: Use @RustName annotation from source
+                            (override_name.clone(), false)
+                        } else if let Some(override_name) = overridden_name {
+                            // Priority 2: Use the CLI/config overridden name
                             (override_name.clone(), false)
                         } else if is_overloaded {
-                            // Overloaded methods are never reversible (even if the first one could be)
+                            // Priority 3: Overloaded methods use generated unique names
                             (method_names[idx].clone(), false)
                         } else {
+                            // Priority 4: Derive from Java name
                             (rust_base_name.clone(), base_is_reversible)
                         };
 
@@ -950,7 +972,12 @@ pub fn generate_with_type_map(
         binding_code: output,
         rust_type_name: rust_name,
         rust_api_type_name,
-        java_type_name: class_info.class_name.split('/').next_back().unwrap_or(&class_info.class_name).to_string(),
+        java_type_name: class_info
+            .class_name
+            .split('/')
+            .next_back()
+            .unwrap_or(&class_info.class_name)
+            .to_string(),
     })
 }
 
@@ -1642,6 +1669,7 @@ mod tests {
             MethodInfo {
                 name: "test".to_string(),
                 documentation: None,
+                rust_name_override: None,
                 signature: MethodSignature {
                     arguments: vec![
                         ArgInfo {
@@ -1668,6 +1696,7 @@ mod tests {
             MethodInfo {
                 name: "test".to_string(),
                 documentation: None,
+                rust_name_override: None,
                 signature: MethodSignature {
                     arguments: vec![ArgInfo {
                         name: Some("arg0".to_string()),
@@ -1684,6 +1713,7 @@ mod tests {
             MethodInfo {
                 name: "test".to_string(),
                 documentation: None,
+                rust_name_override: None,
                 signature: MethodSignature {
                     arguments: vec![
                         ArgInfo {
@@ -1706,6 +1736,7 @@ mod tests {
             MethodInfo {
                 name: "test".to_string(),
                 documentation: None,
+                rust_name_override: None,
                 signature: MethodSignature {
                     arguments: vec![
                         ArgInfo {
@@ -1764,6 +1795,7 @@ mod tests {
         let method = MethodInfo {
             name: "test".to_string(),
             documentation: None,
+            rust_name_override: None,
             signature: MethodSignature {
                 arguments: vec![
                     ArgInfo {
@@ -1838,11 +1870,13 @@ mod tests {
             package: vec!["com".to_string(), "example".to_string()],
             simple_name: "TestClass".to_string(),
             documentation: None,
+            rust_name_override: None,
             constructors: vec![
                 // Constructor with 2 args (String, String)
                 MethodInfo {
                     name: "<init>".to_string(),
                     documentation: None,
+                    rust_name_override: None,
                     signature: MethodSignature {
                         arguments: vec![
                             ArgInfo {
@@ -1866,6 +1900,7 @@ mod tests {
                 MethodInfo {
                     name: "<init>".to_string(),
                     documentation: None,
+                    rust_name_override: None,
                     signature: MethodSignature {
                         arguments: vec![],
                         return_type: void_type.clone(),
@@ -1880,6 +1915,7 @@ mod tests {
                 MethodInfo {
                     name: "<init>".to_string(),
                     documentation: None,
+                    rust_name_override: None,
                     signature: MethodSignature {
                         arguments: vec![
                             ArgInfo {
@@ -1903,6 +1939,7 @@ mod tests {
                 MethodInfo {
                     name: "<init>".to_string(),
                     documentation: None,
+                    rust_name_override: None,
                     signature: MethodSignature {
                         arguments: vec![ArgInfo {
                             name: None,
@@ -1978,12 +2015,14 @@ mod tests {
             package: vec!["com".to_string(), "example".to_string()],
             simple_name: "TestClass".to_string(),
             documentation: None,
+            rust_name_override: None,
             constructors: vec![],
             methods: vec![
                 // First method: toURI
                 MethodInfo {
                     name: "toURI".to_string(),
                     documentation: None,
+                    rust_name_override: None,
                     signature: MethodSignature {
                         arguments: vec![],
                         return_type: string_type.clone(),
@@ -1998,6 +2037,7 @@ mod tests {
                 MethodInfo {
                     name: "toUri".to_string(),
                     documentation: None,
+                    rust_name_override: None,
                     signature: MethodSignature {
                         arguments: vec![],
                         return_type: string_type.clone(),
@@ -2014,6 +2054,7 @@ mod tests {
                 FieldInfo {
                     name: "myValue".to_string(),
                     documentation: None,
+                    rust_name_override: None,
                     type_info: string_type.clone(),
                     is_static: false,
                     is_final: false,
@@ -2022,6 +2063,7 @@ mod tests {
                 FieldInfo {
                     name: "myVALUE".to_string(),
                     documentation: None,
+                    rust_name_override: None,
                     type_info: string_type.clone(),
                     is_static: false,
                     is_final: false,

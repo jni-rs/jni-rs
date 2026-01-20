@@ -323,6 +323,9 @@ public class Parser {
         String docComment = elements.getDocComment(element);
         desc.documentation = (docComment != null) ? docComment.trim() : "";
 
+        // Extract @RustName annotation if present
+        desc.rustName = getRustNameAnnotation(element);
+
         List<MethodDescription> constructors = new ArrayList<>();
         List<MethodDescription> methods = new ArrayList<>();
         List<FieldDescription> fields = new ArrayList<>();
@@ -396,6 +399,9 @@ public class Parser {
         String docComment = elements.getDocComment(element);
         desc.documentation = (docComment != null) ? docComment.trim() : "";
 
+        // Extract @RustName annotation if present
+        desc.rustName = getRustNameAnnotation(element);
+
         TypeDescription typeDesc = createTypeDescription(element.asType(), types);
         desc.typeName = typeDesc.typeName;
         desc.descriptor = typeDesc.descriptor;
@@ -426,6 +432,9 @@ public class Parser {
         // Extract Javadoc
         String docComment = elements.getDocComment(element);
         desc.documentation = (docComment != null) ? docComment.trim() : "";
+
+        // Extract @RustName annotation if present
+        desc.rustName = getRustNameAnnotation(element);
 
         desc.isStatic = element.getModifiers().contains(Modifier.STATIC);
         desc.isConstructor = isConstructor;
@@ -571,6 +580,37 @@ public class Parser {
         }
     }
 
+    /**
+     * Extract the value from a @RustName annotation if present.
+     * Returns null if the annotation is not present.
+     *
+     * Supports both io.github.jni_rs.jbindgen.RustName and unqualified RustName
+     * for backwards compatibility.
+     */
+    private String getRustNameAnnotation(Element element) {
+        for (AnnotationMirror annotation : element.getAnnotationMirrors()) {
+            // Check if this is a RustName annotation
+            String annotationName = annotation.getAnnotationType().toString();
+            if (annotationName.equals("io.github.jni_rs.jbindgen.RustName")
+                    || annotationName.equals("RustName")
+                    || annotationName.endsWith(".RustName")) {
+                // Extract the value from the annotation
+                for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> entry : annotation
+                        .getElementValues().entrySet()) {
+                    if (entry.getKey().getSimpleName().toString().equals("value")) {
+                        // The value is returned with quotes, so we need to strip them
+                        String value = entry.getValue().toString();
+                        if (value.startsWith("\"") && value.endsWith("\"")) {
+                            return value.substring(1, value.length() - 1);
+                        }
+                        return value;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     // Data classes for JSON serialization
     // Data classes that will be accessed via JNI - must be public static
     public static class ClassDescription {
@@ -578,6 +618,7 @@ public class Parser {
         public String packageName;
         public String simpleName;
         public String documentation; // Javadoc comment for the class
+        public String rustName; // Optional Rust type name from @RustName annotation
         public MethodDescription[] constructors;
         public MethodDescription[] methods;
         public FieldDescription[] fields;
@@ -589,6 +630,7 @@ public class Parser {
     public static class MethodDescription {
         public String name;
         public String documentation; // Javadoc comment for the method/constructor
+        public String rustName; // Optional Rust method name from @RustName annotation
         public boolean isStatic;
         public boolean isConstructor;
         public boolean isNative;
@@ -616,6 +658,7 @@ public class Parser {
     public static class FieldDescription {
         public String name;
         public String documentation; // Javadoc comment for the field
+        public String rustName; // Optional Rust field name from @RustName annotation
         public String typeName; // Element type name (without [] suffix)
         public String descriptor; // JNI descriptor
         public int arrayDimensions; // 0 for non-array, 1 for T[], 2 for T[][], etc.

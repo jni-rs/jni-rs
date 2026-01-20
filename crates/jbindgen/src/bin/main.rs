@@ -153,6 +153,13 @@ enum Command {
         public_root: Option<String>,
     },
 
+    /// Output annotation source files for vendoring
+    Annotations {
+        /// Output directory for annotation files (default: current directory)
+        #[arg(short, long, value_name = "DIR")]
+        output: Option<PathBuf>,
+    },
+
     /// Generate bindings from Android SDK
     Android {
         /// Android API level (e.g., 33, 34, 35)
@@ -307,6 +314,9 @@ fn main() {
                 public_root,
             );
         }
+        Command::Annotations { output } => {
+            handle_annotations(output);
+        }
         Command::Android {
             api_level,
             root,
@@ -435,7 +445,7 @@ fn handle_classfile(
                 } else {
                     bindings.write_type_map(type_map_path)
                 };
-                
+
                 if let Err(e) = write_result {
                     eprintln!("Error writing type map: {}", e);
                     process::exit(1);
@@ -528,7 +538,7 @@ fn handle_classfile(
                 } else {
                     bindings.write_type_map(type_map_path)
                 };
-                
+
                 if let Err(e) = write_result {
                     eprintln!("Error writing type map: {}", e);
                     process::exit(1);
@@ -679,7 +689,7 @@ fn handle_java(
         } else {
             bindings.write_type_map(type_map_path)
         };
-        
+
         if let Err(e) = write_result {
             eprintln!("Error writing type map: {}", e);
             process::exit(1);
@@ -812,7 +822,7 @@ fn handle_android(
         } else {
             bindings.write_type_map(type_map_path)
         };
-        
+
         if let Err(e) = write_result {
             eprintln!("Error writing type map: {}", e);
             process::exit(1);
@@ -866,7 +876,9 @@ fn parse_type_map_args(type_map_args: &[String]) -> Result<Vec<(String, String)>
                 if parts.len() != 2 {
                     return Err(format!(
                         "Invalid type-map format in file '{}' at line {}: '{}'. Expected format: RustType => \"java.foo.Type\"",
-                        arg, line_num + 1, line
+                        arg,
+                        line_num + 1,
+                        line
                     ));
                 }
 
@@ -874,7 +886,11 @@ fn parse_type_map_args(type_map_args: &[String]) -> Result<Vec<(String, String)>
                 let java_type = parts[1].trim().to_string();
 
                 if rust_type.is_empty() || java_type.is_empty() {
-                    return Err(format!("Empty type name in type-map file '{}' at line {}", arg, line_num + 1));
+                    return Err(format!(
+                        "Empty type name in type-map file '{}' at line {}",
+                        arg,
+                        line_num + 1
+                    ));
                 }
 
                 mappings.push((rust_type, java_type));
@@ -901,4 +917,47 @@ fn parse_type_map_args(type_map_args: &[String]) -> Result<Vec<(String, String)>
     }
 
     Ok(mappings)
+}
+
+/// Embedded annotation source files
+const RUST_NAME_JAVA: &str =
+    include_str!("../../annotations/src/main/java/io/github/jni_rs/jbindgen/RustName.java");
+const PACKAGE_INFO_JAVA: &str =
+    include_str!("../../annotations/src/main/java/io/github/jni_rs/jbindgen/package-info.java");
+
+fn handle_annotations(output: Option<PathBuf>) {
+    let base_dir = output.unwrap_or_else(|| PathBuf::from("."));
+    let package_dir = base_dir.join("io/github/jni_rs/jbindgen");
+
+    // Create the directory structure
+    if let Err(e) = fs::create_dir_all(&package_dir) {
+        eprintln!("Error creating directory {}: {}", package_dir.display(), e);
+        process::exit(1);
+    }
+
+    // Write RustName.java
+    let rust_name_path = package_dir.join("RustName.java");
+    if let Err(e) = fs::write(&rust_name_path, RUST_NAME_JAVA) {
+        eprintln!("Error writing {}: {}", rust_name_path.display(), e);
+        process::exit(1);
+    }
+    println!("Created: {}", rust_name_path.display());
+
+    // Write package-info.java
+    let package_info_path = package_dir.join("package-info.java");
+    if let Err(e) = fs::write(&package_info_path, PACKAGE_INFO_JAVA) {
+        eprintln!("Error writing {}: {}", package_info_path.display(), e);
+        process::exit(1);
+    }
+    println!("Created: {}", package_info_path.display());
+
+    println!(
+        "\nAnnotation files have been written to: {}",
+        package_dir.display()
+    );
+    println!("\nYou can now use these annotations in your Java code:");
+    println!("  import io.github.jni_rs.jbindgen.RustName;");
+    println!("\nExample usage:");
+    println!("  @RustName(\"CustomName\")");
+    println!("  public class MyClass {{ }}");
 }
