@@ -140,7 +140,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Env::get_version` has been renamed to `Env::version` ([#478](https://github.com/jni-rs/jni-rs/issues/478))
 - `Env` is no longer ever exposed in the API by-value can only be accessed by borrowing from a thread attachment `AttachGuard`.
 - `Env` implements runtime borrow checking to ensure new local references may only be associated with the top JNI stack frame
-- `JavaVM::get_env` is replaced by `JavaVM::get_env_attachment` which returns an `AttachGuard` if the current thread is attached.
+- `JavaVM::get_env` is replaced by `JavaVM::get_env_attachment` which returns an `AttachGuard` if the current thread is attached. ([#570](https://github.com/jni-rs/jni-rs/pull/570))
 - The following functions are now infallible ([#478](https://github.com/jni-rs/jni-rs/issues/478)):
   - `Env::version`
   - `Env::get_java_vm`
