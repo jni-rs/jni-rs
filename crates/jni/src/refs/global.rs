@@ -237,6 +237,15 @@ where
         obj.into_raw()
     }
 
+    #[doc(hidden)]
+    #[deprecated(
+        since = "0.22.0",
+        note = r#"Replaced with `into_raw` since it is infallible"#
+    )]
+    pub fn try_into_raw(self) -> std::result::Result<sys::jobject, std::convert::Infallible> {
+        Ok(self.into_raw())
+    }
+
     /// Borrows a `JObject` referring to the same Java object as this
     /// `Global`.
     ///
