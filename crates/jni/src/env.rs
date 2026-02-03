@@ -447,6 +447,12 @@ See the jni-rs Env documentation for more details.
         JNIVersion::from(unsafe { jni_call_unchecked!(self, v1_1, GetVersion) })
     }
 
+    #[doc(hidden)]
+    #[deprecated(since = "0.22.0", note = "Renamed to `version` instead")]
+    pub fn get_version(&self) -> JNIVersion {
+        self.version()
+    }
+
     /// Load a class from a buffer of raw class data.
     ///
     /// If `name` is null, the name of the class is inferred from the buffer.
