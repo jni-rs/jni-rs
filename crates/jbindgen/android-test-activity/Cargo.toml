@@ -19,8 +19,10 @@ paranoid-android = "0.2"
 [build-dependencies]
 jbindgen = { path = ".." }
 javac = { path = "../../javac" }
+ureq = "2"
 
 [dev-dependencies]
+serial_test = "3"
 javac = { path = "../../javac" }
 adb_client = "3.0"
 

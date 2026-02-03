@@ -1004,9 +1004,13 @@ impl Builder {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
-    /// builder.type_mapping("MyBundle", "android.os.Bundle")
-    /// builder.type_mapping("unsafe ThingHandle", "long")
+    /// ```rust
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let builder = jbindgen::Builder::new()
+    ///     .type_mapping("MyBundle", "android.os.Bundle")
+    ///     .type_mapping("unsafe ThingHandle", "long");
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn type_mapping<S1: Into<String>, S2: Into<String>>(
         mut self,

@@ -10,14 +10,14 @@
 //! Android SDK bindings are generated through a multi-stage filtering process:
 //!
 //! 1. **Parse android.jar**: Extract class information from compiled bytecode (.class files)
-//!    in the platform's android.jar. This contains the complete implementation.
+//!    in the platform's android.jar.
 //!
 //! 2. **Parse android-stubs-src.jar**: Extract class information from Java source stubs.
-//!    This represents the public API surface that Android officially exposes.
+//!    Contains API documentation and annotations about public APIs.
 //!
 //! 3. **Intersect**: Only keep constructors, methods, fields, and native methods that
-//!    exist in BOTH sources. This ensures we only generate bindings for APIs that are
-//!    both implemented and publicly documented.
+//!    exist in BOTH sources to help ensure we only generate bindings for APIs that are
+//!    part of the supported public SDK surface.
 //!
 //! 4. **Filter hidden APIs** (optional): If a hiddenapi-flags.csv file is provided,
 //!    further filter the APIs to exclude those marked as hidden or non-public by Android.
@@ -249,9 +249,7 @@ fn matches_any_pattern(name: &str, patterns: &[String]) -> bool {
             if normalized_name == prefix || normalized_name.starts_with(&format!("{}.", prefix)) {
                 return true;
             }
-        } else if normalized_pattern == "*" {
-            return true;
-        } else if normalized_name == normalized_pattern {
+        } else if normalized_name == normalized_pattern || normalized_pattern == "*" {
             return true;
         } else if normalized_pattern.contains('$') {
             continue;
@@ -292,26 +290,20 @@ fn intersect_class_members(jar_class: &ClassInfo, stub_class: &ClassInfo) -> Cla
     let jar_constructor_sigs: HashSet<String> = jar_class
         .constructors
         .iter()
-        .map(|m| method_signature_key(m))
+        .map(method_signature_key)
         .collect();
 
-    let jar_method_sigs: HashSet<String> = jar_class
-        .methods
-        .iter()
-        .map(|m| method_signature_key(m))
-        .collect();
+    let jar_method_sigs: HashSet<String> =
+        jar_class.methods.iter().map(method_signature_key).collect();
 
     let jar_native_sigs: HashSet<String> = jar_class
         .native_methods
         .iter()
-        .map(|m| method_signature_key(m))
+        .map(method_signature_key)
         .collect();
 
-    let jar_field_sigs: HashSet<String> = jar_class
-        .fields
-        .iter()
-        .map(|f| field_signature_key(f))
-        .collect();
+    let jar_field_sigs: HashSet<String> =
+        jar_class.fields.iter().map(field_signature_key).collect();
 
     // Filter stub class members to only those that exist in JAR
     // This preserves documentation and deprecation info from stubs
@@ -387,16 +379,14 @@ fn field_signature_key(field: &FieldInfo) -> String {
 
 /// Format a type signature for comparison
 fn format_type_signature(type_info: &crate::parser_types::TypeInfo) -> String {
-    let base = if type_info.is_primitive {
-        type_info.name.clone()
-    } else {
-        type_info.name.clone()
-    };
-
     if type_info.array_dimensions > 0 {
-        format!("{}{}", base, "[]".repeat(type_info.array_dimensions))
+        format!(
+            "{}{}",
+            type_info.name,
+            "[]".repeat(type_info.array_dimensions)
+        )
     } else {
-        base
+        type_info.name.clone()
     }
 }
 
@@ -440,7 +430,7 @@ fn is_api_allowed(flags: &[&str], filter: &HiddenApiFilter) -> bool {
     }
 
     // Check for unsupported flag
-    if filter.allow_unsupported && flags.iter().any(|f| *f == "unsupported") {
+    if filter.allow_unsupported && flags.contains(&"unsupported") {
         return true;
     }
 

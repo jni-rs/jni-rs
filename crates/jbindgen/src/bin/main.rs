@@ -357,6 +357,7 @@ fn main() {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn handle_classfile(
     root_path: String,
     input: PathBuf,
@@ -567,6 +568,7 @@ fn handle_classfile(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn handle_java(
     root_path: String,
     inputs: Vec<PathBuf>,
@@ -712,6 +714,7 @@ fn handle_java(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn handle_android(
     root_path: String,
     api_level: u32,

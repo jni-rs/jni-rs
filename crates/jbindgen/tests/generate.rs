@@ -428,8 +428,6 @@ fn test_inner_class_from_classfile() {
 
 #[test]
 fn test_inner_class_from_source() {
-    let out_dir = setup_test_output("inner_class_source");
-
     // Generate bindings from source file (with docs)
     // Use pattern to match only the InnerClass
     let bindings = Builder::new()

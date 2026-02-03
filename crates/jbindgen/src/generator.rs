@@ -310,6 +310,12 @@ impl TypeMap {
     }
 }
 
+impl Default for TypeMap {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Convert Javadoc comment to Rustdoc format
 ///
 /// This takes a Javadoc comment string and converts it to Rustdoc format.
@@ -1491,20 +1497,6 @@ fn generate_method_signature_with_deps(
     Ok(sig)
 }
 
-/// Generate the method signature string for bind_java_type! macro
-fn generate_method_signature(method: &MethodInfo, type_map: &TypeMap) -> Result<String> {
-    let mut unused = HashSet::new();
-    let mut unused_prims = HashSet::new();
-    let default_options = BindgenOptions::default();
-    generate_method_signature_with_deps(
-        method,
-        type_map,
-        &default_options,
-        &mut unused,
-        &mut unused_prims,
-    )
-}
-
 /// Converts a snake_case identifier to lowerCamelCase.
 ///
 /// NOTE: This has been directly copied from the jni_macros proc macro crate so
@@ -1678,12 +1670,6 @@ fn resolve_type_with_deps(
     } else {
         Ok(base_type)
     }
-}
-
-/// Resolve a type using TypeInfo, preferring type_map lookups
-fn resolve_type(type_info: &crate::parser_types::TypeInfo, type_map: &TypeMap) -> Result<String> {
-    let mut unused = HashSet::new();
-    resolve_type_with_deps(type_info, type_map, &mut unused)
 }
 
 /// Convert a Java qualified name to a JNI Rust type if it's a known built-in
@@ -1891,6 +1877,19 @@ mod tests {
         );
     }
 
+    /// Generate the method signature string for bind_java_type! macro
+    fn generate_method_signature(method: &MethodInfo, type_map: &TypeMap) -> Result<String> {
+        let mut unused = HashSet::new();
+        let mut unused_prims = HashSet::new();
+        let default_options = BindgenOptions::default();
+        generate_method_signature_with_deps(
+            method,
+            type_map,
+            &default_options,
+            &mut unused,
+            &mut unused_prims,
+        )
+    }
     #[test]
     fn test_fallback_argument_names() {
         // Test that arguments without names get "arg0", "arg1", etc.
@@ -2083,7 +2082,7 @@ mod tests {
         };
 
         let options = BindgenOptions::default();
-        let type_map = TypeMap::from_classes(&[class_info.clone()], &options);
+        let type_map = TypeMap::from_classes(std::slice::from_ref(&class_info), &options);
 
         let binding = generate_with_type_map(&class_info, &options, &type_map).unwrap();
         let code = binding.binding_code;
@@ -2197,7 +2196,7 @@ mod tests {
         };
 
         let options = BindgenOptions::default();
-        let type_map = TypeMap::from_classes(&[class_info.clone()], &options);
+        let type_map = TypeMap::from_classes(std::slice::from_ref(&class_info), &options);
 
         let binding = generate_with_type_map(&class_info, &options, &type_map).unwrap();
         let code = binding.binding_code;
