@@ -862,6 +862,18 @@ impl JavaVM {
         }
     }
 
+    #[doc(hidden)]
+    #[deprecated(
+        since = "0.22.0",
+        note = "use JavaVM::with_top_local_frame, JavaVM::attach_current_thread or JavaVM::get_env_attachment instead"
+    )]
+    pub unsafe fn get_env<'scope>(
+        &self,
+        _scope: &'scope mut ScopeToken,
+    ) -> Result<AttachGuard<'scope>> {
+        unsafe { self.get_env_attachment(_scope) }
+    }
+
     /// Runs a closure within a new JNI stack frame that will be unwound to release all local
     /// references created within the given closure.
     ///
