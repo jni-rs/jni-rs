@@ -99,6 +99,11 @@ pub extern "system" fn __native_method_export<'local>(...) -> jint {
 }
 ```
 
+The export_name is mangled according to the JNI Specification, under "Design" ->
+"Resolving Native Method Names"
+
+<https://docs.oracle.com/en/java/javase/11/docs/specs/jni/design.html#resolving-native-method-names>
+
 # Property Reference
 
 ## `java_type` - Java Class Name
