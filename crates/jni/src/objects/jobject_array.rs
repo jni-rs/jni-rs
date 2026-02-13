@@ -25,6 +25,34 @@ use crate::errors::Error;
 /// See the [`JObject`] documentation for more information about reference
 /// wrappers, how to cast them, and local reference frame lifetimes.
 ///
+/// # Example
+///
+/// ```rust,no_run
+/// # use jni::{errors::Result, Env, objects::{JObjectArray, JString}};
+/// # fn example<'local>(env: &mut Env<'local>) -> Result<()> {
+/// // Create some strings
+/// let str1 = JString::from_str(env, "hello")?;
+/// let str2 = JString::from_str(env, "world")?;
+///
+/// // Create an array of 2 strings, with all elements initially set to str1
+/// let arr = JObjectArray::<JString>::new(env, 2, &str1)?;
+///
+/// // Set the second element to str2
+/// arr.set_element(env, 1, &str2)?;
+///
+/// // Get elements from the array
+/// let element0: JString = arr.get_element(env, 0)?;
+/// let element1: JString = arr.get_element(env, 1)?;
+///
+/// assert_eq!(element0.to_string(), "hello");
+/// assert_eq!(element1.to_string(), "world");
+///
+/// // Get the length of the array
+/// let len = arr.len(env)?;
+/// assert_eq!(len, 2);
+/// # Ok(())
+/// # }
+/// ```
 #[repr(transparent)]
 #[derive(Debug, Default)]
 pub struct JObjectArray<'local, E: Reference + 'local = JObject<'local>> {
@@ -124,6 +152,17 @@ impl<E: Reference + Send + Sync> JObjectArrayAPI<E> {
 impl<'local, E: Reference + 'local> JObjectArray<'local, E> {
     /// Creates a new [`JObjectArray`] of the given `length`, with each element initialized to
     /// `initial_element`.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use jni::{errors::Result, Env, objects::{JObjectArray, JString}};
+    /// # fn example<'local>(env: &mut Env<'local>) -> Result<()> {
+    /// let str = JString::from_str(env, "hello")?;
+    /// let arr = JObjectArray::<JString>::new(env, 5, &str)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn new<'env_local, 'any_local>(
         env: &mut Env<'env_local>,
         length: usize,
