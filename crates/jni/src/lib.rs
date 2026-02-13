@@ -245,6 +245,10 @@
 //!     http://www.graalvm.org/docs/reference-manual/languages/llvm/#running-rust
 //! [projects-panama]: https://jdk.java.net/panama/
 
+#[doc = include_str!("../docs/0.22-MIGRATION.md")]
+#[cfg(doctest)]
+pub struct MigrationDoctests;
+
 /// `jni-sys` re-exports
 pub use jni_sys as sys;
 
