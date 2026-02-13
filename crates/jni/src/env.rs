@@ -2520,17 +2520,35 @@ See the jni-rs Env documentation for more details.
         Ok(ret)
     }
 
-    /// Calls an object method safely. This comes with a number of
-    /// lookups/checks. It
+    /// Calls an object method safely. This comes with a number of lookups/checks. It
     ///
     /// * Looks up the [JClass] for the given object.
-    /// * Looks up the [JMethodID] for the class/name/signature combination
+    /// * Looks up the [JMethodID] for the object's class/name/signature combination
     /// * Ensures that the number/types of args matches the signature
-    ///   * Cannot check an object's type - but primitive types are matched against each other (including Object)
     /// * Calls [`Self::call_method_unchecked`] with the verified safe arguments.
     ///
-    /// Note: this may cause a Java exception if the arguments are the wrong
-    /// type, in addition to if the method itself throws.
+    /// Note: this may cause a Java exception if the arguments are the wrong type, in addition to if the method itself
+    /// throws.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use jni::{jni_sig, jni_str, errors::Result, Env, objects::JObject, JValue};
+    /// # fn example<'local>(env: &mut Env<'local>, obj: &JObject<'local>) -> Result<()> {
+    /// // Call a method with signature: String concat(String str)
+    /// let arg = env.new_string("world")?;
+    /// let result = env.call_method(
+    ///     obj,
+    ///     jni_str!("concat"),
+    ///     jni_sig!((str: JString) -> JString),
+    ///     &[JValue::Object(&arg)],
+    /// )?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    /// Note: a traditional, raw JNI signature like `"(Ljava/lang/String;)Ljava/lang/String;"` can also be used with
+    /// [`jni_sig!`] but this demonstrates the more ergonomic syntax that the macro allows. See the [`jni_sig!`] macro
+    /// documentation for more details and examples.
     pub fn call_method<'other_local, 'sig, 'sig_args, O, N, S>(
         &mut self,
         obj: O,
@@ -2571,9 +2589,10 @@ See the jni-rs Env documentation for more details.
 
         let args: Vec<jvalue> = args.iter().map(|v| v.as_jni()).collect();
 
-        // SAFETY: We've obtained the method_id above, so it is valid for this class.
-        // We've also validated the argument counts and types using the same type signature
-        // we fetched the original method ID from.
+        // SAFETY: We've ensured that the Desc trait will be used to dynamically look up a valid
+        // method ID for the object's class, method name, and signature (or else it will return an
+        // Err). We've also validated the argument counts and types using the same type signature we
+        // fetched the original method ID from.
         unsafe { self.call_method_unchecked(obj, (&class, name, sig), sig.ret(), &args) }
     }
 
