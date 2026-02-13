@@ -1,9 +1,9 @@
 Parses a JNI method or field signature at compile time.
 
 This macro parses method and field signatures with syntax like `(arg0: JString, arg1: jint) ->
-JString` and generates a [MethodSignature] or [FieldSignature] struct to represent the
-corresponding JNI signature, including the raw string like
-"(Ljava/lang/String;I)Ljava/lang/String;" and enumerated argument plus return types.
+JString` and generates a [MethodSignature] or [FieldSignature] struct to represent the corresponding
+JNI signature. These structs embed the raw signature paired with type information which can be used
+for JNI method calls and field accesses without needing to parse the signature at runtime.
 
 This macro can also parse raw JNI signature strings like `"(Ljava/lang/String;I)Z"` in order to
 validate them at compile time but it's recommended to use the structured syntax for better
