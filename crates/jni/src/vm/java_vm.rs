@@ -1128,6 +1128,20 @@ pub(super) unsafe fn sys_attach_current_thread(
     Ok(env_ptr as *mut sys::JNIEnv)
 }
 
+/// Check if the process is currently shutting down.
+///
+/// Note: RtlDllShutdownInProgress is available on Windows 10 + but not part of
+/// the Windows SDK (not available via windows-bindgen), so we link to it
+/// manually.
+#[cfg(target_os = "windows")]
+fn windows_is_shutdown_in_progress() -> bool {
+    #[link(name = "ntdll")]
+    unsafe extern "system" {
+        fn RtlDllShutdownInProgress() -> u8; // BOOLEAN
+    }
+    unsafe { RtlDllShutdownInProgress() != 0 }
+}
+
 /// Detach a thread from the JVM.
 ///
 /// If `cross_check_env` is provided, this function will verify that the env pointer matches the
@@ -1150,39 +1164,68 @@ pub(super) unsafe fn sys_detach_current_thread(
 
     let vm = JavaVM::singleton()?;
 
-    // Check if thread is actually attached before attempting to detach
-    let was_attached = match unsafe { vm.sys_get_env_attachment() } {
-        Ok(guard) => {
-            // Optional defensive cross-check: verify env matches current thread
-            if let Some(expected_env) = cross_check_env {
-                if guard.env.raw != expected_env {
-                    return Err(Error::JniCall(JniError::InvalidArguments));
-                }
-            }
-            drop(guard);
-            true
-        }
-        Err(Error::JniCall(JniError::ThreadDetached)) => false,
-        Err(e) => return Err(e),
-    };
+    // On Windows we don't ever attempt to explicitly detach a thread from the JVM (or even query if
+    // we have a valid attachment) if we know the process is already shutting down.
+    //
+    // On Windows, when the process is shutting down there's a risk of deadlocks if we attempt to
+    // call into the JVM while the thread holds the system loader lock. This is because the JVM may
+    // need to reach a safepoint, which also needs to acquire the system loader lock.
+    //
+    // In practice we need this check on Windows because we register fiber local storage callbacks
+    // that may either be called when a fiber/thread terminates _OR_ when the process is shutting
+    // down, and we only really want to auto-detach threads in the former case.
+    //
+    // Note: we don't want to entirely skip the call to `sys_detach_current_thread` during shutdown
+    // because we still want to maintain correct logical bookkeeping.
+    //
+    // Ref: https://github.com/jni-rs/jni-rs/issues/701
+    #[cfg(target_os = "windows")]
+    let allow_jni = !windows_is_shutdown_in_progress();
+    #[cfg(not(target_os = "windows"))]
+    let allow_jni = true;
 
-    if was_attached {
-        // Only actually detach if thread is still attached
-        unsafe {
-            java_vm_call_unchecked!(vm, v1_1, DetachCurrentThread);
+    if allow_jni {
+        // Check if thread is actually attached before attempting to detach
+        let was_attached = match unsafe { vm.sys_get_env_attachment() } {
+            Ok(guard) => {
+                // Optional defensive cross-check: verify env matches current thread
+                if let Some(expected_env) = cross_check_env {
+                    if guard.env.raw != expected_env {
+                        // Should we panic in this case instead? This would indicate that some
+                        // external code has meddled with the thread attachment, which would be a
+                        // serious violation of our safety assumptions.
+                        return Err(Error::JniCall(JniError::InvalidArguments));
+                    }
+                }
+                drop(guard);
+                true
+            }
+            // If we get a ThreadDetached error while cross_check_env.is_some(), this likely means
+            // the thread was detached by external code (e.g. manual DetachCurrentThread call via
+            // raw JNI API) in a way that violates our safety assumptions and we should consider
+            // panicking to avoid undefined behaviour in that case.
+            Err(Error::JniCall(JniError::ThreadDetached)) => false,
+            Err(e) => return Err(e),
+        };
+
+        if was_attached {
+            // Only actually detach if thread is still attached
+            unsafe {
+                java_vm_call_unchecked!(vm, v1_1, DetachCurrentThread);
+            }
+            debug!(
+                "Detached thread {} ({:?})",
+                thread.name().unwrap_or_default(),
+                thread.id()
+            );
+        } else {
+            // Thread already detached (e.g., by another fiber on Windows, or manual DetachCurrentThread)
+            debug!(
+                "Thread {} ({:?}) already detached (skipping DetachCurrentThread)",
+                thread.name().unwrap_or_default(),
+                thread.id()
+            );
         }
-        debug!(
-            "Detached thread {} ({:?})",
-            thread.name().unwrap_or_default(),
-            thread.id()
-        );
-    } else {
-        // Thread already detached (e.g., by another fiber on Windows, or manual DetachCurrentThread)
-        debug!(
-            "Thread {} ({:?}) already detached (skipping DetachCurrentThread)",
-            thread.name().unwrap_or_default(),
-            thread.id()
-        );
     }
 
     // ALWAYS decrement the logical count, even if thread was already detached.
