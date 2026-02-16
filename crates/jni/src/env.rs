@@ -651,7 +651,7 @@ See the jni-rs Env documentation for more details.
     /// # use jni::{jni_str, errors::Result, Env, objects::JClass};
     /// #
     /// # fn example<'local>(env: &mut Env<'local>) -> Result<()> {
-    /// let class: JClass<'local> = env.find_class(jni_str!("java.lang.IllegalArgumentException"))?;
+    /// let class: JClass<'local> = env.load_class(jni_str!("java.lang.IllegalArgumentException"))?;
     /// # Ok(())
     /// # }
     /// ```
