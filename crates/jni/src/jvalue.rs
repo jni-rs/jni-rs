@@ -182,6 +182,7 @@ impl<'local> JValueOwned<'local> {
 
 impl<'obj_ref> JValue<'obj_ref> {
     /// Convert the enum to its jni-compatible equivalent.
+    #[inline(always)]
     pub fn as_jni(&self) -> jvalue {
         let val: jvalue = match self {
             Self::Object(obj) => jvalue { l: obj.as_raw() },

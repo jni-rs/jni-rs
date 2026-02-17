@@ -747,6 +747,7 @@ impl JavaVM {
     ///
     /// This is only really public since it's useful for unit tests
     #[doc(hidden)]
+    #[inline(always)]
     pub fn thread_attach_guard_level() -> usize {
         THREAD_GUARD_NEST_LEVEL.get()
     }

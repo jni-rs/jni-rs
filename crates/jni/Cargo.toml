@@ -60,6 +60,7 @@ cfg-if = "1.0.0"
 cesu8 = "1.1.0"
 combine = "4.1.0"
 paste = "1"
+smallvec = { version = "1", features = ["const_new"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-link = "0.2"
