@@ -398,6 +398,7 @@ impl<'local> Env<'local> {
     /// directly.
     ///
     /// See the safety documentation for [`AttachGuard`] for more details.
+    #[inline]
     pub fn assert_top(&self) {
         // Runtime check that the 'local reference lifetime will be tied to
         // Env lifetime for the top JNI stack frame
