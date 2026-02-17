@@ -8,6 +8,7 @@ use std::{
 };
 
 use jni_sys::jobject;
+use smallvec::SmallVec;
 
 use crate::{
     DEFAULT_LOCAL_FRAME_CAPACITY, JNIVersion, JavaVM,
@@ -398,6 +399,7 @@ impl<'local> Env<'local> {
     /// directly.
     ///
     /// See the safety documentation for [`AttachGuard`] for more details.
+    #[inline(always)]
     pub fn assert_top(&self) {
         // Runtime check that the 'local reference lifetime will be tied to
         // Env lifetime for the top JNI stack frame
@@ -2563,12 +2565,16 @@ See the jni-rs Env documentation for more details.
 
         let class = self.get_object_class(obj)?.auto();
 
-        let args: Vec<jvalue> = args.iter().map(|v| v.as_jni()).collect();
+        let mut jvalue_args = SmallVec::<[jvalue; 8]>::with_capacity(args.len());
+        for arg in args {
+            jvalue_args.push(arg.as_jni());
+        }
 
-        // SAFETY: We've obtained the method_id above, so it is valid for this class.
-        // We've also validated the argument counts and types using the same type signature
-        // we fetched the original method ID from.
-        unsafe { self.call_method_unchecked(obj, (&class, name, sig), sig.ret(), &args) }
+        // SAFETY: We've ensured that the Desc trait will be used to dynamically look up a valid
+        // method ID for the object's class, method name, and signature (or else it will return an
+        // Err). We've also validated the argument counts and types using the same type signature we
+        // fetched the original method ID from.
+        unsafe { self.call_method_unchecked(obj, (&class, name, sig), sig.ret(), &jvalue_args) }
     }
 
     /// Calls a static method safely. This comes with a number of
@@ -2618,12 +2624,17 @@ See the jni-rs Env documentation for more details.
         let class = class.lookup(self)?;
         let class = class.as_ref();
 
-        let args: Vec<jvalue> = args.iter().map(|v| v.as_jni()).collect();
+        let mut jvalue_args = SmallVec::<[jvalue; 8]>::with_capacity(args.len());
+        for arg in args {
+            jvalue_args.push(arg.as_jni());
+        }
 
         // SAFETY: We've obtained the method_id above, so it is valid for this class.
         // We've also validated the argument counts and types using the same type signature
         // we fetched the original method ID from.
-        unsafe { self.call_static_method_unchecked(class, (class, name, sig), sig.ret(), &args) }
+        unsafe {
+            self.call_static_method_unchecked(class, (class, name, sig), sig.ret(), &jvalue_args)
+        }
     }
 
     /// Calls a non-virtual method safely. This comes with a number of
@@ -2677,13 +2688,22 @@ See the jni-rs Env documentation for more details.
         let class = class.lookup(self)?;
         let class = class.as_ref();
 
-        let args: Vec<jvalue> = args.iter().map(|v| v.as_jni()).collect();
+        let mut jvalue_args = SmallVec::<[jvalue; 8]>::with_capacity(args.len());
+        for arg in args {
+            jvalue_args.push(arg.as_jni());
+        }
 
         // SAFETY: We've obtained the method_id above, so it is valid for this class.
         // We've also validated the argument counts and types using the same type signature
         // we fetched the original method ID from.
         unsafe {
-            self.call_nonvirtual_method_unchecked(obj, class, (class, name, sig), sig.ret(), &args)
+            self.call_nonvirtual_method_unchecked(
+                obj,
+                class,
+                (class, name, sig),
+                sig.ret(),
+                &jvalue_args,
+            )
         }
     }
 
@@ -2733,11 +2753,15 @@ See the jni-rs Env documentation for more details.
 
         let method_id: JMethodID = Desc::<JMethodID>::lookup((class, ctor_sig), self)?;
 
-        let ctor_args: Vec<jvalue> = ctor_args.iter().map(|v| v.as_jni()).collect();
+        let mut jvalue_args = SmallVec::<[jvalue; 8]>::with_capacity(ctor_args.len());
+        for arg in ctor_args {
+            jvalue_args.push(arg.as_jni());
+        }
+
         // SAFETY: We've obtained the method_id above, so it is valid for this class.
         // We've also validated the argument counts and types using the same type signature
         // we fetched the original method ID from.
-        unsafe { self.new_object_unchecked(class, method_id, &ctor_args) }
+        unsafe { self.new_object_unchecked(class, method_id, &jvalue_args) }
     }
 
     /// Create a new object using a constructor. Arguments aren't checked
