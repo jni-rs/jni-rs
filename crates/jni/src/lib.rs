@@ -395,13 +395,13 @@ extern crate self as jni;
 
 #[doc(inline)]
 pub use jni_macros::jni_cstr;
-#[doc = include_str!("../../jni/docs/macros/jni_str.md")]
+#[doc = include_str!("../docs/macros/jni_str.md")]
 pub use jni_macros::jni_str;
 
 #[doc(inline)]
 pub use jni_macros::jni_mangle;
 
-#[doc = include_str!("../../jni/docs/macros/jni_sig.md")]
+#[doc = include_str!("../docs/macros/jni_sig.md")]
 pub use jni_macros::jni_sig;
 #[doc(inline)]
 pub use jni_macros::jni_sig_cstr;
