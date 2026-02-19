@@ -10,7 +10,11 @@ use jni::objects::{Global, JClass, JObject, JString};
 
 use jni::objects::JByteArray;
 
-use jni::strings::JNIString;
+// A macro for encoding MUTF-8 strings at compile time
+use jni::jni_str;
+
+// A macro for encoding JNI signatures at compile time
+use jni::jni_sig;
 
 use jni::sys::{jint, jlong};
 
@@ -61,7 +65,7 @@ pub extern "system" fn Java_HelloWorld_hello<'local>(
 
         // Then we have to create a new java string to return. Again, more info
         // in the `strings` module.
-        env.new_string(JNIString::from(format!("Hello, {}!", input)))
+        env.new_string(format!("Hello, {}!", input))
     });
 
     // Finally, we have to resolve the `Outcome` into a concrete return value.
@@ -114,8 +118,13 @@ pub extern "system" fn Java_HelloWorld_factAndCallMeBack(
             let i = n as i32;
             let res: jint = (2..i + 1).product();
 
-            env.call_method(callback, c"factCallback", c"(I)V", &[res.into()])
-                .unwrap();
+            env.call_method(
+                callback,
+                jni_str!("factCallback"),
+                jni_sig!("(I)V"),
+                &[res.into()],
+            )
+            .unwrap();
             Ok(())
         })
         .resolve::<jni::errors::ThrowRuntimeExAndDefault>()
@@ -138,8 +147,8 @@ impl Counter {
         self.count = self.count + 1;
         env.call_method(
             &self.callback,
-            c"counterCallback",
-            c"(I)V",
+            jni_str!("counterCallback"),
+            jni_sig!("(I)V"),
             &[self.count.into()],
         )
         .unwrap();
@@ -195,11 +204,6 @@ pub extern "system" fn Java_HelloWorld_asyncComputation(
 ) {
     unowned_env
         .with_env(|env| -> jni::errors::Result<_> {
-            // `Env` cannot be sent across thread boundaries. To be able to use JNI
-            // functions in other threads, we must first obtain the `JavaVM` interface
-            // which, unlike `Env` is `Send`.
-            let jvm = env.get_java_vm();
-
             // We need to obtain global reference to the `callback` object before sending
             // it to the thread, to prevent it from being collected by the GC.
             let callback = env.new_global_ref(callback).unwrap();
@@ -212,13 +216,22 @@ pub extern "system" fn Java_HelloWorld_asyncComputation(
                 // Signal that the thread has started.
                 tx.send(()).unwrap();
 
+                // We know that a JVM must have been initialized so we can rely on
+                // JavaVM::singleton() here
+                let jvm = jni::JavaVM::singleton().unwrap();
+
                 // Use the `JavaVM` interface to attach a `Env` to the current thread.
                 jvm.attach_current_thread(|env| -> jni::errors::Result<()> {
                     for i in 0..11 {
                         let progress = (i * 10) as jint;
                         // Now we can use all available `Env` functionality normally.
-                        env.call_method(&callback, c"asyncCallback", c"(I)V", &[progress.into()])
-                            .unwrap();
+                        env.call_method(
+                            &callback,
+                            jni_str!("asyncCallback"),
+                            jni_sig!("(I)V"),
+                            &[progress.into()],
+                        )
+                        .unwrap();
                         thread::sleep(Duration::from_millis(100));
                     }
                     Ok(())

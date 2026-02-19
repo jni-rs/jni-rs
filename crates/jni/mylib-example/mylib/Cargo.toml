@@ -9,3 +9,5 @@ jni = { path = "../../" }
 
 [lib]
 crate-type = ["cdylib"]
+
+[workspace]

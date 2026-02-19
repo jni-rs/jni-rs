@@ -125,6 +125,11 @@ jobs:
           source <(cargo ndk-env -t arm64-v8a)
           unset CARGO_TARGET_AARCH64_LINUX_ANDROID_RUNNER
           cargo test -p jni -p jni-macros --doc --all-features
+      - name: Run mylib example
+        if: ${{ matrix.rust-version == 'stable' && matrix.target_os != 'android' && !cancelled() }}
+        run: |
+          cd crates/jni/mylib-example
+          make
       - name: Documentation
         if: ${{ matrix.rust-version == 'stable' && !cancelled() }}
         run: cargo doc --workspace ${{ matrix.target_arg }} --all-features --no-deps

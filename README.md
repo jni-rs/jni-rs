@@ -11,11 +11,12 @@ This project provides complete JNI bindings for Rust, allowing to:
 - Embed JVM in Rust applications and use any Java libraries
 
 See the [docs](https://docs.rs/jni) for more details.
+See the [examples](https://github.com/jni-rs/jni-rs/tree/master/crates/jni/examples) directory.
 
-## Example
+## Shared-library Example
 
 ```shell
-cd example
+cd crates/jni/mylib-example
 make
 ```
 
