@@ -17,6 +17,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+#### Changed
+
+The following APIs have had to be made fallible again, in order to safely check for pending
+exceptions before calling JNI functions that are not documented as being safe to call with a pending
+exception:
+
+- `Env::get_java_vm` (`GetJavaVM` is not exception safe)
+- `Env::version` (`GetVersion` is not exception safe)
+- `Env::is_same_object` (`IsSameObject` is not exception safe)
+- `Weak::is_garbage_collected` (based on `Env::is_same_object`)
+- `Weak::is_same_object` (deprecated) and (based on
+  `Env::is_same_object`)
+- `Weak::is_weak_ref_to_same_object (deprecated)` (based on
+  `Env::is_same_object`)
+
+_*Note:* These are a breaking change but we're probably going to sneak them into a jni 0.22.1
+release and yank 0.22.0 before anyone notices (since 0.22.0 was released very recently and it's
+highly unlikely anyone is strictly locking in a 0.22.0 dependency yet)_
+
+Fixed in [#733](https://github.com/jni-rs/jni-rs/issues/733)
 
 ## [0.22.0] — 2026-02-17
 

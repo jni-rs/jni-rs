@@ -356,9 +356,11 @@ mod test {
 impl<'local> Env<'local> {
     /// Returns an `UnsupportedVersion` error if the current JNI version is
     /// lower than the one given.
+    ///
+    /// Returns `JavaException` if called while there is a pending exception.
     #[allow(unused)]
     fn ensure_version(&self, version: JNIVersion) -> Result<()> {
-        if self.version() < version {
+        if self.version()? < version {
             Err(Error::UnsupportedVersion)
         } else {
             Ok(())
@@ -443,14 +445,18 @@ See the jni-rs Env documentation for more details.
     }
 
     /// Get the JNI version that this [`Env`] supports.
-    pub fn version(&self) -> JNIVersion {
+    ///
+    /// This can return an error if called while there is a pending JNI exception
+    pub fn version(&self) -> Result<JNIVersion> {
         // Safety: GetVersion is 1.1 API that must be valid
-        JNIVersion::from(unsafe { jni_call_unchecked!(self, v1_1, GetVersion) })
+        Ok(JNIVersion::from(unsafe {
+            jni_call_no_post_check_ex!(self, v1_1, GetVersion)?
+        }))
     }
 
     #[doc(hidden)]
     #[deprecated(since = "0.22.0", note = "Renamed to `version` instead")]
-    pub fn get_version(&self) -> JNIVersion {
+    pub fn get_version(&self) -> Result<JNIVersion> {
         self.version()
     }
 
@@ -482,7 +488,7 @@ See the jni-rs Env documentation for more details.
         // name can bre read from the bytecode.
         // A null loader corresponds to the bootstrap class loader.
         unsafe {
-            jni_call_check_ex_and_null_ret!(
+            jni_call_post_check_ex_and_null_ret!(
                 self,
                 v1_1,
                 DefineClass,
@@ -628,7 +634,7 @@ See the jni-rs Env documentation for more details.
         // FindClass is 1.1 API that must be valid
         // name is non-null
         unsafe {
-            jni_call_check_ex_and_null_ret!(self, v1_1, FindClass, name.as_ptr())
+            jni_call_post_check_ex_and_null_ret!(self, v1_1, FindClass, name.as_ptr())
                 .map(|class| JClass::from_raw(self, class))
         }
     }
@@ -697,7 +703,7 @@ See the jni-rs Env documentation for more details.
         let superclass = unsafe {
             JClass::from_raw(
                 self,
-                jni_call_unchecked!(self, v1_1, GetSuperclass, class.as_ref().as_raw()),
+                jni_call_no_post_check_ex!(self, v1_1, GetSuperclass, class.as_ref().as_raw())?,
             )
         };
 
@@ -714,13 +720,13 @@ See the jni-rs Env documentation for more details.
         // - IsAssignableFrom is 1.1 API that must be valid
         // - We make sure class1 and class2 can't be null
         unsafe {
-            Ok(jni_call_unchecked!(
+            Ok(jni_call_no_post_check_ex!(
                 self,
                 v1_1,
                 IsAssignableFrom,
                 class1.as_raw(), // MUST not be null
                 class2.as_raw()  // MUST not be null
-            ))
+            )?)
         }
     }
 
@@ -776,13 +782,13 @@ See the jni-rs Env documentation for more details.
         // - IsInstanceOf is 1.1 API that must be valid
         // - We make sure class can't be null
         unsafe {
-            Ok(jni_call_unchecked!(
+            Ok(jni_call_no_post_check_ex!(
                 self,
                 v1_1,
                 IsInstanceOf,
                 object.as_ref().as_raw(), // may be null
                 class.as_raw()            // MUST not be null
-            ))
+            )?)
         }
     }
 
@@ -811,7 +817,13 @@ See the jni-rs Env documentation for more details.
 
     /// Returns true if ref1 and ref2 refer to the same Java object, or are both `NULL`. Otherwise,
     /// returns false.
-    pub fn is_same_object<'other_local_1, 'other_local_2, O, T>(&self, ref1: O, ref2: T) -> bool
+    ///
+    /// Returns [`Error::JavaException`] if called while there is a pending Java exception
+    pub fn is_same_object<'other_local_1, 'other_local_2, O, T>(
+        &self,
+        ref1: O,
+        ref2: T,
+    ) -> Result<bool>
     where
         O: AsRef<JObject<'other_local_1>>,
         T: AsRef<JObject<'other_local_2>>,
@@ -820,7 +832,7 @@ See the jni-rs Env documentation for more details.
         // - IsSameObject is 1.1 API that must be valid
         // - the spec allows either object reference to be `null`
         unsafe {
-            jni_call_unchecked!(
+            jni_call_no_post_check_ex!(
                 self,
                 v1_1,
                 IsSameObject,
@@ -868,7 +880,7 @@ See the jni-rs Env documentation for more details.
         // We are careful to ensure that we don't drop the reference
         // to `throwable` after converting to a raw pointer.
         let res: i32 =
-            unsafe { jni_call_unchecked!(self, v1_1, Throw, throwable.as_ref().as_raw()) };
+            unsafe { jni_call_no_post_check_ex!(self, v1_1, Throw, throwable.as_ref().as_raw())? };
 
         // Ensure that `throwable` isn't dropped before the JNI call returns.
         drop(throwable);
@@ -897,13 +909,13 @@ See the jni-rs Env documentation for more details.
         // We are careful to ensure that we don't drop the reference
         // to `class` or `msg` after converting to raw pointers.
         let res: i32 = unsafe {
-            jni_call_unchecked!(
+            jni_call_no_post_check_ex!(
                 self,
                 v1_1,
                 ThrowNew,
                 class.as_raw(),
                 msg.map(|m| m.as_ptr()).unwrap_or(std::ptr::null())
-            )
+            )?
         };
 
         if res == 0 {
@@ -972,7 +984,7 @@ See the jni-rs Env documentation for more details.
     #[inline]
     pub fn exception_check(&self) -> bool {
         // Safety: ExceptionCheck is 1.2 API, which we check for in `from_raw()`
-        unsafe { jni_call_unchecked!(self, v1_2, ExceptionCheck) }
+        unsafe { ex_safe_jni_call_no_post_check_ex!(self, v1_2, ExceptionCheck) }
     }
 
     /// Check whether or not an exception is currently in the process of being
@@ -984,7 +996,8 @@ See the jni-rs Env documentation for more details.
         // Runtime check that the 'local reference lifetime will be tied to
         // Env lifetime for the top JNI stack frame
         self.assert_top();
-        let throwable = unsafe { jni_call_unchecked!(self, v1_1, ExceptionOccurred) };
+        let throwable =
+            unsafe { ex_safe_jni_call_no_post_check_ex!(self, v1_1, ExceptionOccurred) };
         if throwable.is_null() {
             None
         } else {
@@ -995,7 +1008,7 @@ See the jni-rs Env documentation for more details.
     /// Print exception information to the console.
     pub fn exception_describe(&self) {
         // Safety: ExceptionDescribe is 1.1 API that must be valid
-        unsafe { jni_call_unchecked!(self, v1_1, ExceptionDescribe) };
+        unsafe { ex_safe_jni_call_no_post_check_ex!(self, v1_1, ExceptionDescribe) };
     }
 
     /// Clear an exception in the process of being thrown. If this is never
@@ -1003,61 +1016,50 @@ See the jni-rs Env documentation for more details.
     /// returned to java.
     pub fn exception_clear(&self) {
         // Safety: ExceptionClear is 1.1 API that must be valid
-        unsafe { jni_call_unchecked!(self, v1_1, ExceptionClear) };
+        unsafe { ex_safe_jni_call_no_post_check_ex!(self, v1_1, ExceptionClear) };
     }
 
     /// Abort the JVM with an error message.
     ///
-    /// This method is guaranteed not to panic, call any JNI function other
-    /// than [`FatalError`], or perform any heap allocations (although
-    /// `FatalError` might perform heap allocations of its own).
+    /// This method is guaranteed not to panic, and only calls `ExceptionClear`
+    /// prior to calling [`FatalError`]. The `jni-rs` wrapper function does not
+    /// perform any heap allocations (although `FatalError` might perform heap
+    /// allocations of its own).
     ///
     /// In exchange for these strong guarantees, this method requires an error
     /// message to already be suitably encoded, as described in the
     /// documentation for the [`JNIStr`] type.
     ///
-    /// The simplest way to use this is to convert an ordinary Rust string to a
-    /// [`JNIString`], like so:
+    /// The simplest way to use this is to convert a string to a [`JNIStr`] via
+    /// [`jni::jni_str!`] like so:
     ///
     /// ```no_run
-    /// # use jni::{Env, strings::JNIString};
+    /// # use jni::{jni_str, Env, strings::JNIStr};
     /// # let env: Env = unimplemented!();
-    /// env.fatal_error(&JNIString::from("Game over, man! Game over!"))
+    /// env.fatal_error(jni_str!("Game over!"))
     /// ```
     ///
-    /// This can also be used in a way that's completely guaranteed to be
-    /// panic- and allocation-free, but it is somewhat complicated and
-    /// `unsafe`:
-    ///
-    /// ```no_run
-    /// # use jni::{Env, strings::JNIStr};
-    /// # use std::ffi::CStr;
-    /// const MESSAGE: &JNIStr = unsafe {
-    ///     JNIStr::from_cstr_unchecked(
-    ///         CStr::from_bytes_with_nul_unchecked(
-    ///             b"Game over, man! Game over!\0"
-    ///         )
-    ///     )
-    /// };
-    ///
-    /// # let env: Env = unimplemented!();
-    /// env.fatal_error(MESSAGE)
-    /// ```
-    ///
-    /// When doing this, be careful not to forget the `\0` at the end of the
-    /// string, and to correctly encode non-ASCII characters according to
-    /// Java's [Modified UTF-8].
-    ///
-    /// [`FatalError`]: https://docs.oracle.com/en/java/javase/11/docs/specs/jni/functions.html#fatalerror
-    /// [Modified UTF-8]: https://docs.oracle.com/en/java/javase/11/docs/specs/jni/types.html#modified-utf-8-strings
+    /// [`FatalError`]:
+    ///     https://docs.oracle.com/en/java/javase/21/docs/specs/jni/functions.html#fatalerror
+    /// [`ExceptionClear`]:
+    ///     https://docs.oracle.com/en/java/javase/21/docs/specs/jni/functions.html#exceptionclear
+    /// [Modified UTF-8]:
+    ///     https://docs.oracle.com/en/java/javase/21/docs/specs/jni/types.html#modified-utf-8-strings
     pub fn fatal_error(&self, msg: &JNIStr) -> ! {
+        // Since FatalError is not considered to safe to call with a pending exception
+        // we have to first clear any pending exception.
+        self.exception_clear();
+
         // Safety: FatalError is 1.1 API that must be valid
         //
         // Very little is specified about the implementation of FatalError but we still
         // currently consider this "safe", similar to how `abort()` is considered safe.
         // It won't give the application an opportunity to clean or save state but the
         // process will be terminated.
-        unsafe { jni_call_unchecked!(self, v1_1, FatalError, msg.as_ptr()) }
+        //
+        // Although FatalError is not exception safe, we call it as if it is because
+        // we have guaranteed that there are no pending exceptions to check for.
+        unsafe { ex_safe_jni_call_no_post_check_ex!(self, v1_1, FatalError, msg.as_ptr()) }
     }
 
     /// Create a new instance of a direct java.nio.ByteBuffer
@@ -1095,7 +1097,7 @@ See the jni-rs Env documentation for more details.
         let data = null_check!(data, "new_direct_byte_buffer data argument")?;
         // Safety: jni-rs requires JNI >= 1.4 and this is checked in `from_raw`
         unsafe {
-            let obj = jni_call_check_ex_and_null_ret!(
+            let obj = jni_call_post_check_ex_and_null_ret!(
                 self,
                 v1_4,
                 NewDirectByteBuffer,
@@ -1137,7 +1139,8 @@ See the jni-rs Env documentation for more details.
         let buf = null_check!(buf, "get_direct_buffer_capacity argument")?;
         // Safety: jni-rs requires JNI >= 1.4 and this is checked in `from_raw`
         unsafe {
-            let capacity = jni_call_unchecked!(self, v1_4, GetDirectBufferCapacity, buf.as_raw());
+            let capacity =
+                jni_call_no_post_check_ex!(self, v1_4, GetDirectBufferCapacity, buf.as_raw())?;
             match capacity {
                 -1 => Err(Error::JniCall(JniError::Unknown)),
                 _ => Ok(capacity as usize),
@@ -1168,12 +1171,12 @@ See the jni-rs Env documentation for more details.
         // - we know there's no other wrapper for the reference passed to from_global_raw
         //   since we have just created it.
         let global_ref = unsafe {
-            let global_ref = O::global_kind_from_raw(jni_call_unchecked!(
+            let global_ref = O::global_kind_from_raw(jni_call_no_post_check_ex!(
                 self,
                 v1_1,
                 NewGlobalRef,
                 obj.as_raw()
-            ));
+            )?);
             Global::new(self, global_ref)
         };
 
@@ -1189,7 +1192,7 @@ See the jni-rs Env documentation for more details.
             // In this case it's ambiguous whether there has been an out-of-memory error or
             // the object has been garbage collected and so we now _explicitly_ check
             // whether the object has been garbage collected.
-            if self.is_same_object(obj, JObject::null()) {
+            if self.is_same_object(obj, JObject::null())? {
                 Err(Error::ObjectFreed)
             } else {
                 Err(Error::JniCall(JniError::NoMemory))
@@ -1363,7 +1366,7 @@ See the jni-rs Env documentation for more details.
         // - we know there's no other wrapper for the reference passed to from_global_raw
         //   since we have just created it.
         let weak_ref = unsafe {
-            let weak = O::global_kind_from_raw(jni_call_check_ex!(
+            let weak = O::global_kind_from_raw(jni_call_post_check_ex!(
                 self,
                 v1_2,
                 NewWeakGlobalRef,
@@ -1518,8 +1521,14 @@ See the jni-rs Env documentation for more details.
         // - we can assume that `obj.raw()` is a valid reference, or null
         // - we know there's no other wrapper for the reference passed to from_local_raw
         //   since we have just created it.
-        let local =
-            unsafe { O::kind_from_raw(jni_call_unchecked!(self, v1_2, NewLocalRef, obj.as_raw())) };
+        let local = unsafe {
+            O::kind_from_raw(jni_call_no_post_check_ex!(
+                self,
+                v1_2,
+                NewLocalRef,
+                obj.as_raw()
+            )?)
+        };
 
         // Per JNI spec, `NewLocalRef` will return a null pointer if the object was GC'd
         // (which could happen if `obj` is a `Weak`):
@@ -1533,7 +1542,7 @@ See the jni-rs Env documentation for more details.
             // In this case it's ambiguous whether there has been an out-of-memory error or
             // the object has been garbage collected and so we now _explicitly_ check
             // whether the object has been garbage collected.
-            if self.is_same_object(obj, JObject::null()) {
+            if self.is_same_object(obj, JObject::null())? {
                 Err(Error::ObjectFreed)
             } else {
                 Err(Error::JniCall(JniError::NoMemory))
@@ -1803,9 +1812,11 @@ See the jni-rs Env documentation for more details.
         let obj = obj.into();
         let raw = obj.into_raw();
 
-        // Safety: `raw` may be `null`
+        // Safety:
+        // `raw` may be `null`
+        // DeleteLocalRef is safe to call while there may be a pending exception
         unsafe {
-            jni_call_unchecked!(self, v1_1, DeleteLocalRef, raw);
+            ex_safe_jni_call_no_post_check_ex!(self, v1_1, DeleteLocalRef, raw);
         }
     }
 
@@ -1831,7 +1842,8 @@ See the jni-rs Env documentation for more details.
         // Safety:
         // This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
         // We check for JNI > 1.2 in `from_raw`
-        let res = unsafe { jni_call_unchecked!(self, v1_2, PushLocalFrame, capacity) };
+        let res =
+            unsafe { ex_safe_jni_call_no_post_check_ex!(self, v1_2, PushLocalFrame, capacity) };
         jni_error_code_to_result(res)
     }
 
@@ -1862,7 +1874,8 @@ See the jni-rs Env documentation for more details.
         // This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
         // We check for JNI > 1.2 in `from_raw`
         unsafe {
-            let raw = jni_call_unchecked!(self, v1_2, PopLocalFrame, result.into_raw());
+            let raw =
+                ex_safe_jni_call_no_post_check_ex!(self, v1_2, PopLocalFrame, result.into_raw());
             Ok(T::kind_from_raw(raw))
         }
     }
@@ -2030,7 +2043,7 @@ See the jni-rs Env documentation for more details.
         self.assert_top();
         let class = class.lookup(self)?;
         let obj = unsafe {
-            jni_call_check_ex_and_null_ret!(self, v1_1, AllocObject, class.as_ref().as_raw())?
+            jni_call_post_check_ex_and_null_ret!(self, v1_1, AllocObject, class.as_ref().as_raw())?
         };
 
         // Ensure that `class` isn't dropped before the JNI call returns.
@@ -2109,7 +2122,7 @@ See the jni-rs Env documentation for more details.
         S: AsRef<MethodSignature<'sig, 'sig_args>>,
     {
         self.get_method_id_base(class, name, sig, |env, class, name, sig| unsafe {
-            jni_call_check_ex_and_null_ret!(
+            jni_call_post_check_ex_and_null_ret!(
                 env,
                 v1_1,
                 GetMethodID,
@@ -2148,7 +2161,7 @@ See the jni-rs Env documentation for more details.
         S: AsRef<MethodSignature<'sig, 'sig_args>>,
     {
         self.get_method_id_base(class, name, sig, |env, class, name, sig| unsafe {
-            jni_call_check_ex_and_null_ret!(
+            jni_call_post_check_ex_and_null_ret!(
                 env,
                 v1_1,
                 GetStaticMethodID,
@@ -2190,7 +2203,7 @@ See the jni-rs Env documentation for more details.
         let ffi_sig = sig.as_ref();
 
         let res = unsafe {
-            jni_call_check_ex_and_null_ret!(
+            jni_call_post_check_ex_and_null_ret!(
                 self,
                 v1_1,
                 GetFieldID,
@@ -2244,7 +2257,7 @@ See the jni-rs Env documentation for more details.
         let ffi_sig = sig.as_ref();
 
         let res = unsafe {
-            jni_call_check_ex_and_null_ret!(
+            jni_call_post_check_ex_and_null_ret!(
                 self,
                 v1_1,
                 GetStaticFieldID,
@@ -2284,7 +2297,7 @@ See the jni-rs Env documentation for more details.
         unsafe {
             Ok(JClass::from_raw(
                 self,
-                jni_call_unchecked!(self, v1_1, GetObjectClass, obj.as_raw()),
+                jni_call_no_post_check_ex!(self, v1_1, GetObjectClass, obj.as_raw())?,
             ))
         }
     }
@@ -2329,7 +2342,7 @@ See the jni-rs Env documentation for more details.
         macro_rules! invoke {
             ($call:ident -> $ret:ty) => {{
                 let o: $ret =
-                    jni_call_check_ex!(self, v1_1, $call, class_raw, method_id, jni_args)?;
+                    jni_call_post_check_ex!(self, v1_1, $call, class_raw, method_id, jni_args)?;
                 o
             }};
         }
@@ -2351,7 +2364,7 @@ See the jni-rs Env documentation for more details.
                 Primitive(Float) => invoke!(CallStaticFloatMethodA -> f32).into(),
                 Primitive(Double) => invoke!(CallStaticDoubleMethodA -> f64).into(),
                 Primitive(Void) => {
-                    jni_call_check_ex!(
+                    jni_call_post_check_ex!(
                         self,
                         v1_1,
                         CallStaticVoidMethodA,
@@ -2408,7 +2421,7 @@ See the jni-rs Env documentation for more details.
 
         macro_rules! invoke {
             ($call:ident -> $ret:ty) => {{
-                let o: $ret = jni_call_check_ex!(self, v1_1, $call, obj, method_id, jni_args)?;
+                let o: $ret = jni_call_post_check_ex!(self, v1_1, $call, obj, method_id, jni_args)?;
                 o
             }};
         }
@@ -2430,7 +2443,7 @@ See the jni-rs Env documentation for more details.
                 Primitive(Float) => invoke!(CallFloatMethodA -> f32).into(),
                 Primitive(Double) => invoke!(CallDoubleMethodA -> f64).into(),
                 Primitive(Void) => {
-                    jni_call_check_ex!(self, v1_1, CallVoidMethodA, obj, method_id, jni_args)?;
+                    jni_call_post_check_ex!(self, v1_1, CallVoidMethodA, obj, method_id, jni_args)?;
                     JValueOwned::Void
                 }
             }
@@ -2481,8 +2494,9 @@ See the jni-rs Env documentation for more details.
 
         macro_rules! invoke {
             ($call:ident -> $ret:ty) => {{
-                let o: $ret =
-                    jni_call_check_ex!(self, v1_1, $call, obj, class_raw, method_id, jni_args)?;
+                let o: $ret = jni_call_post_check_ex!(
+                    self, v1_1, $call, obj, class_raw, method_id, jni_args
+                )?;
                 o
             }};
         }
@@ -2504,7 +2518,7 @@ See the jni-rs Env documentation for more details.
                 Primitive(Float) => invoke!(CallNonvirtualFloatMethodA -> f32).into(),
                 Primitive(Double) => invoke!(CallNonvirtualDoubleMethodA -> f64).into(),
                 Primitive(Void) => {
-                    jni_call_check_ex!(
+                    jni_call_post_check_ex!(
                         self,
                         v1_1,
                         CallNonvirtualVoidMethodA,
@@ -2794,7 +2808,7 @@ See the jni-rs Env documentation for more details.
         let jni_args = ctor_args.as_ptr();
 
         let obj = unsafe {
-            jni_call_check_ex_and_null_ret!(
+            jni_call_post_check_ex_and_null_ret!(
                 self,
                 v1_1,
                 NewObjectA,
@@ -2912,7 +2926,7 @@ See the jni-rs Env documentation for more details.
         array: &'array impl AsJArrayRaw<'other_local>,
     ) -> Result<jsize> {
         let array = null_check!(array.as_jarray_raw(), "get_array_length array argument")?;
-        let len: jsize = unsafe { jni_call_unchecked!(self, v1_1, GetArrayLength, array) };
+        let len: jsize = unsafe { jni_call_no_post_check_ex!(self, v1_1, GetArrayLength, array)? };
         Ok(len)
     }
 
@@ -2940,7 +2954,7 @@ See the jni-rs Env documentation for more details.
         let class = element_class.lookup(self)?;
 
         let array = unsafe {
-            jni_call_check_ex_and_null_ret!(
+            jni_call_post_check_ex_and_null_ret!(
                 self,
                 v1_1,
                 NewObjectArray,
@@ -3020,10 +3034,10 @@ See the jni-rs Env documentation for more details.
     ) -> Result<Vec<u8>> {
         let array = array.as_ref().as_raw();
         let array = null_check!(array, "convert_byte_array array argument")?;
-        let length = unsafe { jni_call_check_ex!(self, v1_1, GetArrayLength, array)? };
+        let length = unsafe { jni_call_post_check_ex!(self, v1_1, GetArrayLength, array)? };
         let mut vec = vec![0u8; length as usize];
         unsafe {
-            jni_call_unchecked!(
+            jni_call_no_post_check_ex!(
                 self,
                 v1_1,
                 GetByteArrayRegion,
@@ -3031,7 +3045,7 @@ See the jni-rs Env documentation for more details.
                 0,
                 length,
                 vec.as_mut_ptr() as *mut i8
-            );
+            )?;
         }
         Ok(vec)
     }
@@ -3472,7 +3486,7 @@ See the jni-rs Env documentation for more details.
         let method_id = to_jmethodid(*method_id.lookup(self)?.as_ref());
 
         unsafe {
-            jni_call_check_ex_and_null_ret!(
+            jni_call_post_check_ex_and_null_ret!(
                 self,
                 v1_2,
                 ToReflectedMethod,
@@ -3520,7 +3534,9 @@ See the jni-rs Env documentation for more details.
                 // Safety: No exceptions are defined for Get*Field and we assume
                 // the caller knows that the field is valid
                 unsafe {
-                    JValueOwned::from(jni_call_unchecked!(self, v1_1, $get_field, obj, field))
+                    JValueOwned::from(jni_call_no_post_check_ex!(
+                        self, v1_1, $get_field, obj, field
+                    )?)
                 }
             }};
         }
@@ -3528,7 +3544,7 @@ See the jni-rs Env documentation for more details.
         match ty {
             Object | Array => {
                 let obj = unsafe {
-                    jni_call_check_ex!(self, v1_1, GetObjectField, obj, field)
+                    jni_call_post_check_ex!(self, v1_1, GetObjectField, obj, field)
                         .map(|obj| JObject::from_raw(self, obj))?
                 };
                 Ok(obj.into())
@@ -3573,21 +3589,19 @@ See the jni-rs Env documentation for more details.
         let obj = obj.as_raw();
 
         macro_rules! set_field {
-            ($set_field:ident($val:expr)) => {{
-                unsafe { jni_call_unchecked!(self, v1_1, $set_field, obj, field, $val) };
-            }};
+            ($set_field:ident($val:expr)) => {{ unsafe { jni_call_no_post_check_ex!(self, v1_1, $set_field, obj, field, $val) } }};
         }
 
         match value {
-            JValue::Object(o) => set_field!(SetObjectField(o.as_raw())),
-            JValue::Bool(b) => set_field!(SetBooleanField(b)),
-            JValue::Char(c) => set_field!(SetCharField(c)),
-            JValue::Short(s) => set_field!(SetShortField(s)),
-            JValue::Int(i) => set_field!(SetIntField(i)),
-            JValue::Long(l) => set_field!(SetLongField(l)),
-            JValue::Float(f) => set_field!(SetFloatField(f)),
-            JValue::Double(d) => set_field!(SetDoubleField(d)),
-            JValue::Byte(b) => set_field!(SetByteField(b)),
+            JValue::Object(o) => set_field!(SetObjectField(o.as_raw()))?,
+            JValue::Bool(b) => set_field!(SetBooleanField(b))?,
+            JValue::Char(c) => set_field!(SetCharField(c))?,
+            JValue::Short(s) => set_field!(SetShortField(s))?,
+            JValue::Int(i) => set_field!(SetIntField(i))?,
+            JValue::Long(l) => set_field!(SetLongField(l))?,
+            JValue::Float(f) => set_field!(SetFloatField(f))?,
+            JValue::Double(d) => set_field!(SetDoubleField(d))?,
+            JValue::Byte(b) => set_field!(SetByteField(b))?,
             _ => (),
         };
 
@@ -3684,7 +3698,7 @@ See the jni-rs Env documentation for more details.
         macro_rules! field {
             ($get_field:ident) => {{
                 unsafe {
-                    jni_call_check_ex!(
+                    jni_call_post_check_ex!(
                         self,
                         v1_1,
                         $get_field,
@@ -3741,28 +3755,28 @@ See the jni-rs Env documentation for more details.
         macro_rules! set_field {
             ($set_field:ident($val:expr)) => {{
                 unsafe {
-                    jni_call_unchecked!(
+                    jni_call_no_post_check_ex!(
                         self,
                         v1_1,
                         $set_field,
                         class.as_ref().as_raw(),
                         field.as_ref().into_raw(),
                         $val
-                    );
+                    )
                 }
             }};
         }
 
         match value {
-            JValue::Object(v) => set_field!(SetStaticObjectField(v.as_raw())),
-            JValue::Byte(v) => set_field!(SetStaticByteField(v)),
-            JValue::Char(v) => set_field!(SetStaticCharField(v)),
-            JValue::Short(v) => set_field!(SetStaticShortField(v)),
-            JValue::Int(v) => set_field!(SetStaticIntField(v)),
-            JValue::Long(v) => set_field!(SetStaticLongField(v)),
-            JValue::Bool(v) => set_field!(SetStaticBooleanField(v)),
-            JValue::Float(v) => set_field!(SetStaticFloatField(v)),
-            JValue::Double(v) => set_field!(SetStaticDoubleField(v)),
+            JValue::Object(v) => set_field!(SetStaticObjectField(v.as_raw()))?,
+            JValue::Byte(v) => set_field!(SetStaticByteField(v))?,
+            JValue::Char(v) => set_field!(SetStaticCharField(v))?,
+            JValue::Short(v) => set_field!(SetStaticShortField(v))?,
+            JValue::Int(v) => set_field!(SetStaticIntField(v))?,
+            JValue::Long(v) => set_field!(SetStaticLongField(v))?,
+            JValue::Bool(v) => set_field!(SetStaticBooleanField(v))?,
+            JValue::Float(v) => set_field!(SetStaticFloatField(v))?,
+            JValue::Double(v) => set_field!(SetStaticDoubleField(v))?,
             _ => (),
         }
 
@@ -4058,7 +4072,7 @@ See the jni-rs Env documentation for more details.
         // local reference.
 
         let inner = obj.as_ref().as_raw();
-        let res = unsafe { jni_call_unchecked!(self, v1_1, MonitorEnter, inner) };
+        let res = unsafe { jni_call_no_post_check_ex!(self, v1_1, MonitorEnter, inner)? };
         jni_error_code_to_result(res)?;
 
         Ok(MonitorGuard {
@@ -4068,7 +4082,10 @@ See the jni-rs Env documentation for more details.
     }
 
     /// Returns the Java VM interface.
-    pub fn get_java_vm(&self) -> JavaVM {
+    ///
+    /// May return [`Error::JavaException`] if called while there is a pending
+    /// exception.
+    pub fn get_java_vm(&self) -> Result<JavaVM> {
         // This avoids calling JNI if we already know the VM pointer
         JavaVM::from_env(self)
     }
@@ -4083,7 +4100,7 @@ See the jni-rs Env documentation for more details.
         // - jni-rs required JNI_VERSION > 1.2
         // - we have ensured capacity is >= 0
         // - EnsureLocalCapacity has no documented exceptions that it throws
-        let res = unsafe { jni_call_unchecked!(self, v1_2, EnsureLocalCapacity, capacity) };
+        let res = unsafe { jni_call_no_post_check_ex!(self, v1_2, EnsureLocalCapacity, capacity)? };
         jni_error_code_to_result(res)?;
         Ok(())
     }
@@ -4133,7 +4150,7 @@ See the jni-rs Env documentation for more details.
         //  - NativeMethod only has an `unsafe` constructor that requires the caller to ensure that
         //    the function pointer is valid and matches the signature
         let res = unsafe {
-            jni_call_check_ex!(
+            jni_call_post_check_ex!(
                 self,
                 v1_1,
                 RegisterNatives,
@@ -4155,8 +4172,9 @@ See the jni-rs Env documentation for more details.
         T: Desc<'local, JClass<'other_local>>,
     {
         let class = class.lookup(self)?;
-        let res =
-            unsafe { jni_call_check_ex!(self, v1_1, UnregisterNatives, class.as_ref().as_raw())? };
+        let res = unsafe {
+            jni_call_post_check_ex!(self, v1_1, UnregisterNatives, class.as_ref().as_raw())?
+        };
 
         // Ensure that `class` isn't dropped before the JNI call returns.
         drop(class);
@@ -4597,7 +4615,8 @@ impl Drop for MonitorGuard<'_> {
                 // This also means we can assume the `IllegalMonitorStateException`
                 // exception can't be thrown due to the current thread not owning
                 // the monitor.
-                let res = unsafe { jni_call_unchecked!(env, v1_1, MonitorExit, self.obj) };
+                let res =
+                    unsafe { ex_safe_jni_call_no_post_check_ex!(env, v1_1, MonitorExit, self.obj) };
                 if let Err(err) = jni_error_code_to_result(res) {
                     log::error!("error releasing java monitor: {err}");
                 }

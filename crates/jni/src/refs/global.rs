@@ -286,7 +286,7 @@ where
                     }
                     // Safety: This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
                     unsafe {
-                        jni_call_unchecked!(env, v1_1, DeleteGlobalRef, obj.as_raw());
+                        ex_safe_jni_call_no_post_check_ex!(env, v1_1, DeleteGlobalRef, obj.as_raw());
                     }
                     Ok(())
                 },

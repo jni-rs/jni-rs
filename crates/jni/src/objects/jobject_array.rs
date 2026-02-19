@@ -176,7 +176,7 @@ impl<'local, E: Reference + 'local> JObjectArray<'local, E> {
         env.assert_top();
         let element_class = E::lookup_class(env, &LoaderContext::default())?;
         let array = unsafe {
-            jni_call_check_ex!(
+            jni_call_post_check_ex!(
                 env,
                 v1_1,
                 NewObjectArray,
@@ -258,7 +258,7 @@ impl<'local, E: Reference + 'local> JObjectArray<'local, E> {
             self.as_raw() as jobjectArray,
             "JObjectArray::len self argument"
         )?;
-        let len = unsafe { jni_call_unchecked!(env, v1_1, GetArrayLength, array) } as usize;
+        let len = unsafe { jni_call_no_post_check_ex!(env, v1_1, GetArrayLength, array)? } as usize;
         Ok(len)
     }
 
@@ -281,7 +281,7 @@ impl<'local, E: Reference + 'local> JObjectArray<'local, E> {
             ));
         }
         unsafe {
-            jni_call_check_ex!(env, v1_1, GetObjectArrayElement, array, index as i32)
+            jni_call_post_check_ex!(env, v1_1, GetObjectArrayElement, array, index as i32)
                 .map(|obj| E::kind_from_raw(obj))
         }
     }
@@ -303,7 +303,7 @@ impl<'local, E: Reference + 'local> JObjectArray<'local, E> {
             ));
         }
         unsafe {
-            jni_call_check_ex!(
+            jni_call_post_check_ex!(
                 env,
                 v1_1,
                 SetObjectArrayElement,

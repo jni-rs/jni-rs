@@ -138,7 +138,7 @@ pub fn is_same_object_diff_references() {
     attach_current_thread(|env| {
         let string = JString::from_jni_str(env, TESTING_OBJECT_STR).unwrap();
         let ref_from_string = unwrap(env.new_local_ref(&string), env);
-        assert!(env.is_same_object(&string, &ref_from_string));
+        assert!(env.is_same_object(&string, &ref_from_string).unwrap());
         env.delete_local_ref(ref_from_string);
 
         Ok(())
@@ -150,7 +150,7 @@ pub fn is_same_object_diff_references() {
 pub fn is_same_object_same_reference() {
     attach_current_thread(|env| {
         let string = JString::from_jni_str(env, TESTING_OBJECT_STR).unwrap();
-        assert!(env.is_same_object(&string, &string));
+        assert!(env.is_same_object(&string, &string).unwrap());
 
         Ok(())
     })
@@ -162,7 +162,7 @@ pub fn is_not_same_object() {
     attach_current_thread(|env| {
         let string = JString::from_jni_str(env, TESTING_OBJECT_STR).unwrap();
         let same_src_str = JString::from_jni_str(env, TESTING_OBJECT_STR).unwrap();
-        assert!(!env.is_same_object(string, same_src_str));
+        assert!(!env.is_same_object(&string, &same_src_str).unwrap());
 
         Ok(())
     })
@@ -172,7 +172,10 @@ pub fn is_not_same_object() {
 #[test]
 pub fn is_not_same_object_null() {
     attach_current_thread(|env| {
-        assert!(env.is_same_object(JObject::null(), JObject::null()));
+        assert!(
+            env.is_same_object(JObject::null(), JObject::null())
+                .unwrap()
+        );
 
         Ok(())
     })
@@ -510,7 +513,7 @@ fn set_static_public_field_by_id() {
             .unwrap();
 
         // The restored value should be the same as original
-        assert!(env.is_same_object(&original_in, &restored_in));
+        assert!(env.is_same_object(&original_in, &restored_in).unwrap());
 
         Ok(())
     })
@@ -1549,7 +1552,7 @@ fn new_weak_ref_null() {
         assert!(matches!(result, Err(Error::ObjectFreed)));
 
         let null_weak: Weak<JObject<'static>> = Weak::null();
-        assert!(null_weak.is_garbage_collected(env));
+        assert!(null_weak.is_garbage_collected(env).unwrap());
 
         Ok(())
     })
@@ -1762,18 +1765,18 @@ pub fn test_conversion() {
 
         let string = env.cast_local::<JString>(obj).unwrap();
         let actual = JObject::from(string);
-        assert!(env.is_same_object(&orig_obj, actual));
+        assert!(env.is_same_object(&orig_obj, actual).unwrap());
 
         let global_ref = env.new_global_ref(&orig_obj).unwrap();
-        assert!(env.is_same_object(&orig_obj, global_ref));
+        assert!(env.is_same_object(&orig_obj, global_ref).unwrap());
 
         let weak_ref = unwrap(env.new_weak_ref(&orig_obj), env);
         let actual =
             unwrap(weak_ref.upgrade_local(env), env).expect("weak ref should not have been GC'd");
-        assert!(env.is_same_object(&orig_obj, actual));
+        assert!(env.is_same_object(&orig_obj, actual).unwrap());
 
         let auto_local = unwrap(env.new_local_ref(&orig_obj), env).auto();
-        assert!(env.is_same_object(&orig_obj, auto_local));
+        assert!(env.is_same_object(&orig_obj, auto_local).unwrap());
 
         Ok(())
     })

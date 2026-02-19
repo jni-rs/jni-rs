@@ -92,7 +92,7 @@ pub(crate) mod type_array_sealed {
                 unsafe impl TypeArraySealed for $jni_type {
                     /// Create new Java $jni_type array
                     unsafe fn new_array(env: &mut Env, length: jsize) -> Result<jarray> {
-                        let raw_array = unsafe { jni_call_check_ex_and_null_ret!(env, v1_1, [< New $jni_type_name Array>], length)? };
+                        let raw_array = unsafe { jni_call_post_check_ex_and_null_ret!(env, v1_1, [< New $jni_type_name Array>], length)? };
                         Ok(raw_array)
                     }
 
@@ -115,8 +115,10 @@ pub(crate) mod type_array_sealed {
                         ptr: NonNull<Self>,
                         mode: i32,
                     ) -> Result<()> {
-                        // There are no documented exceptions for Release<Primitive>ArrayElements()
-                        unsafe { jni_call_unchecked!(env, v1_1, [< Release $jni_type_name ArrayElements>], array, ptr.as_ptr(), mode as i32) };
+                        // Release<Primitive>ArrayElements() is safe to call while there is a
+                        // pending exception and there are no documented exceptions for
+                        // Release<Primitive>ArrayElements()
+                        unsafe { ex_safe_jni_call_no_post_check_ex!(env, v1_1, [< Release $jni_type_name ArrayElements>], array, ptr.as_ptr(), mode as i32) };
                         Ok(())
                     }
 
@@ -129,7 +131,7 @@ pub(crate) mod type_array_sealed {
                         let array =
                             null_check!(array, "get_*_array_region array argument")?;
                         unsafe {
-                            jni_call_check_ex!(
+                            Ok(jni_call_post_check_ex!(
                                 env,
                                 v1_1,
                                 [< Get $jni_type_name ArrayRegion>],
@@ -137,7 +139,7 @@ pub(crate) mod type_array_sealed {
                                 start,
                                 buf.len() as jsize,
                                 buf.as_mut_ptr()
-                            )
+                            )?)
                         }
                     }
 
@@ -149,7 +151,7 @@ pub(crate) mod type_array_sealed {
                     ) -> Result<()> {
                         let array = null_check!(array, "set_*_array_region array argument")?;
                         unsafe {
-                            jni_call_check_ex!(
+                            Ok(jni_call_post_check_ex!(
                                 env,
                                 v1_1,
                                 [< Set $jni_type_name ArrayRegion>],
@@ -157,7 +159,7 @@ pub(crate) mod type_array_sealed {
                                 start,
                                 buf.len() as jsize,
                                 buf.as_ptr()
-                            )
+                            )?)
                         }
                     }
                 }

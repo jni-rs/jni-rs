@@ -84,13 +84,14 @@ where
     ///
     /// If `mode` is not [`sys::JNI_COMMIT`], then `self.ptr` must not have already been released.
     unsafe fn release_primitive_array_critical(&mut self, mode: i32) -> Result<()> {
-        // Errors:
+        // Safety/Errors:
         // - Since we can't construct `AutoElementsCritical` without a valid `Env` reference we know
         //   we can call `JavaVM::singleton()` without an error.
         // - Since `self` is associated with a local reference frame lifetime we know that the
         //   thread is attached and so `with_top_local_frame()` can't return an error.
+        // - ReleasePrimitiveArrayCritical can be called while there is a pending exception
         JavaVM::singleton()?.with_top_local_frame(|env| unsafe {
-            jni_call_unchecked!(
+            ex_safe_jni_call_no_post_check_ex!(
                 env,
                 v1_2,
                 ReleasePrimitiveArrayCritical,
