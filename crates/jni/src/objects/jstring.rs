@@ -146,7 +146,7 @@ impl JString<'_> {
         env.assert_top();
         let ffi_str: &JNIStr = from.as_ref();
         unsafe {
-            jni_call_check_ex_and_null_ret!(env, v1_1, NewStringUTF, ffi_str.as_ptr())
+            jni_call_post_check_ex_and_null_ret!(env, v1_1, NewStringUTF, ffi_str.as_ptr())
                 .map(|s| JString::from_raw(env, s))
         }
     }

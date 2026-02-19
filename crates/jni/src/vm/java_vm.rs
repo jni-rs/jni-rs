@@ -429,25 +429,21 @@ impl JavaVM {
         self.0
     }
 
-    pub(crate) fn from_env(env: &Env) -> Self {
+    /// Create a JavaVM from an Env reference.
+    ///
+    /// This may return [`Error::JavaException`] if called while there is a pending exception.
+    pub(crate) fn from_env(env: &Env) -> Result<Self> {
         // Don't use `.get_or_init()` here because it would deadlock if calling `JavaVM::from_raw`
         // which also uses `.get_or_init()`
         if let Some(jvm) = JAVA_VM_SINGLETON.get() {
-            jvm.clone()
+            Ok(jvm.clone())
         } else {
             let mut raw = ptr::null_mut();
-            let res = unsafe { jni_call_unchecked!(env, v1_1, GetJavaVM, &mut raw) };
-            let res = jni_error_code_to_result(res);
-
-            // If we have a Env reference then we can assume we have a valid, non-null Env
-            // pointer and there should be no reason for GetJavaVM to fail.
-            //
-            // If it would fail, we assume that would be breaking fundamental invariants we
-            // rely on within jni-rs so we wouldn't consider it safe in any case.
-            res.expect("Spurious failure to get JavaVM from Env");
+            let res = unsafe { jni_call_no_post_check_ex!(env, v1_1, GetJavaVM, &mut raw)? };
+            jni_error_code_to_result(res)?;
 
             // Safety: The pointer from GetJavaVM should be valid
-            unsafe { JavaVM::from_raw(raw) }
+            unsafe { Ok(JavaVM::from_raw(raw)) }
         }
     }
 
@@ -1199,24 +1195,39 @@ pub(super) unsafe fn sys_detach_current_thread(
     if allow_jni {
         // Check if thread is actually attached before attempting to detach
         let was_attached = match unsafe { vm.sys_get_env_attachment() } {
-            Ok(guard) => {
+            Ok(mut guard) => {
                 // Optional defensive cross-check: verify env matches current thread
                 if let Some(expected_env) = cross_check_env {
-                    if guard.env.raw != expected_env {
-                        // Should we panic in this case instead? This would indicate that some
-                        // external code has meddled with the thread attachment, which would be a
-                        // serious violation of our safety assumptions.
-                        return Err(Error::JniCall(JniError::InvalidArguments));
-                    }
+                    // If this check fails it would imply we're holding an
+                    // invalid pointer and would be completely unsound
+                    assert_eq!(
+                        guard.env.raw, expected_env,
+                        "BUG: Something meddled with the JNI attachment behind our back"
+                    );
                 }
+
+                // Clear Pending Exceptions
+                //
+                // Unlike for later versions; the JNI spec for Java 8 doesn't explicitly state that
+                // DetachCurrentThread is safe to call while there are pending exceptions.
+                //
+                // Note: we don't use `.exception_catch()` to get the details of any exception since
+                // we assume that will be done via `AttachGuard::detach_with_catch` if needed.
+
+                guard.borrow_env_mut().exception_clear();
+
                 drop(guard);
                 true
             }
-            // If we get a ThreadDetached error while cross_check_env.is_some(), this likely means
-            // the thread was detached by external code (e.g. manual DetachCurrentThread call via
-            // raw JNI API) in a way that violates our safety assumptions and we should consider
-            // panicking to avoid undefined behaviour in that case.
-            Err(Error::JniCall(JniError::ThreadDetached)) => false,
+            Err(Error::JniCall(JniError::ThreadDetached)) => {
+                // If this assertion fails it implies we have been left with a potentially invalid
+                // pointer for an attachment that no longer exists.
+                assert!(
+                    cross_check_env.is_none(),
+                    "BUG: Thread was detached by external code"
+                );
+                false
+            }
             Err(e) => return Err(e),
         };
 

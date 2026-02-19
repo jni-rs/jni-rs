@@ -418,3 +418,10 @@ pub use jni_macros::bind_java_type;
 
 #[doc = include_str!("../docs/macros/native_method.md")]
 pub use jni_macros::native_method;
+
+// For internal jni call macros to ensure their results are checked
+#[doc(hidden)]
+#[must_use]
+pub fn __must_use<T>(v: T) -> T {
+    v
+}

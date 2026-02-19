@@ -142,7 +142,7 @@ impl<'local, T: TypeArray> JPrimitiveArray<'local, T> {
     /// Returns the length of the array.
     pub fn len(&self, env: &Env) -> Result<usize> {
         let array = null_check!(self.as_raw(), "JPrimitiveArray::len self argument")?;
-        let len = unsafe { jni_call_unchecked!(env, v1_1, GetArrayLength, array) } as usize;
+        let len = unsafe { jni_call_no_post_check_ex!(env, v1_1, GetArrayLength, array)? } as usize;
         Ok(len)
     }
 

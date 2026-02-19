@@ -203,7 +203,9 @@ where
     ///
     /// This is equivalent to
     /// <code>self.[is_same_object][Weak::is_same_object](env, [JObject::null]\())</code>.
-    pub fn is_garbage_collected(&self, env: &Env) -> bool {
+    ///
+    /// This may return [`Error::JavaException`] if called while there is a pending exception.
+    pub fn is_garbage_collected(&self, env: &Env) -> Result<bool> {
         env.is_same_object(self, JObject::null())
     }
 
@@ -214,7 +216,7 @@ where
     /// `Weak` has been garbage collected, or false if the object has not yet been garbage
     /// collected.
     #[deprecated = "Use Env::is_same_object"]
-    pub fn is_same_object<'local, O>(&self, env: &Env<'local>, object: O) -> bool
+    pub fn is_same_object<'local, O>(&self, env: &Env<'local>, object: O) -> Result<bool>
     where
         O: AsRef<JObject<'local>>,
     {
@@ -227,7 +229,7 @@ where
     /// This method will also return true if both weak references refer to an object that has been
     /// garbage collected.
     #[deprecated = "Use Env::is_same_object"]
-    pub fn is_weak_ref_to_same_object(&self, env: &Env, other: &Self) -> bool {
+    pub fn is_weak_ref_to_same_object(&self, env: &Env, other: &Self) -> Result<bool> {
         env.is_same_object(self, other)
     }
 
@@ -267,7 +269,7 @@ where
                 // Safety: This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
                 // jni-rs requires JNI_VERSION > 1.2
                 unsafe {
-                    jni_call_unchecked!(env, v1_2, DeleteWeakGlobalRef, obj.as_raw());
+                    ex_safe_jni_call_no_post_check_ex!(env, v1_2, DeleteWeakGlobalRef, obj.as_raw());
                 }
                 Ok(())
             });

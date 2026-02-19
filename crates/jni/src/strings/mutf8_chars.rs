@@ -279,7 +279,9 @@ where
             // `JavaVM::singleton()` must be initialized and won't panic.
             JavaVM::singleton()?.with_top_local_frame(|env| {
                 // This method is safe to call in case of pending exceptions (see the chapter 2 of the spec)
-                unsafe { jni_call_unchecked!(env, v1_1, ReleaseStringUTFChars, obj, chars) };
+                unsafe {
+                    ex_safe_jni_call_no_post_check_ex!(env, v1_1, ReleaseStringUTFChars, obj, chars)
+                };
 
                 Ok(())
             })
