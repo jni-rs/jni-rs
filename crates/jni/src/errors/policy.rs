@@ -197,6 +197,9 @@ impl<T: Default, E: std::error::Error> ErrorPolicy<T, E> for ThrowRuntimeExAndDe
             return Ok(T::default()); // already thrown
         }
         let err_string = format!("Rust error: {}", err);
+        // Note: `env.throw()` will return `Err(Error::JavaException)` after throwing but in this case
+        // (where we are going to be letting the exception propagate to Java), we want to ensure we
+        // don't return that as an error
         let _ = env.throw(err_string);
         Ok(T::default())
     }
@@ -218,7 +221,11 @@ impl<T: Default, E: std::error::Error> ErrorPolicy<T, E> for ThrowRuntimeExAndDe
                 "non-string panic payload".to_string()
             }
         };
-        env.throw(format!("Rust panic: {}", panic_string))?;
+
+        // Note: `env.throw()` will return `Err(Error::JavaException)` after throwing but in this case
+        // (where we are going to be letting the exception propagate to Java), we want to ensure we
+        // don't return that as an error
+        let _ = env.throw(format!("Rust panic: {}", panic_string));
         Ok(T::default())
     }
 }
