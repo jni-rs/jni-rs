@@ -194,10 +194,10 @@ macro_rules! native_method_test {
                 });
 
                 match result {
-                    Err(jni::errors::Error::JavaException) => {
-                        println!("✓ {}", $expected_msg);
+                    Err(jni::errors::Error::CaughtJavaException { msg, .. }) => {
+                        assert_eq!(msg, $expected_msg);
                     }
-                    _ => panic!("Expected JavaException: {}, got: {:?}", $expected_msg, result),
+                    _ => panic!("Expected CaughtJavaException: {}, got: {:?}", $expected_msg, result),
                 }
             }
         }

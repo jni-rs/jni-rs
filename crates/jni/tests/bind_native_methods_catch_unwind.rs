@@ -158,6 +158,7 @@ native_method_test! {
     test_name: test_catch_unwind_true_catches_panic,
     java_class: "com/example/TestNativeCatchUnwind.java",
     api: TestCatchUnwindTrueAPI,
+    expect_exception: "Rust panic: This panic SHOULD be caught by error policy",
     test_body: |env| {
         let obj = TestCatchUnwindTrue::new(env)?;
 

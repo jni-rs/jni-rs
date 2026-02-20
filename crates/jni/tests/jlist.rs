@@ -97,6 +97,13 @@ pub fn jlist_get_and_set() {
         let invalid = list.get(env, 10);
         assert!(invalid.is_err());
 
+        assert!(matches!(
+            env.exception_catch().unwrap_err(),
+            jni::errors::Error::CaughtJavaException {
+                ref name, ..
+            } if name == "java.lang.IndexOutOfBoundsException"
+        ));
+
         Ok(())
     })
     .unwrap();

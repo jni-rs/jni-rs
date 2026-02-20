@@ -453,6 +453,10 @@ impl JavaVM {
     /// If the thread was not already attached then a new attachment is made which will be
     /// automatically detached when the current thread terminates.
     ///
+    /// Any left-over pending exception (after the closure has been run) will be returned as an
+    /// [`Error::CaughtJavaException`] - regardless of whether the thread was already attached or
+    /// not.
+    ///
     /// Calling this in a thread that is already attached is cheap since it will only need to check
     /// thread local storage without making a JNI call.
     ///
@@ -490,6 +494,10 @@ impl JavaVM {
     /// If the thread was not already attached, the thread will be detached when the callback
     /// returns.
     ///
+    /// Any left-over pending exception (after the closure has been run) will be returned as an
+    /// [`Error::CaughtJavaException`] - regardless of whether the thread was already attached or
+    /// not.
+    ///
     /// Calling this in a thread that is already attached is cheap since it will only need to check
     /// thread local storage without making a JNI call.
     ///
@@ -517,6 +525,10 @@ impl JavaVM {
 
     /// Attaches the current thread to the Java VM and calls the provided callback with a mutable
     /// [`Env`] reference.
+    ///
+    /// Any left-over pending exception (after the closure has been run) will be returned as an
+    /// [`Error::CaughtJavaException`] - regardless of whether the thread was already attached or
+    /// not.
     ///
     /// This function allows you to customize the attachment process and choose whether to create
     /// a new local frame (with a given capacity) or use the current one.
@@ -567,11 +579,24 @@ impl JavaVM {
         // Safety: The ScopeToken and guard will remain fixed on the stack by keeping the guard
         // private to this function.
         let mut guard = unsafe { self.attach_current_thread_guard(config, &mut scope)? };
-        if let Some(capacity) = capacity {
+        let ret = if let Some(capacity) = capacity {
             guard.borrow_env_mut().with_local_frame(capacity, callback)
         } else {
             callback(guard.borrow_env_mut())
-        }
+        };
+
+        // Explicitly detach the guard (instead of relying on Drop) so we can return any error from
+        // the detachment process.
+        //
+        // Any left-over pending exception will be returned as `Error::CaughtJavaException` here.
+        //
+        // Note: any error here will also have a higher precedence than the result from the closure
+        // which is probably reasonable because a detachment error would probably indicate a serious
+        // issue and an exception should typically imply that the closure has returned a
+        // `JavaException` error.
+        guard.detach_with_catch()?;
+
+        ret
     }
 
     /// Attaches the current thread to the Java VM and returns an [`AttachGuard`] for the
@@ -607,7 +632,9 @@ impl JavaVM {
     ///         // Safety: The scope + guard will remain fixed on the stack by keeping the guard
     ///         // private to this function.
     ///         let mut guard = unsafe { self.vm.attach_current_thread_guard(AttachConfig::default, &mut scope)? };
-    ///         guard.borrow_env_mut().with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, callback)
+    ///         let ret = guard.borrow_env_mut().with_local_frame(DEFAULT_LOCAL_FRAME_CAPACITY, callback);
+    ///         guard.detach_with_catch()?; // return pending exceptions as Error::CaughtJavaException
+    ///         ret
     ///     }
     /// }
     /// ```
@@ -1156,9 +1183,8 @@ fn windows_is_shutdown_in_progress() -> bool {
 /// current thread's attachment before detaching. This provides a defensive check that we "own" the
 /// current attachment. We only use this when detaching scoped attachments.
 ///
-/// If `cross_check_env` is None, the check is skipped. This is useful in scenarios where the env
-/// pointer may have become stale (e.g., when multiple Windows fibers on the same thread each
-/// attempt to detach after one has already succeeded).
+/// `cross_check_env` is not provided for permanent TLS/FLS attachments since we allow external
+/// code to detach these early (as long as there are no AttachGuards currently on the stack).
 ///
 /// The `ATTACHED_THREADS` count is always decremented when this is called, even if the thread
 /// was already detached by other means (e.g., manual `DetachCurrentThread` call via raw JNI API,
@@ -1496,14 +1522,23 @@ impl<'local> AttachGuard<'local> {
     ///
     /// Even though this only takes a reference, the implementation assumes that
     /// the guard is going to be dropped.
-    unsafe fn detach_impl(&self) -> Result<()> {
+    unsafe fn detach_impl(&mut self, catch_exceptions: bool) -> Result<()> {
+        let caught_exception = if catch_exceptions {
+            // note: we don't want to return errors here immediately because it's more important
+            // that we do the book-keeping for the guard level and possibly detaching the thread
+            self.borrow_env_mut().exception_catch()
+        } else {
+            Ok(())
+        };
+
         let new_level = thread_guard_level_pop();
         assert_eq!(
             new_level + 1,
             self.env.level,
             "AttachGuard was dropped out-of-order with respect to other guards"
         );
-        if self.owns_attachment() {
+
+        let detach_result = if self.owns_attachment() {
             assert_eq!(
                 new_level, 0,
                 "Spurious AttachGuard that owns its attachment but is nested under another guard"
@@ -1511,6 +1546,11 @@ impl<'local> AttachGuard<'local> {
             unsafe { sys_detach_current_thread(Some(self.env.raw), &std::thread::current()) }
         } else {
             Ok(())
+        };
+
+        match detach_result {
+            Err(err) => Err(err),
+            Ok(()) => caught_exception,
         }
     }
 
@@ -1522,13 +1562,39 @@ impl<'local> AttachGuard<'local> {
     ///
     /// # Panics
     ///
-    /// This will panic if a guard is dropped out-of-order, with respect to other
-    /// guards. Each `AttachGuard` created may be nested with respected to other
-    /// guards and must be dropped or detached in LIFO order.
-    pub fn detach(self) -> Result<()> {
+    /// This will panic if a guard is dropped out-of-order, with respect to
+    /// other guards. Each [`AttachGuard`] created may be nested with respected
+    /// to other guards and must be dropped or detached in LIFO order.
+    pub fn detach(mut self) -> Result<()> {
         // Safety: we're going to 'forget' the guard afterwards to ensure the
         // `Drop` implementation isn't run too.
-        let res = unsafe { self.detach_impl() };
+        let res = unsafe { self.detach_impl(false) };
+
+        // We've effectively dropped the guard manually (so we can also get a `Result`)
+        // but that means we shouldn't allow the `Drop` implementation to run too.
+        std::mem::forget(self);
+
+        res
+    }
+
+    /// Drop the guard + detach thread (if owned) and catch any exceptions.
+    ///
+    /// This is similar to [`AttachGuard::detach`], but will also catch (clear)
+    /// any pending Java exceptions and return them as an
+    /// [`Error::CaughtJavaException`].
+    ///
+    /// Pending exceptions are caught, regardless of whether this is an "owned"
+    /// attachment or not.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if a guard is dropped out-of-order, with respect to
+    /// other guards. Each [`AttachGuard`] created may be nested with respected
+    /// to other guards and must be dropped or detached in LIFO order.
+    pub fn detach_with_catch(mut self) -> Result<()> {
+        // Safety: we're going to 'forget' the guard afterwards to ensure the
+        // `Drop` implementation isn't run too.
+        let res = unsafe { self.detach_impl(true) };
 
         // We've effectively dropped the guard manually (so we can also get a `Result`)
         // but that means we shouldn't allow the `Drop` implementation to run too.
@@ -1540,7 +1606,7 @@ impl<'local> AttachGuard<'local> {
 
 impl Drop for AttachGuard<'_> {
     fn drop(&mut self) {
-        if let Err(err) = unsafe { self.detach_impl() } {
+        if let Err(err) = unsafe { self.detach_impl(false) } {
             // This probably means that something `unsafe` happened to detach the thread already
             log::error!("Failed to detach current JNI thread: {err}");
         }

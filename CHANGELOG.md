@@ -17,11 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `Env::exception_catch` provides a convenient way of catching pending Java exceptions and mapping them to `Error::CaughtJavaException` ([#736](https://github.com/jni-rs/jni-rs/pull/736))
+- `AttachGuard::detach_with_catch` lets you explicitly detach/drop a guard (like `::detach()`) and catch any pending Java exception as a `Error::CaughtJavaException` ([#736](https://github.com/jni-rs/jni-rs/pull/736)).
+- `JClass::get_name` lets you query the binary name for a class, such as `java.lang.String` ([#736](https://github.com/jni-rs/jni-rs/pull/736))
+
 #### Changed
 
-The following APIs have had to be made fallible again, in order to safely check for pending
-exceptions before calling JNI functions that are not documented as being safe to call with a pending
-exception:
+The following APIs have had to be made fallible again, in order to safely check for pending exceptions before calling
+JNI functions that are not documented as being safe to call with a pending exception:
 
 - `Env::get_java_vm` (`GetJavaVM` is not exception safe)
 - `Env::version` (`GetVersion` is not exception safe)
@@ -37,6 +42,8 @@ release and yank 0.22.0 before anyone notices (since 0.22.0 was released very re
 highly unlikely anyone is strictly locking in a 0.22.0 dependency yet)_
 
 Fixed in [#733](https://github.com/jni-rs/jni-rs/issues/733)
+
+- `JavaVM::attach_current_thread*` APIs all finish by calling `AttachGuard::detach_with_catch` to clear pending Java exceptions - mapping to `Error::CaughtJavaException` ([#736](https://github.com/jni-rs/jni-rs/pull/736))
 
 ## [0.22.0] — 2026-02-17
 

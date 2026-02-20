@@ -85,6 +85,19 @@ pub enum Error {
 
     #[error("The thread can't be detached while AttachGuards exist")]
     ThreadAttachmentGuarded,
+
+    /// A Java exception that was caught and cleared
+    ///
+    /// Unlike [`Error::JavaException`], this error indicates that the exception was caught and cleared by the JNI code,
+    /// rather than being left as a pending exception that may propagate back to the JVM.
+    #[error("Caught Java exception: {msg}\nStack trace:\n{stack}")]
+    #[non_exhaustive]
+    CaughtJavaException {
+        exception: jni::refs::Global<jni::objects::JThrowable<'static>>,
+        name: String,
+        msg: String,
+        stack: String,
+    },
 }
 
 #[derive(Debug, Error)]

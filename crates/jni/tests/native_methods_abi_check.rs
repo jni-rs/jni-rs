@@ -27,7 +27,7 @@ native_method_test! {
             abi_check = Always,
         },
     ],
-    expect_exception: "ABI check detected instance method called with static registration",
+    expect_exception: "Rust panic: Native method '\"nativeMethod\"' was registered as static but called as instance method",
     test_body: |env, class| {
         let obj = new_object!(env, class)?;
         let _result = call_int_method!(env, &obj, "callMethod", 42)?;
@@ -57,7 +57,7 @@ native_method_test! {
             abi_check = Always,
         },
     ],
-    expect_exception: "ABI check detected static method called with instance registration",
+    expect_exception: "Rust panic: Native method '\"nativeStaticMethod\"' was registered as instance but called as static method",
     test_body: |env, class| {
         let _result = call_static_int_method!(env, class, "callStaticMethod", 42)?;
         Ok(())
@@ -161,7 +161,7 @@ native_method_test! {
             abi_check = UnsafeDebugOnly,
         },
     ],
-    expect_exception: "UnsafeDebugOnly correctly detected ABI mismatch in debug build",
+    expect_exception: "Rust panic: Native method '\"nativeMethod\"' was registered as static but called as instance method",
     test_body: |env, class| {
         let obj = new_object!(env, class)?;
         let _result = call_int_method!(env, &obj, "callMethod", 42)?;

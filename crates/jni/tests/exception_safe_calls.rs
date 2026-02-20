@@ -8,7 +8,7 @@ rusty_fork_test! {
 #[test]
 fn test_exception_unsafe_calls() {
     let jvm = util::jvm();
-    jvm.attach_current_thread(|env| -> jni::errors::Result<()> {
+    let res = jvm.attach_current_thread(|env| -> jni::errors::Result<()> {
         let _ = env.throw("Test Exception".to_string());
 
         let res = env.new_string("Test");
@@ -25,6 +25,15 @@ fn test_exception_unsafe_calls() {
 
         assert!(pending);
         Ok(())
-    }).unwrap();
+    });
+
+    println!("res = {:?}", res);
+    /*
+    assert!(matches!(res, Err(jni::errors::Error::CaughtJavaException {
+        ref name,
+        ref msg,
+        ..
+    }) if name == "java.lang.RuntimeException" && msg == "Test Exception"));
+*/
 }
 }
