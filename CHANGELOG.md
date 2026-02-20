@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.1] — 2026-02-20
+
+*Note:* This release fixes several issues found in 0.22.0 which unfortunately required a few breaking changes.
+Instead of bumping to 0.23 though, the assumption is that no one will yet be depending on the recently-released
+0.22.0 and so we can yank that and have this represent the first 0.22.x release.
+
 ### Added
 
 - `Env::exception_catch` provides a convenient way of catching pending Java exceptions and mapping them to `Error::CaughtJavaException` ([#736](https://github.com/jni-rs/jni-rs/pull/736))
@@ -37,16 +43,14 @@ JNI functions that are not documented as being safe to call with a pending excep
 - `Weak::is_weak_ref_to_same_object (deprecated)` (based on
   `Env::is_same_object`)
 
-_*Note:* These are a breaking change but we're probably going to sneak them into a jni 0.22.1
-release and yank 0.22.0 before anyone notices (since 0.22.0 was released very recently and it's
-highly unlikely anyone is strictly locking in a 0.22.0 dependency yet)_
+_*Note:* These are a breaking change._
 
 Fixed in [#733](https://github.com/jni-rs/jni-rs/issues/733)
 
 - `JavaVM::attach_current_thread*` APIs all finish by calling `AttachGuard::detach_with_catch` to clear pending Java exceptions - mapping to `Error::CaughtJavaException` ([#736](https://github.com/jni-rs/jni-rs/pull/736))
 - `Env::throw*` APIs now return `Error::JavaException` after throwing and creating a pending exception that must be handled before using JNI further ([#738](https://github.com/jni-rs/jni-rs/pull/738))
 
-## [0.22.0] — 2026-02-17
+## [0.22.0] — 2026-02-17 (YANKED)
 
 ### Added
 
@@ -559,7 +563,8 @@ to call if there is a pending exception (#124):
 ## [0.10.1]
 - No changes has been made to the Changelog until this release.
 
-[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.22.0...HEAD
+[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.22.1...HEAD
+[0.22.1]: https://github.com/jni-rs/jni-rs/compare/v0.22.0...v0.22.1
 [0.22.0]: https://github.com/jni-rs/jni-rs/compare/v0.21.1...v0.22.0
 [0.21.1]: https://github.com/jni-rs/jni-rs/compare/v0.21.0...v0.21.1
 [0.21.0]: https://github.com/jni-rs/jni-rs/compare/v0.20.0...v0.21.0
