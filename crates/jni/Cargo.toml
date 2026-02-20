@@ -7,7 +7,7 @@ categories = ["api-bindings"]
 name = "jni"
 repository = "https://github.com/jni-rs/jni-rs"
 # ¡When bumping version please also update it in examples and documentation!
-version = "0.22.0"
+version = "0.22.1"
 exclude = ["/benches", "/example", "/tests", "/test_profile"]
 
 authors.workspace = true
