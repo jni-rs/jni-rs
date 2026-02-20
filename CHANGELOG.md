@@ -44,6 +44,7 @@ highly unlikely anyone is strictly locking in a 0.22.0 dependency yet)_
 Fixed in [#733](https://github.com/jni-rs/jni-rs/issues/733)
 
 - `JavaVM::attach_current_thread*` APIs all finish by calling `AttachGuard::detach_with_catch` to clear pending Java exceptions - mapping to `Error::CaughtJavaException` ([#736](https://github.com/jni-rs/jni-rs/pull/736))
+- `Env::throw*` APIs now return `Error::JavaException` after throwing and creating a pending exception that must be handled before using JNI further ([#738](https://github.com/jni-rs/jni-rs/pull/738))
 
 ## [0.22.0] — 2026-02-17
 

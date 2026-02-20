@@ -845,8 +845,17 @@ See the jni-rs Env documentation for more details.
     // FIXME: this API shouldn't need a `&mut self` reference since it doesn't return a local reference
     // (currently it just needs the `&mut self` for the sake of `Desc<JThrowable>::lookup`)
     //
-    /// Raise an exception from an existing object. This will continue being
-    /// thrown in java unless `exception_clear` is called.
+    /// Raise an exception from an existing object. This will continue being thrown in java unless
+    /// `exception_clear` is called.
+    ///
+    /// Returns [`Error::JavaException`] after throwing the exception.
+    ///
+    /// The '?' operator should typically used to ensure that the new pending exception is reported
+    /// as an error to calling Rust code, allowing the stack to unwind until something decides to
+    /// catch the exception (or it propagates back to the JVM).
+    ///
+    /// *Note:* that once there is a pending exception then most JNI calls (that are not exception
+    /// safe) will return [`Error::JavaException`] until the exception is cleared.
     ///
     /// # Examples
     /// ```rust,no_run
@@ -928,8 +937,14 @@ See the jni-rs Env documentation for more details.
     // FIXME: this API shouldn't need a `&mut self` reference since it doesn't return a local reference
     // (currently it just needs the `&mut self` for the sake of `Desc<JClass>::lookup`)
     //
-    /// Create and throw a new exception from a class descriptor and an error
-    /// message.
+    /// Create and throw a new exception from a class descriptor and an error message.
+    ///
+    /// The '?' operator should typically used to ensure that the new pending exception is reported
+    /// as an error to calling Rust code, allowing the stack to unwind until something decides to
+    /// catch the exception (or it propagates back to the JVM).
+    ///
+    /// *Note:* that once there is a pending exception then most JNI calls (that are not exception
+    /// safe) will return [`Error::JavaException`] until the exception is cleared.
     ///
     /// # Example
     /// ```rust,no_run
@@ -941,8 +956,8 @@ See the jni-rs Env documentation for more details.
     /// # }
     /// ```
     ///
-    /// Alternatively, see [Env::throw_new_void] if you want to construct an exception
-    /// with no message argument.
+    /// Alternatively, see [Env::throw_new_void] if you want to construct an exception with no
+    /// message argument.
     pub fn throw_new<'other_local, S, T>(&mut self, class: T, msg: S) -> Result<()>
     where
         S: AsRef<JNIStr>,
@@ -953,8 +968,14 @@ See the jni-rs Env documentation for more details.
         self.throw_new_optional(class.as_ref(), Some(msg))
     }
 
-    /// Create and throw a new exception from a class descriptor and no error
-    /// message.
+    /// Create and throw a new exception from a class descriptor and no error message.
+    ///
+    /// The '?' operator should typically used to ensure that the new pending exception is reported
+    /// as an error to calling Rust code, allowing the stack to unwind until something decides to
+    /// catch the exception (or it propagates back to the JVM).
+    ///
+    /// *Note:* that once there is a pending exception then most JNI calls (that are not exception
+    /// safe) will return [`Error::JavaException`] until the exception is cleared.
     ///
     /// # Example
     /// ```rust,no_run
@@ -968,8 +989,7 @@ See the jni-rs Env documentation for more details.
     ///
     /// This will expect to find a constructor for the given `class` that takes no arguments.
     ///
-    /// Alternatively, see [Env::throw_new] if you want to construct an exception
-    /// with a message.
+    /// Alternatively, see [Env::throw_new] if you want to construct an exception with a message.
     pub fn throw_new_void<'other_local, T>(&mut self, class: T) -> Result<()>
     where
         T: Desc<'local, JClass<'other_local>>,
