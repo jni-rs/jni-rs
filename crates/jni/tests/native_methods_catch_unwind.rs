@@ -133,6 +133,7 @@ native_method_test! {
             catch_unwind = true,  // Explicit, but this is the default
         },
     ],
+    expect_exception: "Rust panic: This panic SHOULD be caught by error policy",
     test_body: |env, class| {
         let obj = new_object!(env, class)?;
 

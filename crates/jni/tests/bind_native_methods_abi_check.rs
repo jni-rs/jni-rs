@@ -50,7 +50,7 @@ native_method_test! {
     test_name: test_abi_instance_registered_as_static,
     java_class: "com/example/TestNativeAbiCheck.java",
     api: TestAbiInstanceAsStaticAPI,
-    expect_exception: "ABI check detected instance method called with static registration",
+    expect_exception: "Rust panic: Native method '\"nativeMethod\"' was registered as static but called as instance method",
     test_body: |env| {
         let obj = TestAbiInstanceAsStatic::new(env)?;
         // Java declares as instance, but we registered as static -> should panic
@@ -90,7 +90,7 @@ native_method_test! {
     test_name: test_abi_static_registered_as_instance,
     java_class: "com/example/TestNativeAbiCheck.java",
     api: TestAbiStaticAsInstanceAPI,
-    expect_exception: "ABI check detected static method called with instance registration",
+    expect_exception: "Rust panic: Native method '\"nativeStaticMethod\"' was registered as instance but called as static method",
     test_body: |env| {
         // Java declares as static, but we registered as instance -> should panic
         let _result = TestAbiStaticAsInstance::call_static_method(env, 42)?;
@@ -194,7 +194,7 @@ native_method_test! {
     test_name: test_abi_per_method_override_always,
     java_class: "com/example/TestNativeAbiCheck.java",
     api: TestAbiPerMethodAlwaysAPI,
-    expect_exception: "Per-method abi_check=Always override correctly detected ABI mismatch",
+    expect_exception: "Rust panic: Native method '\"nativeMethod\"' was registered as static but called as instance method",
     test_body: |env| {
         let obj = TestAbiPerMethodAlways::new(env)?;
         // Should panic because we set abi_check = Always for this method
@@ -278,7 +278,7 @@ native_method_test! {
     test_name: test_abi_debug_only_in_debug_mode,
     java_class: "com/example/TestNativeAbiCheck.java",
     api: TestAbiDebugOnlyAPI,
-    expect_exception: "UnsafeDebugOnly mode correctly detected ABI mismatch in debug build",
+    expect_exception: "Rust panic: Native method '\"nativeMethod\"' was registered as static but called as instance method",
     test_body: |env| {
         let obj = TestAbiDebugOnly::new(env)?;
         // In debug mode, this should panic

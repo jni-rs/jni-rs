@@ -1019,6 +1019,75 @@ See the jni-rs Env documentation for more details.
         unsafe { ex_safe_jni_call_no_post_check_ex!(self, v1_1, ExceptionClear) };
     }
 
+    /// Catch a pending Java exception and convert it into a Rust
+    /// [`Error::CaughtJavaException`].
+    ///
+    /// If a Java exception is pending, it will be cleared and converted into a
+    /// Rust [`Error::CaughtJavaException`].
+    pub fn exception_catch(&self) -> Result<()> {
+        fn try_get_stack_trace(
+            env: &mut jni::Env<'_>,
+            throwable: &jni::objects::JThrowable,
+        ) -> jni::errors::Result<String> {
+            let stack_trace = throwable.get_stack_trace(env)?;
+            let len = stack_trace.len(env)?;
+            let mut trace = String::new();
+            for i in 0..len {
+                let element = stack_trace.get_element(env, i)?;
+                let element_jstr = element.try_to_string(env)?;
+                trace.push_str(&format!("{i}: {element_jstr}\n"));
+            }
+            Ok(trace)
+        }
+
+        if self.exception_check() {
+            let result = self.with_local_frame(
+                DEFAULT_LOCAL_FRAME_CAPACITY,
+                |env| -> jni::errors::Result<jni::errors::Error> {
+                    let Some(e) = env.exception_occurred() else {
+                        // should only be called after receiving a JavaException Result
+                        unreachable!(
+                            "ExceptionOccurred returned None after ExceptionCheck returned true"
+                        );
+                    };
+                    env.exception_clear();
+
+                    assert!(!e.is_null(), "ExceptionOccurred returned a null throwable");
+
+                    let e = env.new_global_ref(e)?;
+                    // besides null pointer checks, there are no documented errors or exceptions
+                    // for GetObjectClass or getName, so this should be infallible
+                    let name = env.get_object_class(&e)?.get_name(env)?.to_string();
+                    let msg = e.get_message(env)?.to_string();
+
+                    let stack = match try_get_stack_trace(env, &e) {
+                        Ok(stack_trace) => stack_trace,
+                        Err(err) => format!("none: {err:?}"),
+                    };
+
+                    Ok(jni::errors::Error::CaughtJavaException {
+                        exception: e,
+                        name,
+                        msg,
+                        stack,
+                    })
+                },
+            );
+
+            match result {
+                Ok(exception) => Err(exception),
+                Err(err) => Err(jni::errors::Error::CaughtJavaException {
+                    exception: Default::default(),
+                    name: "UNKNOWN".to_string(),
+                    msg: format!("Failed to query JThrowable: {err:?})"),
+                    stack: "none".to_string(),
+                }),
+            }
+        } else {
+            Ok(())
+        }
+    }
+
     /// Abort the JVM with an error message.
     ///
     /// This method is guaranteed not to panic, and only calls `ExceptionClear`

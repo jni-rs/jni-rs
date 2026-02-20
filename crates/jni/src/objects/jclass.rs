@@ -13,6 +13,17 @@ crate::bind_java_type! {
         }
     },
     methods {
+        /// Returns the name of the class.
+        ///
+        /// This returns a binary name, such as `java.lang.String`.
+        ///
+        /// If the class represents a primitive type then this will return the same letter used for
+        /// that primitive in a JNI type signature - such as `I` for `int`.
+        ///
+        /// Similarly; if the class represents an array type the name will have a prefix of one or
+        /// more "[" characters, followed by the binary name of the element type.
+        fn get_name() -> JString,
+
         /// Finds a class by its fully-qualified binary name or array descriptor.
         ///
         /// This is a method binding for `java.lang.Class.forName(String)`
