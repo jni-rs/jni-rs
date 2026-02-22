@@ -1617,7 +1617,7 @@ impl Drop for AttachGuard<'_> {
 /// local scope when attaching the current thread to a Java VM.
 ///
 /// This gives us something for an [`AttachGuard`] to borrow that's not likely
-/// to to be accidentally made `'static`.
+/// to be accidentally made `'static`.
 ///
 /// This is only relevant for `unsafe` code that is manually creating
 /// [`AttachGuard`]s.

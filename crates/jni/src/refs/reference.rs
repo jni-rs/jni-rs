@@ -288,7 +288,7 @@ pub unsafe trait Reference: Sized {
     /// `Global<JClass>` that is cheap to lookup and doesn't require a JNI call
     /// or creating any new references.
     ///
-    /// Note that that in order to avoid creating a new JNI reference, this API
+    /// Note that in order to avoid creating a new JNI reference, this API
     /// will return a guard that derefs to a `Global<JClass>`, rather than a
     /// `JClass` directly.
     ///

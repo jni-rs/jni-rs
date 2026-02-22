@@ -267,7 +267,7 @@ fn wrapper<'local>(mut unowned_env: EnvUnowned<'local>, this: MyType<'local>) ->
 
 ### Disabling `catch_unwind`
 
-If you you want to allow your native method to abort on panic or you plan to handle panics
+If you want to allow your native method to abort on panic or you plan to handle panics
 yourself, you can disable the `catch_unwind` wrapper:
 
 ```rust,ignore

@@ -1924,7 +1924,7 @@ See the jni-rs Env documentation for more details.
     /// `pop_local_frame`
     ///
     /// The caller must ensure that a new `AttachGuard` is created before
-    /// creating a new local frame and the the local frame may only access
+    /// creating a new local frame and the local frame may only access
     /// a `Env` that is borrowed from this new guard (so that local
     /// references will be tied to lifetime of the new guard)
     unsafe fn push_local_frame(&self, capacity: i32) -> Result<()> {
@@ -3989,7 +3989,7 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Safety
     ///
-    /// This will lead to undefined behaviour if the the specified field
+    /// This will lead to undefined behaviour if the specified field
     /// doesn't have a type of `long`.
     ///
     /// It's important to note that using this API will leak memory if
@@ -4055,7 +4055,7 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Safety
     ///
-    /// This will lead to undefined behaviour if the the specified field
+    /// This will lead to undefined behaviour if the specified field
     /// doesn't have a type of `long`.
     ///
     /// If the field contains a non-zero value then it is assumed to be a valid
@@ -4101,7 +4101,7 @@ See the jni-rs Env documentation for more details.
     ///
     /// # Safety
     ///
-    /// This will lead to undefined behaviour if the the specified field
+    /// This will lead to undefined behaviour if the specified field
     /// doesn't have a type of `long`.
     ///
     /// If the field contains a non-zero value then it is assumed to be a valid
@@ -4586,7 +4586,7 @@ impl<'local> EnvUnowned<'local> {
     ///
     /// If you have a raw [`crate::sys::JNIEnv`] pointer, this API should be
     /// marginally safer than using [`crate::AttachGuard`] manually
-    /// since since the attach guard management will be hidden within the
+    /// since the attach guard management will be hidden within the
     /// [`Self::with_env`] and [`Self::with_env_no_catch`] methods.
     ///
     /// Beware that [`Self::with_env`] and [`Self::with_env_no_catch`] will not
