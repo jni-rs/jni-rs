@@ -166,3 +166,61 @@ fn test_weak_drop_no_exception_side_effects() {
     })
     .unwrap();
 }
+
+#[test]
+fn test_env_throw_apis_return_java_exception_err() {
+    let jvm = util::jvm();
+
+    jvm.attach_current_thread(|env| -> jni::errors::Result<()> {
+        let res = env.throw("Test Exception");
+        assert!(matches!(res, Err(jni::errors::Error::JavaException)));
+        assert!(env.exception_check());
+
+        let catch = env.exception_catch();
+        println!("Caught exception: {:?}", catch);
+        assert!(
+            matches!(catch, Err(jni::errors::Error::CaughtJavaException {
+                ref name,
+                ref msg,
+                ..
+            }) if name == "java.lang.RuntimeException" && msg == "Test Exception")
+        );
+        assert!(!env.exception_check());
+
+        let res = env.throw_new(
+            jni::jni_str!("java/lang/Exception"),
+            jni::jni_str!("something bad happened"),
+        );
+        assert!(matches!(res, Err(jni::errors::Error::JavaException)));
+        assert!(env.exception_check());
+
+        let catch = env.exception_catch();
+        println!("Caught exception: {:?}", catch);
+        assert!(
+            matches!(catch, Err(jni::errors::Error::CaughtJavaException {
+                ref name,
+                ref msg,
+                ..
+            }) if name == "java.lang.Exception" && msg == "something bad happened")
+        );
+        assert!(!env.exception_check());
+
+        let res = env.throw_new_void(jni::jni_str!("java/lang/NullPointerException"));
+        assert!(matches!(res, Err(jni::errors::Error::JavaException)));
+        assert!(env.exception_check());
+
+        let catch = env.exception_catch();
+        println!("Caught exception: {:?}", catch);
+        assert!(
+            matches!(catch, Err(jni::errors::Error::CaughtJavaException {
+                ref name,
+                ref msg,
+                ..
+            }) if name == "java.lang.NullPointerException")
+        );
+        assert!(!env.exception_check());
+
+        Ok(())
+    })
+    .unwrap();
+}

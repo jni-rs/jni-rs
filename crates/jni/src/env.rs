@@ -895,7 +895,7 @@ See the jni-rs Env documentation for more details.
         drop(throwable);
 
         if res == 0 {
-            Ok(())
+            Err(Error::JavaException)
         } else {
             Err(Error::ThrowFailed(res))
         }
@@ -928,7 +928,7 @@ See the jni-rs Env documentation for more details.
         };
 
         if res == 0 {
-            Ok(())
+            Err(Error::JavaException)
         } else {
             Err(Error::ThrowFailed(res))
         }

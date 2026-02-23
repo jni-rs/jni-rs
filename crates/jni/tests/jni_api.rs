@@ -641,8 +641,10 @@ pub fn with_local_frame_misuse_panic() {
 #[test]
 pub fn with_local_frame_pending_exception() {
     attach_current_thread(|env| {
-        env.throw_new(RUNTIME_EXCEPTION_CLASS, jni_str!("Test Exception"))
-            .unwrap();
+        // Intentionally avoid unwrapping the `.throw_new()` result since it will report Err(JavaException) but for the
+        // test we want to continue regardless
+        let res = env.throw_new(RUNTIME_EXCEPTION_CLASS, jni_str!("Test Exception"));
+        assert!(matches!(res, Err(Error::JavaException)));
 
         // Try to allocate a frame of locals
         env.with_local_frame(16, |_| -> Result<_, Error> { Ok(()) })
@@ -1682,8 +1684,10 @@ fn get_object_array_element() {
 #[test]
 pub fn throw_new() {
     attach_current_thread(|env| {
-        env.throw_new(RUNTIME_EXCEPTION_CLASS, jni_str!("Test Exception"))
-            .unwrap();
+        // Intentionally avoid unwrapping the `.throw_new()` result since it will report Err(JavaException) but for the
+        // test we want to continue regardless
+        let res = env.throw_new(RUNTIME_EXCEPTION_CLASS, jni_str!("Test Exception"));
+        assert!(matches!(res, Err(Error::JavaException)));
         assert_pending_java_exception_detailed(
             env,
             Some(RUNTIME_EXCEPTION_CLASS),
@@ -1698,7 +1702,10 @@ pub fn throw_new() {
 #[test]
 pub fn throw_new_void() {
     attach_current_thread(|env| {
-        env.throw_new_void(RUNTIME_EXCEPTION_CLASS).unwrap();
+        // Intentionally avoid unwrapping the `.throw_new_void()` result since it will report Err(JavaException) but for the
+        // test we want to continue regardless
+        let res = env.throw_new_void(RUNTIME_EXCEPTION_CLASS);
+        assert!(matches!(res, Err(Error::JavaException)));
 
         assert!(env.exception_check());
         let exception = env.exception_occurred().expect("Unable to get exception");
@@ -1993,7 +2000,10 @@ fn test_java_char_conversion() {
 #[test]
 fn test_throwable_get_stack_trace() {
     attach_current_thread(|env| {
-        env.throw("Test exception").unwrap();
+        // Intentionally avoid unwrapping the `.throw()` result since it will report Err(JavaException) but for the test
+        // we want to continue regardless
+        let res = env.throw("Test exception");
+        assert!(matches!(res, Err(Error::JavaException)));
         let exception = env.exception_occurred().unwrap();
         env.exception_clear();
 
