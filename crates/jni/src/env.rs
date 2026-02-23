@@ -2145,6 +2145,10 @@ See the jni-rs Env documentation for more details.
     // (currently it just needs the `&mut self` for the sake of `Desc<JClass>::lookup`)
     //
     /// Common functionality for finding methods.
+    ///
+    /// This does a pre-check for existing pending exceptions before calling `Get[Static]MethodID`
+    /// and then afterwards checks for exceptions again so they can be cleared and mapped to a
+    /// `MethodNotFound` result.
     #[allow(clippy::redundant_closure_call)]
     fn get_method_id_base<'other_local_1, 'sig, 'sig_args, C, N, S, M, R>(
         &mut self,
@@ -2162,24 +2166,37 @@ See the jni-rs Env documentation for more details.
             &JClass<'other_local_2>,
             &JNIStr,
             &MethodSignature<'callback_sig, 'callback_sig_args>,
-        ) -> Result<R>,
+        ) -> Option<R>,
     {
+        // Make sure we pre-check for existing pending exceptions before calling
+        // `Get[Static]MethodID` so that we don't ever clear an exception we didn't create. This is
+        // needed because we want to squash exceptions into a `MethodNotFound` result.
+        if self.exception_check() {
+            return Err(Error::JavaException);
+        }
         let class = class.lookup(self)?;
         let ffi_name = name.as_ref();
         let sig = sig.as_ref();
 
-        let res: Result<R> = get_method(self, class.as_ref(), ffi_name, sig);
+        let res: Option<R> = get_method(self, class.as_ref(), ffi_name, sig);
 
         match res {
-            Ok(m) => Ok(m),
-            Err(e) => match e {
-                Error::NullPtr(_) => {
-                    let name: String = ffi_name.to_str().into();
-                    let sig: String = sig.as_ref().sig().to_string();
-                    Err(Error::MethodNotFound { name, sig })
-                }
-                _ => Err(e),
-            },
+            Some(m) => {
+                assert!(
+                    !self.exception_check(),
+                    "Spurious non-null method ID returned with a pending exception"
+                );
+                Ok(m)
+            }
+            None => {
+                // Squash all exceptions into a `MethodNotFound` result
+                // Note: we know that any exception here was caused by the `get_method()` call because
+                // we checked for pre-existing exceptions beforehand.
+                self.exception_clear();
+                let name: String = ffi_name.to_str().into();
+                let sig: String = sig.as_ref().sig().to_string();
+                Err(Error::MethodNotFound { name, sig })
+            }
         }
     }
 
@@ -2199,6 +2216,13 @@ See the jni-rs Env documentation for more details.
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// Returns a valid method ID on success or [`Error::MethodNotFound`] on failure.
+    ///
+    /// Any `NoSuchMethodError` exception thrown by the JVM will be cleared and converted into an
+    /// [`Error::MethodNotFound`] error. The implementation _may_ map other exceptions (such as
+    /// `ExceptionInInitializerError` or `OutOfMemoryError` into [`Error::JavaException`] or
+    /// [`Error::MethodNotFound`])
     pub fn get_method_id<'other_local, 'sig, 'sig_args, C, N, S>(
         &mut self,
         class: C,
@@ -2211,23 +2235,30 @@ See the jni-rs Env documentation for more details.
         S: AsRef<MethodSignature<'sig, 'sig_args>>,
     {
         self.get_method_id_base(class, name, sig, |env, class, name, sig| unsafe {
-            jni_call_post_check_ex_and_null_ret!(
+            // Note: we use the `ex_safe_` macro here because `get_method_id_base` is responsible
+            // for checking exceptions before the JNI call (so we know there's not risk of making
+            // this JNI call while there is a pending exception). `get_method_id_base` will also
+            // check for exceptions after the call.
+            let method_id = ex_safe_jni_call_no_post_check_ex!(
                 env,
                 v1_1,
                 GetMethodID,
                 class.as_raw(),
                 name.as_ptr(),
                 sig.as_ref().sig().as_ptr()
-            )
-            .map(|method_id| JMethodID::from_raw(method_id))
+            );
+            if method_id.is_null() {
+                None
+            } else {
+                Some(JMethodID::from_raw(method_id))
+            }
         })
     }
 
     // FIXME: this API shouldn't need a `&mut self` reference since it doesn't return a local reference
     // (currently it just needs the `&mut self` for the sake of `Desc<JClass>::lookup`)
     //
-    /// Look up a static method by class descriptor, name, and
-    /// signature.
+    /// Look up a static method by class descriptor, name, and signature.
     ///
     /// # Example
     /// ```rust,no_run
@@ -2238,6 +2269,13 @@ See the jni-rs Env documentation for more details.
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// Returns a valid method ID on success or [`Error::MethodNotFound`] on failure.
+    ///
+    /// Any `NoSuchMethodError` exception thrown by the JVM will be cleared and converted into an
+    /// [`Error::MethodNotFound`] error. The implementation _may_ map other exceptions (such as
+    /// `ExceptionInInitializerError` or `OutOfMemoryError` into [`Error::JavaException`] or
+    /// [`Error::MethodNotFound`])
     pub fn get_static_method_id<'other_local, 'sig, 'sig_args, C, N, S>(
         &mut self,
         class: C,
@@ -2250,15 +2288,23 @@ See the jni-rs Env documentation for more details.
         S: AsRef<MethodSignature<'sig, 'sig_args>>,
     {
         self.get_method_id_base(class, name, sig, |env, class, name, sig| unsafe {
-            jni_call_post_check_ex_and_null_ret!(
+            // Note: we use the `ex_safe_` macro here because `get_method_id_base` is responsible
+            // for checking exceptions before the JNI call (so we know there's not risk of making
+            // this JNI call while there is a pending exception). `get_method_id_base` will also
+            // check for exceptions after the call.
+            let method_id = ex_safe_jni_call_no_post_check_ex!(
                 env,
                 v1_1,
                 GetStaticMethodID,
                 class.as_raw(),
                 name.as_ptr(),
                 sig.as_ref().sig().as_ptr()
-            )
-            .map(|method_id| JStaticMethodID::from_raw(method_id))
+            );
+            if method_id.is_null() {
+                None
+            } else {
+                Some(JStaticMethodID::from_raw(method_id))
+            }
         })
     }
 
@@ -2276,6 +2322,13 @@ See the jni-rs Env documentation for more details.
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// Returns a valid field ID on success or [`Error::FieldNotFound`] on failure.
+    ///
+    /// Any `NoSuchFieldError` exception thrown by the JVM will be cleared and converted into an
+    /// [`Error::FieldNotFound`] error. The implementation _may_ map other exceptions (such as
+    /// `ExceptionInInitializerError` or `OutOfMemoryError` into [`Error::JavaException`] or
+    /// [`Error::FieldNotFound`])
     pub fn get_field_id<'other_local, 'sig, C, N, S>(
         &mut self,
         class: C,
@@ -2287,32 +2340,57 @@ See the jni-rs Env documentation for more details.
         N: AsRef<JNIStr>,
         S: AsRef<FieldSignature<'sig>>,
     {
+        // Make sure we pre-check for existing pending exceptions before calling
+        // `Get[Static]FieldID` so that we don't ever clear an exception we didn't create. This is
+        // needed because we want to squash exceptions into a `FieldNotFound` result.
+        if self.exception_check() {
+            return Err(Error::JavaException);
+        }
+
         let class = class.lookup(self)?;
         let ffi_name = name.as_ref();
         let ffi_sig = sig.as_ref();
 
-        let res = unsafe {
-            jni_call_post_check_ex_and_null_ret!(
+        // Note: we use the `ex_safe_` macro here because we manually check exceptions before the
+        // JNI call (so we know there's not risk of making this JNI call while there is a pending
+        // exception) and we will also manually check for exceptions after the call.
+        let field_id = unsafe {
+            let field_id = ex_safe_jni_call_no_post_check_ex!(
                 self,
                 v1_1,
                 GetFieldID,
                 class.as_ref().as_raw(),
                 ffi_name.as_ptr(),
                 ffi_sig.sig().as_ptr()
-            )
-            .map(|field_id| JFieldID::from_raw(field_id))
+            );
+            if field_id.is_null() {
+                None
+            } else {
+                Some(JFieldID::from_raw(field_id))
+            }
         };
 
-        match res {
-            Ok(m) => Ok(m),
-            Err(e) => match e {
-                Error::NullPtr(_) => {
-                    let name: String = ffi_name.to_str().into();
-                    let sig: String = ffi_sig.sig().to_str().into();
-                    Err(Error::FieldNotFound { name, sig })
-                }
-                _ => Err(e),
-            },
+        // Ensure that `class` isn't dropped before the JNI call returns.
+        drop(class);
+
+        match field_id {
+            Some(m) => {
+                assert!(
+                    !self.exception_check(),
+                    "Spurious non-null field ID returned with a pending exception"
+                );
+                Ok(m)
+            }
+            None => {
+                // Squash all exceptions into a `FieldNotFound` result
+                //
+                // Note: we know that any exception here was caused by the `GetFieldID` call because
+                // we checked for pre-existing exceptions beforehand.
+                self.exception_clear();
+                let name: String = ffi_name.to_str().into();
+                let sig: String = ffi_sig.sig().to_str().into();
+                Err(Error::FieldNotFound { name, sig })
+            }
         }
     }
 
@@ -2330,6 +2408,13 @@ See the jni-rs Env documentation for more details.
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// Returns a valid field ID on success or [`Error::FieldNotFound`] on failure.
+    ///
+    /// Any `NoSuchFieldError` exception thrown by the JVM will be cleared and converted into an
+    /// [`Error::FieldNotFound`] error. The implementation _may_ map other exceptions (such as
+    /// `ExceptionInInitializerError` or `OutOfMemoryError` into [`Error::JavaException`] or
+    /// [`Error::FieldNotFound`])
     pub fn get_static_field_id<'other_local, 'sig, T, U, V>(
         &mut self,
         class: T,
@@ -2341,35 +2426,57 @@ See the jni-rs Env documentation for more details.
         U: AsRef<JNIStr>,
         V: AsRef<FieldSignature<'sig>>,
     {
+        // Make sure we pre-check for existing pending exceptions before calling
+        // `Get[Static]FieldID` so that we don't ever clear an exception we didn't create. This is
+        // needed because we want to squash exceptions into a `FieldNotFound` result.
+        if self.exception_check() {
+            return Err(Error::JavaException);
+        }
+
         let class = class.lookup(self)?;
         let ffi_name = name.as_ref();
         let ffi_sig = sig.as_ref();
 
-        let res = unsafe {
-            jni_call_post_check_ex_and_null_ret!(
+        // Note: we use the `ex_safe_` macro here because we manually check exceptions before the
+        // JNI call (so we know there's not risk of making this JNI call while there is a pending
+        // exception) and we will also manually check for exceptions after the call.
+        let field_id = unsafe {
+            let field_id = ex_safe_jni_call_no_post_check_ex!(
                 self,
                 v1_1,
                 GetStaticFieldID,
                 class.as_ref().as_raw(),
                 ffi_name.as_ptr(),
                 ffi_sig.sig().as_ptr()
-            )
-            .map(|field_id| JStaticFieldID::from_raw(field_id))
+            );
+            if field_id.is_null() {
+                None
+            } else {
+                Some(JStaticFieldID::from_raw(field_id))
+            }
         };
 
         // Ensure that `class` isn't dropped before the JNI call returns.
         drop(class);
 
-        match res {
-            Ok(m) => Ok(m),
-            Err(e) => match e {
-                Error::NullPtr(_) => {
-                    let name: String = ffi_name.to_str().into();
-                    let sig: String = ffi_sig.sig().to_str().into();
-                    Err(Error::FieldNotFound { name, sig })
-                }
-                _ => Err(e),
-            },
+        match field_id {
+            Some(m) => {
+                assert!(
+                    !self.exception_check(),
+                    "Spurious non-null field ID returned with a pending exception"
+                );
+                Ok(m)
+            }
+            None => {
+                // Squash all exceptions into a `FieldNotFound` result
+                //
+                // Note: we know that any exception here was caused by the `GetStaticFieldID` call
+                // because we checked for pre-existing exceptions beforehand.
+                self.exception_clear();
+                let name: String = ffi_name.to_str().into();
+                let sig: String = ffi_sig.sig().to_str().into();
+                Err(Error::FieldNotFound { name, sig })
+            }
         }
     }
 

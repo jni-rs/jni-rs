@@ -17,9 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-#### Changed
+### Changed
 
 - Removed dependency on `paste` crate ([#752](https://github.com/jni-rs/jni-rs/pull/752))
+
+### Fixed
+
+- `Env::get_[static_]method/field_id` APIs now correctly clear + map internal exceptions to `Error::Method/FieldNotFound` errors ([#748](https://github.com/jni-rs/jni-rs/pull/748))
 
 ## [0.22.1] — 2026-02-20
 
@@ -33,7 +37,7 @@ Instead of bumping to 0.23 though, the assumption is that no one will yet be dep
 - `AttachGuard::detach_with_catch` lets you explicitly detach/drop a guard (like `::detach()`) and catch any pending Java exception as a `Error::CaughtJavaException` ([#736](https://github.com/jni-rs/jni-rs/pull/736)).
 - `JClass::get_name` lets you query the binary name for a class, such as `java.lang.String` ([#736](https://github.com/jni-rs/jni-rs/pull/736))
 
-#### Changed
+### Changed
 
 The following APIs have had to be made fallible again, in order to safely check for pending exceptions before calling
 JNI functions that are not documented as being safe to call with a pending exception:

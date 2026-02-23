@@ -37,3 +37,77 @@ fn test_exception_unsafe_calls() {
 */
 }
 }
+
+#[test]
+fn test_get_method_id_exception_side_effects() {
+    let jvm = util::jvm();
+
+    jvm.attach_current_thread(|env| -> jni::errors::Result<()> {
+        let s = env.new_string("Test").unwrap();
+
+        let str_class = env.get_object_class(&s).unwrap();
+        let res = env.get_method_id(
+            str_class,
+            jni::jni_str!("invalidMethod"),
+            jni::jni_sig!("()V"),
+        );
+        println!("method ID lookup result {:?}", res);
+
+        match res {
+            Err(jni::errors::Error::MethodNotFound { .. }) => {
+                assert!(
+                    !env.exception_check(),
+                    "Expected no pending exception with MethodNotFound error"
+                );
+            }
+            Err(jni::errors::Error::JavaException) => {
+                assert!(env.exception_check());
+                panic!("Expected MethodNotFound error for invalid method lookup");
+            }
+            _ => {
+                assert!(
+                    !env.exception_check(),
+                    "Spurious pending exception without JavaException error"
+                );
+                panic!("Expected a MethodNotFound error for invalid method lookup");
+            }
+        }
+        Ok(())
+    })
+    .unwrap();
+}
+
+#[test]
+fn test_get_field_id_exception_side_effects() {
+    let jvm = util::jvm();
+
+    jvm.attach_current_thread(|env| -> jni::errors::Result<()> {
+        let s = env.new_string("Test").unwrap();
+
+        let str_class = env.get_object_class(&s).unwrap();
+        let res = env.get_field_id(str_class, jni::jni_str!("invalidField"), jni::jni_sig!("Z"));
+        println!("field ID lookup result {:?}", res);
+
+        match res {
+            Err(jni::errors::Error::FieldNotFound { .. }) => {
+                assert!(
+                    !env.exception_check(),
+                    "Expected no pending exception with FieldNotFound error"
+                );
+            }
+            Err(jni::errors::Error::JavaException) => {
+                assert!(env.exception_check());
+                panic!("Expected FieldNotFound error for invalid field lookup");
+            }
+            _ => {
+                assert!(
+                    !env.exception_check(),
+                    "Spurious pending exception without JavaException error"
+                );
+                panic!("Expected a FieldNotFound error for invalid field lookup");
+            }
+        }
+        Ok(())
+    })
+    .unwrap();
+}
