@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `Env::get_[static_]method/field_id` APIs now correctly clear + map internal exceptions to `Error::Method/FieldNotFound` errors ([#748](https://github.com/jni-rs/jni-rs/pull/748))
+- `Global/Weak::Drop` no longer have the side effect of catching/clearing pending exceptions ([#749](https://github.com/jni-rs/jni-rs/pull/749))
 
 ## [0.22.1] — 2026-02-20
 

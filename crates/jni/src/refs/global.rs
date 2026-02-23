@@ -4,9 +4,8 @@ use jni_sys::jobject;
 use log::{debug, warn};
 
 use crate::{
-    JavaVM,
+    AttachConfig, JavaVM,
     env::Env,
-    errors::Result,
     objects::{JClass, JObject, LoaderContext},
     strings::JNIStr,
     sys,
@@ -277,22 +276,31 @@ where
             // Panic: If we have a non-null reference, we know JavaVM::singleton() must have been
             // initialized (and can't return an error) because ::new() takes a Env reference.
             let vm = JavaVM::singleton().expect("JavaVM singleton uninitialized");
-            let res = vm.attach_current_thread_for_scope(
-                |env| -> Result<()> {
-                    // If the Env is borrowing from an AttachGuard that owns the current thread
-                    // attachment that means the thread was not already attached
-                    if env.owns_attachment() {
-                        warn!("A JNI global reference was dropped on a thread that is not attached. This will cause a performance problem if it happens frequently. For more information, see the documentation for `jni::objects::Global`.");
-                    }
-                    // Safety: This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
-                    unsafe {
-                        ex_safe_jni_call_no_post_check_ex!(env, v1_1, DeleteGlobalRef, obj.as_raw());
-                    }
-                    Ok(())
-                },
-            );
 
-            if let Err(err) = res {
+            // Note: we use `attach_current_thread_guard` and avoid using
+            // `AttachGuard::detach_with_catch` because we need to be exception safe and must
+            // not interfere with any currently-pending exception
+            let exception_safe_delete = || -> jni::errors::Result<()> {
+                let mut scope = jni::ScopeToken::default();
+                let mut guard = unsafe {
+                    vm.attach_current_thread_guard(|| AttachConfig::new().scoped(true), &mut scope)?
+                };
+                let env = guard.borrow_env_mut();
+                // If the Env is borrowing from an AttachGuard that owns the current thread
+                // attachment that means the thread was not already attached
+                if env.owns_attachment() {
+                    warn!(
+                        "A JNI global reference was dropped on a thread that is not attached. This will cause a performance problem if it happens frequently. For more information, see the documentation for `jni::objects::Global`."
+                    );
+                }
+                // Safety: This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
+                unsafe {
+                    ex_safe_jni_call_no_post_check_ex!(env, v1_1, DeleteGlobalRef, obj.as_raw());
+                }
+                Ok(())
+            };
+
+            if let Err(err) = exception_safe_delete() {
                 debug!("error dropping global ref: {:#?}", err);
             }
         }

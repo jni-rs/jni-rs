@@ -111,3 +111,58 @@ fn test_get_field_id_exception_side_effects() {
     })
     .unwrap();
 }
+
+#[test]
+fn test_global_drop_no_exception_side_effects() {
+    let jvm = util::jvm();
+
+    jvm.attach_current_thread(|env| -> jni::errors::Result<()> {
+        let s = env.new_string("Test").unwrap();
+        let global = env.new_global_ref(s).unwrap();
+
+        // Don't use '?' here because we want to continue with the JavaException error
+        // indicating a pending exception.
+        let _ = env.throw("Test Exception");
+
+        assert!(env.exception_check());
+
+        drop(global);
+
+        assert!(
+            env.exception_check(),
+            "Expected exception to still be pending after dropping global reference"
+        );
+
+        env.exception_clear();
+
+        Ok(())
+    })
+    .unwrap();
+}
+
+#[test]
+fn test_weak_drop_no_exception_side_effects() {
+    let jvm = util::jvm();
+
+    jvm.attach_current_thread(|env| -> jni::errors::Result<()> {
+        let s = env.new_string("Test").unwrap();
+        let weak = env.new_weak_ref(s).unwrap();
+
+        // Don't use '?' here because we want to continue with the JavaException error
+        // indicating a pending exception.
+        let _ = env.throw("Test Exception");
+
+        assert!(env.exception_check());
+
+        drop(weak);
+        assert!(
+            env.exception_check(),
+            "Expected exception to still be pending after dropping weak reference"
+        );
+
+        env.exception_clear();
+
+        Ok(())
+    })
+    .unwrap();
+}

@@ -4,7 +4,7 @@ use jni_sys::jobject;
 use log::{debug, warn};
 
 use crate::{
-    JavaVM,
+    AttachConfig, JavaVM,
     env::Env,
     errors::{Error, Result},
     objects::{Global, JClass, JObject, LoaderContext},
@@ -258,23 +258,39 @@ where
             // Panic: If we have a non-null reference, we know JavaVM::singleton() must have been
             // initialized (and can't return an error) because ::new() takes a Env reference.
             let vm = JavaVM::singleton().expect("JavaVM singleton uninitialized");
-            let res = vm.attach_current_thread_for_scope(
-                |env| -> Result<()> {
-                    // If the Env is borrowing from an AttachGuard that owns the current thread
-                    // attachment that means the thread was not already attached
-                    if env.owns_attachment() {
-                        warn!("Dropping a Weak in a detached thread. Fix your code if this message appears frequently (see the Weak docs).");
-                    }
+
+            // Note: we use `attach_current_thread_guard` and avoid using
+            // `AttachGuard::detach_with_catch` because we need to be exception safe and must
+            // not interfere with any currently-pending exception
+            let exception_safe_delete = || -> jni::errors::Result<()> {
+                let mut scope = jni::ScopeToken::default();
+                let mut guard = unsafe {
+                    vm.attach_current_thread_guard(|| AttachConfig::new().scoped(true), &mut scope)?
+                };
+                let env = guard.borrow_env_mut();
+
+                // If the Env is borrowing from an AttachGuard that owns the current thread
+                // attachment that means the thread was not already attached
+                if env.owns_attachment() {
+                    warn!(
+                        "Dropping a Weak in a detached thread. Fix your code if this message appears frequently (see the Weak docs)."
+                    );
+                }
 
                 // Safety: This method is safe to call in case of pending exceptions (see chapter 2 of the spec)
                 // jni-rs requires JNI_VERSION > 1.2
                 unsafe {
-                    ex_safe_jni_call_no_post_check_ex!(env, v1_2, DeleteWeakGlobalRef, obj.as_raw());
+                    ex_safe_jni_call_no_post_check_ex!(
+                        env,
+                        v1_2,
+                        DeleteWeakGlobalRef,
+                        obj.as_raw()
+                    );
                 }
                 Ok(())
-            });
+            };
 
-            if let Err(err) = res {
+            if let Err(err) = exception_safe_delete() {
                 debug!("error dropping weak ref: {:#?}", err);
             }
         }
