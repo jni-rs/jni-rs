@@ -5,7 +5,6 @@ pub(crate) mod type_array_sealed {
 
     use crate::sys::{jarray, jboolean, jbyte, jchar, jdouble, jfloat, jint, jlong, jshort};
     use crate::{env::Env, errors::*};
-    use paste::paste;
     use std::ptr::NonNull;
 
     /// Trait to define type array access/release
@@ -85,96 +84,169 @@ pub(crate) mod type_array_sealed {
 
     // TypeArray builder
     macro_rules! type_array {
-        ( $jni_type:ty, $jni_type_name:ident) => {
-            paste! {
+        ( $jni_type:ty, $jni_type_name:ident, $new_array:ident, $get_elements:ident, $release_elements:ident, $get_region:ident, $set_region:ident) => {
+            /// $jni_type array access/release impl
+            unsafe impl TypeArraySealed for $jni_type {
+                /// Create new Java $jni_type array
+                unsafe fn new_array(env: &mut Env, length: jsize) -> Result<jarray> {
+                    let raw_array = unsafe {
+                        jni_call_post_check_ex_and_null_ret!(env, v1_1, $new_array, length)?
+                    };
+                    Ok(raw_array)
+                }
 
-                /// $jni_type array access/release impl
-                unsafe impl TypeArraySealed for $jni_type {
-                    /// Create new Java $jni_type array
-                    unsafe fn new_array(env: &mut Env, length: jsize) -> Result<jarray> {
-                        let raw_array = unsafe { jni_call_post_check_ex_and_null_ret!(env, v1_1, [< New $jni_type_name Array>], length)? };
-                        Ok(raw_array)
+                /// Get Java $jni_type array
+                unsafe fn get_elements(
+                    env: &Env,
+                    array: jarray,
+                    is_copy: &mut jboolean,
+                ) -> Result<*mut Self> {
+                    // There are no documented exceptions for Get<Primitive>ArrayElements() but
+                    // they may return `NULL`.
+                    let ptr = unsafe {
+                        jni_call_only_check_null_ret!(env, v1_1, $get_elements, array, is_copy)?
+                    };
+                    Ok(ptr as _)
+                }
+
+                /// Release Java $jni_type array
+                unsafe fn release_elements(
+                    env: &Env,
+                    array: jarray,
+                    ptr: NonNull<Self>,
+                    mode: i32,
+                ) -> Result<()> {
+                    // Release<Primitive>ArrayElements() is safe to call while there is a
+                    // pending exception and there are no documented exceptions for
+                    // Release<Primitive>ArrayElements()
+                    unsafe {
+                        ex_safe_jni_call_no_post_check_ex!(
+                            env,
+                            v1_1,
+                            $release_elements,
+                            array,
+                            ptr.as_ptr(),
+                            mode as i32
+                        )
+                    };
+                    Ok(())
+                }
+
+                unsafe fn get_region(
+                    env: &Env,
+                    array: jarray,
+                    start: jsize,
+                    buf: &mut [Self],
+                ) -> Result<()> {
+                    let array = null_check!(array, "get_*_array_region array argument")?;
+                    unsafe {
+                        Ok(jni_call_post_check_ex!(
+                            env,
+                            v1_1,
+                            $get_region,
+                            array,
+                            start,
+                            buf.len() as jsize,
+                            buf.as_mut_ptr()
+                        )?)
                     }
+                }
 
-                    /// Get Java $jni_type array
-                    unsafe fn get_elements(
-                        env: &Env,
-                        array: jarray,
-                        is_copy: &mut jboolean,
-                    ) -> Result<*mut Self> {
-                        // There are no documented exceptions for Get<Primitive>ArrayElements() but
-                        // they may return `NULL`.
-                        let ptr = unsafe { jni_call_only_check_null_ret!(env, v1_1, [< Get $jni_type_name ArrayElements>], array, is_copy)? };
-                        Ok(ptr as _)
-                    }
-
-                    /// Release Java $jni_type array
-                    unsafe fn release_elements(
-                        env: &Env,
-                        array: jarray,
-                        ptr: NonNull<Self>,
-                        mode: i32,
-                    ) -> Result<()> {
-                        // Release<Primitive>ArrayElements() is safe to call while there is a
-                        // pending exception and there are no documented exceptions for
-                        // Release<Primitive>ArrayElements()
-                        unsafe { ex_safe_jni_call_no_post_check_ex!(env, v1_1, [< Release $jni_type_name ArrayElements>], array, ptr.as_ptr(), mode as i32) };
-                        Ok(())
-                    }
-
-                    unsafe fn get_region(
-                        env: &Env,
-                        array: jarray,
-                        start: jsize,
-                        buf: &mut [Self],
-                    ) -> Result<()> {
-                        let array =
-                            null_check!(array, "get_*_array_region array argument")?;
-                        unsafe {
-                            Ok(jni_call_post_check_ex!(
-                                env,
-                                v1_1,
-                                [< Get $jni_type_name ArrayRegion>],
-                                array,
-                                start,
-                                buf.len() as jsize,
-                                buf.as_mut_ptr()
-                            )?)
-                        }
-                    }
-
-                    unsafe fn set_region(
-                        env: &Env,
-                        array: jarray,
-                        start: jsize,
-                        buf: &[Self],
-                    ) -> Result<()> {
-                        let array = null_check!(array, "set_*_array_region array argument")?;
-                        unsafe {
-                            Ok(jni_call_post_check_ex!(
-                                env,
-                                v1_1,
-                                [< Set $jni_type_name ArrayRegion>],
-                                array,
-                                start,
-                                buf.len() as jsize,
-                                buf.as_ptr()
-                            )?)
-                        }
+                unsafe fn set_region(
+                    env: &Env,
+                    array: jarray,
+                    start: jsize,
+                    buf: &[Self],
+                ) -> Result<()> {
+                    let array = null_check!(array, "set_*_array_region array argument")?;
+                    unsafe {
+                        Ok(jni_call_post_check_ex!(
+                            env,
+                            v1_1,
+                            $set_region,
+                            array,
+                            start,
+                            buf.len() as jsize,
+                            buf.as_ptr()
+                        )?)
                     }
                 }
             }
         };
     }
 
-    type_array!(jint, Int);
-    type_array!(jlong, Long);
-    type_array!(jbyte, Byte);
-    type_array!(jboolean, Boolean);
-    type_array!(jchar, Char);
-    type_array!(jshort, Short);
-    type_array!(jfloat, Float);
-    type_array!(jdouble, Double);
+    type_array!(
+        jint,
+        Int,
+        NewIntArray,
+        GetIntArrayElements,
+        ReleaseIntArrayElements,
+        GetIntArrayRegion,
+        SetIntArrayRegion
+    );
+    type_array!(
+        jlong,
+        Long,
+        NewLongArray,
+        GetLongArrayElements,
+        ReleaseLongArrayElements,
+        GetLongArrayRegion,
+        SetLongArrayRegion
+    );
+    type_array!(
+        jbyte,
+        Byte,
+        NewByteArray,
+        GetByteArrayElements,
+        ReleaseByteArrayElements,
+        GetByteArrayRegion,
+        SetByteArrayRegion
+    );
+    type_array!(
+        jboolean,
+        Boolean,
+        NewBooleanArray,
+        GetBooleanArrayElements,
+        ReleaseBooleanArrayElements,
+        GetBooleanArrayRegion,
+        SetBooleanArrayRegion
+    );
+    type_array!(
+        jchar,
+        Char,
+        NewCharArray,
+        GetCharArrayElements,
+        ReleaseCharArrayElements,
+        GetCharArrayRegion,
+        SetCharArrayRegion
+    );
+    type_array!(
+        jshort,
+        Short,
+        NewShortArray,
+        GetShortArrayElements,
+        ReleaseShortArrayElements,
+        GetShortArrayRegion,
+        SetShortArrayRegion
+    );
+    type_array!(
+        jfloat,
+        Float,
+        NewFloatArray,
+        GetFloatArrayElements,
+        ReleaseFloatArrayElements,
+        GetFloatArrayRegion,
+        SetFloatArrayRegion
+    );
+    type_array!(
+        jdouble,
+        Double,
+        NewDoubleArray,
+        GetDoubleArrayElements,
+        ReleaseDoubleArrayElements,
+        GetDoubleArrayRegion,
+        SetDoubleArrayRegion
+    );
 }
 
 /// A sealed trait to define type array access/release for primitive JNI types

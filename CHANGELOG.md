@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+#### Changed
+
+- Removed dependency on `paste` crate ([#752](https://github.com/jni-rs/jni-rs/pull/752))
+
 ## [0.22.1] — 2026-02-20
 
 *Note:* This release fixes several issues found in 0.22.0 which unfortunately required a few breaking changes.

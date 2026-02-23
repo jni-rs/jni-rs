@@ -371,114 +371,109 @@ pub unsafe trait AsJArrayRaw<'local>: AsRef<JObject<'local>> {
 
 unsafe impl<'local, T: TypeArray> AsJArrayRaw<'local> for JPrimitiveArray<'local, T> {}
 
-use paste::paste;
-
 macro_rules! impl_ref_for_jprimitive_array {
-    ($type:ident, $class_name:expr) => {
-        paste! {
-            #[allow(non_camel_case_types)]
-            struct [<JPrimitiveArrayAPI _ $type>] {
-                class: Global<JClass<'static>>,
+    ($type:ident, $class_name:expr, $api_type:ident) => {
+        #[allow(non_camel_case_types)]
+        struct $api_type {
+            class: Global<JClass<'static>>,
+        }
+
+        impl $api_type {
+            fn get<'any_local>(
+                env: &Env<'_>,
+                loader_context: &LoaderContext<'any_local, '_>,
+            ) -> Result<&'static Self> {
+                static API: std::sync::OnceLock<$api_type> = std::sync::OnceLock::new();
+                // Fast path
+                if let Some(api) = API.get() {
+                    return Ok(api);
+                }
+
+                // Lookup class and cache
+
+                // Note: we don't mind racing here, and follow the general pattern of avoiding
+                // locks while looking up classes and initializing APIs, because in the more
+                // general case it can lead to deadlocks via class initialization dependencies.
+
+                let api = env.with_local_frame(4, |env| -> Result<_> {
+                    let class = loader_context
+                        .load_class_for_type::<JPrimitiveArray<crate::sys::$type>>(env, false)?;
+                    let class = env.new_global_ref(&class).unwrap();
+                    Ok(Self { class })
+                })?;
+                let _ = API.set(api);
+                Ok(API.get().unwrap())
+            }
+        }
+
+        impl JPrimitiveArray<'_, crate::sys::$type> {
+            /// Cast a local reference to a [`JPrimitiveArray<T>`]
+            ///
+            /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `T[]`.
+            ///
+            /// Also see these other options for casting local or global references to a [`JPrimitiveArray<T>`]:
+            /// - [Env::as_cast]
+            /// - [Env::new_cast_local_ref]
+            /// - [Env::cast_local]
+            /// - [Env::new_cast_global_ref]
+            /// - [Env::cast_global]
+            ///
+            /// # Errors
+            ///
+            /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
+            pub fn cast_local<'any_local>(
+                env: &mut Env<'_>,
+                obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
+            ) -> Result<
+                <JPrimitiveArray<'any_local, crate::sys::$type> as Reference>::Kind<'any_local>,
+            > {
+                env.cast_local::<JPrimitiveArray<crate::sys::$type>>(obj)
+            }
+        }
+
+        // SAFETY: JPrimitiveArray is a transparent JObject wrapper with no Drop side effects
+        unsafe impl Reference for JPrimitiveArray<'_, crate::sys::$type> {
+            type Kind<'env> = JPrimitiveArray<'env, crate::sys::$type>;
+            type GlobalKind = JPrimitiveArray<'static, crate::sys::$type>;
+
+            fn as_raw(&self) -> jobject {
+                self.obj.as_raw()
             }
 
-            impl [<JPrimitiveArrayAPI _ $type>] {
-                fn get<'any_local>(
-                    env: &Env<'_>,
-                    loader_context: &LoaderContext<'any_local, '_>,
-                ) -> Result<&'static Self> {
-                    static API: std::sync::OnceLock<[<JPrimitiveArrayAPI _ $type>]> = std::sync::OnceLock::new();
+            fn class_name() -> Cow<'static, JNIStr> {
+                Cow::Borrowed($crate::jni_str!($class_name))
+            }
 
-                    // Fast path
-                    if let Some(api) = API.get() {
-                        return Ok(api);
-                    }
+            fn lookup_class<'caller>(
+                env: &Env<'_>,
+                loader_context: &LoaderContext,
+            ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'caller> {
+                let api = $api_type::get(env, &loader_context)?;
+                Ok(&api.class)
+            }
 
-                    // Lookup class and cache
-
-                    // Note: we don't mind racing here, and follow the general pattern of avoiding
-                    // locks while looking up classes and initializing APIs, because in the more
-                    // general case it can lead to deadlocks via class initialization dependencies.
-
-                    let api = env.with_local_frame(4, |env| -> Result<_> {
-                        let class =
-                            loader_context.load_class_for_type::<JPrimitiveArray::<crate::sys::$type>>(env, false)?;
-                        let class = env.new_global_ref(&class).unwrap();
-                        Ok(Self {
-                            class,
-                        })
-                    })?;
-                    let _ = API.set(api);
-                    Ok(API.get().unwrap())
+            unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
+                JPrimitiveArray {
+                    obj: unsafe { JObject::kind_from_raw(local_ref) },
+                    _marker: PhantomData,
                 }
             }
 
-            impl JPrimitiveArray<'_, crate::sys::$type> {
-                /// Cast a local reference to a [`JPrimitiveArray<T>`]
-                ///
-                /// This will do a runtime (`IsInstanceOf`) check that the object is an instance of `T[]`.
-                ///
-                /// Also see these other options for casting local or global references to a [`JPrimitiveArray<T>`]:
-                /// - [Env::as_cast]
-                /// - [Env::new_cast_local_ref]
-                /// - [Env::cast_local]
-                /// - [Env::new_cast_global_ref]
-                /// - [Env::cast_global]
-                ///
-                /// # Errors
-                ///
-                /// Returns [Error::WrongObjectType] if the `IsInstanceOf` check fails.
-                pub fn cast_local<'any_local>(
-                    env: &mut Env<'_>,
-                    obj: impl Reference + Into<JObject<'any_local>> + AsRef<JObject<'any_local>>,
-                ) -> Result<<JPrimitiveArray<'any_local, crate::sys::$type> as Reference>::Kind<'any_local>> {
-                    env.cast_local::<JPrimitiveArray<crate::sys::$type>>(obj)
-                }
-            }
-
-            // SAFETY: JPrimitiveArray is a transparent JObject wrapper with no Drop side effects
-            unsafe impl Reference for JPrimitiveArray<'_, crate::sys::$type> {
-                type Kind<'env> = JPrimitiveArray<'env, crate::sys::$type>;
-                type GlobalKind = JPrimitiveArray<'static, crate::sys::$type>;
-
-                fn as_raw(&self) -> jobject {
-                    self.obj.as_raw()
-                }
-
-                fn class_name() -> Cow<'static, JNIStr> {
-                    Cow::Borrowed($crate::jni_str!($class_name))
-                }
-
-                fn lookup_class<'caller>(
-                    env: &Env<'_>,
-                    loader_context: &LoaderContext,
-                ) -> crate::errors::Result<impl Deref<Target = Global<JClass<'static>>> + 'caller> {
-                    let api = [<JPrimitiveArrayAPI _ $type>]::get(env, &loader_context)?;
-                    Ok(&api.class)
-                }
-
-                unsafe fn kind_from_raw<'env>(local_ref: jobject) -> Self::Kind<'env> {
-                    JPrimitiveArray {
-                        obj: unsafe { JObject::kind_from_raw(local_ref) },
-                        _marker: PhantomData,
-                    }
-                }
-
-                unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
-                    JPrimitiveArray {
-                        obj: unsafe { JObject::global_kind_from_raw(global_ref) },
-                        _marker: PhantomData,
-                    }
+            unsafe fn global_kind_from_raw(global_ref: jobject) -> Self::GlobalKind {
+                JPrimitiveArray {
+                    obj: unsafe { JObject::global_kind_from_raw(global_ref) },
+                    _marker: PhantomData,
                 }
             }
         }
     };
 }
 
-impl_ref_for_jprimitive_array!(jboolean, "[Z");
-impl_ref_for_jprimitive_array!(jbyte, "[B");
-impl_ref_for_jprimitive_array!(jchar, "[C");
-impl_ref_for_jprimitive_array!(jshort, "[S");
-impl_ref_for_jprimitive_array!(jint, "[I");
-impl_ref_for_jprimitive_array!(jlong, "[J");
-impl_ref_for_jprimitive_array!(jfloat, "[F");
-impl_ref_for_jprimitive_array!(jdouble, "[D");
+impl_ref_for_jprimitive_array!(jboolean, "[Z", JPrimitiveArrayAPI_jboolean);
+impl_ref_for_jprimitive_array!(jbyte, "[B", JPrimitiveArrayAPI_jbyte);
+impl_ref_for_jprimitive_array!(jchar, "[C", JPrimitiveArrayAPI_jchar);
+impl_ref_for_jprimitive_array!(jshort, "[S", JPrimitiveArrayAPI_jshort);
+impl_ref_for_jprimitive_array!(jint, "[I", JPrimitiveArrayAPI_jint);
+impl_ref_for_jprimitive_array!(jlong, "[J", JPrimitiveArrayAPI_jlong);
+impl_ref_for_jprimitive_array!(jfloat, "[F", JPrimitiveArrayAPI_jfloat);
+impl_ref_for_jprimitive_array!(jdouble, "[D", JPrimitiveArrayAPI_jdouble);
