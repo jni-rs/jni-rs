@@ -1,24 +1,17 @@
 use syn::{Ident, Token};
 
-/// Helper function to resolve the jni crate path using proc_macro_crate
-fn resolve_jni_crate() -> syn::Path {
-    let Ok(found_crate) = proc_macro_crate::crate_name("jni") else {
-        return syn::parse_quote!(::jni);
-    };
-
-    match found_crate {
-        // Note: if we map `Itself` to `crate` then that won't work with doc tests
-        //
-        // It's kind of a pain but we instead use `extern crate self as jni;` whenever we use
-        // `jni-macros` in the `jni` crate itself.
-        //
-        // See: <https://github.com/bkchr/proc-macro-crate/issues/11>
-        proc_macro_crate::FoundCrate::Itself => syn::parse_quote!(::jni),
-        proc_macro_crate::FoundCrate::Name(name) => {
-            let ident = syn::Ident::new(&name, proc_macro2::Span::call_site());
-            syn::parse_quote!( ::#ident )
-        }
-    }
+/// The default name for the `jni` crate
+///
+/// Note: This used to be resolved using `proc_macro_crate` but we later decided
+/// to remove the dependency (it brings in numerous sub dependencies and adds
+/// complexity that's not strictly necessary if the `jni=<path>` can be used to
+/// specify the path explicitly). It should be very rare to need a non-default
+/// path.
+///
+/// We now assume that the name will either be overridden explicitly or else we
+/// use the default 'jni' name
+fn jni_crate_default() -> syn::Path {
+    syn::parse_quote!(::jni)
 }
 
 pub fn parse_jni_crate_override(input: &syn::parse::ParseStream) -> Result<syn::Path, syn::Error> {
@@ -50,5 +43,5 @@ pub fn parse_jni_crate_override(input: &syn::parse::ParseStream) -> Result<syn::
         }
     }
 
-    Ok(jni_path.unwrap_or_else(resolve_jni_crate))
+    Ok(jni_path.unwrap_or_else(jni_crate_default))
 }
