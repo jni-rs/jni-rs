@@ -1752,6 +1752,11 @@ fn generate_is_instance_of_assignable_checks(
                             let is_instance_of_class = <#to_type_path as #jni::refs::Reference>::lookup_class(env, loader)?;
                             let is_instance_of_class: &#jni::objects::JClass = unsafe { is_instance_of_class.as_ref() };
 
+                            // IsAssignableFrom is not exception safe, so we can't go ahead with the JNI call if
+                            // there's currently a pending exception.
+                            if env.exception_check() {
+                                return Err(#jni::errors::Error::JavaException);
+                            }
                             // Call IsAssignableFrom to check if is_instance_of_class is assignable from our class
                             let is_assignable = unsafe {
                                 use #jni::refs::Reference as _;
@@ -2213,6 +2218,13 @@ fn generate_constructors(
 
                 unsafe {
                     use #jni::refs::Reference as _;
+
+                    // NewObjectA is not exception safe, so we can't go ahead with the JNI call if
+                    // there's currently a pending exception.
+                    if env.exception_check() {
+                        return Err(#jni::errors::Error::JavaException);
+                    }
+
                     let class: &#jni::objects::JClass = api.class.as_ref();
 
                     // Call NewObjectA
@@ -2484,9 +2496,14 @@ fn generate_jni_call_for_return_type(
         )
     };
 
-    // Generate the unified JNI call
+    // Generate the JNI call
     quote! {
         {
+            // None of the call functions are exception safe, so we can't go ahead with the JNI call
+            // if there's currently a pending exception.
+            if env.exception_check() {
+                return Err(#jni::errors::Error::JavaException);
+            }
             let ret = unsafe {
                 use #jni::refs::Reference as _;
                 let env_ptr: *mut #jni::sys::JNIEnv = env.get_raw();
@@ -2687,6 +2704,11 @@ fn generate_jni_get_field_call(
 
     quote! {
         {
+            // None of these getter functions are exception safe, so we can't go ahead with the JNI
+            // call if there's currently a pending exception.
+            if env.exception_check() {
+                return Err(#jni::errors::Error::JavaException);
+            }
             let ret = unsafe {
                 use #jni::refs::Reference as _;
                 let env_ptr: *mut #jni::sys::JNIEnv = env.get_raw();
@@ -2765,9 +2787,14 @@ fn generate_jni_set_field_call(
         (call_fn, quote! { #val.as_ref().as_raw() })
     };
 
-    // Generate the unified JNI field setter call
+    // Generate the JNI field setter call
     quote! {
         {
+            // None of these setter functions are exception safe, so we can't go ahead with the JNI
+            // call if there's currently a pending exception.
+            if env.exception_check() {
+                return Err(#jni::errors::Error::JavaException);
+            }
             unsafe {
                 use #jni::refs::Reference as _;
                 let env_ptr: *mut #jni::sys::JNIEnv = env.get_raw();

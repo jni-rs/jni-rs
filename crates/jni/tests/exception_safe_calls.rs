@@ -28,14 +28,31 @@ fn test_exception_unsafe_calls() {
     });
 
     println!("res = {:?}", res);
-    /*
     assert!(matches!(res, Err(jni::errors::Error::CaughtJavaException {
         ref name,
         ref msg,
         ..
     }) if name == "java.lang.RuntimeException" && msg == "Test Exception"));
-*/
 }
+}
+
+#[test]
+fn test_bind_java_type_exception_safety_checks() {
+    let jvm = util::jvm();
+
+    jvm.attach_current_thread(|env| -> jni::errors::Result<()> {
+        let _ = env.throw("Test Exception");
+        let res = jni::objects::JThread::current_thread(env);
+        assert!(matches!(res, Err(jni::errors::Error::JavaException)));
+        assert!(env.exception_check());
+
+        env.exception_clear();
+        let res = jni::objects::JThread::current_thread(env);
+        assert!(res.is_ok());
+
+        Ok(())
+    })
+    .unwrap();
 }
 
 #[test]

@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Global/Weak::Drop` no longer have the side effect of catching/clearing pending exceptions ([#749](https://github.com/jni-rs/jni-rs/pull/749))
 - Ensure that the `Env::throw*` APIs _actually_ return `Err(JavaException)` as the docs state ([#755](https://github.com/jni-rs/jni-rs/pull/755))
 - `JStackTraceElement` binding fixed to lookup `isNativeMethod` instead of `isNative` ([#760](https://github.com/jni-rs/jni-rs/pull/760))
+- `bind_java_type` emits `exception_checks` before JNI calls to avoid undefined behaviour from calling non-exception-safe JNI functions with pending exceptions. ([#757](https://github.com/jni-rs/jni-rs/pull/757))
 
 ## [0.22.1] — 2026-02-20
 
