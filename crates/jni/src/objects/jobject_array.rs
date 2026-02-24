@@ -88,7 +88,7 @@ impl<'local, E: Reference> From<JObjectArray<'local, E>> for JObject<'local> {
 
 unsafe impl<'local, E: Reference> AsJArrayRaw<'local> for JObjectArray<'local, E> {}
 
-struct JObjectArrayAPI<E: Reference> {
+pub(crate) struct JObjectArrayAPI<E: Reference> {
     class: Global<JClass<'static>>,
     _marker: std::marker::PhantomData<E>,
 }
@@ -99,7 +99,7 @@ static API_REGISTRY: OnceLock<RwLock<HashMap<TypeId, &'static (dyn Any + Send + 
     OnceLock::new();
 
 impl<E: Reference + Send + Sync> JObjectArrayAPI<E> {
-    fn get<'any_local>(
+    pub(crate) fn get<'any_local>(
         env: &Env<'_>,
         loader_context: &LoaderContext<'any_local, '_>,
     ) -> Result<&'static Self> {

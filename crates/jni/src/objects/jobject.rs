@@ -85,12 +85,12 @@ impl ::std::ops::Deref for JObject<'_> {
     }
 }
 
-struct JObjectAPI {
+pub(crate) struct JObjectAPI {
     class: Global<JClass<'static>>,
     // no methods cached for now
 }
 impl JObjectAPI {
-    fn get(env: &Env<'_>) -> Result<&'static Self> {
+    pub(crate) fn get(env: &Env<'_>) -> Result<&'static Self> {
         static API: std::sync::OnceLock<JObjectAPI> = std::sync::OnceLock::new();
 
         // Fast path: already initialized

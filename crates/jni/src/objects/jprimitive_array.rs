@@ -374,12 +374,12 @@ unsafe impl<'local, T: TypeArray> AsJArrayRaw<'local> for JPrimitiveArray<'local
 macro_rules! impl_ref_for_jprimitive_array {
     ($type:ident, $class_name:expr, $api_type:ident) => {
         #[allow(non_camel_case_types)]
-        struct $api_type {
+        pub(crate) struct $api_type {
             class: Global<JClass<'static>>,
         }
 
         impl $api_type {
-            fn get<'any_local>(
+            pub(crate) fn get<'any_local>(
                 env: &Env<'_>,
                 loader_context: &LoaderContext<'any_local, '_>,
             ) -> Result<&'static Self> {

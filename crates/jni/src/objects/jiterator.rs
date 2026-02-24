@@ -1,12 +1,10 @@
-use jni_macros::bind_java_type;
-
 use crate::{
     env::Env,
     errors::{Error, Result},
     objects::JObject,
 };
 
-bind_java_type! {
+crate::bind_java_type! {
     pub JIterator => "java.util.Iterator",
     methods {
         /// Returns true if the iteration has more elements.
