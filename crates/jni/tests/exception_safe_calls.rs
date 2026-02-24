@@ -224,3 +224,33 @@ fn test_env_throw_apis_return_java_exception_err() {
     })
     .unwrap();
 }
+
+#[test]
+fn test_no_attach_current_thread_side_effects() {
+    let jvm = util::jvm();
+
+    jvm.attach_current_thread(|env| -> jni::errors::Result<()> {
+        // Don't use '?' here because we want to continue with the JavaException error
+        // indicating a pending exception.
+        let _ = env.throw("Test Exception");
+
+        let jvm = jni::JavaVM::singleton().unwrap();
+        let res = jvm.attach_current_thread(|_env| -> jni::errors::Result<()> {
+            panic!("Shouldn't run closure while exception is pending");
+        });
+        assert!(matches!(res, Err(jni::errors::Error::JavaException)));
+
+        let catch = env.exception_catch();
+        println!("Caught exception: {:?}", catch);
+        assert!(
+            matches!(catch, Err(jni::errors::Error::CaughtJavaException {
+                ref name,
+                ref msg,
+                ..
+            }) if name == "java.lang.RuntimeException" && msg == "Test Exception")
+        );
+
+        Ok(())
+    })
+    .unwrap();
+}

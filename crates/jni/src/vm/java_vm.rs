@@ -457,6 +457,9 @@ impl JavaVM {
     /// [`Error::CaughtJavaException`] - regardless of whether the thread was already attached or
     /// not.
     ///
+    /// Returns immediately with [`Error::JavaException`] if called on an attached thread that
+    /// has a pending exception (to avoid the side effect of clearing the exception).
+    ///
     /// Calling this in a thread that is already attached is cheap since it will only need to check
     /// thread local storage without making a JNI call.
     ///
@@ -498,6 +501,9 @@ impl JavaVM {
     /// [`Error::CaughtJavaException`] - regardless of whether the thread was already attached or
     /// not.
     ///
+    /// Returns immediately with [`Error::JavaException`] if called on an attached thread that
+    /// has a pending exception (to avoid the side effect of clearing the exception).
+    ///
     /// Calling this in a thread that is already attached is cheap since it will only need to check
     /// thread local storage without making a JNI call.
     ///
@@ -529,6 +535,9 @@ impl JavaVM {
     /// Any left-over pending exception (after the closure has been run) will be returned as an
     /// [`Error::CaughtJavaException`] - regardless of whether the thread was already attached or
     /// not.
+    ///
+    /// Returns immediately with [`Error::JavaException`] if called on an attached thread that
+    /// has a pending exception (to avoid the side effect of clearing the exception).
     ///
     /// This function allows you to customize the attachment process and choose whether to create
     /// a new local frame (with a given capacity) or use the current one.
@@ -579,6 +588,13 @@ impl JavaVM {
         // Safety: The ScopeToken and guard will remain fixed on the stack by keeping the guard
         // private to this function.
         let mut guard = unsafe { self.attach_current_thread_guard(config, &mut scope)? };
+        // In case the thread was already attached we must not go any further if there is a pending
+        // exception, otherwise this API would have the surprising side effect of clearing pending
+        // exceptions. In other words we behave as if this API is not exception safe and immediately
+        // return `JavaException` to indicate there is a pending exception that must be handled.
+        if guard.borrow_env_mut().exception_check() {
+            return Err(Error::JavaException.into());
+        }
         let ret = if let Some(capacity) = capacity {
             guard.borrow_env_mut().with_local_frame(capacity, callback)
         } else {

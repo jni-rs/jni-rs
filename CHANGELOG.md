@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Removed dependency on `paste` crate ([#752](https://github.com/jni-rs/jni-rs/pull/752))
+- `attach_current_thread*` APIs immediately return `Err(JavaException)` if a Java exception is pending, so they don't have the side effect of clearing exceptions not thrown in the given closure ([#756](https://github.com/jni-rs/jni-rs/pull/756))
 
 ### Fixed
 
