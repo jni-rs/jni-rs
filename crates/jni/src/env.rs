@@ -767,7 +767,7 @@ See the jni-rs Env documentation for more details.
     // Desc for the class and doesn't need a mutable Env reference since it never
     // needs to allocate a new local reference.
     /// Returns true if the object reference can be cast to the given type.
-    fn is_instance_of_class<'other_local_1, 'other_local_2, O, C>(
+    pub(crate) fn is_instance_of_class<'other_local_1, 'other_local_2, O, C>(
         &self,
         object: O,
         class: C,

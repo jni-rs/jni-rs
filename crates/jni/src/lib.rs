@@ -330,6 +330,9 @@ pub mod refs;
 /// Reference type implementations and API bindings for various `java.lang` Objects
 pub mod objects;
 
+/// Reference type implementations and API bindings for various `java.lang` Exceptions
+pub mod exceptions;
+
 /// Helpers for accessing array elements
 pub mod elements;
 
@@ -424,4 +427,64 @@ pub use jni_macros::native_method;
 #[must_use]
 pub fn __must_use<T>(v: T) -> T {
     v
+}
+
+// Provides a way to validate all our object bindings in a unit test, considering
+// that the `J<Foo>API::get` functions are only exported with `pub(crate)` visibility.
+//
+// If any typos in method names or incorrect method or field signatures will result
+// in a panic here when the binding initialization fails.
+#[doc(hidden)]
+pub fn __test_bindings_init(env: &crate::Env, loader: &crate::refs::LoaderContext) {
+    objects::JByteBufferAPI::get(env, loader)
+        .expect("Failed to initialize JByteBufferAPI bindings");
+    objects::JClassLoaderAPI::get(env, loader)
+        .expect("Failed to initialize JClassLoaderAPI bindings");
+    objects::JClassAPI::get(env, loader).expect("Failed to initialize JClassAPI bindings");
+    objects::JCollectionAPI::get(env, loader)
+        .expect("Failed to initialize JCollectionAPI bindings");
+    objects::JIteratorAPI::get(env, loader).expect("Failed to initialize JIteratorAPI bindings");
+    objects::JListAPI::get(env, loader).expect("Failed to initialize JListAPI bindings");
+    objects::JMapAPI::get(env, loader).expect("Failed to initialize JMapAPI bindings");
+    objects::JMapEntryAPI::get(env, loader).expect("Failed to initialize JMapEntryAPI bindings");
+    objects::JObjectArrayAPI::<objects::JString>::get(env, loader)
+        .expect("Failed to initialize JObjectArrayAPI<JString> bindings");
+    objects::JObjectAPI::get(env).expect("Failed to initialize JObjectAPI bindings");
+    objects::JPrimitiveArrayAPI_jboolean::get(env, loader)
+        .expect("Failed to initialize JPrimitiveArrayAPI_jboolean bindings");
+    objects::JSetAPI::get(env, loader).expect("Failed to initialize JSetAPI bindings");
+    objects::JStackTraceElementAPI::get(env, loader)
+        .expect("Failed to initialize JStackTraceElementAPI bindings");
+    objects::JStringAPI::get(env, loader).expect("Failed to initialize JStringAPI bindings");
+    objects::JThreadAPI::get(env, loader).expect("Failed to initialize JThreadAPI bindings");
+    objects::JThrowableAPI::get(env, loader).expect("Failed to initialize JThrowableAPI bindings");
+
+    exceptions::JArrayIndexOutOfBoundsExceptionAPI::get(env, loader)
+        .expect("Failed to initialize JArrayIndexOutOfBoundsException bindings");
+    exceptions::JArrayStoreExceptionAPI::get(env, loader)
+        .expect("Failed to initialize JArrayStoreException bindings");
+    exceptions::JClassCircularityErrorAPI::get(env, loader)
+        .expect("Failed to initialize JClassCircularityError bindings");
+    exceptions::JClassFormatErrorAPI::get(env, loader)
+        .expect("Failed to initialize JClassFormatError bindings");
+    exceptions::JExceptionInInitializerErrorAPI::get(env, loader)
+        .expect("Failed to initialize JExceptionInInitializerError bindings");
+    exceptions::JIllegalArgumentExceptionAPI::get(env, loader)
+        .expect("Failed to initialize JIllegalArgumentException bindings");
+    exceptions::JIllegalMonitorStateExceptionAPI::get(env, loader)
+        .expect("Failed to initialize JIllegalMonitorStateException bindings");
+    exceptions::JInstantiationExceptionAPI::get(env, loader)
+        .expect("Failed to initialize JInstantiationException bindings");
+    exceptions::JNoClassDefFoundErrorAPI::get(env, loader)
+        .expect("Failed to initialize JNoClassDefFoundError bindings");
+    exceptions::JNoSuchFieldErrorAPI::get(env, loader)
+        .expect("Failed to initialize JNoSuchFieldError bindings");
+    exceptions::JNoSuchMethodErrorAPI::get(env, loader)
+        .expect("Failed to initialize JNoSuchMethodError bindings");
+    exceptions::JOutOfMemoryErrorAPI::get(env, loader)
+        .expect("Failed to initialize JOutOfMemoryError bindings");
+    exceptions::JSecurityExceptionAPI::get(env, loader)
+        .expect("Failed to initialize JSecurityException bindings");
+    exceptions::JStringIndexOutOfBoundsExceptionAPI::get(env, loader)
+        .expect("Failed to initialize JStringIndexOutOfBoundsException bindings");
 }

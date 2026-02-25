@@ -17,6 +17,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+Adds bindings for the following `java.lang` errors / exceptions ([#767](https://github.com/jni-rs/jni-rs/pull/767)):
+- `JArrayIndexOutOfBoundsException` (`java.lang.ArrayIndexOutOfBoundsException`)
+- `JArrayStoreException` (`java.lang.ArrayStoreException`)
+- `JClassCircularityError` (`java.lang.ClassCircularityError`)
+- `JClassFormatError` (`java.lang.ClassFormatError`)
+- `JExceptionInInitializerError` (`java.lang.ExceptionInInitializerError`)
+- `JClassNotFoundException` (`java.lang.ClassNotFoundException`)
+- `JIllegalArgumentException` (`java.lang.IllegalArgumentException`)
+- `JIllegalMonitorStateException` (`java.lang.IllegalMonitorStateException`)
+- `JInstantiationException` (`java.lang.InstantiationException`)
+- `JLinkageError` (`java.lang.LinkageError`)
+- `JNoClassDefFoundError` (`java.lang.NoClassDefFoundError`)
+- `JNoSuchFieldError` (`java.lang.NoSuchFieldError`)
+- `JNoSuchMethodError` (`java.lang.NoSuchMethodError`)
+- `JNumberFormatException` (`java.lang.NumberFormatException`)
+- `JOutOfMemoryError` (`java.lang.OutOfMemoryError`)
+- `JRuntimeException` (`java.lang.RuntimeException`)
+- `JSecurityException` (`java.lang.SecurityException`)
+- `JStringIndexOutOfBoundsException` (`java.lang.StringIndexOutOfBoundsException`)
+
 ### Changed
 
 - Removed dependency on `paste` crate ([#752](https://github.com/jni-rs/jni-rs/pull/752))

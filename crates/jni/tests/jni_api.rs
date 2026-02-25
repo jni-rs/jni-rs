@@ -6,7 +6,7 @@ use assert_matches::assert_matches;
 use jni::{
     Env,
     descriptors::Desc,
-    errors::{CharToJavaError, Error},
+    errors::{CharToJavaError, Error, JniError},
     jni_sig, jni_str,
     objects::{
         AutoElements, IntoAuto as _, JByteBuffer, JList, JObject, JObjectArray, JStackTraceElement,
@@ -2032,6 +2032,51 @@ fn test_throwable_get_stack_trace() {
 
             // Do something with the stack trace element
         }
+
+        Ok(())
+    })
+    .unwrap();
+}
+
+#[test]
+fn test_exception_match() {
+    attach_current_thread(|env| {
+        let jstring_not_numeric = env.new_string("NOT A NUMBER").unwrap();
+
+        let err_result = env.call_static_method(
+            jni::jni_str!("java/lang/Integer"),
+            jni::jni_str!("parseInt"),
+            jni::jni_sig!((str: JString) -> jint),
+            &[(&jstring_not_numeric).into()],
+        );
+        assert!(matches!(err_result, Err(jni::errors::Error::JavaException)));
+
+        let res = if env.exception_check() {
+            env.with_local_frame(16, |env| -> jni::errors::Result<()> {
+                let e = env
+                    .exception_occurred()
+                    .expect("Expected an exception after ExceptionCheck");
+                env.exception_clear();
+
+                if let Some(_oom) = jni::exceptions::JOutOfMemoryError::matches(env, &e)? {
+                    Err(jni::errors::Error::JniCall(JniError::NoMemory))
+                } else if let Some(eformat) =
+                    jni::exceptions::JNumberFormatException::matches(env, &e)?
+                {
+                    let msg = eformat.as_throwable().get_message(env).unwrap_or_default();
+                    let msg = msg.to_string();
+                    Err(Error::ParseFailed(msg))
+                } else {
+                    eprintln!("Unexpected exception: {:?}", e);
+                    Err(Error::JniCall(JniError::Unknown))
+                }
+            })
+        } else {
+            Ok(())
+        };
+
+        eprintln!("Caught exception: {:?}", res);
+        assert!(matches!(res, Err(Error::ParseFailed(_))));
 
         Ok(())
     })
