@@ -1738,13 +1738,18 @@ pub fn throw_new_non_throwable_class() {
 #[test]
 pub fn throw_new_fail() {
     attach_current_thread(|env| {
+        // Note: this isn't a great test because it's really just testing
+        // what error we get from `Desc<JClass>::lookup` when looking up
+        // an invalid class - it doesn't really have anything to do with
+        // making a `ThrowNew` JNI call.
         let result = env.throw_new(
             jni_str!("java/lang/NonexistentException"),
             jni_str!("Test Exception"),
         );
         assert!(result.is_err());
-        // Just to clear the java.lang.NoClassDefFoundError
-        assert_pending_java_exception(env);
+        eprintln!("result = {:?}", result);
+
+        assert!(matches!(result, Err(Error::NoClassDefFound { .. })));
 
         Ok(())
     })

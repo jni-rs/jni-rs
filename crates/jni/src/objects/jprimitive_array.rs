@@ -311,21 +311,31 @@ impl<'local, T: TypeArray> JPrimitiveArray<'local, T> {
         AutoElementsCritical::new(env, self, mode)
     }
 
-    /// Copy elements of the array from the `start` index to the
-    /// `buf` slice. The number of copied elements is equal to the `buf` length.
+    /// Copy elements of the array from the `start` index to the `buf` slice.
+    /// The number of copied elements is equal to the `buf` length.
     ///
     /// # Errors
-    /// If `start` is negative _or_ `start + buf.len()` is greater than [`array.length`]
-    /// then no elements are copied, an `ArrayIndexOutOfBoundsException` is thrown,
-    /// and `Err` is returned.
     ///
-    /// [`array.length`]: struct.Env.html#method.get_array_length
+    /// Returns [Error::IndexOutOfBounds] if `start` is negative _or_ `start +
+    /// buf.len()` is greater than [`Self::len`].
+    ///
+    /// This API catches exceptions internally and is not expected to return
+    /// [`Error::JavaException`] (unless called while there is a pending
+    /// exception).
     pub fn get_region(&self, env: &Env, start: crate::sys::jsize, buf: &mut [T]) -> Result<()> {
         unsafe { T::get_region(env, self.as_raw() as jarray, start, buf) }
     }
 
     /// Copy the contents of the `buf` slice to the java byte array at the
     /// `start` index.
+    ///
+    /// # Errors
+    ///
+    /// Returns [Error::IndexOutOfBounds] if `start` is negative _or_ `start +
+    /// buf.len()` is greater than [`Self::len`].
+    ///
+    /// This API catches exceptions internally and is not expected to return
+    /// [`Error::JavaException`] (unless called while there is a pending exception).
     pub fn set_region(&self, env: &Env, start: crate::sys::jsize, buf: &[T]) -> Result<()> {
         unsafe { T::set_region(env, self.as_raw() as jarray, start, buf) }
     }

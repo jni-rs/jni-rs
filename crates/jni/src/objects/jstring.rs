@@ -2,14 +2,11 @@ use thiserror::Error;
 
 use crate::{
     Env, JavaVM,
-    errors::Result,
+    errors::{Error, JniError, Result},
     strings::{JNIStr, JNIString, MUTF8Chars},
 };
 
 use super::Reference as _;
-
-#[cfg(doc)]
-use crate::errors::Error;
 
 crate::bind_java_type! {
     pub JString => "java.lang.String",
@@ -103,6 +100,9 @@ impl JString<'_> {
     ///
     /// This is a convenience that's equivalent to calling [`Self::from_str`]
     ///
+    /// This API catches exceptions internally and is not expected to return
+    /// [`Error::JavaException`] (unless called while there is a pending exception).
+    ///
     /// # Performance
     ///
     /// The input string is re-encoded to modified UTF-8, so this involves a copy of your input to
@@ -118,6 +118,9 @@ impl JString<'_> {
     }
 
     /// Encodes a Rust `&str` to MUTF-8 and creates a `JString` (`java.lang.String` object).
+    ///
+    /// This API catches exceptions internally and is not expected to return
+    /// [`Error::JavaException`] (unless called while there is a pending exception).
     ///
     /// # Performance
     ///
@@ -137,6 +140,9 @@ impl JString<'_> {
     ///
     /// For simple string literals, consider using the [crate::jni_str!] macro to create / encode
     /// [JNIStr] literals at compile time.
+    ///
+    /// This API catches exceptions internally and is not expected to return
+    /// [`Error::JavaException`] (unless called while there is a pending exception).
     pub fn from_jni_str<'env_local>(
         env: &mut Env<'env_local>,
         from: impl AsRef<JNIStr>,
@@ -146,8 +152,14 @@ impl JString<'_> {
         env.assert_top();
         let ffi_str: &JNIStr = from.as_ref();
         unsafe {
-            jni_call_post_check_ex_and_null_ret!(env, v1_1, NewStringUTF, ffi_str.as_ptr())
-                .map(|s| JString::from_raw(env, s))
+            jni_call_with_catch_and_null_check!(
+                catch |env| {
+                    crate::exceptions::JOutOfMemoryError =>
+                        Err(Error::JniCall(JniError::NoMemory)),
+                    else => Err(Error::NullPtr("Unexpected Exception")),
+                },
+                env, v1_1, NewStringUTF, ffi_str.as_ptr())
+            .map(|s| JString::from_raw(env, s))
         }
     }
 

@@ -42,11 +42,14 @@ where
         mode: ReleaseMode,
     ) -> Result<Self> {
         let mut is_copy: jboolean = true;
-        // There are no documented exceptions for GetPrimitiveArrayCritical() but
-        // it may return `NULL`.
 
         let ptr = unsafe {
-            jni_call_only_check_null_ret!(
+            jni_call_with_catch_and_null_check!(
+                catch |env| {
+                    crate::exceptions::JOutOfMemoryError =>
+                        Err(Error::JniCall(JniError::NoMemory)),
+                    else => Err(Error::NullPtr("Unexpected Exception")),
+                },
                 env,
                 v1_2,
                 GetPrimitiveArrayCritical,

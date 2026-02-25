@@ -130,6 +130,74 @@ fn test_get_field_id_exception_side_effects() {
 }
 
 #[test]
+fn test_find_class_exception_side_effects() {
+    let jvm = util::jvm();
+
+    jvm.attach_current_thread(|env| -> jni::errors::Result<()> {
+        let res = env.find_class(jni::jni_str!("java/lang/string")); // typo of `String`
+        println!("result = {:?}", res);
+        match res {
+            Err(jni::errors::Error::NoClassDefFound { .. }) => {
+                assert!(
+                    !env.exception_check(),
+                    "Expected no pending exception with NoClassDefFound error"
+                );
+                println!("Got NoClassDefFound error as expected");
+            }
+            Err(jni::errors::Error::JavaException) => {
+                assert!(env.exception_check());
+                env.exception_describe();
+                panic!("Expected NoClassDefFound error for find_class failure");
+            }
+            _ => {
+                assert!(
+                    !env.exception_check(),
+                    "Spurious pending exception without JavaException error"
+                );
+                panic!("Expected NoClassDefFound error for find_class failure");
+            }
+        }
+
+        Ok(())
+    })
+    .unwrap();
+}
+
+#[test]
+fn test_load_class_exception_side_effects() {
+    let jvm = util::jvm();
+
+    jvm.attach_current_thread(|env| -> jni::errors::Result<()> {
+        let res = env.load_class(jni::jni_str!("java/lang/string")); // typo of `String`
+        println!("result = {:?}", res);
+        match res {
+            Err(jni::errors::Error::NoClassDefFound { .. }) => {
+                assert!(
+                    !env.exception_check(),
+                    "Expected no pending exception with NoClassDefFound error"
+                );
+                println!("Got NoClassDefFound error as expected");
+            }
+            Err(jni::errors::Error::JavaException) => {
+                assert!(env.exception_check());
+                env.exception_describe();
+                panic!("Expected NoClassDefFound error for load_class failure");
+            }
+            _ => {
+                assert!(
+                    !env.exception_check(),
+                    "Spurious pending exception without JavaException error"
+                );
+                panic!("Expected NoClassDefFound error for load_class failure");
+            }
+        }
+
+        Ok(())
+    })
+    .unwrap();
+}
+
+#[test]
 fn test_global_drop_no_exception_side_effects() {
     let jvm = util::jvm();
 

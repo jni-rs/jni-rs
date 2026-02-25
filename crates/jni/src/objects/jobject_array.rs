@@ -9,16 +9,13 @@ use std::{
 use crate::{
     DEFAULT_LOCAL_FRAME_CAPACITY, JavaVM,
     env::Env,
-    errors::Result,
+    errors::{Error, JniError, Result},
     objects::{Global, JClass, JObject, LoaderContext, Reference},
     strings::{JNIStr, JNIString},
     sys::{jobject, jobjectArray},
 };
 
 use super::AsJArrayRaw;
-
-#[cfg(doc)]
-use crate::errors::Error;
 
 /// A `java.lang.Object[]` reference, tied to a JNI local reference frame.
 ///
@@ -176,7 +173,12 @@ impl<'local, E: Reference + 'local> JObjectArray<'local, E> {
         env.assert_top();
         let element_class = E::lookup_class(env, &LoaderContext::default())?;
         let array = unsafe {
-            jni_call_post_check_ex!(
+            jni_call_with_catch_and_null_check!(
+                catch |env| {
+                    crate::exceptions::JOutOfMemoryError =>
+                        Err(Error::JniCall(JniError::NoMemory)),
+                    else => Err(Error::NullPtr("Unexpected Exception")),
+                },
                 env,
                 v1_1,
                 NewObjectArray,
@@ -263,6 +265,11 @@ impl<'local, E: Reference + 'local> JObjectArray<'local, E> {
     }
 
     /// Returns a local reference to an element of the [`JObjectArray`] `array`.
+    ///
+    /// Returns [Error::IndexOutOfBounds] if the `index` is out of bounds.
+    ///
+    /// This API catches exceptions internally and is not expected to return
+    /// [`Error::JavaException`] (unless called while there is a pending exception).
     pub fn get_element<'env_local>(
         &self,
         env: &mut Env<'env_local>,
@@ -281,12 +288,25 @@ impl<'local, E: Reference + 'local> JObjectArray<'local, E> {
             ));
         }
         unsafe {
-            jni_call_post_check_ex!(env, v1_1, GetObjectArrayElement, array, index as i32)
-                .map(|obj| E::kind_from_raw(obj))
+            jni_call_with_catch!(
+                catch |env| {
+                    crate::exceptions::JArrayIndexOutOfBoundsException =>
+                        Err(Error::IndexOutOfBounds),
+                    else => Err(Error::JniCall(JniError::Unknown)),
+                },
+                env, v1_1, GetObjectArrayElement, array, index as i32)
+            .map(|obj| E::kind_from_raw(obj))
         }
     }
 
     /// Sets an element of the [`JObjectArray`] `array`.
+    ///
+    /// Returns:
+    /// - [Error::IndexOutOfBounds] if the `index` is out of bounds.
+    /// - [Error::WrongObjectType] if the `value` is not of the correct type.
+    ///
+    /// This API catches exceptions internally and is not expected to return
+    /// [`Error::JavaException`] (unless called while there is a pending exception).
     pub fn set_element<'any_local>(
         &self,
         env: &Env<'_>,
@@ -303,7 +323,14 @@ impl<'local, E: Reference + 'local> JObjectArray<'local, E> {
             ));
         }
         unsafe {
-            jni_call_post_check_ex!(
+            jni_call_with_catch!(
+                catch |env| {
+                    crate::exceptions::JArrayIndexOutOfBoundsException =>
+                        Err(Error::IndexOutOfBounds),
+                    crate::exceptions::JArrayStoreException =>
+                        Err(Error::WrongObjectType),
+                    else => Err(Error::JniCall(JniError::Unknown)),
+                },
                 env,
                 v1_1,
                 SetObjectArrayElement,

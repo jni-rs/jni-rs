@@ -44,6 +44,7 @@ Adds bindings for the following `java.lang` errors / exceptions ([#767](https://
 - Removed dependency on `paste` crate ([#752](https://github.com/jni-rs/jni-rs/pull/752))
 - `attach_current_thread*` APIs immediately return `Err(JavaException)` if a Java exception is pending, so they don't have the side effect of clearing exceptions not thrown in the given closure ([#756](https://github.com/jni-rs/jni-rs/pull/756))
 - Removed `proc-macro-crate` dependency from the `jni-macros` crate ([#758](https://github.com/jni-rs/jni-rs/pull/758))
+- All internal use of JNI functions (not general calls into Java code) now catch exceptions and map to `jni::errors::Error` ([#762](https://github.com/jni-rs/jni-rs/pull/762))
 
 ### Fixed
 

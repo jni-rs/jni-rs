@@ -1,8 +1,8 @@
 use std::{borrow::Cow, ffi::CString};
 
 use crate::{
-    errors::Error,
-    objects::{JClass, JClassLoader, JObject, JString, JThread},
+    errors::{Error, JniError},
+    objects::{JClass, JClassLoader, JObject, JString, JThread, JThrowable},
     refs::{IntoAuto as _, Reference},
     strings::{JNIStr, JNIString},
 };
@@ -50,8 +50,29 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
     /// `initialize` indicates whether a newly loaded class should be initialized (has no effect on
     /// already initialized classes).
     ///
-    /// Returns a local reference to the loaded class, or a [`Error::ClassNotFound`] error if the
-    /// class could not be found.
+    /// - Returns a reference to loaded class on success
+    /// - Returns [`Error::NoClassDefFound`] if a `NoClassDefFoundError` or `ClassNotFoundException`
+    ///   exception occurs, indicating that no definition for a requested class or interface can be
+    ///   found (most common failure)
+    /// - Returns [`Error::ClassFormatError`] if a `ClassFormatError` exception occurs, indicating
+    ///   that the class data does not specify a valid class.
+    /// - Returns [`Error::ClassCircularityError`] if a `ClassCircularityError` exception occurs,
+    ///   indicating that a class or interface would be its own superclass or superinterface.
+    /// - May Return [`Error::LinkageError`] for various failures to link the requested class.
+    /// - May Return [`Error::ExceptionInInitializer`] if an exception occurs during class
+    ///   initialization.
+    /// - Returns [`Error::JniCall`] + [`JniError::NoMemory`] if an `OutOfMemoryError` exception
+    ///   occurs, indicating that the JVM reports running out of memory.
+    /// - Returns [`Error::NullPtr`] for any other unknown error condition
+    ///
+    /// *Note:* In order for this API to be consistent with [`jni::Env::find_class`], this API does
+    /// _not_ directly return [`Error::ClassNotFound`] errors that may come directly from the
+    /// loader.
+    ///
+    /// *Note:* Any [`Error::NoClassDefFound`], [`Error::LinkageError`] or
+    /// [`Error::ExceptionInInitializer`] errors include the original `cause` exception if more
+    /// details are needed.
+    ///
     ///
     /// The strategy for loading the class depends on the loader context (See [Self]).
     pub fn load_class<'env_local>(
@@ -82,16 +103,17 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
         fn lookup_tccl_with_catch<'local>(
             env: &mut crate::env::Env<'local>,
         ) -> crate::errors::Result<Option<JClassLoader<'local>>> {
-            let current_thread = JThread::current_thread(env)?;
-            match current_thread.get_context_class_loader(env) {
-                Ok(tccl) => Ok(Some(tccl)),
-                Err(Error::JavaException) => {
-                    // SecurityException
-                    env.exception_clear();
-                    Ok(None)
+            jni_try!(
+                (env) -> crate::errors::Result<Option<JClassLoader<'local>>> {
+                    let current_thread = JThread::current_thread(env)?;
+                    let tccl = current_thread.get_context_class_loader(env)?;
+                    Ok(Some(tccl))
                 }
-                Err(e) => Err(e),
-            }
+                catch |env| {
+                    crate::exceptions::JSecurityException => Ok(None),
+                    else => Ok(None)
+                }
+            )
         }
 
         fn load_class_with_catch<'any_loader, 'any_local>(
@@ -100,19 +122,48 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
             initialize: bool,
             loader: &JClassLoader<'any_loader>,
         ) -> crate::errors::Result<JClass<'any_local>> {
-            let name_ref = JString::from_jni_str(env, name)?.auto();
-            // May throw ClassNotFoundException
-            match JClass::for_name_with_loader(env, name_ref, initialize, loader) {
-                Ok(class) => Ok(class),
-                Err(Error::JavaException) => {
-                    // Assume it's a ClassNotFoundException
-                    env.exception_clear();
-                    Err(Error::ClassNotFound {
-                        name: name.to_string(),
-                    })
+            jni_try!(
+                (env) -> crate::errors::Result<JClass<'any_local>> {
+                    let name_ref = JString::from_jni_str(env, name)?.auto();
+                    JClass::for_name_with_loader(env, name_ref, initialize, loader)
                 }
-                Err(e) => Err(e),
-            }
+                catch |env| {
+                    // For consistency with `Env::find_class` we internally map
+                    // `ClassNotFoundException` into `Error::NoClassDefFound`
+                    // (especially considering that `load_class` may fall back
+                    // to calling `::find_class()`)
+                    e: crate::exceptions::JClassNotFoundException => {
+                        let cause: &JThrowable = &e.as_throwable();
+                        let cause = env.new_global_ref(cause).ok();
+                        Err(Error::NoClassDefFound {
+                            requested: name.to_string(),
+                            cause
+                        })
+                    },
+                    e: crate::exceptions::JExceptionInInitializerError => {
+                        let exception = e.get_exception(env);
+                        let exception = if let Ok(exception) = exception {
+                            env.new_global_ref(exception).ok()
+                        } else {
+                            None
+                        };
+                        Err(Error::ExceptionInInitializer { exception })
+                    },
+                    e: crate::exceptions::JLinkageError => {
+                        let cause: &JThrowable = &e.as_throwable();
+                        let cause = env.new_global_ref(cause).ok();
+                        Err(Error::LinkageError {
+                            requested: name.to_string(),
+                            cause
+                        })
+                    },
+                    crate::exceptions::JSecurityException =>
+                        Err(Error::SecurityViolation),
+                    crate::exceptions::JOutOfMemoryError =>
+                        Err(Error::JniCall(JniError::NoMemory)),
+                    else => Err(Error::NullPtr("Unexpected Exception")),
+                }
+            )
         }
 
         fn find_class<'local>(
@@ -120,13 +171,7 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
             name: &JNIStr,
         ) -> crate::errors::Result<JClass<'local>> {
             let internal_name = internal_find_class_name(name);
-            match env.find_class(&internal_name) {
-                Ok(class) => Ok(class),
-                Err(Error::NullPtr(_)) => Err(Error::ClassNotFound {
-                    name: name.to_string(),
-                }),
-                Err(e) => Err(e),
-            }
+            env.find_class(&internal_name)
         }
 
         fn lookup_class_with_fallbacks<'local>(
@@ -138,7 +183,7 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
             if let Some(tccl) = lookup_tccl_with_catch(env)? {
                 match load_class_with_catch(env, name, initialize, &tccl) {
                     Ok(class) => return Ok(class),
-                    Err(Error::ClassNotFound { .. }) => {
+                    Err(Error::NoClassDefFound { .. }) => {
                         // Try the next fallback
                     }
                     Err(e) => return Err(e),
@@ -147,14 +192,23 @@ impl<'a, 'any_local> LoaderContext<'a, 'any_local> {
 
             if let Some(candidate) = candidate {
                 let candidate_class = env.get_object_class(candidate)?;
-                // Doesn't throw exception for missing loader
-                let loader = candidate_class.get_class_loader(env)?;
-                match load_class_with_catch(env, name, initialize, &loader) {
-                    Ok(class) => return Ok(class),
-                    Err(Error::ClassNotFound { .. }) => {
-                        // Try the next fallback
+                let loader = jni_try!(
+                    (env) -> crate::errors::Result<Option<JClassLoader<'local>>> {
+                        Ok(Some(candidate_class.get_class_loader(env)?))
                     }
-                    Err(e) => return Err(e),
+                    catch |env| {
+                        crate::exceptions::JSecurityException => Ok(None),
+                        else => Ok(None)
+                    }
+                )?;
+                if let Some(loader) = loader {
+                    match load_class_with_catch(env, name, initialize, &loader) {
+                        Ok(class) => return Ok(class),
+                        Err(Error::NoClassDefFound { .. }) => {
+                            // Try the next fallback
+                        }
+                        Err(e) => return Err(e),
+                    }
                 }
             }
 

@@ -26,6 +26,10 @@ pub enum Error {
     UninitializedJavaVM,
     #[error("Invalid JValue type cast: {0}. Actual type: {1}")]
     WrongJValueType(&'static str, &'static str),
+
+    /// An object with an inappropriate type was given
+    ///
+    /// For example, this may represent an `ArrayStoreException` that was caught
     #[error("Invalid object type")]
     WrongObjectType,
     #[error("Invalid constructor return type (must be void)")]
@@ -34,14 +38,80 @@ pub enum Error {
     InvalidArgList(RuntimeMethodSignature),
     #[error("Object behind weak reference freed")]
     ObjectFreed,
+    /// A class could not be found by a `ClassLoader` (`ClassNotFoundException`)
+    ///
+    /// Note: This specifically represents a `ClassNotFoundException` thrown by
+    /// a class *loader* and is not expected to be returned by [`jni::Env::find_class`],
+    /// [`jni::Env::load_class`] or [`jni::refs::LoaderContext`] that will
+    /// generally return [Self::NoClassDefFound] in case a class could not be found.
     #[error("Class not found: {name:?}")]
     ClassNotFound { name: String },
+
+    /// Indicates that the JVM could not resolve a Java class by name.
+    ///
+    /// This error corresponds to the JVM raising
+    /// `java.lang.NoClassDefFoundError` during JNI class resolution (e.g. via
+    /// [`jni::Env::find_class`]) or when emulating the same lookup semantics in
+    /// higher-level helpers (such as [`jni::refs::LoaderContext::load_class`]).
+    ///
+    /// ## Meaning
+    /// This does **not** strictly mean “the requested class does not exist”. It
+    /// means that the JVM could not produce a usable class definition for the
+    /// requested name in the current class-loader context.
+    ///
+    /// Common causes include:
+    /// - The class is not present on the class path / module path.
+    /// - The class exists but is not visible to the active class loader.
+    /// - A transitive dependency of the requested class is missing or not
+    ///   visible.
+    ///
+    /// ## Not included
+    /// Failures that are reported as other linkage or format errors are
+    /// surfaced via other [enum@Error] variants when possible (for example
+    /// [`Error::ClassFormatError`], [`Error::ClassCircularityError`], or
+    /// [`Error::LinkageError`]).
+    ///
+    /// ## Notes
+    /// When returned from [`jni::refs::LoaderContext`] APIs, this variant may
+    /// also be used to normalize Java's `ClassNotFoundException` (from
+    /// `Class.forName`) into a single “class resolution failed” outcome, so
+    /// that [`jni::refs::LoaderContext::load_class`] results are consistent
+    /// with [`jni::Env::find_class`] (especially considering that `::load_class`
+    /// may internally call `::find_class` as a fallback).
+    #[error("failed to resolve Java class '{requested}' (class not found or linkage error)")]
+    NoClassDefFound {
+        requested: String,
+        cause: Option<jni::refs::Global<jni::objects::JThrowable<'static>>>,
+    },
+
+    #[error("The class data does not specify a valid class")]
+    ClassFormatError,
+    #[error("A class or interface would be its own superclass or superinterface")]
+    ClassCircularityError,
+    #[error("Failed to link/verify Java class")]
+    LinkageError {
+        requested: String,
+        cause: Option<jni::refs::Global<jni::objects::JThrowable<'static>>>,
+    },
     #[error("Method not found: {name} {sig}")]
     MethodNotFound { name: String, sig: String },
+    /// Represents a `NoSuchMethodError` exception
+    ///
+    /// For example, caught by [`crate::Env::register_native_methods`]
+    #[error("No such method: {0}")]
+    NoSuchMethod(String),
     #[error("Field not found: {name} {sig}")]
     FieldNotFound { name: String, sig: String },
     #[error("Java exception was thrown")]
     JavaException,
+    #[error("Exception in initializer")]
+    ExceptionInInitializer {
+        exception: Option<jni::refs::Global<jni::objects::JThrowable<'static>>>,
+    },
+    /// A class could not be instantiated (`InstantiationException`), e.g.
+    /// because it is abstract or an interface.
+    #[error("Class cannot be instantiated")]
+    Instantiation,
     #[error("Env null method pointer for {0}")]
     EnvMethodNotFound(&'static str),
     #[error("Null pointer in {0}")]
@@ -98,6 +168,19 @@ pub enum Error {
         msg: String,
         stack: String,
     },
+
+    /// An array or string index was out of bounds
+    #[error("Index out of bounds")]
+    IndexOutOfBounds,
+
+    /// A monitor operation was attempted on an object the thread does not own
+    /// (`IllegalMonitorStateException`)
+    #[error("Illegal monitor state")]
+    IllegalMonitorState,
+
+    /// A security manager denied the operation (`SecurityException`)
+    #[error("Security violation")]
+    SecurityViolation,
 }
 
 #[derive(Debug, Error)]
@@ -112,6 +195,9 @@ pub enum JniError {
     NoMemory,
     #[error("VM already created")]
     AlreadyCreated,
+    /// An invalid argument was given
+    ///
+    /// This may also represent an `IllegalArgumentException` that was caught.
     #[error("Invalid arguments")]
     InvalidArguments,
     #[error("Error code {0}")]

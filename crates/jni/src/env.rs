@@ -483,12 +483,31 @@ See the jni-rs Env documentation for more details.
         // Env lifetime for the top JNI stack frame
         self.assert_top();
         // Safety:
-        // DefineClass is 1.1 API that must be valid
-        // It is valid to potentially pass a `null` `name` to `DefineClass`, since the
-        // name can bre read from the bytecode.
-        // A null loader corresponds to the bootstrap class loader.
+        // - DefineClass is 1.1 API that must be valid
+        // - It is valid to potentially pass a `null` `name` to `DefineClass`, since the name can be
+        // read from the bytecode.
+        // - A null loader corresponds to the bootstrap class loader.
+        //
+        // Throws:
+        // - `ClassFormatError`: if the class data does not specify a valid class.
+        // - `ClassCircularityError`: if a class or interface would be its own superclass or
+        //   superinterface.
+        // - `OutOfMemoryError`: if the system runs out of memory.
+        // - `SecurityException`: if the caller attempts to define a class in the `"java"` package
+        //   tree.
         unsafe {
-            jni_call_post_check_ex_and_null_ret!(
+            jni_call_with_catch_and_null_check!(
+                catch |env| {
+                    crate::exceptions::JClassFormatError =>
+                        Err(Error::ClassFormatError),
+                    crate::exceptions::JClassCircularityError =>
+                        Err(Error::ClassCircularityError),
+                    crate::exceptions::JOutOfMemoryError =>
+                        Err(Error::JniCall(JniError::NoMemory)),
+                    crate::exceptions::JSecurityException =>
+                        Err(Error::SecurityViolation),
+                    else => Err(Error::NullPtr("Unexpected Exception")),
+                },
                 self,
                 v1_1,
                 DefineClass,
@@ -514,6 +533,17 @@ See the jni-rs Env documentation for more details.
     ///
     /// Alternatively, call [`Self::define_class_jbyte`] if your data comes from a [`JByteArray`] or
     /// `&[jbyte]`.
+    ///
+    /// - Returns [`Error::ClassFormatError`] if the class data does not specify a valid class.
+    /// - Returns [`Error::ClassCircularityError`] if a class or interface would be its own
+    ///   superclass or superinterface.
+    /// - Returns [`Error::JniCall`] + [`JniError::NoMemory`] if the JVM reports running out of
+    ///   memory.
+    /// - Returns [`Error::SecurityViolation`] if the caller attempts to define a class in the
+    ///   `"java"` package tree.
+    ///
+    /// This API catches exceptions internally and is not expected to return
+    /// [`Error::JavaException`] (unless called while there is a pending exception).
     ///
     /// # Portability Note
     ///
@@ -558,6 +588,17 @@ See the jni-rs Env documentation for more details.
     ///
     /// This is the same as [`Self::define_class`] but takes a `&[jbyte]` instead of `&[u8]`.
     ///
+    /// - Returns [`Error::ClassFormatError`] if the class data does not specify a valid class.
+    /// - Returns [`Error::ClassCircularityError`] if a class or interface would be its own
+    ///   superclass or superinterface.
+    /// - Returns [`Error::JniCall`] + [`JniError::NoMemory`] if the JVM reports running out of
+    ///   memory.
+    /// - Returns [`Error::SecurityViolation`] if the caller attempts to define a class in the
+    ///   `"java"` package tree.
+    ///
+    /// This API catches exceptions internally and is not expected to return
+    /// [`Error::JavaException`] (unless called while there is a pending exception).
+    ///
     /// # Portability Note
     ///
     /// The JNI `DefineClass` function may not be supported by all JVM implementations, even though
@@ -597,8 +638,8 @@ See the jni-rs Env documentation for more details.
     /// [LoaderContext::load_class].
     ///
     /// The `name` must be in the "internal" form, with slashes instead of dots,
-    /// like `jni_str!("java/lang/IllegalArgumentException")` or an array descriptor like
-    /// `jni_str!("[Ljava/lang/Number;")`.
+    /// like `jni_str!("java/lang/IllegalArgumentException")` or an array
+    /// descriptor like `jni_str!("[Ljava/lang/Number;")`.
     ///
     /// # Example
     /// ```rust,no_run
@@ -610,8 +651,23 @@ See the jni-rs Env documentation for more details.
     /// # }
     /// ```
     ///
-    /// Returns the loaded class, or a [`Error::NullPtr`] error if the class
-    /// could not be found.
+    /// - Returns a reference to loaded class on success
+    /// - Returns [`Error::NoClassDefFound`] if a `NoClassDefFoundError`
+    ///   exception occurs, indicating that no definition for a requested class
+    ///   or interface can be found (most common failure)
+    /// - Returns [`Error::ClassFormatError`] if a `ClassFormatError` exception
+    ///   occurs, indicating that the class data does not specify a valid class.
+    /// - Returns [`Error::ClassCircularityError`] if a `ClassCircularityError`
+    ///   exception occurs, indicating that a class or interface would be its
+    ///   own superclass or superinterface.
+    /// - Returns [`Error::JniCall`] + [`JniError::NoMemory`] if an
+    ///   `OutOfMemoryError` exception occurs, indicating that the JVM reports
+    ///   running out of memory.
+    /// - Returns [`Error::NullPtr`] for any other unknown error condition
+    ///
+    /// This API catches exceptions internally and is not expected to return
+    /// [`Error::JavaException`] (unless called while there is a pending
+    /// exception).
     ///
     /// # Android
     ///
@@ -634,8 +690,49 @@ See the jni-rs Env documentation for more details.
         // FindClass is 1.1 API that must be valid
         // name is non-null
         unsafe {
-            jni_call_post_check_ex_and_null_ret!(self, v1_1, FindClass, name.as_ptr())
-                .map(|class| JClass::from_raw(self, class))
+            jni_call_with_catch_and_null_check!(
+                catch |env| {
+                    e: crate::exceptions::JNoClassDefFoundError => {
+                        let cause: &JThrowable = &e.as_throwable();
+                        let cause = env.new_global_ref(cause).ok();
+                        Err(Error::NoClassDefFound {
+                            requested: name.to_string(),
+                            cause
+                        })
+                    },
+                    // Although the JNI spec does not list `ClassNotFoundException` as a possible
+                    // exception for `FindClass` we want to make sure that would be mapped to
+                    // Error:NoClassDefFound, consistent with `LoaderContext::load_class`
+                    e: crate::exceptions::JClassNotFoundException => {
+                        let cause: &JThrowable = &e.as_throwable();
+                        let cause = env.new_global_ref(cause).ok();
+                        Err(Error::NoClassDefFound {
+                            requested: name.to_string(),
+                            cause
+                        })
+                    },
+                    crate::exceptions::JClassFormatError =>
+                        Err(Error::ClassFormatError),
+                    crate::exceptions::JClassCircularityError =>
+                        Err(Error::ClassCircularityError),
+
+                    // Although the JNI spec doesn't say that `FindClass` may throw `LinkageErrors`,
+                    // we want to make sure we would map them to `Error::LinkageError`, consistent
+                    // with `LoaderContext::load_class`
+                    e: crate::exceptions::JLinkageError => {
+                        let cause: &JThrowable = &e.as_throwable();
+                        let cause = env.new_global_ref(cause).ok();
+                        Err(Error::LinkageError {
+                            requested: name.to_string(),
+                            cause
+                        })
+                    },
+                    crate::exceptions::JOutOfMemoryError =>
+                        Err(Error::JniCall(JniError::NoMemory)),
+                    else => Err(Error::NullPtr("Unexpected exception")),
+                },
+                self, v1_1, FindClass, name.as_ptr())
+            .map(|class| JClass::from_raw(self, class))
         }
     }
 
@@ -645,8 +742,8 @@ See the jni-rs Env documentation for more details.
     /// This is a convenience wrapper around [LoaderContext::load_class] with
     /// [LoaderContext::None].
     ///
-    /// `name` should be a binary name like `jni_str!("java.lang.Number")` or an array
-    /// descriptor like `jni_str!("[Ljava.lang.Number;")`.
+    /// `name` should be a binary name like `jni_str!("java.lang.Number")` or an
+    /// array descriptor like `jni_str!("[Ljava.lang.Number;")`.
     ///
     /// **Note:** that unlike [Env::find_class], the name uses **dots instead of
     /// slashes** and should conform to the format that `Class.getName()`
@@ -663,8 +760,32 @@ See the jni-rs Env documentation for more details.
     /// # }
     /// ```
     ///
-    /// Returns a local reference to the loaded class, or a
-    /// [`Error::ClassNotFound`] error if the class could not be found.
+    /// - Returns a reference to loaded class on success
+    /// - Returns [`Error::NoClassDefFound`] if a `NoClassDefFoundError` or
+    ///   `ClassNotFoundException` exception occurs, indicating that no
+    ///   definition for a requested class or interface can be found (most
+    ///   common failure)
+    /// - Returns [`Error::ClassFormatError`] if a `ClassFormatError` exception
+    ///   occurs, indicating that the class data does not specify a valid class.
+    /// - Returns [`Error::ClassCircularityError`] if a `ClassCircularityError`
+    ///   exception occurs, indicating that a class or interface would be its
+    ///   own superclass or superinterface.
+    /// - May Return [`Error::LinkageError`] for various failures to link the
+    ///   requested class.
+    /// - May Return [`Error::ExceptionInInitializer`] if an exception occurs
+    ///   during class initialization.
+    /// - Returns [`Error::JniCall`] + [`JniError::NoMemory`] if an
+    ///   `OutOfMemoryError` exception occurs, indicating that the JVM reports
+    ///   running out of memory.
+    /// - Returns [`Error::NullPtr`] for any other unknown error condition
+    ///
+    /// *Note:* In order for this API to be consistent with
+    /// [`jni::Env::find_class`], this API does _not_ directly return
+    /// [`Error::ClassNotFound`] errors that may come directly from the loader.
+    ///
+    /// *Note:* Any [`Error::NoClassDefFound`], [`Error::LinkageError`] or
+    /// [`Error::ExceptionInInitializer`] errors include the original `cause`
+    /// exception if more details are needed.
     ///
     /// # Android
     ///
@@ -1184,9 +1305,16 @@ See the jni-rs Env documentation for more details.
         // Env lifetime for the top JNI stack frame
         self.assert_top();
         let data = null_check!(data, "new_direct_byte_buffer data argument")?;
-        // Safety: jni-rs requires JNI >= 1.4 and this is checked in `from_raw`
+        // Safety: jni-rs requires JNI >= 1.4
         unsafe {
-            let obj = jni_call_post_check_ex_and_null_ret!(
+            let obj = jni_call_with_catch_and_null_check!(
+                catch |env| {
+                    crate::exceptions::JIllegalArgumentException =>
+                        Err(Error::JniCall(JniError::InvalidArguments)),
+                    crate::exceptions::JOutOfMemoryError =>
+                        Err(Error::JniCall(JniError::NoMemory)),
+                    else => Err(Error::NullPtr("Unexpected Exception")),
+                },
                 self,
                 v1_4,
                 NewDirectByteBuffer,
@@ -1455,7 +1583,12 @@ See the jni-rs Env documentation for more details.
         // - we know there's no other wrapper for the reference passed to from_global_raw
         //   since we have just created it.
         let weak_ref = unsafe {
-            let weak = O::global_kind_from_raw(jni_call_post_check_ex!(
+            let weak = O::global_kind_from_raw(jni_call_with_catch!(
+                catch |env| {
+                    crate::exceptions::JOutOfMemoryError =>
+                        Err(Error::JniCall(JniError::NoMemory)),
+                    else => Err(Error::JniCall(JniError::Unknown)),
+                },
                 self,
                 v1_2,
                 NewWeakGlobalRef,
@@ -2123,6 +2256,14 @@ See the jni-rs Env documentation for more details.
 
     /// Allocates a new object from a class descriptor without running a
     /// constructor.
+    ///
+    /// - Returns [`Error::Instantiation`] if an `InstantiationException`
+    ///   occurs, if the class is an interface or an abstract class.
+    /// - Returns [`Error::JniCall`] + [`JniError::NoMemory`] if an
+    ///   `OutOfMemoryError` exception occurs.
+    ///
+    /// This API catches exceptions internally and is not expected to return
+    /// [`Error::JavaException`] (unless called while there is a pending exception).
     pub fn alloc_object<'other_local, T>(&mut self, class: T) -> Result<JObject<'local>>
     where
         T: Desc<'local, JClass<'other_local>>,
@@ -2132,7 +2273,15 @@ See the jni-rs Env documentation for more details.
         self.assert_top();
         let class = class.lookup(self)?;
         let obj = unsafe {
-            jni_call_post_check_ex_and_null_ret!(self, v1_1, AllocObject, class.as_ref().as_raw())?
+            jni_call_with_catch_and_null_check!(
+                catch |env| {
+                    crate::exceptions::JInstantiationException =>
+                        Err(Error::Instantiation),
+                    crate::exceptions::JOutOfMemoryError =>
+                        Err(Error::JniCall(JniError::NoMemory)),
+                    else => Err(Error::NullPtr("Unexpected Exception")),
+                },
+                self, v1_1, AllocObject, class.as_ref().as_raw())?
         };
 
         // Ensure that `class` isn't dropped before the JNI call returns.
@@ -2144,67 +2293,7 @@ See the jni-rs Env documentation for more details.
     // FIXME: this API shouldn't need a `&mut self` reference since it doesn't return a local reference
     // (currently it just needs the `&mut self` for the sake of `Desc<JClass>::lookup`)
     //
-    /// Common functionality for finding methods.
-    ///
-    /// This does a pre-check for existing pending exceptions before calling `Get[Static]MethodID`
-    /// and then afterwards checks for exceptions again so they can be cleared and mapped to a
-    /// `MethodNotFound` result.
-    #[allow(clippy::redundant_closure_call)]
-    fn get_method_id_base<'other_local_1, 'sig, 'sig_args, C, N, S, M, R>(
-        &mut self,
-        class: C,
-        name: N,
-        sig: S,
-        get_method: M,
-    ) -> Result<R>
-    where
-        C: Desc<'local, JClass<'other_local_1>>,
-        N: AsRef<JNIStr>,
-        S: AsRef<MethodSignature<'sig, 'sig_args>>,
-        M: for<'other_local_2, 'callback_sig, 'callback_sig_args> Fn(
-            &mut Self,
-            &JClass<'other_local_2>,
-            &JNIStr,
-            &MethodSignature<'callback_sig, 'callback_sig_args>,
-        ) -> Option<R>,
-    {
-        // Make sure we pre-check for existing pending exceptions before calling
-        // `Get[Static]MethodID` so that we don't ever clear an exception we didn't create. This is
-        // needed because we want to squash exceptions into a `MethodNotFound` result.
-        if self.exception_check() {
-            return Err(Error::JavaException);
-        }
-        let class = class.lookup(self)?;
-        let ffi_name = name.as_ref();
-        let sig = sig.as_ref();
-
-        let res: Option<R> = get_method(self, class.as_ref(), ffi_name, sig);
-
-        match res {
-            Some(m) => {
-                assert!(
-                    !self.exception_check(),
-                    "Spurious non-null method ID returned with a pending exception"
-                );
-                Ok(m)
-            }
-            None => {
-                // Squash all exceptions into a `MethodNotFound` result
-                // Note: we know that any exception here was caused by the `get_method()` call because
-                // we checked for pre-existing exceptions beforehand.
-                self.exception_clear();
-                let name: String = ffi_name.to_str().into();
-                let sig: String = sig.as_ref().sig().to_string();
-                Err(Error::MethodNotFound { name, sig })
-            }
-        }
-    }
-
-    // FIXME: this API shouldn't need a `&mut self` reference since it doesn't return a local reference
-    // (currently it just needs the `&mut self` for the sake of `Desc<JClass>::lookup`)
-    //
-    /// Look up a method by class descriptor, name, and
-    /// signature.
+    /// Look up a method by class descriptor, name, and signature.
     ///
     /// # Example
     /// ```rust,no_run
@@ -2219,10 +2308,11 @@ See the jni-rs Env documentation for more details.
     ///
     /// Returns a valid method ID on success or [`Error::MethodNotFound`] on failure.
     ///
-    /// Any `NoSuchMethodError` exception thrown by the JVM will be cleared and converted into an
-    /// [`Error::MethodNotFound`] error. The implementation _may_ map other exceptions (such as
-    /// `ExceptionInInitializerError` or `OutOfMemoryError` into [`Error::JavaException`] or
-    /// [`Error::MethodNotFound`])
+    /// Returns [`Error::JniCall`] + [`JniError::NoMemory`] if an `OutOfMemoryError` is thrown by
+    /// the JVM.
+    ///
+    /// This API catches exceptions internally and is not expected to return
+    /// [`Error::JavaException`] (unless called while there is a pending exception).
     pub fn get_method_id<'other_local, 'sig, 'sig_args, C, N, S>(
         &mut self,
         class: C,
@@ -2234,25 +2324,49 @@ See the jni-rs Env documentation for more details.
         N: AsRef<JNIStr>,
         S: AsRef<MethodSignature<'sig, 'sig_args>>,
     {
-        self.get_method_id_base(class, name, sig, |env, class, name, sig| unsafe {
-            // Note: we use the `ex_safe_` macro here because `get_method_id_base` is responsible
-            // for checking exceptions before the JNI call (so we know there's not risk of making
-            // this JNI call while there is a pending exception). `get_method_id_base` will also
-            // check for exceptions after the call.
-            let method_id = ex_safe_jni_call_no_post_check_ex!(
-                env,
+        let class = class.lookup(self)?;
+        let ffi_name = name.as_ref();
+        let sig = sig.as_ref();
+
+        let method_id = unsafe {
+            jni_call_with_catch!(
+                catch |env| {
+                    crate::exceptions::JNoSuchMethodError =>
+                        Err(Error::MethodNotFound {
+                            name: ffi_name.to_string(),
+                            sig: sig.sig().to_string(),
+                        }),
+                    e: crate::exceptions::JExceptionInInitializerError => {
+                        let exception = e.get_exception(env);
+                        let exception = if let Ok(exception) = exception {
+                            env.new_global_ref(exception).ok()
+                        } else {
+                            None
+                        };
+                        Err(Error::ExceptionInInitializer { exception })
+                    },
+                    crate::exceptions::JOutOfMemoryError =>
+                        Err(Error::JniCall(JniError::NoMemory)),
+                    else => Err(Error::JniCall(JniError::Unknown)),
+                },
+                self,
                 v1_1,
                 GetMethodID,
-                class.as_raw(),
-                name.as_ptr(),
+                class.as_ref().as_raw(),
+                ffi_name.as_ptr(),
                 sig.as_ref().sig().as_ptr()
-            );
-            if method_id.is_null() {
-                None
-            } else {
-                Some(JMethodID::from_raw(method_id))
-            }
-        })
+            )?
+        };
+
+        // Ensure that `class` isn't dropped before the JNI call returns.
+        drop(class);
+
+        assert!(
+            !method_id.is_null(),
+            "Spurious null method ID returned, without a pending exception"
+        );
+
+        Ok(unsafe { JMethodID::from_raw(method_id) })
     }
 
     // FIXME: this API shouldn't need a `&mut self` reference since it doesn't return a local reference
@@ -2272,10 +2386,11 @@ See the jni-rs Env documentation for more details.
     ///
     /// Returns a valid method ID on success or [`Error::MethodNotFound`] on failure.
     ///
-    /// Any `NoSuchMethodError` exception thrown by the JVM will be cleared and converted into an
-    /// [`Error::MethodNotFound`] error. The implementation _may_ map other exceptions (such as
-    /// `ExceptionInInitializerError` or `OutOfMemoryError` into [`Error::JavaException`] or
-    /// [`Error::MethodNotFound`])
+    /// Returns [`Error::JniCall`] + [`JniError::NoMemory`] if an `OutOfMemoryError` is thrown by
+    /// the JVM.
+    ///
+    /// This API catches exceptions internally and is not expected to return
+    /// [`Error::JavaException`] (unless called while there is a pending exception).
     pub fn get_static_method_id<'other_local, 'sig, 'sig_args, C, N, S>(
         &mut self,
         class: C,
@@ -2287,25 +2402,49 @@ See the jni-rs Env documentation for more details.
         N: AsRef<JNIStr>,
         S: AsRef<MethodSignature<'sig, 'sig_args>>,
     {
-        self.get_method_id_base(class, name, sig, |env, class, name, sig| unsafe {
-            // Note: we use the `ex_safe_` macro here because `get_method_id_base` is responsible
-            // for checking exceptions before the JNI call (so we know there's not risk of making
-            // this JNI call while there is a pending exception). `get_method_id_base` will also
-            // check for exceptions after the call.
-            let method_id = ex_safe_jni_call_no_post_check_ex!(
-                env,
+        let class = class.lookup(self)?;
+        let ffi_name = name.as_ref();
+        let sig = sig.as_ref();
+
+        let method_id = unsafe {
+            jni_call_with_catch!(
+                catch |env| {
+                    crate::exceptions::JNoSuchMethodError =>
+                        Err(Error::MethodNotFound {
+                            name: ffi_name.to_string(),
+                            sig: sig.sig().to_string(),
+                        }),
+                    e: crate::exceptions::JExceptionInInitializerError => {
+                        let exception = e.get_exception(env);
+                        let exception = if let Ok(exception) = exception {
+                            env.new_global_ref(exception).ok()
+                        } else {
+                            None
+                        };
+                        Err(Error::ExceptionInInitializer { exception })
+                    },
+                    crate::exceptions::JOutOfMemoryError =>
+                        Err(Error::JniCall(JniError::NoMemory)),
+                    else => Err(Error::JniCall(JniError::Unknown)),
+                },
+                self,
                 v1_1,
                 GetStaticMethodID,
-                class.as_raw(),
-                name.as_ptr(),
+                class.as_ref().as_raw(),
+                ffi_name.as_ptr(),
                 sig.as_ref().sig().as_ptr()
-            );
-            if method_id.is_null() {
-                None
-            } else {
-                Some(JStaticMethodID::from_raw(method_id))
-            }
-        })
+            )?
+        };
+
+        // Ensure that `class` isn't dropped before the JNI call returns.
+        drop(class);
+
+        assert!(
+            !method_id.is_null(),
+            "Spurious null method ID returned, without a pending exception"
+        );
+
+        Ok(unsafe { JStaticMethodID::from_raw(method_id) })
     }
 
     // FIXME: this API shouldn't need a `&mut self` reference since it doesn't return a local reference
@@ -2325,10 +2464,11 @@ See the jni-rs Env documentation for more details.
     ///
     /// Returns a valid field ID on success or [`Error::FieldNotFound`] on failure.
     ///
-    /// Any `NoSuchFieldError` exception thrown by the JVM will be cleared and converted into an
-    /// [`Error::FieldNotFound`] error. The implementation _may_ map other exceptions (such as
-    /// `ExceptionInInitializerError` or `OutOfMemoryError` into [`Error::JavaException`] or
-    /// [`Error::FieldNotFound`])
+    /// Returns [`Error::JniCall`] + [`JniError::NoMemory`] if an `OutOfMemoryError` is thrown by
+    /// the JVM.
+    ///
+    /// This API catches exceptions internally and is not expected to return
+    /// [`Error::JavaException`] (unless called while there is a pending exception).
     pub fn get_field_id<'other_local, 'sig, C, N, S>(
         &mut self,
         class: C,
@@ -2340,58 +2480,49 @@ See the jni-rs Env documentation for more details.
         N: AsRef<JNIStr>,
         S: AsRef<FieldSignature<'sig>>,
     {
-        // Make sure we pre-check for existing pending exceptions before calling
-        // `Get[Static]FieldID` so that we don't ever clear an exception we didn't create. This is
-        // needed because we want to squash exceptions into a `FieldNotFound` result.
-        if self.exception_check() {
-            return Err(Error::JavaException);
-        }
-
         let class = class.lookup(self)?;
         let ffi_name = name.as_ref();
         let ffi_sig = sig.as_ref();
 
-        // Note: we use the `ex_safe_` macro here because we manually check exceptions before the
-        // JNI call (so we know there's not risk of making this JNI call while there is a pending
-        // exception) and we will also manually check for exceptions after the call.
         let field_id = unsafe {
-            let field_id = ex_safe_jni_call_no_post_check_ex!(
+            jni_call_with_catch!(
+                catch |env| {
+                    crate::exceptions::JNoSuchFieldError =>
+                        Err(Error::FieldNotFound {
+                            name: ffi_name.to_string(),
+                            sig: ffi_sig.sig().to_string(),
+                        }),
+                    e: crate::exceptions::JExceptionInInitializerError => {
+                        let exception = e.get_exception(env);
+                        let exception = if let Ok(exception) = exception {
+                            env.new_global_ref(exception).ok()
+                        } else {
+                            None
+                        };
+                        Err(Error::ExceptionInInitializer { exception })
+                    },
+                    crate::exceptions::JOutOfMemoryError =>
+                        Err(Error::JniCall(JniError::NoMemory)),
+                    else => Err(Error::JniCall(JniError::Unknown)),
+                },
                 self,
                 v1_1,
                 GetFieldID,
                 class.as_ref().as_raw(),
                 ffi_name.as_ptr(),
                 ffi_sig.sig().as_ptr()
-            );
-            if field_id.is_null() {
-                None
-            } else {
-                Some(JFieldID::from_raw(field_id))
-            }
+            )?
         };
 
         // Ensure that `class` isn't dropped before the JNI call returns.
         drop(class);
 
-        match field_id {
-            Some(m) => {
-                assert!(
-                    !self.exception_check(),
-                    "Spurious non-null field ID returned with a pending exception"
-                );
-                Ok(m)
-            }
-            None => {
-                // Squash all exceptions into a `FieldNotFound` result
-                //
-                // Note: we know that any exception here was caused by the `GetFieldID` call because
-                // we checked for pre-existing exceptions beforehand.
-                self.exception_clear();
-                let name: String = ffi_name.to_str().into();
-                let sig: String = ffi_sig.sig().to_str().into();
-                Err(Error::FieldNotFound { name, sig })
-            }
-        }
+        assert!(
+            !field_id.is_null(),
+            "Spurious null field ID returned with no exception"
+        );
+
+        Ok(unsafe { JFieldID::from_raw(field_id) })
     }
 
     // FIXME: this API shouldn't need a `&mut self` reference since it doesn't return a local reference
@@ -2411,10 +2542,11 @@ See the jni-rs Env documentation for more details.
     ///
     /// Returns a valid field ID on success or [`Error::FieldNotFound`] on failure.
     ///
-    /// Any `NoSuchFieldError` exception thrown by the JVM will be cleared and converted into an
-    /// [`Error::FieldNotFound`] error. The implementation _may_ map other exceptions (such as
-    /// `ExceptionInInitializerError` or `OutOfMemoryError` into [`Error::JavaException`] or
-    /// [`Error::FieldNotFound`])
+    /// Returns [`Error::JniCall`] + [`JniError::NoMemory`] if an `OutOfMemoryError` is thrown by
+    /// the JVM.
+    ///
+    /// This API catches exceptions internally and is not expected to return
+    /// [`Error::JavaException`] (unless called while there is a pending exception).
     pub fn get_static_field_id<'other_local, 'sig, T, U, V>(
         &mut self,
         class: T,
@@ -2426,58 +2558,49 @@ See the jni-rs Env documentation for more details.
         U: AsRef<JNIStr>,
         V: AsRef<FieldSignature<'sig>>,
     {
-        // Make sure we pre-check for existing pending exceptions before calling
-        // `Get[Static]FieldID` so that we don't ever clear an exception we didn't create. This is
-        // needed because we want to squash exceptions into a `FieldNotFound` result.
-        if self.exception_check() {
-            return Err(Error::JavaException);
-        }
-
         let class = class.lookup(self)?;
         let ffi_name = name.as_ref();
         let ffi_sig = sig.as_ref();
 
-        // Note: we use the `ex_safe_` macro here because we manually check exceptions before the
-        // JNI call (so we know there's not risk of making this JNI call while there is a pending
-        // exception) and we will also manually check for exceptions after the call.
         let field_id = unsafe {
-            let field_id = ex_safe_jni_call_no_post_check_ex!(
+            jni_call_with_catch!(
+                catch |env| {
+                    crate::exceptions::JNoSuchFieldError =>
+                        Err(Error::FieldNotFound {
+                            name: ffi_name.to_string(),
+                            sig: ffi_sig.sig().to_string(),
+                        }),
+                    e: crate::exceptions::JExceptionInInitializerError => {
+                        let exception = e.get_exception(env);
+                        let exception = if let Ok(exception) = exception {
+                            env.new_global_ref(exception).ok()
+                        } else {
+                            None
+                        };
+                        Err(Error::ExceptionInInitializer { exception })
+                    },
+                    crate::exceptions::JOutOfMemoryError =>
+                        Err(Error::JniCall(JniError::NoMemory)),
+                    else => Err(Error::JniCall(JniError::Unknown)),
+                },
                 self,
                 v1_1,
                 GetStaticFieldID,
                 class.as_ref().as_raw(),
                 ffi_name.as_ptr(),
                 ffi_sig.sig().as_ptr()
-            );
-            if field_id.is_null() {
-                None
-            } else {
-                Some(JStaticFieldID::from_raw(field_id))
-            }
+            )?
         };
 
         // Ensure that `class` isn't dropped before the JNI call returns.
         drop(class);
 
-        match field_id {
-            Some(m) => {
-                assert!(
-                    !self.exception_check(),
-                    "Spurious non-null field ID returned with a pending exception"
-                );
-                Ok(m)
-            }
-            None => {
-                // Squash all exceptions into a `FieldNotFound` result
-                //
-                // Note: we know that any exception here was caused by the `GetStaticFieldID` call
-                // because we checked for pre-existing exceptions beforehand.
-                self.exception_clear();
-                let name: String = ffi_name.to_str().into();
-                let sig: String = ffi_sig.sig().to_str().into();
-                Err(Error::FieldNotFound { name, sig })
-            }
-        }
+        assert!(
+            !field_id.is_null(),
+            "Spurious null field ID returned with no exception"
+        );
+
+        Ok(unsafe { JStaticFieldID::from_raw(field_id) })
     }
 
     /// Get the class for an object.
@@ -3224,16 +3347,28 @@ See the jni-rs Env documentation for more details.
     }
 
     /// Converts a java byte array to a rust vector of bytes.
+    ///
+    /// Returns [Error::IndexOutOfBounds] if one of the calculated indexes in the region is not
+    /// valid (in case the array length is changed concurrently).
+    ///
+    /// This API catches exceptions internally and is not expected to return [`Error::JavaException`]
     pub fn convert_byte_array<'other_local>(
         &self,
         array: impl AsRef<JByteArray<'other_local>>,
     ) -> Result<Vec<u8>> {
         let array = array.as_ref().as_raw();
         let array = null_check!(array, "convert_byte_array array argument")?;
-        let length = unsafe { jni_call_post_check_ex!(self, v1_1, GetArrayLength, array)? };
+
+        // GetArrayLength is not documented to throw any exceptions
+        let length = unsafe { jni_call_no_post_check_ex!(self, v1_1, GetArrayLength, array)? };
         let mut vec = vec![0u8; length as usize];
         unsafe {
-            jni_call_no_post_check_ex!(
+            jni_call_with_catch!(
+                catch |env| {
+                    crate::exceptions::JArrayIndexOutOfBoundsException =>
+                        Err(Error::IndexOutOfBounds),
+                    else => Err(Error::JniCall(JniError::Unknown)),
+                },
                 self,
                 v1_1,
                 GetByteArrayRegion,
@@ -4346,7 +4481,15 @@ See the jni-rs Env documentation for more details.
         //  - NativeMethod only has an `unsafe` constructor that requires the caller to ensure that
         //    the function pointer is valid and matches the signature
         let res = unsafe {
-            jni_call_post_check_ex!(
+            jni_call_with_catch!(
+                catch |env| {
+                    e: crate::exceptions::JNoSuchMethodError => {
+                        let msg = e.as_throwable().get_message(env).ok();
+                        let msg = if let Some(msg) = msg { msg.to_string() } else { String::new() };
+                        Err(Error::NoSuchMethod(msg))
+                    },
+                    else => Err(Error::JniCall(JniError::Unknown)),
+                },
                 self,
                 v1_1,
                 RegisterNatives,

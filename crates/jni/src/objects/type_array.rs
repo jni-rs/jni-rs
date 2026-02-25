@@ -90,7 +90,13 @@ pub(crate) mod type_array_sealed {
                 /// Create new Java $jni_type array
                 unsafe fn new_array(env: &mut Env, length: jsize) -> Result<jarray> {
                     let raw_array = unsafe {
-                        jni_call_post_check_ex_and_null_ret!(env, v1_1, $new_array, length)?
+                        jni_call_with_catch_and_null_check!(
+                            catch |env| {
+                                crate::exceptions::JOutOfMemoryError =>
+                                    Err(Error::JniCall(JniError::NoMemory)),
+                                else => Err(Error::JniCall(JniError::Unknown)),
+                            },
+                            env, v1_1, $new_array, length)?
                     };
                     Ok(raw_array)
                 }
@@ -104,7 +110,13 @@ pub(crate) mod type_array_sealed {
                     // There are no documented exceptions for Get<Primitive>ArrayElements() but
                     // they may return `NULL`.
                     let ptr = unsafe {
-                        jni_call_only_check_null_ret!(env, v1_1, $get_elements, array, is_copy)?
+                        jni_call_with_catch_and_null_check!(
+                            catch |env| {
+                                crate::exceptions::JOutOfMemoryError =>
+                                    Err(Error::JniCall(JniError::NoMemory)),
+                                else => Err(Error::JniCall(JniError::Unknown)),
+                            },
+                            env, v1_1, $get_elements, array, is_copy)?
                     };
                     Ok(ptr as _)
                 }
@@ -140,7 +152,12 @@ pub(crate) mod type_array_sealed {
                 ) -> Result<()> {
                     let array = null_check!(array, "get_*_array_region array argument")?;
                     unsafe {
-                        Ok(jni_call_post_check_ex!(
+                        Ok(jni_call_with_catch!(
+                            catch |env| {
+                                crate::exceptions::JArrayIndexOutOfBoundsException =>
+                                    Err(Error::IndexOutOfBounds),
+                                else => Err(Error::JniCall(JniError::Unknown)),
+                            },
                             env,
                             v1_1,
                             $get_region,
@@ -160,7 +177,12 @@ pub(crate) mod type_array_sealed {
                 ) -> Result<()> {
                     let array = null_check!(array, "set_*_array_region array argument")?;
                     unsafe {
-                        Ok(jni_call_post_check_ex!(
+                        Ok(jni_call_with_catch!(
+                            catch |env| {
+                                crate::exceptions::JArrayIndexOutOfBoundsException =>
+                                    Err(Error::IndexOutOfBounds),
+                                else => Err(Error::JniCall(JniError::Unknown)),
+                            },
                             env,
                             v1_1,
                             $set_region,
