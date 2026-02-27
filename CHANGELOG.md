@@ -39,12 +39,15 @@ Adds bindings for the following `java.lang` errors / exceptions ([#767](https://
 - `JSecurityException` (`java.lang.SecurityException`)
 - `JStringIndexOutOfBoundsException` (`java.lang.StringIndexOutOfBoundsException`)
 
+Added `AttachmentExceptionPolicy` enum to control how Java exceptions are handled when attaching a thread ([#768](https://github.com/jni-rs/jni-rs/pull/768)).
+
 ### Changed
 
 - Removed dependency on `paste` crate ([#752](https://github.com/jni-rs/jni-rs/pull/752))
 - `attach_current_thread*` APIs immediately return `Err(JavaException)` if a Java exception is pending, so they don't have the side effect of clearing exceptions not thrown in the given closure ([#756](https://github.com/jni-rs/jni-rs/pull/756))
 - Removed `proc-macro-crate` dependency from the `jni-macros` crate ([#758](https://github.com/jni-rs/jni-rs/pull/758))
 - All internal use of JNI functions (not general calls into Java code) now catch exceptions and map to `jni::errors::Error` ([#762](https://github.com/jni-rs/jni-rs/pull/762))
+- `JavaVM::attach_current_thread*` APIs stash + re-throw pending exceptions so they can be run reliably, instead of bailing early with a `JavaException` error (e.g. needed in `Drop` implementations) ([#768](https://github.com/jni-rs/jni-rs/pull/768))
 
 ### Fixed
 

@@ -12,8 +12,8 @@ use crate::{
     JNIVersion,
     env::Env,
     errors::*,
-    objects::{Global, JObject, Reference},
-    strings::JNIString,
+    objects::{Global, JObject, JThrowable, Reference},
+    strings::{JNIStr, JNIString},
     sys,
 };
 
@@ -453,13 +453,6 @@ impl JavaVM {
     /// If the thread was not already attached then a new attachment is made which will be
     /// automatically detached when the current thread terminates.
     ///
-    /// Any left-over pending exception (after the closure has been run) will be returned as an
-    /// [`Error::CaughtJavaException`] - regardless of whether the thread was already attached or
-    /// not.
-    ///
-    /// Returns immediately with [`Error::JavaException`] if called on an attached thread that
-    /// has a pending exception (to avoid the side effect of clearing the exception).
-    ///
     /// Calling this in a thread that is already attached is cheap since it will only need to check
     /// thread local storage without making a JNI call.
     ///
@@ -474,6 +467,19 @@ impl JavaVM {
     /// If you're not sure whether to use [`Self::attach_current_thread`] or
     /// [`Self::attach_current_thread_for_scope`], then you should probably use this API because it
     /// increases the chance that future attachment calls will be cheap.
+    ///
+    /// # Exception Handling
+    ///
+    /// If the thread is already attached and has a pending exception (before the callback is run),
+    /// the exception will be stashed and re-thrown after the callback completes to avoid side
+    /// effects and to also ensure your callback can run un-affected by the pending exception. (this
+    /// never affects the return value)
+    ///
+    /// If your callback throws an exception this will be caught and returned as an
+    /// [`Error::CaughtJavaException`].
+    ///
+    /// The exception handling policy can be changed via [`AttachConfig::exceptions_policy`] and
+    /// using [`JavaVM::attach_current_thread_with_config`].
     ///
     /// # Runtime Top Frame Checks
     ///
@@ -497,13 +503,6 @@ impl JavaVM {
     /// If the thread was not already attached, the thread will be detached when the callback
     /// returns.
     ///
-    /// Any left-over pending exception (after the closure has been run) will be returned as an
-    /// [`Error::CaughtJavaException`] - regardless of whether the thread was already attached or
-    /// not.
-    ///
-    /// Returns immediately with [`Error::JavaException`] if called on an attached thread that
-    /// has a pending exception (to avoid the side effect of clearing the exception).
-    ///
     /// Calling this in a thread that is already attached is cheap since it will only need to check
     /// thread local storage without making a JNI call.
     ///
@@ -512,6 +511,19 @@ impl JavaVM {
     /// attach the thread permanently) instead of using a scoped attachment. Using this API may
     /// increase the chance that you incur the cost of repeatedly attaching and detaching the same
     /// thread.
+    ///
+    /// # Exception Handling
+    ///
+    /// If the thread is already attached and has a pending exception (before the callback is run),
+    /// the exception will be stashed and re-thrown after the callback completes to avoid side
+    /// effects and to also ensure your callback can run un-affected by the pending exception. (this
+    /// never affects the return value)
+    ///
+    /// If your callback throws an exception this will be caught and returned as an
+    /// [`Error::CaughtJavaException`].
+    ///
+    /// The exception handling policy can be changed via [`AttachConfig::exceptions_policy`] and
+    /// using [`JavaVM::attach_current_thread_with_config`].
     ///
     /// # Runtime Top Frame Checks
     ///
@@ -532,15 +544,8 @@ impl JavaVM {
     /// Attaches the current thread to the Java VM and calls the provided callback with a mutable
     /// [`Env`] reference.
     ///
-    /// Any left-over pending exception (after the closure has been run) will be returned as an
-    /// [`Error::CaughtJavaException`] - regardless of whether the thread was already attached or
-    /// not.
-    ///
-    /// Returns immediately with [`Error::JavaException`] if called on an attached thread that
-    /// has a pending exception (to avoid the side effect of clearing the exception).
-    ///
     /// This function allows you to customize the attachment process and choose whether to create
-    /// a new local frame (with a given capacity) or use the current one.
+    /// a new local frame (with a given `Some(capacity)`) or use the current one (`None`).
     ///
     /// Most of the time you should prefer to use [`Self::attach_current_thread()`] or
     /// [`Self::attach_current_thread_for_scope()`] instead of this function.
@@ -584,33 +589,62 @@ impl JavaVM {
         E: From<Error>,
         C: FnOnce() -> AttachConfig<'config>,
     {
+        let config = config();
+        let exceptions_policy = config.exceptions_policy;
         let mut scope = ScopeToken::default();
         // Safety: The ScopeToken and guard will remain fixed on the stack by keeping the guard
         // private to this function.
-        let mut guard = unsafe { self.attach_current_thread_guard(config, &mut scope)? };
-        // In case the thread was already attached we must not go any further if there is a pending
-        // exception, otherwise this API would have the surprising side effect of clearing pending
-        // exceptions. In other words we behave as if this API is not exception safe and immediately
-        // return `JavaException` to indicate there is a pending exception that must be handled.
-        if guard.borrow_env_mut().exception_check() {
-            return Err(Error::JavaException.into());
-        }
-        let ret = if let Some(capacity) = capacity {
-            guard.borrow_env_mut().with_local_frame(capacity, callback)
-        } else {
-            callback(guard.borrow_env_mut())
+        let mut guard = unsafe { self.attach_current_thread_guard(|| config, &mut scope)? };
+        let env = guard.borrow_env_mut();
+
+        let pre_pending_exception = match exceptions_policy {
+            AttachmentExceptionPolicy::Ignore => None,
+            AttachmentExceptionPolicy::PreCheckPostCatch => {
+                // In case the thread was already attached we must not go any further if there is a pending exception,
+                // otherwise this API would have the surprising side effect of clearing pending exceptions. In other
+                // words we behave as if this API is not exception safe and immediately return `JavaException` to
+                // indicate there is a pending exception that must be handled.
+                if env.exception_check() {
+                    return Err(Error::JavaException.into());
+                } else {
+                    None
+                }
+            }
+            AttachmentExceptionPolicy::PreReThrowPostCatch => {
+                if let Some(e) = env.exception_occurred() {
+                    env.exception_clear();
+                    Some(e)
+                } else {
+                    None
+                }
+            }
         };
 
-        // Explicitly detach the guard (instead of relying on Drop) so we can return any error from
-        // the detachment process.
+        let ret = if let Some(capacity) = capacity {
+            env.with_local_frame(capacity, callback)
+        } else {
+            callback(env)
+        };
+
+        // Explicitly detach the guard (instead of relying on Drop) so we can
+        // return any error from the detachment process.
         //
-        // Any left-over pending exception will be returned as `Error::CaughtJavaException` here.
+        // Any left-over pending exception from the `callback` closure will be
+        // returned as `Error::CaughtJavaException` here.
         //
-        // Note: any error here will also have a higher precedence than the result from the closure
-        // which is probably reasonable because a detachment error would probably indicate a serious
-        // issue and an exception should typically imply that the closure has returned a
+        // Any exception that was caught before running the `callback` closure
+        // will be re-thrown.
+        //
+        // Note: any error here will also have a higher precedence than the
+        // result from the closure which is probably reasonable because a
+        // detachment error would probably indicate a serious issue and an
+        // exception should typically imply that the closure has returned a
         // `JavaException` error.
-        guard.detach_with_catch()?;
+        if exceptions_policy == AttachmentExceptionPolicy::Ignore {
+            guard.detach()?;
+        } else {
+            guard.detach_with_catch_and_throw(pre_pending_exception)?;
+        }
 
         ret
     }
@@ -1067,11 +1101,84 @@ impl JavaVM {
     }
 }
 
+/// The policy for how exceptions are handled before and after running
+/// an attachment closure.
+///
+/// This policy affects the closure-based thread attachment APIs, including:
+/// - [`JavaVM::attach_current_thread`]
+/// - [`JavaVM::attach_current_thread_for_scope`]
+/// - [`JavaVM::attach_current_thread_with_config`]
+///
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
+pub enum AttachmentExceptionPolicy {
+    /// Pending exceptions are not checked before or after any attachment
+    /// closure
+    ///
+    /// This will expose your closure to any pending exception which it should
+    /// be prepared to handle.
+    ///
+    /// For example this could be used to make purely exception-safe JNI calls.
+    ///
+    /// Note: It should be very rare to use this, since attachment closures are
+    /// normally written as orthogonal code that is not expected to handle the
+    /// side effects of external code.
+    Ignore,
+
+    /// Pending exceptions are caught before running any attachment closure and
+    /// re-thrown afterwards, returning [`Error::JavaException`]
+    ///
+    /// If an exception is thrown by the attachment closure then this will
+    /// _always_ be caught and returned via [`Error::CaughtJavaException`].
+    ///
+    /// If a pending exception was caught **and** an exception is thrown by the
+    /// attachment closure then:
+    /// 1. The new exception (from the closure) will be caught
+    /// 2. The original exception will be re-thrown
+    /// 3. The new exception will be returned via [`Error::CaughtJavaException`]
+    ///
+    /// Beware: that in this case the original exception will be pending after
+    /// returning, but this will not be indicated via a [`Error::JavaException`]
+    /// return value. The assumption in this case is that the caller is already
+    /// aware of this pending exception.
+    ///
+    /// This is intended to make the best default trade off between avoiding
+    /// side effects and consistently running orthogonal code within an
+    /// attachment closure.
+    ///
+    /// This prioritizes consistency for the attachment closure:
+    /// - It will *always run*, regardless of unexpected pending exceptions
+    ///   associated with the current thread.
+    /// - Any new exception thrown by the closure will be *always be caught* and
+    ///   returned via [`Error::CaughtJavaException`] - regardless of whether
+    ///   some other exception was previously pending.
+    ///
+    /// A pre-existing exception _may_ represent an oversight with handling an
+    /// exception in code that is unrelated to the attachment closure, **or** it
+    /// could also easily arise if `Drop` is used to release resources via JNI
+    /// because these may automatically run while unwinding a stack (perhaps due
+    /// to an [`Error::JavaException`] that the caller knows about).
+    #[default]
+    PreReThrowPostCatch,
+
+    /// [`Error::JavaException`] is immediately returned if there is a pending
+    /// exception and the attachment closure is not run.
+    ///
+    /// If any exception is thrown by the attachment closure then this will be
+    /// caught and returned via [`Error::CaughtJavaException`]
+    ///
+    /// This is similar to the behaviour of other `jni` APIs that are not
+    /// exception-safe and will immediately return with an error if called
+    /// while there is a pending exception.
+    PreCheckPostCatch,
+}
+
 /// Configuration options for attaching the current thread to a Java VM.
 #[derive(Debug, Default)]
 pub struct AttachConfig<'a> {
     scoped: bool,
-    name: Option<JNIString>,
+    exceptions_policy: AttachmentExceptionPolicy,
+    deprecated_thread_name: Option<JNIString>,
+    thread_name: Option<&'a JNIStr>,
     group: Option<&'a Global<JObject<'static>>>,
 }
 
@@ -1094,9 +1201,32 @@ impl<'a> AttachConfig<'a> {
         self
     }
 
+    /// Sets the policy for handling exceptions during thread attachment.
+    ///
+    /// The default is [`AttachmentExceptionPolicy::PreReThrowPostCatch`] which
+    /// is recommended to avoid the side effects of clearing (existing) pending
+    /// exceptions and will return any new exception thrown by the closure via
+    /// [`Error::CaughtJavaException`].
+    ///
+    /// For example, the default policy should be suitable for code that needs
+    /// to use JNI from within a `Drop` implementation, without being influenced
+    /// by external pending exceptions but also ensuring that external pending
+    /// exception continue to propagate.
+    pub fn exceptions_policy(mut self, policy: AttachmentExceptionPolicy) -> Self {
+        self.exceptions_policy = policy;
+        self
+    }
+
     /// Sets the name of the thread as seen by the JVM and operating system.
+    #[deprecated(since = "0.22.2", note = "Use `thread_name` instead")]
     pub fn name<S: AsRef<str>>(mut self, name: S) -> Self {
-        self.name = Some(JNIString::from(name.as_ref()));
+        self.deprecated_thread_name = Some(JNIString::from(name.as_ref()));
+        self
+    }
+
+    /// Sets the name of the thread as seen by the JVM and operating system.
+    pub fn thread_name(mut self, name: &'a JNIStr) -> Self {
+        self.thread_name = Some(name);
         self
     }
 
@@ -1133,13 +1263,19 @@ pub(super) unsafe fn sys_attach_current_thread(
 ) -> Result<*mut sys::JNIEnv> {
     assert_eq!(JavaVM::thread_attach_guard_level(), 0);
     let mut env_ptr = ptr::null_mut();
+
     let mut args = sys::JavaVMAttachArgs {
         version: JNIVersion::V1_4.into(),
         name: config
-            .name
-            .as_ref()
+            .thread_name
             .map(|s| s.as_ptr() as *mut c_char)
-            .unwrap_or(ptr::null_mut()),
+            .unwrap_or_else(|| {
+                config
+                    .deprecated_thread_name
+                    .as_ref()
+                    .map(|s| s.as_ptr() as *mut c_char)
+                    .unwrap_or(ptr::null_mut())
+            }),
         group: config
             .group
             .as_ref()
@@ -1538,13 +1674,25 @@ impl<'local> AttachGuard<'local> {
     ///
     /// Even though this only takes a reference, the implementation assumes that
     /// the guard is going to be dropped.
-    unsafe fn detach_impl(&mut self, catch_exceptions: bool) -> Result<()> {
-        let caught_exception = if catch_exceptions {
-            // note: we don't want to return errors here immediately because it's more important
-            // that we do the book-keeping for the guard level and possibly detaching the thread
-            self.borrow_env_mut().exception_catch()
-        } else {
-            Ok(())
+    unsafe fn detach_impl(
+        &mut self,
+        catch_exceptions: bool,
+        throw: Option<JThrowable<'local>>,
+    ) -> Result<()> {
+        let caught_exception = {
+            let env = self.borrow_env_mut();
+            let caught_exception = if catch_exceptions {
+                // note: we don't want to return errors here immediately because it's more important
+                // that we do the book-keeping for the guard level and possibly detaching the thread
+                env.exception_catch()
+            } else {
+                Ok(())
+            };
+
+            if let Some(throwable) = throw {
+                let _ = env.throw(throwable);
+            }
+            caught_exception
         };
 
         let new_level = thread_guard_level_pop();
@@ -1579,12 +1727,12 @@ impl<'local> AttachGuard<'local> {
     /// # Panics
     ///
     /// This will panic if a guard is dropped out-of-order, with respect to
-    /// other guards. Each [`AttachGuard`] created may be nested with respected
+    /// other guards. Each [`AttachGuard`] created may be nested with respect
     /// to other guards and must be dropped or detached in LIFO order.
     pub fn detach(mut self) -> Result<()> {
         // Safety: we're going to 'forget' the guard afterwards to ensure the
         // `Drop` implementation isn't run too.
-        let res = unsafe { self.detach_impl(false) };
+        let res = unsafe { self.detach_impl(false, None) };
 
         // We've effectively dropped the guard manually (so we can also get a `Result`)
         // but that means we shouldn't allow the `Drop` implementation to run too.
@@ -1593,7 +1741,7 @@ impl<'local> AttachGuard<'local> {
         res
     }
 
-    /// Drop the guard + detach thread (if owned) and catch any exceptions.
+    /// Catch any exceptions and then Drop the guard + detach thread (if owned).
     ///
     /// This is similar to [`AttachGuard::detach`], but will also catch (clear)
     /// any pending Java exceptions and return them as an
@@ -1605,12 +1753,43 @@ impl<'local> AttachGuard<'local> {
     /// # Panics
     ///
     /// This will panic if a guard is dropped out-of-order, with respect to
-    /// other guards. Each [`AttachGuard`] created may be nested with respected
+    /// other guards. Each [`AttachGuard`] created may be nested with respect
     /// to other guards and must be dropped or detached in LIFO order.
     pub fn detach_with_catch(mut self) -> Result<()> {
         // Safety: we're going to 'forget' the guard afterwards to ensure the
         // `Drop` implementation isn't run too.
-        let res = unsafe { self.detach_impl(true) };
+        let res = unsafe { self.detach_impl(true, None) };
+
+        // We've effectively dropped the guard manually (so we can also get a `Result`)
+        // but that means we shouldn't allow the `Drop` implementation to run too.
+        std::mem::forget(self);
+
+        res
+    }
+
+    /// Catch any exceptions, throw `throwable` and then Drop the guard + detach
+    /// thread (if owned).
+    ///
+    /// This is similar to [`AttachGuard::detach`], but will also catch (clear)
+    /// any pending Java exceptions and then throw the provided `throwable`. Any
+    /// caught exception will be returned as an [`Error::CaughtJavaException`].
+    ///
+    /// This API can be used in case you have temporarily caught/cleared an
+    /// exception to run JNI code and you then want to catch any exceptions for
+    /// the run code before re-throwing the exception saved earlier.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if a guard is dropped out-of-order, with respect to
+    /// other guards. Each [`AttachGuard`] created may be nested with respect
+    /// to other guards and must be dropped or detached in LIFO order.
+    pub fn detach_with_catch_and_throw(
+        mut self,
+        throwable: Option<JThrowable<'local>>,
+    ) -> Result<()> {
+        // Safety: we're going to 'forget' the guard afterwards to ensure the
+        // `Drop` implementation isn't run too.
+        let res = unsafe { self.detach_impl(true, throwable) };
 
         // We've effectively dropped the guard manually (so we can also get a `Result`)
         // but that means we shouldn't allow the `Drop` implementation to run too.
@@ -1622,7 +1801,7 @@ impl<'local> AttachGuard<'local> {
 
 impl Drop for AttachGuard<'_> {
     fn drop(&mut self) {
-        if let Err(err) = unsafe { self.detach_impl(false) } {
+        if let Err(err) = unsafe { self.detach_impl(false, None) } {
             // This probably means that something `unsafe` happened to detach the thread already
             log::error!("Failed to detach current JNI thread: {err}");
         }

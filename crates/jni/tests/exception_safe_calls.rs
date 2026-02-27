@@ -2,6 +2,10 @@
 
 mod util;
 
+use jni::{
+    objects::JThrowable,
+    vm::{AttachConfig, AttachmentExceptionPolicy},
+};
 use rusty_fork::rusty_fork_test;
 
 rusty_fork_test! {
@@ -315,14 +319,57 @@ fn test_no_attach_current_thread_side_effects() {
     let jvm = util::jvm();
 
     jvm.attach_current_thread(|env| -> jni::errors::Result<()> {
+        let jvm = jni::JavaVM::singleton().unwrap();
+
         // Don't use '?' here because we want to continue with the JavaException error
         // indicating a pending exception.
         let _ = env.throw("Test Exception");
 
-        let jvm = jni::JavaVM::singleton().unwrap();
-        let res = jvm.attach_current_thread(|_env| -> jni::errors::Result<()> {
-            panic!("Shouldn't run closure while exception is pending");
+        let res = jvm.attach_current_thread(|env| {
+            let msg = env.new_string("Bad Format")?;
+            let e = jni::exceptions::JNumberFormatException::new(env, msg)?;
+            let e: JThrowable = e.into();
+            env.throw(e)
         });
+        println!("attach_current_thread_result = {:?}", res);
+        // The test exception should have been temporarily cleared before running the
+        // nested attachment closure, and we should get back the exception that the
+        // closure throws
+        assert!(matches!(res, Err(jni::errors::Error::CaughtJavaException {
+                ref name,
+                ref msg,
+                ..
+            }) if name == "java.lang.NumberFormatException" && msg == "Bad Format"));
+
+        // The original 'Test Exception' should be re-thrown and still be pending here
+        let catch = env.exception_catch();
+        println!("Caught exception: {:?}", catch);
+        assert!(
+            matches!(catch, Err(jni::errors::Error::CaughtJavaException {
+                ref name,
+                ref msg,
+                ..
+            }) if name == "java.lang.RuntimeException" && msg == "Test Exception")
+        );
+
+        // For reference, we also check the behaviour of
+        // `AttachmentExceptionPolicy::PreCheckPostCatch` which was the
+        // behaviour that `attach_current_thread` (briefly) had in 0.22.1
+
+        // Don't use '?' here because we want to continue with the JavaException error
+        // indicating a pending exception.
+        let _ = env.throw("Test Exception");
+
+        let res = jvm.attach_current_thread_with_config(
+            || {
+                AttachConfig::default()
+                    .exceptions_policy(AttachmentExceptionPolicy::PreCheckPostCatch)
+            },
+            Some(8),
+            |_env| -> jni::errors::Result<()> {
+                panic!("Shouldn't run closure while exception is pending");
+            },
+        );
         assert!(matches!(res, Err(jni::errors::Error::JavaException)));
 
         let catch = env.exception_catch();
@@ -334,6 +381,26 @@ fn test_no_attach_current_thread_side_effects() {
                 ..
             }) if name == "java.lang.RuntimeException" && msg == "Test Exception")
         );
+
+        // Finally we check the behaviour of `AttachmentExceptionPolicy::Ignore`
+        let _ = env.throw("Test Exception");
+        let pending = jvm
+            .attach_current_thread_with_config(
+                || AttachConfig::default().exceptions_policy(AttachmentExceptionPolicy::Ignore),
+                Some(8),
+                |env| -> jni::errors::Result<_> { Ok(env.exception_check()) },
+            )
+            .expect("Failed to attach current thread with config and clear exception");
+
+        // The callback should have been able to observe the pending exception
+        assert!(pending);
+
+        // And attach_current_thread_with_config should have left the pending exception un-touched
+        assert!(
+            env.exception_check(),
+            "Ignore policy should leave pending exception untouched"
+        );
+        env.exception_clear();
 
         Ok(())
     })

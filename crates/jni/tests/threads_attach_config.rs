@@ -15,7 +15,7 @@ fn attach_config() {
     let thread = spawn({
         move || {
             jvm.attach_current_thread_with_config(
-                || AttachConfig::new().name("test-thread"),
+                || AttachConfig::new().thread_name(jni_str!("test-thread")),
                 None,
                 |env| -> jni::errors::Result<_> {
                     // Get the current Thread and query the name
