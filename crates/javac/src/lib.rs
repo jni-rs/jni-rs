@@ -858,6 +858,9 @@ impl JavaCompiler {
         // Always set file.encoding=UTF-8 so @file lists are read as UTF-8 on all platforms
         cmd.arg("-J-Dfile.encoding=UTF-8");
 
+        // Always set the user language to English to make output parsing work on all platforms (#765)
+        cmd.arg("-J-Duser.language=en");
+
         // JDK 18 workaround for stdout/stderr encoding
         cmd.arg("-J-Dsun.stdout.encoding=UTF-8");
         cmd.arg("-J-Dsun.stderr.encoding=UTF-8");
