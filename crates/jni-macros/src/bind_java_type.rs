@@ -2225,6 +2225,10 @@ fn generate_constructors(
                         return Err(#jni::errors::Error::JavaException);
                     }
 
+                    // Since we're returning a new local reference we need to assert that the
+                    // lifetime we have is associated with the top local reference frame
+                    env.assert_top();
+
                     let class: &#jni::objects::JClass = api.class.as_ref();
 
                     // Call NewObjectA
@@ -2446,43 +2450,45 @@ fn generate_jni_call_for_return_type(
     let call_prefix = if is_static { "CallStatic" } else { "Call" };
 
     // Determine the JNI function name and return value handling based on the return type
-    let (call_fn, return_tokens) = if let Some(prim) = return_type.try_as_primitive(type_mappings) {
+    let (top_check, call_fn, return_tokens) = if let Some(prim) =
+        return_type.try_as_primitive(type_mappings)
+    {
         match prim {
             PrimitiveType::Void => {
                 let call_fn = format_ident!("{}VoidMethodA", call_prefix);
-                (call_fn, quote! { () })
+                (quote! {}, call_fn, quote! { () })
             }
             PrimitiveType::Boolean => {
                 let call_fn = format_ident!("{}BooleanMethodA", call_prefix);
-                (call_fn, quote! { ret })
+                (quote! {}, call_fn, quote! { ret })
             }
             PrimitiveType::Byte => {
                 let call_fn = format_ident!("{}ByteMethodA", call_prefix);
-                (call_fn, quote! { ret })
+                (quote! {}, call_fn, quote! { ret })
             }
             PrimitiveType::Char => {
                 let call_fn = format_ident!("{}CharMethodA", call_prefix);
-                (call_fn, quote! { ret })
+                (quote! {}, call_fn, quote! { ret })
             }
             PrimitiveType::Short => {
                 let call_fn = format_ident!("{}ShortMethodA", call_prefix);
-                (call_fn, quote! { ret })
+                (quote! {}, call_fn, quote! { ret })
             }
             PrimitiveType::Int => {
                 let call_fn = format_ident!("{}IntMethodA", call_prefix);
-                (call_fn, quote! { ret })
+                (quote! {}, call_fn, quote! { ret })
             }
             PrimitiveType::Long => {
                 let call_fn = format_ident!("{}LongMethodA", call_prefix);
-                (call_fn, quote! { ret })
+                (quote! {}, call_fn, quote! { ret })
             }
             PrimitiveType::Float => {
                 let call_fn = format_ident!("{}FloatMethodA", call_prefix);
-                (call_fn, quote! { ret })
+                (quote! {}, call_fn, quote! { ret })
             }
             PrimitiveType::Double => {
                 let call_fn = format_ident!("{}DoubleMethodA", call_prefix);
-                (call_fn, quote! { ret })
+                (quote! {}, call_fn, quote! { ret })
             }
         }
     } else {
@@ -2491,6 +2497,7 @@ fn generate_jni_call_for_return_type(
         let return_type_tokens =
             sig_type_to_rust_return_type(return_type, &quote! { 'env_local }, type_mappings, jni);
         (
+            quote! { env.assert_top(); },
             call_fn,
             quote! { unsafe { <#return_type_tokens>::from_raw(env, ret) } },
         )
@@ -2504,6 +2511,9 @@ fn generate_jni_call_for_return_type(
             if env.exception_check() {
                 return Err(#jni::errors::Error::JavaException);
             }
+
+            #top_check
+
             let ret = unsafe {
                 use #jni::refs::Reference as _;
                 let env_ptr: *mut #jni::sys::JNIEnv = env.get_raw();
@@ -2652,7 +2662,9 @@ fn generate_jni_get_field_call(
     let call_prefix = if is_static { "GetStatic" } else { "Get" };
 
     // Determine the JNI function name and return value handling based on the field type
-    let (call_fn, return_tokens) = if let Some(prim) = field_type.try_as_primitive(type_mappings) {
+    let (top_check, call_fn, return_tokens) = if let Some(prim) =
+        field_type.try_as_primitive(type_mappings)
+    {
         match prim {
             PrimitiveType::Void => {
                 // Void fields don't make sense but we handle them for completeness
@@ -2660,35 +2672,35 @@ fn generate_jni_get_field_call(
             }
             PrimitiveType::Boolean => {
                 let call_fn = format_ident!("{}BooleanField", call_prefix);
-                (call_fn, quote! { ret })
+                (quote! {}, call_fn, quote! { ret })
             }
             PrimitiveType::Byte => {
                 let call_fn = format_ident!("{}ByteField", call_prefix);
-                (call_fn, quote! { ret })
+                (quote! {}, call_fn, quote! { ret })
             }
             PrimitiveType::Char => {
                 let call_fn = format_ident!("{}CharField", call_prefix);
-                (call_fn, quote! { ret })
+                (quote! {}, call_fn, quote! { ret })
             }
             PrimitiveType::Short => {
                 let call_fn = format_ident!("{}ShortField", call_prefix);
-                (call_fn, quote! { ret })
+                (quote! {}, call_fn, quote! { ret })
             }
             PrimitiveType::Int => {
                 let call_fn = format_ident!("{}IntField", call_prefix);
-                (call_fn, quote! { ret })
+                (quote! {}, call_fn, quote! { ret })
             }
             PrimitiveType::Long => {
                 let call_fn = format_ident!("{}LongField", call_prefix);
-                (call_fn, quote! { ret })
+                (quote! {}, call_fn, quote! { ret })
             }
             PrimitiveType::Float => {
                 let call_fn = format_ident!("{}FloatField", call_prefix);
-                (call_fn, quote! { ret })
+                (quote! {}, call_fn, quote! { ret })
             }
             PrimitiveType::Double => {
                 let call_fn = format_ident!("{}DoubleField", call_prefix);
-                (call_fn, quote! { ret })
+                (quote! {}, call_fn, quote! { ret })
             }
         }
     } else {
@@ -2697,6 +2709,7 @@ fn generate_jni_get_field_call(
         let return_type_tokens =
             sig_type_to_rust_return_type(field_type, &quote! { 'env_local }, type_mappings, jni);
         (
+            quote! { env.assert_top(); },
             call_fn,
             quote! { unsafe { <#return_type_tokens>::from_raw(env, ret) } },
         )
@@ -2709,6 +2722,9 @@ fn generate_jni_get_field_call(
             if env.exception_check() {
                 return Err(#jni::errors::Error::JavaException);
             }
+
+            #top_check
+
             let ret = unsafe {
                 use #jni::refs::Reference as _;
                 let env_ptr: *mut #jni::sys::JNIEnv = env.get_raw();

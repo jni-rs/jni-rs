@@ -56,6 +56,7 @@ Added `AttachmentExceptionPolicy` enum to control how Java exceptions are handle
 - Ensure that the `Env::throw*` APIs _actually_ return `Err(JavaException)` as the docs state ([#755](https://github.com/jni-rs/jni-rs/pull/755))
 - `JStackTraceElement` binding fixed to lookup `isNativeMethod` instead of `isNative` ([#760](https://github.com/jni-rs/jni-rs/pull/760))
 - `bind_java_type` emits `exception_checks` before JNI calls to avoid undefined behaviour from calling non-exception-safe JNI functions with pending exceptions. ([#757](https://github.com/jni-rs/jni-rs/pull/757))
+- `bind_java_type` emits `env.assert_top()` checks to ensure that any new local reference has a lifetime that's associated with the top JNI stack frame ([#776](https://github.com/jni-rs/jni-rs/pull/776))
 
 ## [0.22.1] — 2026-02-20
 
