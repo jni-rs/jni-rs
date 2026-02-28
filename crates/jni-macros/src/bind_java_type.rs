@@ -2007,12 +2007,13 @@ This does not require a runtime type check since any `"#, stringify!(#type_name)
                         }
 
                         // Assuming #type_name<'local> is a transparent wrapper around JObject
-                        // (asserted) we can implement AsRef by casting the raw `jni_sys::jobject`
+                        // (asserted) we can implement `AsRef` by transmuting `&self` to
+                        // `&#type_path<'local>`.
                         impl<'local> ::core::convert::AsRef<#type_path<'local>> for #type_name<'local> {
                             fn as_ref(&self) -> &#type_path<'local> {
                                 const fn assert_is_instance_of_type_is_ffi_safe<T: #jni::refs::TransparentReference>() {}
                                 const _: () = assert_is_instance_of_type_is_ffi_safe::<#type_path<'_>>();
-                                unsafe { &*self.as_raw().cast() }
+                                unsafe { std::mem::transmute(self) }
                             }
                         }
                     });

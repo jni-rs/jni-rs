@@ -12,13 +12,28 @@ use util::{attach_current_thread, unwrap};
 pub fn test_generated_alias_methods() {
     use jni::errors::Result;
     let _: Result<()> = attach_current_thread(|env| {
-        // Test JList as_collection method
+        // First just do an `AsRef` cast of a `null` object and check `.is_null()`
+        // Covers: https://github.com/jni-rs/jni-rs/issues/773 bug
+        let null_list = JList::null();
+        let null_collection_ref: &JCollection = null_list.as_ref();
+        assert!(null_collection_ref.is_null());
+
         let list_object = unwrap(
             env.new_object(jni_str!("java/util/ArrayList"), jni_sig!("()V"), &[]),
             env,
         );
+        // Test `cast_local` method
         let list = unwrap(JList::cast_local(env, list_object), env);
+
+        // Test AsRef cast
+        // Also covers: https://github.com/jni-rs/jni-rs/issues/773 bug
+        let collection_via_as_ref: &JCollection = list.as_ref();
+        assert_eq!(collection_via_as_ref.as_raw(), list.as_raw());
+        let _size0 = unwrap(collection_via_as_ref.size(env), env);
+
+        // Test `as_collection` cast method
         let collection_via_method = list.as_collection();
+        assert_eq!(collection_via_method.as_raw(), list.as_raw());
         let _size1 = unwrap(collection_via_method.size(env), env);
 
         // Test JList From implementation (using a fresh instance)
