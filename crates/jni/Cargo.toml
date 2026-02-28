@@ -57,7 +57,7 @@ log.workspace = true
 thiserror.workspace = true
 
 cfg-if = "1.0.0"
-cesu8 = "1.1.0"
+simd_cesu8 = "1.0.1"
 combine = "4.1.0"
 
 [target.'cfg(windows)'.dependencies]

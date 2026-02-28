@@ -43,6 +43,7 @@ Added `AttachmentExceptionPolicy` enum to control how Java exceptions are handle
 
 ### Changed
 
+- Replaced `cesu8` crate with `simd_cesu8` for MUTF-8 encoding, gaining SIMD acceleration and `no_std` compatibility
 - Removed dependency on `paste` crate ([#752](https://github.com/jni-rs/jni-rs/pull/752))
 - `attach_current_thread*` APIs immediately return `Err(JavaException)` if a Java exception is pending, so they don't have the side effect of clearing exceptions not thrown in the given closure ([#756](https://github.com/jni-rs/jni-rs/pull/756))
 - Removed `proc-macro-crate` dependency from the `jni-macros` crate ([#758](https://github.com/jni-rs/jni-rs/pull/758))

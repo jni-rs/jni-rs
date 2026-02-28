@@ -15,7 +15,7 @@ use std::ffi::CStr;
 
 // Helper function to verify MUTF-8 roundtrip encoding
 fn verify_roundtrip(original: &str, mutf8_bytes: &[u8]) {
-    match cesu8::from_java_cesu8(mutf8_bytes) {
+    match simd_cesu8::mutf8::decode(mutf8_bytes) {
         Ok(decoded) => {
             assert_eq!(
                 decoded, original,

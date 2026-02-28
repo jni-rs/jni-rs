@@ -833,7 +833,8 @@ fn test_jni_cstr_unicode_emoji() {
     );
 
     // Verify roundtrip decode
-    let decoded = cesu8::from_java_cesu8(EMOJI_CLASS.to_bytes()).expect("Failed to decode MUTF-8");
+    let decoded =
+        simd_cesu8::mutf8::decode(EMOJI_CLASS.to_bytes()).expect("Failed to decode MUTF-8");
     assert_eq!(decoded, "unicode.Type😀");
 }
 
@@ -859,7 +860,8 @@ fn test_jni_str_unicode_emoji() {
     );
 
     // Verify roundtrip decode
-    let decoded = cesu8::from_java_cesu8(EMOJI_CLASS.to_bytes()).expect("Failed to decode MUTF-8");
+    let decoded =
+        simd_cesu8::mutf8::decode(EMOJI_CLASS.to_bytes()).expect("Failed to decode MUTF-8");
     assert_eq!(decoded, "unicode.Type😀");
 }
 

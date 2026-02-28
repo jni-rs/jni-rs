@@ -22,7 +22,7 @@ use syn::LitCStr;
 /// // Emoji encoded as surrogate pairs in MUTF-8
 /// ```
 pub fn encode_mutf8(s: &str) -> Vec<u8> {
-    cesu8::to_java_cesu8(s).into_owned()
+    simd_cesu8::mutf8::encode(s).into_owned()
 }
 
 /// Create a LitCStr from a string with MUTF-8 encoding

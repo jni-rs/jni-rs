@@ -64,7 +64,7 @@ pub fn jni_sig_str(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// This macro is similar to `jni_sig!` but returns a C string literal (e.g., `c"(IZ)V"`)
 /// with MUTF-8 encoding instead of a `MethodSignature` or `FieldSignature` struct.
 ///
-/// The output is encoded using Java's modified UTF-8 (MUTF-8) format via `cesu8::to_java_cesu8`.
+/// The output is encoded using Java's modified UTF-8 (MUTF-8) format via `simd_cesu8::mutf8::encode`.
 ///
 /// See the `jni_sig!` macro documentation for detailed syntax and examples.
 ///
@@ -89,7 +89,7 @@ pub fn jni_sig_cstr(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// This macro is similar to `jni_sig!` but returns a `&'static JNIStr` with MUTF-8 encoding
 /// instead of a `MethodSignature` or `FieldSignature` struct.
 ///
-/// The output is encoded using Java's modified UTF-8 (MUTF-8) format via `cesu8::to_java_cesu8`
+/// The output is encoded using Java's modified UTF-8 (MUTF-8) format via `simd_cesu8::mutf8::encode`
 /// and wrapped in a `JNIStr` via `jni::strings::JNIStr::from_cstr_unchecked()`.
 ///
 /// See the `jni_sig!` macro documentation for detailed syntax and examples.

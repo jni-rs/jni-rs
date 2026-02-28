@@ -4,8 +4,8 @@ use std::{
     os::raw::c_char,
 };
 
-use cesu8::{from_java_cesu8, to_java_cesu8};
 use log::debug;
+use simd_cesu8::mutf8;
 
 #[cfg(doc)]
 use crate::strings::MUTF8Chars;
@@ -93,7 +93,7 @@ where
     T: AsRef<str>,
 {
     fn from(other: T) -> Self {
-        let enc = to_java_cesu8(other.as_ref()).into_owned();
+        let enc = mutf8::encode(other.as_ref()).into_owned();
         JNIString {
             internal: unsafe { CString::from_vec_unchecked(enc) },
         }
@@ -109,7 +109,7 @@ impl From<JNIString> for CString {
 impl<'str_ref> From<&'str_ref JNIStr> for Cow<'str_ref, str> {
     fn from(other: &'str_ref JNIStr) -> Cow<'str_ref, str> {
         let bytes = other.as_cstr().to_bytes();
-        match from_java_cesu8(bytes) {
+        match mutf8::decode(bytes) {
             Ok(s) => s,
             Err(e) => {
                 debug!("error decoding java cesu8: {:#?}", e);
