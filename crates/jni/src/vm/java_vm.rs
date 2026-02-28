@@ -189,6 +189,15 @@ pub struct JavaVM(*mut sys::JavaVM);
 unsafe impl Send for JavaVM {}
 unsafe impl Sync for JavaVM {}
 
+#[link(name = "jvm")]
+unsafe extern "system" {
+    pub fn JNI_CreateJavaVM(
+        pvm: *mut *mut sys::JavaVM,
+        penv: *mut *mut c_void,
+        args: *mut c_void,
+    ) -> jni::sys::jint;
+}
+
 impl JavaVM {
     /// Launch a new JavaVM using the provided init args.
     ///
@@ -207,6 +216,8 @@ impl JavaVM {
     pub fn new(args: InitArgs) -> StartJvmResult<Self> {
         #[cfg(not(target_os = "android"))]
         {
+            Self::with_linked_jvm(args)
+            /*
             Self::with_libjvm(args, || {
                 Ok([
                     java_locator::locate_jvm_dyn_library()
@@ -217,6 +228,7 @@ impl JavaVM {
                 .iter()
                 .collect::<PathBuf>())
             })
+            */
         }
 
         #[cfg(target_os = "android")]
@@ -379,6 +391,18 @@ impl JavaVM {
             }
 
             result
+        }
+    }
+
+    #[cfg(all(feature = "invocation", not(target_os = "android")))]
+    pub fn with_linked_jvm(args: InitArgs) -> StartJvmResult<Self> {
+        if let Some(jvm) = JAVA_VM_SINGLETON.get() {
+            Ok(jvm.clone())
+        } else {
+            unsafe {
+                // Create the JVM.
+                Self::with_create_fn_ptr(args, JNI_CreateJavaVM).map_err(StartJvmError::Create)
+            }
         }
     }
 

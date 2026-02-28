@@ -14,6 +14,10 @@ fn main() {
         println!("cargo:rustc-cfg=use_tls_attach_guard");
     }
 
+    let java_home = std::env::var("JAVA_HOME").unwrap();
+    println!("cargo:rustc-link-search=native={}/lib/server", java_home);
+    println!("cargo:rustc-link-search=native={}/lib", java_home);
+
     // Re-run if the environment variable changes
     println!("cargo:rerun-if-env-changed=_JNI_WINDOWS_FORCE_USE_TLS");
 }
