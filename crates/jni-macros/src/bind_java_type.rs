@@ -2439,7 +2439,9 @@ fn generate_jni_call_args(
 }
 
 /// Generate JNI call code for a given return type
+#[allow(clippy::too_many_arguments)]
 fn generate_jni_call_for_return_type(
+    debug_name: &str,
     return_type: &SigType,
     is_static: bool,
     jni: &syn::Path,
@@ -2504,6 +2506,19 @@ fn generate_jni_call_for_return_type(
         )
     };
 
+    // The JNI spec asserts that `Call<Type>MethodA` _must_ not be called with a `null` object reference
+    // Note: we assume that the class will never be null when calling static methods
+    let null_check = if !is_static {
+        let error_msg = format!("Attempted to call '{}' with a null object", debug_name);
+        quote! {
+            if #this_or_class.is_null() {
+                return Err(#jni::errors::Error::NullPtr(#error_msg));
+            }
+        }
+    } else {
+        quote! {}
+    };
+
     // Generate the JNI call
     quote! {
         {
@@ -2512,6 +2527,8 @@ fn generate_jni_call_for_return_type(
             if env.exception_check() {
                 return Err(#jni::errors::Error::JavaException);
             }
+
+            #null_check
 
             #top_check
 
@@ -2607,6 +2624,7 @@ fn generate_methods(
 
         // Generate the method body with JNI call
         let jni_call = generate_jni_call_for_return_type(
+            &method.java_name,
             &method.method_signature.return_type,
             is_static,
             jni,
@@ -2653,6 +2671,7 @@ fn generate_methods(
 
 /// Generate JNI get field call code for a given field type
 fn generate_jni_get_field_call(
+    debug_name: &str,
     field_type: &SigType,
     is_static: bool,
     jni: &syn::Path,
@@ -2716,6 +2735,19 @@ fn generate_jni_get_field_call(
         )
     };
 
+    // The JNI spec asserts that `Get<Type>Field` _must_ not be called with a `null` object reference
+    // Note: we assume that the class will never be null when getting static fields
+    let null_check = if !is_static {
+        let error_msg = format!("Attempted to set '{}' field with a null object", debug_name);
+        quote! {
+            if #this_or_class.is_null() {
+                return Err(#jni::errors::Error::NullPtr(#error_msg));
+            }
+        }
+    } else {
+        quote! {}
+    };
+
     quote! {
         {
             // None of these getter functions are exception safe, so we can't go ahead with the JNI
@@ -2723,6 +2755,8 @@ fn generate_jni_get_field_call(
             if env.exception_check() {
                 return Err(#jni::errors::Error::JavaException);
             }
+
+            #null_check
 
             #top_check
 
@@ -2747,7 +2781,9 @@ fn generate_jni_get_field_call(
 }
 
 /// Generate JNI set field call code for a given field type
+#[allow(clippy::too_many_arguments)]
 fn generate_jni_set_field_call(
+    debug_name: &str,
     field_type: &SigType,
     is_static: bool,
     jni: &syn::Path,
@@ -2804,6 +2840,19 @@ fn generate_jni_set_field_call(
         (call_fn, quote! { #val.as_ref().as_raw() })
     };
 
+    // The JNI spec asserts that `Set<Type>Field` _must_ not be called with a `null` object reference
+    // Note: we assume that the class will never be null when setting static fields
+    let null_check = if !is_static {
+        let error_msg = format!("Attempted to set '{}' field with a null object", debug_name);
+        quote! {
+            if #this_or_class.is_null() {
+                return Err(#jni::errors::Error::NullPtr(#error_msg));
+            }
+        }
+    } else {
+        quote! {}
+    };
+
     // Generate the JNI field setter call
     quote! {
         {
@@ -2812,6 +2861,9 @@ fn generate_jni_set_field_call(
             if env.exception_check() {
                 return Err(#jni::errors::Error::JavaException);
             }
+
+            #null_check
+
             unsafe {
                 use #jni::refs::Reference as _;
                 let env_ptr: *mut #jni::sys::JNIEnv = env.get_raw();
@@ -2943,6 +2995,7 @@ fn generate_fields(
 
             // Generate getter
             let get_call = generate_jni_get_field_call(
+                &field.java_name,
                 &field.field_signature.field_type,
                 field.is_static,
                 jni,
@@ -2993,6 +3046,7 @@ fn generate_fields(
 
             // Generate setter
             let set_call = generate_jni_set_field_call(
+                &field.java_name,
                 &field.field_signature.field_type,
                 field.is_static,
                 jni,

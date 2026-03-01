@@ -3914,7 +3914,6 @@ See the jni-rs Env documentation for more details.
         }
 
         let obj = obj.as_ref();
-        let obj = null_check!(obj, "set_field_typed obj argument")?;
 
         let field = field.lookup(self)?.as_ref().into_raw();
         let obj = obj.as_raw();
@@ -3956,6 +3955,7 @@ See the jni-rs Env documentation for more details.
         // Env lifetime for the top JNI stack frame
         self.assert_top();
         let obj = obj.as_ref();
+        let obj = null_check!(obj, "get_field obj argument")?;
         let class = self.get_object_class(obj)?.auto();
 
         let sig = sig.as_ref();
@@ -3982,6 +3982,7 @@ See the jni-rs Env documentation for more details.
         S: AsRef<FieldSignature<'sig>>,
     {
         let obj = obj.as_ref();
+        let obj = null_check!(obj, "set_field obj argument")?;
         let sig = sig.as_ref();
         let field_ty = sig.ty();
 

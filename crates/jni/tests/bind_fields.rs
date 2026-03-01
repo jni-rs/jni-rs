@@ -162,32 +162,63 @@ fn test_instance_primitive_fields() {
     util::attach_current_thread(|env| {
         load_test_fields_class(env, &out_dir)?;
 
+        // First, check attempts to get/set instances fields with a null reference
+
+        let res = TestFields::null().int_field(env);
+        assert!(matches!(res, Err(jni::errors::Error::NullPtr(_))));
+        let res = TestFields::null().set_int_field(env, 0);
+        assert!(matches!(res, Err(jni::errors::Error::NullPtr(_))));
+
         let obj = TestFields::new(env)?;
 
-        // Test reading instance primitive fields
+        // Test getting/setting instance primitive fields
         let int_val = obj.int_field(env)?;
         assert_eq!(int_val, 10);
+        obj.set_int_field(env, 20)?;
+        let int_val = obj.int_field(env)?;
+        assert_eq!(int_val, 20);
 
         let long_val = obj.long_field(env)?;
         assert_eq!(long_val, 100);
+        obj.set_long_field(env, 200)?;
+        let long_val = obj.long_field(env)?;
+        assert_eq!(long_val, 200);
 
         let bool_val = obj.boolean_field(env)?;
         assert!(!bool_val);
+        obj.set_boolean_field(env, true)?;
+        let bool_val = obj.boolean_field(env)?;
+        assert!(bool_val);
 
         let byte_val = obj.byte_field(env)?;
         assert_eq!(byte_val, 1);
+        obj.set_byte_field(env, 2)?;
+        let byte_val = obj.byte_field(env)?;
+        assert_eq!(byte_val, 2);
 
         let short_val = obj.short_field(env)?;
         assert_eq!(short_val, 200);
+        obj.set_short_field(env, 300)?;
+        let short_val = obj.short_field(env)?;
+        assert_eq!(short_val, 300);
 
         let float_val = obj.float_field(env)?;
         assert!((float_val - 1.5).abs() < 0.01);
+        obj.set_float_field(env, 3.5)?;
+        let float_val = obj.float_field(env)?;
+        assert!((float_val - 3.5).abs() < 0.01);
 
         let double_val = obj.double_field(env)?;
         assert!((double_val - 2.5).abs() < 0.01);
+        obj.set_double_field(env, 4.5)?;
+        let double_val = obj.double_field(env)?;
+        assert!((double_val - 4.5).abs() < 0.01);
 
         let char_val = obj.char_field(env)?;
         assert_eq!(char_val, 'A' as u16);
+        obj.set_char_field(env, 'B' as u16)?;
+        let char_val = obj.char_field(env)?;
+        assert_eq!(char_val, 'B' as u16);
 
         Ok(())
     })
@@ -226,42 +257,6 @@ fn test_instance_string_field() {
 
 rusty_fork_test! {
 #[test]
-fn test_instance_field_write() {
-    let out_dir = setup_test_output("bind_fields_instance_write");
-
-    javac::Build::new()
-        .file("tests/java/com/example/TestFields.java")
-        .output_dir(&out_dir)
-        .compile();
-
-    util::attach_current_thread(|env| {
-        load_test_fields_class(env, &out_dir)?;
-
-        let obj = TestFields::new(env)?;
-
-        // Read initial value
-        let initial_val = obj.int_field(env)?;
-        assert_eq!(initial_val, 10);
-
-        // Write new value
-        obj.set_int_field(env, 999)?;
-
-        // Read updated value
-        let updated_val = obj.int_field(env)?;
-        assert_eq!(updated_val, 999);
-
-        // Verify via method call
-        let method_val = obj.get_int_field(env)?;
-        assert_eq!(method_val, 999);
-
-        Ok(())
-    })
-    .expect("Instance field write test failed");
-}
-}
-
-rusty_fork_test! {
-#[test]
 fn test_constructor_with_values() {
     let out_dir = setup_test_output("bind_fields_constructor");
 
@@ -292,43 +287,6 @@ fn test_constructor_with_values() {
         Ok(())
     })
     .expect("Constructor with values test failed");
-}
-}
-
-rusty_fork_test! {
-#[test]
-fn test_multiple_instance_fields_write() {
-    let out_dir = setup_test_output("bind_fields_multiple_write");
-
-    javac::Build::new()
-        .file("tests/java/com/example/TestFields.java")
-        .output_dir(&out_dir)
-        .compile();
-
-    util::attach_current_thread(|env| {
-        load_test_fields_class(env, &out_dir)?;
-
-        let obj = TestFields::new(env)?;
-
-        // Write multiple fields
-        obj.set_int_field(env, 777)?;
-        obj.set_long_field(env, 888)?;
-        obj.set_boolean_field(env, true)?;
-        obj.set_double_field(env, 9.99)?;
-
-        let new_string = JString::from_str(env, "updated")?;
-        obj.set_string_field(env, &new_string)?;
-
-        // Read back all values
-        assert_eq!(obj.int_field(env)?, 777);
-        assert_eq!(obj.long_field(env)?, 888);
-        assert!(obj.boolean_field(env)?);
-        assert!((obj.double_field(env)? - 9.99).abs() < 0.01);
-        assert_eq!(obj.string_field(env)?.to_string(), "updated");
-
-        Ok(())
-    })
-    .expect("Multiple instance fields write test failed");
 }
 }
 

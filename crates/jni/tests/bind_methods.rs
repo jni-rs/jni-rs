@@ -131,6 +131,10 @@ fn test_instance_methods_getters_setters() {
     util::attach_current_thread(|env| {
         load_test_methods_class(env, &out_dir)?;
 
+        // First attempt to make a call with a null object reference
+        let res = TestMethods::null().get_message(env);
+        assert!(matches!(res, Err(jni::errors::Error::NullPtr(_))));
+
         let obj = TestMethods::new(env)?;
 
         // Test initial values
