@@ -59,6 +59,7 @@ Added `AttachmentExceptionPolicy` enum to control how Java exceptions are handle
 - `bind_java_type` emits `env.assert_top()` checks to ensure that any new local reference has a lifetime that's associated with the top JNI stack frame ([#776](https://github.com/jni-rs/jni-rs/pull/776))
 - Unsound `AsRef` pointer cast for `is_instance_of` types emitted by `bind_java_type` ([#777](https://github.com/jni-rs/jni-rs/pull/777))
 - `bind_java_type` emits `null` object checks to prevent calling methods or accessing fields on null objects ([#782](https://github.com/jni-rs/jni-rs/pull/782))
+- `bind_java_type` clamps the `*API` struct and native methods trait visibility to that of the binding type ([#785](https://github.com/jni-rs/jni-rs/pull/785))
 
 ## [0.22.1] — 2026-02-20
 

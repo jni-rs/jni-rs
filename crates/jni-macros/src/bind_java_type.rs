@@ -90,6 +90,33 @@ impl VisibilitySpec {
             VisibilitySpec::PubInPath(path) => quote! { pub(in #path) },
         }
     }
+    // Get back a visibility that is at most as permissive as `other`
+    //
+    // This is used to clamp the visibility of the `*API` struct to the visibility of the binding
+    // type itself.
+    fn clamp_to(&self, other: &VisibilitySpec) -> VisibilitySpec {
+        match (self, other) {
+            (VisibilitySpec::Public, _) => other.clone(),
+            (VisibilitySpec::PubCrate, VisibilitySpec::Public) => VisibilitySpec::PubCrate,
+            (VisibilitySpec::PubCrate, _) => other.clone(),
+            (VisibilitySpec::PubSuper, VisibilitySpec::Public | VisibilitySpec::PubCrate) => {
+                VisibilitySpec::PubSuper
+            }
+            (VisibilitySpec::PubSuper, _) => other.clone(),
+            (
+                VisibilitySpec::PubSelf,
+                VisibilitySpec::Public | VisibilitySpec::PubCrate | VisibilitySpec::PubSuper,
+            ) => VisibilitySpec::PubSelf,
+            (VisibilitySpec::PubSelf, _) => other.clone(),
+            // XXX: it's a bit hand-wavey deciding how we should clamp `pub(in
+            // path)`, but essentially we'll assume that if someone want's their
+            // binding to only be visible for a specific module path then their
+            // API type should also only be visible for the same path, unless
+            // `other` is restricted to `pub(self)`
+            (VisibilitySpec::PubInPath(_), VisibilitySpec::PubSelf) => VisibilitySpec::PubSelf,
+            (VisibilitySpec::PubInPath(_), _) => self.clone(),
+        }
+    }
 }
 
 /// Represents a constructor definition
@@ -1285,10 +1312,12 @@ pub fn bind_java_type_impl(input: TokenStream) -> Result<TokenStream> {
         .api_name
         .unwrap_or_else(|| format_ident!("{}API", type_name));
 
+    let type_visibility = input.type_visibility.unwrap_or(VisibilitySpec::PubSelf);
+
     // Generate the type struct
     let type_struct = generate_type_struct(
         type_name,
-        input.type_visibility,
+        &type_visibility,
         &input.type_attrs,
         &java_class_dotted,
         jni,
@@ -1317,12 +1346,19 @@ pub fn bind_java_type_impl(input: TokenStream) -> Result<TokenStream> {
     let all_id_inits = [constructor_method_id_inits, method_id_inits, field_id_inits].concat();
 
     // Generate the API struct
-    let api_struct = generate_api_struct(&api_name, input.priv_type.as_ref(), &all_id_fields, jni);
+    let api_struct = generate_api_struct(
+        &api_name,
+        &type_visibility,
+        input.priv_type.as_ref(),
+        &all_id_fields,
+        jni,
+    );
 
     // Generate native methods support - get registration code for API::get()
     let (native_trait_and_wrappers, native_registration_code) = generate_native_methods_code(
         type_name,
         &api_name,
+        &type_visibility,
         &java_class_internal,
         &java_class_dotted,
         &input.native_methods,
@@ -1400,7 +1436,7 @@ pub fn bind_java_type_impl(input: TokenStream) -> Result<TokenStream> {
 /// Generate the type struct definition
 fn generate_type_struct(
     type_name: &Ident,
-    type_visibility: Option<VisibilitySpec>,
+    type_visibility: &VisibilitySpec,
     type_attrs: &[syn::Attribute],
     java_class: &str,
     jni: &syn::Path,
@@ -1427,7 +1463,6 @@ how to cast them, and local reference frame lifetimes.
         }
     };
 
-    let type_visibility = type_visibility.unwrap_or(VisibilitySpec::PubSelf);
     let type_visibility = type_visibility.to_tokens();
 
     quote! {
@@ -1472,6 +1507,7 @@ how to cast them, and local reference frame lifetimes.
 /// Generate the API struct definition
 fn generate_api_struct(
     api_name: &Ident,
+    type_visibility: &VisibilitySpec,
     priv_type: Option<&Ident>,
     method_id_fields: &[TokenStream],
     jni: &syn::Path,
@@ -1482,9 +1518,12 @@ fn generate_api_struct(
         quote! {}
     };
 
+    let api_visibility = VisibilitySpec::PubCrate
+        .clamp_to(type_visibility)
+        .to_tokens();
     quote! {
         #[allow(non_snake_case)]
-        pub(crate) struct #api_name {
+        #api_visibility struct #api_name {
             class: #jni::refs::Global<#jni::objects::JClass<'static>>,
             #priv_field
             #(#method_id_fields)*
@@ -3083,6 +3122,7 @@ fn generate_fields(
 fn generate_native_methods_code(
     type_name: &Ident,
     api_name: &Ident,
+    type_visibility: &VisibilitySpec,
     java_class_internal: &str,
     java_class_dotted: &str,
     native_methods: &[NativeMethod],
@@ -3105,8 +3145,14 @@ fn generate_native_methods_code(
     let trait_name = native_trait_name.as_ref().unwrap_or(&default_trait_name);
 
     // Generate the native trait
-    let native_trait =
-        generate_native_trait(trait_name, type_name, native_methods, type_mappings, jni);
+    let native_trait = generate_native_trait(
+        trait_name,
+        type_name,
+        type_visibility,
+        native_methods,
+        type_mappings,
+        jni,
+    );
 
     // Generate wrapper methods (to be added to impl API block)
     let wrapper_methods = generate_native_wrappers(
@@ -3158,6 +3204,7 @@ fn generate_native_methods_code(
 fn generate_native_trait(
     trait_name: &Ident,
     type_name: &Ident,
+    type_visibility: &VisibilitySpec,
     native_methods: &[NativeMethod],
     type_mappings: &TypeMappings,
     jni: &syn::Path,
@@ -3225,9 +3272,12 @@ fn generate_native_trait(
         return quote! {};
     }
 
+    let trait_visibility = VisibilitySpec::PubCrate
+        .clamp_to(type_visibility)
+        .to_tokens();
     quote! {
         /// Native methods trait for user implementation
-        pub trait #trait_name {
+        #trait_visibility trait #trait_name {
             type Error: From<#jni::errors::Error>;
             #(#method_sigs)*
         }
