@@ -17,6 +17,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.2] — 2026-03-01
+
+_*Note*: although no breaking API change was made in this release there were some important fixes
+made, including a few non-trivial changes to how exceptions are handled and some important safety /
+soundness fixes made in the re-exported `jni-macros`._
+
+_For these reasons I'm going to *again* yank the previous 0.22.1 release after this is published,
+again taking into account that 0.22.1 was itself only released very recently and it should still be
+relatively unlikely that anyone has strictly locked in a 0.22.1 dependency._
+
+_Another benefit to yanking 0.22.1 is that it allows me to pin the `jni-macros` dependency via
+`=0.22.2` in this release so that in future releases I don't need to be worried that a new
+`jni-macros` release needs to be backwards compatible with all prior `jni` releases (so macros can
+take advantage of new `jni` features)._
+
+_Hopefully things will be smoother moving forward, now that more people have been starting to update
+to 0.22.x and there are more people testing it._
+
 ### Added
 
 Adds bindings for the following `java.lang` errors / exceptions ([#767](https://github.com/jni-rs/jni-rs/pull/767)):
@@ -62,7 +80,7 @@ Added `AttachmentExceptionPolicy` enum to control how Java exceptions are handle
 - `bind_java_type` emits `null` object checks to prevent calling methods or accessing fields on null objects ([#782](https://github.com/jni-rs/jni-rs/pull/782))
 - `bind_java_type` clamps the `*API` struct and native methods trait visibility to that of the binding type ([#785](https://github.com/jni-rs/jni-rs/pull/785))
 
-## [0.22.1] — 2026-02-20
+## [0.22.1] — 2026-02-20 (YANKED)
 
 *Note:* This release fixes several issues found in 0.22.0 which unfortunately required a few breaking changes.
 Instead of bumping to 0.23 though, the assumption is that no one will yet be depending on the recently-released
@@ -608,7 +626,8 @@ to call if there is a pending exception (#124):
 ## [0.10.1]
 - No changes has been made to the Changelog until this release.
 
-[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.22.1...HEAD
+[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.22.2...HEAD
+[0.22.2]: https://github.com/jni-rs/jni-rs/compare/v0.22.1...v0.22.2
 [0.22.1]: https://github.com/jni-rs/jni-rs/compare/v0.22.0...v0.22.1
 [0.22.0]: https://github.com/jni-rs/jni-rs/compare/v0.21.1...v0.22.0
 [0.21.1]: https://github.com/jni-rs/jni-rs/compare/v0.21.0...v0.21.1
