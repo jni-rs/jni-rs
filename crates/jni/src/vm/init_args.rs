@@ -355,7 +355,7 @@ pub struct InitArgs<'a> {
 
 impl InitArgs<'_> {
     #[allow(dead_code)]
-    pub(crate) fn inner_ptr(&self) -> *mut c_void {
+    pub fn inner_ptr(&self) -> *mut c_void {
         &self.inner as *const _ as _
     }
 }

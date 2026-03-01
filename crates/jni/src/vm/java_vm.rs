@@ -1368,7 +1368,7 @@ fn windows_is_shutdown_in_progress() -> bool {
 /// times *we* attached, not the actual JVM attachment state.
 pub(super) unsafe fn sys_detach_current_thread(
     cross_check_env: Option<*mut jni_sys::JNIEnv>,
-    thread: &Thread,
+    //thread: &Thread,
 ) -> Result<()> {
     assert_eq!(JavaVM::thread_attach_guard_level(), 0);
 
@@ -1438,18 +1438,22 @@ pub(super) unsafe fn sys_detach_current_thread(
             unsafe {
                 java_vm_call_unchecked!(vm, v1_1, DetachCurrentThread);
             }
+            /*
             debug!(
                 "Detached thread {} ({:?})",
                 thread.name().unwrap_or_default(),
                 thread.id()
             );
+            */
         } else {
             // Thread already detached (e.g., by another fiber on Windows, or manual DetachCurrentThread)
+            /*
             debug!(
                 "Thread {} ({:?}) already detached (skipping DetachCurrentThread)",
                 thread.name().unwrap_or_default(),
                 thread.id()
             );
+            */
         }
     }
 
@@ -1731,7 +1735,9 @@ impl<'local> AttachGuard<'local> {
                 new_level, 0,
                 "Spurious AttachGuard that owns its attachment but is nested under another guard"
             );
-            unsafe { sys_detach_current_thread(Some(self.env.raw), &std::thread::current()) }
+            unsafe {
+                sys_detach_current_thread(Some(self.env.raw) /*&std::thread::current()*/)
+            }
         } else {
             Ok(())
         };

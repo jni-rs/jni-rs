@@ -32,6 +32,7 @@ thread_local! {
 /// the env pointer can become invalid before the TLS destructor runs.
 #[derive(Debug)]
 struct TLSAttachGuard {
+    /*
     /// A call std::thread::current() function can panic in case the local data has been destroyed
     /// before the thread local variables. The possibility of this happening depends on the platform
     /// implementation of the sys_common::thread_local_dtor::register_dtor_fallback.
@@ -39,6 +40,7 @@ struct TLSAttachGuard {
     /// Since this struct will be saved as a thread-local variable, we capture the thread meta-data
     /// during creation
     thread: Thread,
+    */
 }
 
 impl TLSAttachGuard {
@@ -48,19 +50,23 @@ impl TLSAttachGuard {
     /// Since this is used in the implementation of `Drop` you must make sure
     /// to not let `Drop` run if this is called explicitly.
     unsafe fn detach_impl(&self) -> Result<()> {
-        unsafe { sys_detach_current_thread(None, &self.thread) }
+        unsafe {
+            sys_detach_current_thread(None /*, &self.thread */)
+        }
     }
 }
 
 impl Drop for TLSAttachGuard {
     fn drop(&mut self) {
         if let Err(e) = unsafe { self.detach_impl() } {
+            /*
             error!(
                 "Error detaching current thread: {:#?}\nThread {} id={:?}",
                 e,
                 self.thread.name().unwrap_or_default(),
                 self.thread.id(),
             );
+            */
         }
     }
 }
@@ -98,7 +104,7 @@ pub(super) unsafe fn tls_attach_current_thread<'local>(
         };
         let env =
             unsafe { sys_attach_current_thread(java_vm, config, &thread, inc_attached_count)? };
-        *f.borrow_mut() = Some(TLSAttachGuard { thread: current() });
+        *f.borrow_mut() = Some(TLSAttachGuard { /*thread: current()*/ });
         Ok(env)
     })?;
 
