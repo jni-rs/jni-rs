@@ -7,8 +7,8 @@ categories = ["api-bindings"]
 name = "jni"
 repository = "https://github.com/jni-rs/jni-rs"
 # ¡When bumping version please also update it in examples and documentation!
-version = "0.22.2"
-exclude = ["/benches", "/example", "/tests", "/test_profile"]
+version = "0.22.3"
+exclude = ["/benches", "/examples", "/mylib-example", "/tests"]
 
 authors.workspace = true
 edition.workspace = true
@@ -52,12 +52,12 @@ required-features = ["invocation"]
 [dependencies]
 jni-macros.workspace = true
 jni-sys.workspace = true
+simd_cesu8.workspace = true
 
 log.workspace = true
 thiserror.workspace = true
 
 cfg-if = "1.0.0"
-simd_cesu8 = "1.0.1"
 combine = "4.1.0"
 
 [target.'cfg(windows)'.dependencies]
