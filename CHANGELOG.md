@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `JCharSequence` bindings for `java.lang.CharSequence` (including `AsRef<JCharSequence>` + `.as_char_sequence()` for `JString`) ([#793](https://github.com/jni-rs/jni-rs/pull/793))
+
 ## [0.22.3] — 2026-03-05
 
 #### Fixed
