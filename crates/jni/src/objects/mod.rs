@@ -13,6 +13,9 @@ pub use self::jclass::*;
 mod jclass_loader;
 pub use self::jclass_loader::*;
 
+mod jchar_sequence;
+pub use self::jchar_sequence::*;
+
 mod jstring;
 pub use self::jstring::*;
 

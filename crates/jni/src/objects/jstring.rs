@@ -12,6 +12,9 @@ crate::bind_java_type! {
     pub JString => "java.lang.String",
     __jni_core = true,
     __sys_type = jstring,
+    is_instance_of {
+        collection = JCharSequence,
+    },
     methods {
         /// Returns a canonical, interned version of this string.
         fn intern() -> JString,

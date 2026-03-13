@@ -597,6 +597,12 @@ impl TypeMappings {
                 false,
             ),
             (
+                "JCharSequence",
+                "java.lang.CharSequence",
+                "objects::JCharSequence",
+                false,
+            ),
+            (
                 "JClassLoader",
                 "java.lang.ClassLoader",
                 "objects::JClassLoader",

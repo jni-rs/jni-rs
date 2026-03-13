@@ -441,6 +441,8 @@ pub fn __test_bindings_init(env: &crate::Env, loader: &crate::refs::LoaderContex
     objects::JClassLoaderAPI::get(env, loader)
         .expect("Failed to initialize JClassLoaderAPI bindings");
     objects::JClassAPI::get(env, loader).expect("Failed to initialize JClassAPI bindings");
+    objects::JCharSequenceAPI::get(env, loader)
+        .expect("Failed to initialize JCharSequenceAPI bindings");
     objects::JCollectionAPI::get(env, loader)
         .expect("Failed to initialize JCollectionAPI bindings");
     objects::JIteratorAPI::get(env, loader).expect("Failed to initialize JIteratorAPI bindings");
