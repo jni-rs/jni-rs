@@ -92,4 +92,20 @@ public class TestMethods {
         message = "default";
         counter = 0;
     }
+
+    // Methods for testing non_null validation
+    public String getNullableMessage() {
+        // This method returns null to test nullable (default) behavior
+        return null;
+    }
+
+    public String getRequiredMessage() {
+        // This method returns null to test that non_null validation catches it
+        return null;
+    }
+
+    public String getValidatedMessage() {
+        // This method returns null to test that non_null validation (block syntax) catches it
+        return null;
+    }
 }

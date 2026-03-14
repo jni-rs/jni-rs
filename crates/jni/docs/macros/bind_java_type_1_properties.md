@@ -140,7 +140,7 @@ The `fields` block defines bindings for instance and static fields, generating g
 
 **Shorthand syntax:**
 ```text
-[visibility] [static] name: type
+[visibility] [static] [non_null] name: type
 ```
 
 **Block syntax:**
@@ -155,6 +155,7 @@ The `fields` block defines bindings for instance and static fields, generating g
 
 - **`visibility`** - `pub`, `priv`, `pub(crate)`, etc. (defaults to `pub`)
 - **`static`** - Static field (class-level field)
+- **`non_null`** - Validate that field is never null (shorthand implies `non_null = true`)
 
 **Example:**
 
@@ -312,6 +313,50 @@ bind_java_type! {
 }
 ```
 
+## `non_null` - Null Validation for Fields
+
+The `non_null` property validates that field getters return non-null values and field setters
+do not accept null values, treating `null` as an error.
+
+**Syntax:**
+```text
+non_null = true | false   // In block syntax (default: false)
+non_null field_name: Type // In shorthand syntax (implies non_null = true)
+```
+
+**Behavior:**
+- If `non_null = true` and the field getter returns `null`, it returns `Err(Error::NullPtr("Null Object"))`
+- If `non_null = true` and you try to set the field to `null`, it returns `Err(Error::NullPtr("Null Object"))`
+- `Error::JavaException` has higher precedence - Java exceptions are always returned first
+
+```rust,ignore
+# use jni::bind_java_type;
+# use jni::objects::JString;
+# bind_java_type! { pub MyType => com.example.MyClass,
+# fields {
+// Shorthand syntax - non_null qualifier
+non_null required_name: JString,
+
+// Block syntax - explicit property
+optional_name {
+    sig = JString,
+    non_null = false,  // Default - null is allowed
+},
+
+validated_name {
+    sig = JString,
+    non_null = true,   // Null causes Error::NullPtr
+},
+# }}
+```
+
+**Restrictions:**
+
+- Cannot be used with fields of primitive types
+
+This is useful when Java fields are not expected to be `null` normally and it's logically an error
+if they are but the implementation may not throw an exception in this case.
+
 # Method Blocks Common Reference
 
 This section documents properties and syntax common to all method blocks.
@@ -328,7 +373,7 @@ All three method blocks support two syntax forms with common qualifiers:
 
 **Shorthand syntax:**
 ```text
-[visibility] [static] [raw] [extern] fn name(args...) -> return_type
+[visibility] [static] [raw] [extern] [non_null] fn name(args...) -> return_type
 ```
 
 **Block syntax:**
@@ -345,6 +390,7 @@ All three method blocks support two syntax forms with common qualifiers:
 - **`static`** - Static method (for `methods` and `native_methods` only)
 - **`raw`** - Raw JNI method (for `native_methods` only)
 - **`extern`** - Export JNI symbol (for `native_methods` only, equivalent to `export = true`)
+- **`non_null`** - Validate that method returns non-null (for `methods` and `native_methods` only, shorthand implies `non_null = true`)
 
 **Example:**
 
@@ -433,6 +479,57 @@ fn rust_name {
 ```
 
 This is useful when the Java method name conflicts with Rust keywords or conventions.
+
+## `non_null` - Null Validation for Methods
+
+The `non_null` property validates that methods return non-null object references, treating `null` as
+an error even when no Java exception was thrown.
+
+**Syntax:**
+
+```text
+non_null = true | false  // In block syntax (default: false)
+non_null fn name(...)     // In shorthand syntax (implies non_null = true)
+```
+
+**Behavior:**
+
+- If `non_null = true` and the method returns `null`, it returns `Err(Error::NullPtr("Null Object"))`
+- `Error::JavaException` has higher precedence - Java exceptions are always returned first
+
+```rust,no_run
+# use jni::bind_java_type;
+# use jni::objects::JString;
+# bind_java_type! { pub MyType => com.example.MyClass,
+# methods {
+// Shorthand syntax - non_null qualifier
+non_null fn get_required_name() -> JString,
+
+// Block syntax - explicit property
+fn get_optional_name {
+    sig = () -> JString,
+    non_null = false,  // Default - null is allowed
+},
+
+fn get_validated_name {
+    sig = () -> JString,
+    non_null = true,   // Null causes Error::NullPtr
+},
+# }}
+```
+
+**Restrictions:**
+
+- Cannot be used with constructors
+- Cannot be used with methods that return primitive types or void
+- For native methods: only affects bindings with a visibility specifier (callable from Rust), not the implementation
+
+This is useful when Java APIs are not expected to return `null` normally and it's logically an error
+if they do, but they also may not throw an exception in this case.
+
+**Note for native methods:** The `non_null` property only affects the generated Rust API for calling
+the native method (when a visibility specifier is present). It does not affect the implementation of
+the native method itself.
 
 # Constructor Blocks Reference (`constructors`)
 
@@ -530,6 +627,53 @@ bind_java_type! {
 
 1. **Via trait** (default): Implement the generated `{Type}NativeInterface` trait
 2. **Direct function**: Provide `fn = path::to::function` to bypass the trait
+
+## Visibility - Making Native Methods Callable from Rust
+
+Native methods can optionally include a visibility specifier (`pub`, `pub(crate)`, etc.) to generate
+a Rust API for calling the native method from Rust code. Without a visibility specifier, the method
+will only have a Rust implementation that can be called from Java or dynamically via JNI.
+
+**With visibility** - Generates both implementation and callable API:
+```rust
+# use jni::sys::jint;
+# use jni::bind_java_type;
+# bind_java_type! { pub MyType => com.example.MyClass,
+# native_methods {
+pub extern fn native_method(value: jint) -> jint,
+# }}
+# impl MyTypeNativeInterface for MyTypeAPI {
+#     type Error = jni::errors::Error;
+#     fn native_method<'local>(_: &mut jni::Env<'local>, _: MyType<'local>, _: jint) -> Result<jint, Self::Error> { Ok(0) }
+# }
+```
+
+This generates:
+- Trait method for implementation: `fn native_method(...) -> Result<jint, Error>`
+- Callable Rust API: `pub fn native_method(&self, env: &mut Env, value: jint) -> Result<jint>`
+- JNI export symbol (due to `extern`)
+
+**Without visibility** - Implementation only:
+```rust
+# use jni::sys::jint;
+# use jni::bind_java_type;
+# bind_java_type! { pub MyType => com.example.MyClass,
+# native_methods {
+extern fn native_method(value: jint) -> jint,
+# }}
+# impl MyTypeNativeInterface for MyTypeAPI {
+#     type Error = jni::errors::Error;
+#     fn native_method<'local>(_: &mut jni::Env<'local>, _: MyType<'local>, _: jint) -> Result<jint, Self::Error> { Ok(0) }
+# }
+```
+
+This generates:
+- Trait method for implementation: `fn native_method(...) -> Result<jint, Error>`
+- JNI export symbol (due to `extern`)
+- **No** callable Rust API (can only be called from Java)
+
+This distinction is important because some properties like `non_null` only affect the callable Rust API,
+not the implementation.
 
 ## `fn` - Direct Function Implementation
 

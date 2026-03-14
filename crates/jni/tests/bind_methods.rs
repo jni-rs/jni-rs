@@ -33,6 +33,14 @@ bind_java_type! {
         fn calculate(a: jint, b: jlong, c: jfloat, d: jdouble) -> jdouble,
         fn to_string_custom() -> JString,
         fn reset() -> void,
+
+        // Methods for testing non_null validation
+        fn get_nullable_message() -> JString,  // Can return null
+        non_null fn get_required_message() -> JString,  // Shorthand syntax - must not return null
+        fn get_validated_message {  // Block syntax with explicit non_null
+            sig = () -> JString,
+            non_null = true,
+        },
     }
 }
 
@@ -293,6 +301,45 @@ fn test_reset_method() {
         Ok(())
     })
     .expect("Reset test failed");
+}
+}
+
+rusty_fork_test! {
+#[test]
+fn test_non_null_validation() {
+    let out_dir = setup_test_output("bind_methods_non_null");
+
+    javac::Build::new()
+        .file("tests/java/com/example/TestMethods.java")
+        .output_dir(&out_dir)
+        .compile();
+
+    util::attach_current_thread(|env| {
+        load_test_methods_class(env, &out_dir)?;
+
+        let obj = TestMethods::new(env)?;
+
+        // Test nullable method - should allow null without error
+        let nullable = obj.get_nullable_message(env)?;
+        assert!(nullable.is_null(), "Expected get_nullable_message to return null");
+
+        // Test non_null method with shorthand syntax
+        let result = obj.get_required_message(env);
+        assert!(
+            matches!(result, Err(jni::errors::Error::NullPtr(_))),
+            "Expected Error::NullPtr when non_null method returns null"
+        );
+
+        // Test non_null method with block syntax
+        let result = obj.get_validated_message(env);
+        assert!(
+            matches!(result, Err(jni::errors::Error::NullPtr(_))),
+            "Expected Error::NullPtr when non_null method returns null"
+        );
+
+        Ok(())
+    })
+    .expect("Non-null validation test failed");
 }
 }
 
