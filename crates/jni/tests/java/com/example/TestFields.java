@@ -31,6 +31,11 @@ public class TestFields {
     // Instance String field
     public String stringField;
 
+    // Fields for testing non_null validation
+    public String nullableStringField;  // Can be null
+    public String requiredStringField;  // Should be validated with non_null
+    public String validatedStringField; // Should be validated with non_null (block syntax)
+
     // Constructor
     public TestFields() {
         this.intField = 10;
@@ -42,6 +47,9 @@ public class TestFields {
         this.doubleField = 2.5;
         this.charField = 'A';
         this.stringField = "instance string";
+        this.nullableStringField = null;  // Initialize to null for testing
+        this.requiredStringField = null;  // Initialize to null to test validation
+        this.validatedStringField = null; // Initialize to null to test validation
     }
 
     public TestFields(int intValue, String stringValue) {

@@ -549,6 +549,83 @@ bind_java_type! {
 }
 ```
 
+## Null Validation
+
+Use `non_null` to validate that methods and fields never return null, converting null values into errors:
+
+```rust,no_run
+use jni::bind_java_type;
+use jni::Env;
+use jni::objects::JString;
+use jni::refs::Reference;
+
+bind_java_type! {
+    pub UserProfile => com.example.UserProfile,
+    constructors {
+        fn new(),
+    },
+    methods {
+        // Shorthand syntax - non_null qualifier
+        non_null fn get_username() -> JString,
+        non_null fn get_email() -> JString,
+
+        // Optional field that can be null
+        fn get_nickname() -> JString,
+
+        // Block syntax with explicit non_null property
+        fn get_display_name {
+            sig = () -> JString,
+            non_null = true,
+        },
+    },
+    fields {
+        // Shorthand syntax - non_null qualifier for fields
+        non_null username: JString,
+        non_null email: JString,
+
+        // Optional field that can be null
+        nickname: JString,
+
+        // Block syntax
+        display_name {
+            sig = JString,
+            non_null = true,
+        },
+    },
+}
+
+fn validate_non_null(env: &mut Env) -> jni::errors::Result<()> {
+    let profile = UserProfile::new(env)?;
+
+    // These will return Error::NullPtr("Null Object") if the Java method returns null
+    let username = profile.get_username(env)?;  // non_null method
+    assert!(!username.is_null());
+    let email_field = profile.username(env)?;   // non_null field getter
+    assert!(!email_field.is_null());
+
+    // This can return null without error
+    let nickname = profile.get_nickname(env)?;
+    if !nickname.is_null() {
+        println!("Nickname: {}", nickname.try_to_string(env)?);
+    }
+
+    // Setting a non_null field to null will also return an error
+    let null_string = JString::null();
+    let res = profile.set_username(env, &null_string);
+    assert!(res.is_err()); // Error::NullPtr("Null Object")
+
+    Ok(())
+}
+```
+
+**When to use `non_null`:**
+
+- APIs where null is logically an error but may not throw an exception
+- Required fields that should always have a value
+- Methods that are documented to never return null under normal circumstances
+
+**Note:** `Error::JavaException` always takes precedence - if a Java exception is thrown, that will be returned regardless of the `non_null` setting.
+
 ## Complete Example
 
 A comprehensive example combining multiple features:

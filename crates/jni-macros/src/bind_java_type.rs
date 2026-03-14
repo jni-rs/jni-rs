@@ -57,6 +57,7 @@ custom_keyword!(priv_type);
 custom_keyword!(is_instance_of);
 custom_keyword!(__jni_core);
 custom_keyword!(raw);
+custom_keyword!(non_null);
 
 /// Represents a visibility modifier
 #[derive(Clone)]
@@ -136,6 +137,7 @@ struct Method {
     method_signature: MethodSignature,
     attrs: Vec<syn::Attribute>,
     is_static: bool,
+    non_null: bool,
 }
 
 /// Represents a field definition
@@ -153,6 +155,7 @@ struct Field {
     getter_attrs: Vec<syn::Attribute>,
     setter_attrs: Vec<syn::Attribute>,
     is_static: bool,
+    non_null: bool,
 }
 
 /// Represents an entry in the is_instance_of list
@@ -205,6 +208,7 @@ struct ParsedMethod {
     is_static: bool,              // Set for both Method and NativeMethod
     abi_check: Option<AbiCheck>,  // Only set for NativeMethod
     catch_unwind: Option<bool>,   // Only set for NativeMethod
+    non_null: bool,               // Set for Method and NativeMethod (not Constructor)
 }
 
 /// Parse an optional visibility specifier
@@ -283,13 +287,14 @@ fn parse_method(
     let visibility = parse_visibility(input)?;
 
     // Parse qualifiers that can appear after visibility and before the fn keyword
-    // For shorthand: [vis] [static] [raw] [extern] fn name(params) -> ret
+    // For shorthand: [vis] [static] [raw] [extern] [non_null] fn name(params) -> ret
     // For block: [vis] [static] [extern] fn name { ... }
     let mut is_static = false;
     let mut is_raw = false;
     let mut is_extern = false;
+    let mut is_non_null = false;
 
-    // Parse qualifiers in any order (static, raw, extern)
+    // Parse qualifiers in any order (static, raw, extern, non_null)
     loop {
         if input.peek(Token![static]) {
             input.parse::<Token![static]>()?;
@@ -300,6 +305,9 @@ fn parse_method(
         } else if input.peek(raw) {
             input.parse::<raw>()?;
             is_raw = true;
+        } else if input.peek(non_null) {
+            input.parse::<non_null>()?;
+            is_non_null = true;
         } else {
             break;
         }
@@ -424,6 +432,11 @@ fn parse_method(
                 body_content.parse::<Token![=]>()?;
                 let lit_bool = body_content.parse::<LitBool>()?;
                 catch_unwind = Some(lit_bool.value());
+            } else if lookahead.peek(self::non_null) {
+                body_content.parse::<non_null>()?;
+                body_content.parse::<Token![=]>()?;
+                let lit_bool = body_content.parse::<LitBool>()?;
+                is_non_null = lit_bool.value();
             } else {
                 return Err(lookahead.error());
             }
@@ -491,6 +504,14 @@ fn parse_method(
                     "Constructors cannot be static",
                 ));
             }
+
+            // Constructors cannot use non_null
+            if is_non_null {
+                return Err(syn::Error::new(
+                    rust_name.span(),
+                    "Constructors cannot use 'non_null' - use it on methods that can return null instead",
+                ));
+            }
         }
         MethodKind::Method => {
             // See !NativeMethod validation below
@@ -509,6 +530,12 @@ fn parse_method(
                     return Err(syn::Error::new(
                         rust_name.span(),
                         "Cannot specify 'catch_unwind' when using 'raw' - catch_unwind only applies to safe wrappers",
+                    ));
+                }
+                if is_non_null {
+                    return Err(syn::Error::new(
+                        rust_name.span(),
+                        "Cannot specify 'non_null' when using 'raw' - non_null only applies to safe wrappers that return Result",
                     ));
                 }
             }
@@ -564,6 +591,26 @@ fn parse_method(
         }
     }
 
+    // Validate non_null usage
+    if is_non_null {
+        // Check if the return type is a primitive or void
+        let is_primitive_or_void = method_signature
+            .return_type
+            .try_as_primitive(type_mappings)
+            .is_some()
+            || matches!(
+                method_signature.return_type,
+                SigType::Alias(ref name) if name == "void"
+            );
+
+        if is_primitive_or_void {
+            return Err(syn::Error::new(
+                rust_name.span(),
+                "Cannot use 'non_null' with methods that return primitive types or void - non_null is only valid for object/reference return types",
+            ));
+        }
+    }
+
     Ok(ParsedMethod {
         rust_name,
         java_name,
@@ -577,6 +624,7 @@ fn parse_method(
         is_static,
         abi_check,
         catch_unwind,
+        non_null: is_non_null,
     })
 }
 
@@ -618,6 +666,7 @@ fn parse_methods(input: ParseStream, type_mappings: &TypeMappings) -> Result<Vec
             method_signature: parsed.method_signature,
             attrs: parsed.attrs,
             is_static: parsed.is_static,
+            non_null: parsed.non_null,
         });
 
         if !input.is_empty() {
@@ -647,6 +696,7 @@ fn parse_native_methods(
                 method_signature: parsed.method_signature.clone(),
                 attrs: parsed.attrs.clone(),
                 is_static: parsed.is_static,
+                non_null: parsed.non_null,
             });
         }
         native_methods.push(NativeMethod {
@@ -683,13 +733,22 @@ fn parse_field(input: ParseStream, type_mappings: &TypeMappings) -> Result<Field
     let mut setter_visibility = field_visibility.unwrap_or(VisibilitySpec::Public);
 
     // Parse qualifiers that can appear after visibility and before the field name
-    // For shorthand: [vis] [static] name: Type
+    // For shorthand: [vis] [static] [non_null] name: Type
     // For block: [vis] [static] name { ... }
     let mut is_static = false;
+    let mut is_non_null = false;
 
-    if input.peek(Token![static]) {
-        input.parse::<Token![static]>()?;
-        is_static = true;
+    // Parse qualifiers in any order (static, non_null)
+    loop {
+        if input.peek(Token![static]) {
+            input.parse::<Token![static]>()?;
+            is_static = true;
+        } else if input.peek(non_null) {
+            input.parse::<non_null>()?;
+            is_non_null = true;
+        } else {
+            break;
+        }
     }
 
     let rust_name = input.parse::<Ident>()?;
@@ -719,6 +778,20 @@ fn parse_field(input: ParseStream, type_mappings: &TypeMappings) -> Result<Field
 
         let field_signature = FieldSignature { field_type };
 
+        // Validate non_null usage
+        if is_non_null {
+            let is_primitive = field_signature
+                .field_type
+                .try_as_primitive(type_mappings)
+                .is_some();
+            if is_primitive {
+                return Err(syn::Error::new(
+                    rust_name.span(),
+                    "Cannot use 'non_null' with fields of primitive types - non_null is only valid for object/reference field types",
+                ));
+            }
+        }
+
         Ok(Field {
             java_name,
             rust_name,
@@ -731,6 +804,7 @@ fn parse_field(input: ParseStream, type_mappings: &TypeMappings) -> Result<Field
             getter_attrs: Vec::new(),
             setter_attrs: Vec::new(),
             is_static,
+            non_null: is_non_null,
         })
     } else if input.peek(syn::token::Brace) || input.peek(Token![=]) {
         // Block syntax: field_name [=] { name = "javaName", sig = Type, ... }
@@ -797,6 +871,11 @@ fn parse_field(input: ParseStream, type_mappings: &TypeMappings) -> Result<Field
                     body_content.parse::<Token![=]>()?;
                     let lit_bool = body_content.parse::<LitBool>()?;
                     is_static = lit_bool.value();
+                } else if lookahead.peek(non_null) {
+                    body_content.parse::<non_null>()?;
+                    body_content.parse::<Token![=]>()?;
+                    let lit_bool = body_content.parse::<LitBool>()?;
+                    is_non_null = lit_bool.value();
                 } else {
                     return Err(lookahead.error());
                 }
@@ -819,6 +898,20 @@ fn parse_field(input: ParseStream, type_mappings: &TypeMappings) -> Result<Field
                 (Some(default_getter_name), Some(default_setter_name))
             };
 
+        // Validate non_null usage
+        if is_non_null {
+            let is_primitive = field_signature
+                .field_type
+                .try_as_primitive(type_mappings)
+                .is_some();
+            if is_primitive {
+                return Err(syn::Error::new(
+                    rust_name.span(),
+                    "Cannot use 'non_null' with fields of primitive types - non_null is only valid for object/reference field types",
+                ));
+            }
+        }
+
         Ok(Field {
             java_name,
             rust_name,
@@ -831,6 +924,7 @@ fn parse_field(input: ParseStream, type_mappings: &TypeMappings) -> Result<Field
             getter_attrs,
             setter_attrs,
             is_static,
+            non_null: is_non_null,
         })
     } else {
         Err(syn::Error::new(
@@ -2685,6 +2779,24 @@ fn generate_methods(
         // Apply attributes to the method
         let attrs = &method.attrs;
 
+        // Generate null check if non_null is true
+        let null_check_and_return = if method.non_null {
+            quote! {
+                #jni_call.and_then(|__result| {
+                    use #jni::refs::Reference as _;
+                    if __result.is_null() {
+                        Err(#jni::errors::Error::NullPtr("Null Object"))
+                    } else {
+                        Ok(__result)
+                    }
+                })
+            }
+        } else {
+            quote! {
+                #jni_call
+            }
+        };
+
         method_impls.push(quote! {
             #(#attrs)*
             #visibility fn #rust_name #lifetime_decls (
@@ -2696,7 +2808,7 @@ fn generate_methods(
                 let jni_args #jni_args_type = [#(#jvalue_conversions),*];
 
                 #class_def
-                #jni_call
+                #null_check_and_return
             }
         });
     }
@@ -3043,6 +3155,24 @@ fn generate_fields(
                 type_mappings,
             );
 
+            // Generate null check if non_null is true
+            let get_null_check_and_return = if field.non_null {
+                quote! {
+                    #get_call.and_then(|__result| {
+                        use #jni::refs::Reference as _;
+                        if __result.is_null() {
+                            Err(#jni::errors::Error::NullPtr("Null Object"))
+                        } else {
+                            Ok(__result)
+                        }
+                    })
+                }
+            } else {
+                quote! {
+                    #get_call
+                }
+            };
+
             field_impls.push(quote! {
                 #(#getter_attributes)*
                 #getter_visibility fn #getter_name<'env_local>(
@@ -3051,7 +3181,7 @@ fn generate_fields(
                 ) -> #jni::errors::Result<#return_type> {
                     let api = #api_name::get(env, &#jni::refs::LoaderContext::None)?;
                     #class_def
-                    #get_call
+                    #get_null_check_and_return
                 }
             });
         }
@@ -3095,6 +3225,21 @@ fn generate_fields(
                 type_mappings,
             );
 
+            // Generate null check if non_null is true
+            let set_null_check_and_call = if field.non_null {
+                quote! {
+                    use #jni::refs::Reference as _;
+                    if val.as_ref().is_null() {
+                        return Err(#jni::errors::Error::NullPtr("Null Object"));
+                    }
+                    #set_call
+                }
+            } else {
+                quote! {
+                    #set_call
+                }
+            };
+
             field_impls.push(quote! {
                 #(#setter_attributes)*
                 #setter_visibility fn #setter_name #field_lifetime_decl (
@@ -3104,7 +3249,7 @@ fn generate_fields(
                 ) -> #jni::errors::Result<()> {
                     let api = #api_name::get(env, &#jni::refs::LoaderContext::None)?;
                     #class_def
-                    #set_call
+                    #set_null_check_and_call
                 }
             });
         }

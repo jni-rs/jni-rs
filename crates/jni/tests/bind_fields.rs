@@ -35,6 +35,14 @@ bind_java_type! {
         double_field: jdouble,
         char_field: jchar,
         string_field: JString,
+
+        // Fields for testing non_null validation
+        nullable_string_field: JString,  // Can be null
+        non_null required_string_field: JString,  // Shorthand syntax - must not be null
+        validated_string_field {  // Block syntax with explicit non_null
+            sig = JString,
+            non_null = true,
+        },
     },
     methods {
         fn get_int_field() -> jint,
@@ -321,4 +329,84 @@ fn setup_test_output(test_name: &str) -> PathBuf {
     fs::create_dir_all(&out_dir).expect("Failed to create test output directory");
 
     out_dir
+}
+
+rusty_fork_test! {
+#[test]
+fn test_non_null_field_validation() {
+    let out_dir = setup_test_output("bind_fields_non_null");
+
+    javac::Build::new()
+        .file("tests/java/com/example/TestFields.java")
+        .output_dir(&out_dir)
+        .compile();
+
+    util::attach_current_thread(|env| {
+        load_test_fields_class(env, &out_dir)?;
+
+        let obj = TestFields::new(env)?;
+
+        // Test nullable field - should allow null without error
+        // We know from TestFields constructor that this field is initialized to null
+        let nullable = obj.nullable_string_field(env)?;
+        assert!(nullable.is_null(), "Expected nullable field to initially be null");
+
+        // Test getter with non_null (shorthand syntax)
+        // We know this field is initialized to null, so getting it should fail
+        let result = obj.required_string_field(env);
+        assert!(
+            matches!(result, Err(jni::errors::Error::NullPtr(_))),
+            "Expected Error::NullPtr when getting non_null field that is null"
+        );
+
+        // Test getter with non_null (block syntax)
+        // We know this field is initialized to null, so getting it should fail
+        let result = obj.validated_string_field(env);
+        assert!(
+            matches!(result, Err(jni::errors::Error::NullPtr(_))),
+            "Expected Error::NullPtr when getting non_null field that is null"
+        );
+
+        // Test setting a non_null field to null should also fail
+        let null_string = JString::null();
+        let result = obj.set_required_string_field(env, &null_string);
+        assert!(
+            matches!(result, Err(jni::errors::Error::NullPtr(_))),
+            "Setting non_null field to null should return NullPtr error"
+        );
+
+        // Test setting a non_null field to a non-null value should succeed
+        let valid_string = JString::from_str(env, "valid value")?;
+        obj.set_required_string_field(env, &valid_string)?;
+
+        // Now getting the field should succeed
+        let result = obj.required_string_field(env)?;
+        assert!(!result.is_null());
+        assert_eq!(result.to_string(), "valid value");
+
+        // Test setting validated_string_field (block syntax) to null should also fail
+        let result = obj.set_validated_string_field(env, &null_string);
+        assert!(
+            matches!(result, Err(jni::errors::Error::NullPtr(_))),
+            "Setting non_null field to null should return NullPtr error"
+        );
+
+        // Test setting validated_string_field to a non-null value should succeed
+        let another_valid = JString::from_str(env, "another valid")?;
+        obj.set_validated_string_field(env, &another_valid)?;
+
+        // Now getting the field should succeed
+        let result = obj.validated_string_field(env)?;
+        assert!(!result.is_null());
+        assert_eq!(result.to_string(), "another valid");
+
+        // Test that nullable field allows setting null (doesn't fail)
+        obj.set_nullable_string_field(env, &null_string)?;
+        let result = obj.nullable_string_field(env)?;
+        assert!(result.is_null(), "Expected nullable field to be null after setting to null");
+
+        Ok(())
+    })
+    .expect("Non-null field validation test failed");
+}
 }
