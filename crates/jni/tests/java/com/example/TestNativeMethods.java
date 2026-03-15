@@ -36,6 +36,11 @@ public class TestNativeMethods {
 
     public static native String[][] native2DStringArrayEcho(String[][] arr);
 
+    // Native methods to test cfg attribute support
+    public native int nativeCfgTest();
+
+    public native int nativeInvocationTest();
+
     // Non-native methods that can be used to test native method calls
     public int getCounter() {
         return counter;

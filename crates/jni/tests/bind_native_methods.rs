@@ -38,6 +38,11 @@ bind_java_type! {
         },
         pub static fn native_string_array_echo(arr: JString[]) -> JString[],
         pub static fn native_2d_string_array_echo(arr: JString[][]) -> JString[][],
+        // Methods to test cfg attribute support
+        #[cfg(feature = "_cfg_test")]
+        pub fn native_cfg_test() -> jint,
+        #[cfg(feature = "invocation")]
+        pub fn native_invocation_test() -> jint,
     }
 }
 
@@ -133,6 +138,22 @@ impl TestNativeMethodsNativeInterface for TestNativeMethodsAPI {
         arr: JObjectArray<'local, JObjectArray<'local, JString<'local>>>,
     ) -> Result<JObjectArray<'local, JObjectArray<'local, JString<'local>>>, Self::Error> {
         Ok(arr)
+    }
+
+    #[cfg(feature = "invocation")]
+    fn native_invocation_test<'local>(
+        _env: &mut Env<'local>,
+        _this: TestNativeMethods<'local>,
+    ) -> Result<jint, Self::Error> {
+        Ok(42)
+    }
+
+    #[cfg(feature = "_cfg_test")]
+    fn native_cfg_test<'local>(
+        _env: &mut Env<'local>,
+        _this: TestNativeMethods<'local>,
+    ) -> Result<jint, Self::Error> {
+        Ok(123)
     }
 }
 
@@ -309,6 +330,26 @@ native_method_test! {
         assert_eq!(r2c1.to_string(), "baz");
         assert_eq!(r2c2.to_string(), "qux");
 
+        Ok(())
+    }
+}
+
+native_method_test! {
+    test_name: test_cfg_guards,
+    java_class: "com/example/TestNativeMethods.java",
+    api: TestNativeMethodsAPI,
+    test_body: |env| {
+        let _obj = TestNativeMethods::new(env)?;
+
+        let result = _obj.native_invocation_test(env)?;
+        assert_eq!(result, 42);
+
+        #[cfg(feature = "_cfg_test")]
+        {
+            // This should compile and run if _cfg_test feature is enabled
+            let result = _obj.native_cfg_test(env)?;
+            assert_eq!(result, 123);
+        }
         Ok(())
     }
 }

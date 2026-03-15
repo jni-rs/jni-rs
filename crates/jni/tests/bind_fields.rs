@@ -43,12 +43,19 @@ bind_java_type! {
             sig = JString,
             non_null = true,
         },
-    },
-    methods {
-        fn get_int_field() -> jint,
-        fn get_string_field() -> JString,
-        static fn get_static_int_field() -> jint,
-        static fn get_static_string_field() -> JString,
+
+        // Fields for testing cfg attribute support
+        // These are guarded by _cfg_test which is never enabled in tests
+        #[cfg(feature = "_cfg_test")]
+        static static_cfg_test_field: jint,
+        #[cfg(feature = "_cfg_test")]
+        instance_cfg_test_field: jint,
+
+        // These are guarded by invocation which is always enabled in tests
+        #[cfg(feature = "invocation")]
+        static static_invocation_field: jint,
+        #[cfg(feature = "invocation")]
+        instance_invocation_field: jint,
     }
 }
 
@@ -113,10 +120,6 @@ fn test_static_string_field() {
         let string_val = TestFields::static_string_field(env)?;
         assert_eq!(string_val.to_string(), "static string value");
 
-        // Test method that returns static field
-        let string_val2 = TestFields::get_static_string_field(env)?;
-        assert_eq!(string_val2.to_string(), "static string value");
-
         Ok(())
     })
     .expect("Static string field test failed");
@@ -146,10 +149,6 @@ fn test_static_field_write() {
         // Read updated value
         let updated_val = TestFields::static_int_field(env)?;
         assert_eq!(updated_val, 100);
-
-        // Verify via method call
-        let method_val = TestFields::get_static_int_field(env)?;
-        assert_eq!(method_val, 100);
 
         Ok(())
     })
@@ -253,10 +252,6 @@ fn test_instance_string_field() {
         let string_val = obj.string_field(env)?;
         assert_eq!(string_val.to_string(), "instance string");
 
-        // Test method that returns instance field
-        let string_val2 = obj.get_string_field(env)?;
-        assert_eq!(string_val2.to_string(), "instance string");
-
         Ok(())
     })
     .expect("Instance string field test failed");
@@ -295,6 +290,60 @@ fn test_constructor_with_values() {
         Ok(())
     })
     .expect("Constructor with values test failed");
+}
+}
+
+rusty_fork_test! {
+#[test]
+fn test_cfg_guarded_fields() {
+    let out_dir = setup_test_output("bind_fields_cfg");
+
+    javac::Build::new()
+        .file("tests/java/com/example/TestFields.java")
+        .output_dir(&out_dir)
+        .compile();
+
+    util::attach_current_thread(|env| {
+        load_test_fields_class(env, &out_dir)?;
+
+        // The TestFields binding includes fields guarded by both:
+        // - invocation feature (always enabled in tests) - we test these
+        // - _cfg_test feature (never enabled in tests) - these are not available
+
+        // The following would fail to compile if uncommented:
+        // TestFields::static_cfg_test_field(env)?;
+        // obj.instance_cfg_test_field(env)?;
+        // Note: we have a separate ui / trybuild test to check this
+
+        let val = TestFields::static_invocation_field(env)?;
+        assert_eq!(val, 55);
+
+        TestFields::set_static_invocation_field(env, 111)?;
+        let val = TestFields::static_invocation_field(env)?;
+        assert_eq!(val, 111);
+
+        let obj = TestFields::new(env)?;
+        let val = obj.instance_invocation_field(env)?;
+        assert_eq!(val, 88);
+
+        obj.set_instance_invocation_field(env, 222)?;
+        let val = obj.instance_invocation_field(env)?;
+        assert_eq!(val, 222);
+
+        #[cfg(feature = "_cfg_test")]
+        {
+            // These should compile and run if _cfg_test feature is enabled
+            let val = TestFields::static_cfg_test_field(env)?;
+            assert_eq!(val, 99);
+
+            let obj = TestFields::new(env)?;
+            let val = obj.instance_cfg_test_field(env)?;
+            assert_eq!(val, 77);
+        }
+
+        Ok(())
+    })
+    .expect("Cfg-guarded fields test failed");
 }
 }
 

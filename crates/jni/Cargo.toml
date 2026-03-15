@@ -90,5 +90,8 @@ windows-sys = { version = "0.61", features = [
 invocation = ["dep:java-locator", "dep:libloading"]
 default = []
 
+# Hidden feature for testing cfg attribute support in bind_java_type macro
+_cfg_test = []
+
 [package.metadata.docs.rs]
 features = ["invocation"]
