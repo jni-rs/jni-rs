@@ -2174,6 +2174,15 @@ This does not require a runtime type check since any `"#, stringify!(#type_name)
     })
 }
 
+/// Extract cfg attributes from a list of attributes
+fn extract_cfg_attrs(attrs: &[syn::Attribute]) -> Vec<syn::Attribute> {
+    attrs
+        .iter()
+        .filter(|attr| attr.path().is_ident("cfg"))
+        .cloned()
+        .collect()
+}
+
 /// Intermediate representation for ID lookups (method IDs or field IDs)
 struct IdLookup {
     /// The field name in the API struct (e.g., "new_method_id", "get_value_field_id")
@@ -2186,6 +2195,8 @@ struct IdLookup {
     signature: String,
     /// The function to call for lookup (e.g., "get_method_id", "get_static_field_id")
     lookup_fn: Ident,
+    /// The cfg attributes to apply to this ID (e.g., #[cfg(feature = "foo")])
+    cfg_attrs: Vec<syn::Attribute>,
 }
 
 /// Generate field and initialization code from IdLookup descriptors
@@ -2202,17 +2213,20 @@ fn generate_id_fields_and_inits(
         let java_name = &lookup.java_name;
         let signature = &lookup.signature;
         let lookup_fn = lookup.lookup_fn;
+        let cfg_attrs = &lookup.cfg_attrs;
 
         // Create CStr literals for both the name and signature
         let name_cstr = lit_cstr_mutf8(java_name);
 
-        // Add field to API struct
+        // Add field to API struct with cfg guards
         fields.push(quote! {
+            #(#cfg_attrs)*
             #field_name: #field_type,
         });
 
-        // Add initialization
+        // Add initialization with cfg guards
         inits.push(quote! {
+            #(#cfg_attrs)*
             #field_name: env.#lookup_fn(class, #jni::strings::JNIStr::from_cstr_unchecked(#name_cstr), #jni::jni_sig!(jni=#jni, #signature))?,
         });
     }
@@ -2246,12 +2260,15 @@ fn generate_constructor_method_ids(
                 )
             })?;
 
+        let cfg_attrs = extract_cfg_attrs(&constructor.attrs);
+
         lookups.push(IdLookup {
             field_name: method_id_field,
             field_type: quote! { #jni::ids::JMethodID },
             java_name: "<init>".to_string(),
             signature: jni_sig_str,
             lookup_fn: format_ident!("get_method_id"),
+            cfg_attrs,
         });
     }
 
@@ -2437,12 +2454,15 @@ fn generate_method_ids(
             quote! { #jni::ids::JMethodID }
         };
 
+        let cfg_attrs = extract_cfg_attrs(&method.attrs);
+
         lookups.push(IdLookup {
             field_name: method_id_field,
             field_type,
             java_name: java_name.clone(),
             signature: jni_sig_str,
             lookup_fn,
+            cfg_attrs,
         });
     }
 
@@ -2488,12 +2508,15 @@ fn generate_field_ids(
             quote! { #jni::ids::JFieldID }
         };
 
+        let cfg_attrs = extract_cfg_attrs(&field.attrs);
+
         lookups.push(IdLookup {
             field_name: field_id_field,
             field_type,
             java_name: java_name.clone(),
             signature: field_sig,
             lookup_fn,
+            cfg_attrs,
         });
     }
 
@@ -3123,11 +3146,17 @@ fn generate_fields(
         if let Some(getter_name) = &field.getter_name {
             let getter_visibility = field.getter_visibility.to_tokens();
 
-            // Determine which attributes to apply to getter and setter
-            // If getter_attrs or setter_attrs are explicitly set, use those
+            // Always start with cfg attributes from the field itself
+            let field_cfg_attrs = extract_cfg_attrs(&field.attrs);
+
+            // Determine which attributes to apply to getter
+            // If getter_attrs are explicitly set, use those (plus field cfg)
             // Otherwise, use the field's attrs
             let mut getter_attributes = if !field.getter_attrs.is_empty() {
-                field.getter_attrs.clone()
+                // Merge: field cfg attrs + explicit getter attrs
+                let mut attrs = field_cfg_attrs.clone();
+                attrs.extend(field.getter_attrs.clone());
+                attrs
             } else {
                 field.attrs.clone()
             };
@@ -3189,8 +3218,17 @@ fn generate_fields(
         if let Some(setter_name) = &field.setter_name {
             let setter_visibility = field.setter_visibility.to_tokens();
 
+            // Always start with cfg attributes from the field itself
+            let field_cfg_attrs = extract_cfg_attrs(&field.attrs);
+
+            // Determine which attributes to apply to setter
+            // If setter_attrs are explicitly set, use those (plus field cfg)
+            // Otherwise, use the field's attrs (excluding doc)
             let mut setter_attributes: Vec<syn::Attribute> = if !field.setter_attrs.is_empty() {
-                field.setter_attrs.clone()
+                // Merge: field cfg attrs + explicit setter attrs
+                let mut attrs = field_cfg_attrs.clone();
+                attrs.extend(field.setter_attrs.clone());
+                attrs
             } else {
                 field
                     .attrs
@@ -3396,17 +3434,18 @@ fn generate_native_trait(
             jni,
         );
 
-        let attrs = &method.attrs;
+        // Only emit cfg attributes on trait methods (not doc or other attributes)
+        let cfg_attrs = extract_cfg_attrs(&method.attrs);
 
         // Raw methods return the value directly, regular methods return Result
         if method.is_raw {
             method_sigs.push(quote! {
-                #(#attrs)*
+                #(#cfg_attrs)*
                 fn #rust_name<'local>(#(#params),*) -> #return_type;
             });
         } else {
             method_sigs.push(quote! {
-                #(#attrs)*
+                #(#cfg_attrs)*
                 fn #rust_name<'local>(#(#params),*) -> ::std::result::Result<#return_type, Self::Error>;
             });
         }
@@ -3643,7 +3682,11 @@ fn generate_single_native_wrapper(
         }
     };
 
+    // Extract cfg attributes to apply to the wrapper function
+    let cfg_attrs = extract_cfg_attrs(&method.attrs);
+
     quote! {
+        #(#cfg_attrs)*
         #[allow(unused)]
         extern "system" fn #wrapper_name<#lifetime>(
             #(#params),*
@@ -3694,7 +3737,11 @@ fn generate_native_registration_code(
         let wrapper_name = format_ident!("{}_native_method", rust_name);
         let fn_ptr = quote! { Self::#wrapper_name as *mut ::std::ffi::c_void };
 
+        // Extract cfg attributes to guard the registration descriptor
+        let cfg_attrs = extract_cfg_attrs(&method.attrs);
+
         native_method_descriptors.push(quote! {
+            #(#cfg_attrs)*
             #jni::NativeMethod::from_raw_parts(
                 #jni::strings::JNIStr::from_cstr_unchecked(#name_cstr),
                 #jni::strings::JNIStr::from_cstr_unchecked(#sig_cstr),
@@ -3851,7 +3898,10 @@ fn generate_single_native_export(
         quote! { #[no_mangle] }
     };
 
+    let cfg_attrs = extract_cfg_attrs(&method.attrs);
+
     Ok(quote! {
+        #(#cfg_attrs)*
         #[doc(hidden)]
         #no_mangle_attr
         #[allow(non_snake_case)]

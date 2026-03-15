@@ -108,4 +108,22 @@ public class TestMethods {
         // This method returns null to test that non_null validation (block syntax) catches it
         return null;
     }
+
+    // Methods for testing cfg attribute support
+    public static int cfgTestMethod() {
+        return 42;
+    }
+
+    public int instanceCfgTestMethod() {
+        return counter + 100;
+    }
+
+    // Methods guarded by invocation feature (always available in tests)
+    public static int invocationMethod() {
+        return 99;
+    }
+
+    public int instanceInvocationMethod() {
+        return counter + 200;
+    }
 }

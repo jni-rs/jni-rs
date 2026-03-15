@@ -41,6 +41,19 @@ bind_java_type! {
             sig = () -> JString,
             non_null = true,
         },
+
+        // Methods for testing cfg attribute support
+        // These are guarded by _cfg_test which is never enabled in tests
+        #[cfg(feature = "_cfg_test")]
+        static fn cfg_test_method() -> jint,
+        #[cfg(feature = "_cfg_test")]
+        fn instance_cfg_test_method() -> jint,
+
+        // These are guarded by invocation which is always enabled in tests
+        #[cfg(feature = "invocation")]
+        static fn invocation_method() -> jint,
+        #[cfg(feature = "invocation")]
+        fn instance_invocation_method() -> jint,
     }
 }
 
@@ -340,6 +353,56 @@ fn test_non_null_validation() {
         Ok(())
     })
     .expect("Non-null validation test failed");
+}
+}
+
+rusty_fork_test! {
+#[test]
+fn test_cfg_guarded_methods() {
+    let out_dir = setup_test_output("bind_methods_cfg");
+
+    // Compile Java class
+    javac::Build::new()
+        .file("tests/java/com/example/TestMethods.java")
+        .output_dir(&out_dir)
+        .compile();
+
+    util::attach_current_thread(|env| {
+        load_test_methods_class(env, &out_dir)?;
+
+        // The TestMethods binding includes methods guarded by both:
+        // - invocation feature (always enabled in tests) - we test these
+        // - _cfg_test feature (never enabled in tests) - these are not available
+
+        // The following would fail to compile if uncommented:
+        // TestMethods::cfg_test_method(env)?;
+        // obj.instance_cfg_test_method(env)?;
+        // Note: we have separate ui / trybuild tests to check that these are properly excluded from the bindings
+
+        let result = TestMethods::invocation_method(env)?;
+        assert_eq!(result, 99);
+
+        let message = JString::from_str(env, "test")?;
+        let obj = TestMethods::new_with_message_and_counter(
+            env,
+            &message,
+            15,
+        )?;
+        let result = obj.instance_invocation_method(env)?;
+        assert_eq!(result, 215); // counter (15) + 200
+
+        #[cfg(feature = "_cfg_test")]
+        {
+            let result = TestMethods::cfg_test_method(env)?;
+            assert_eq!(result, 42);
+
+            let result = obj.instance_cfg_test_method(env)?;
+            assert_eq!(result, 115); // counter (15) + 100
+        }
+
+        Ok(())
+    })
+    .expect("Cfg-guarded methods test failed");
 }
 }
 

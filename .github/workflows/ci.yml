@@ -106,7 +106,9 @@ jobs:
         run: cargo build ${{ matrix.build_args }}
       - name: Test
         if: ${{ matrix.rust-version == 'stable' && matrix.target_os != 'android' && !cancelled() }}
-        run: cargo test --workspace --all-targets --all-features
+        # Intentionally don't pass --all-features so we don't enable the hidden `_cfg_test` feature
+        # that unit tests rely on to check that cfg guards work correctly with `bind_java_type!`
+        run: cargo test --workspace --all-targets --features=invocation
       - name: Test
         if: ${{ matrix.rust-version == 'stable' && matrix.target_os == 'android' && !cancelled() }}
         # Intentionally don't pass --all-features so we can check building with and without the

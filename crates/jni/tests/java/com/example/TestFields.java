@@ -36,6 +36,14 @@ public class TestFields {
     public String requiredStringField;  // Should be validated with non_null
     public String validatedStringField; // Should be validated with non_null (block syntax)
 
+    // Fields guarded by _cfg_test feature (never enabled in tests)
+    public static int staticCfgTestField = 99;
+    public int instanceCfgTestField;
+
+    // Fields guarded by invocation feature (always available in tests)
+    public static int staticInvocationField = 55;
+    public int instanceInvocationField;
+
     // Constructor
     public TestFields() {
         this.intField = 10;
@@ -50,6 +58,8 @@ public class TestFields {
         this.nullableStringField = null;  // Initialize to null for testing
         this.requiredStringField = null;  // Initialize to null to test validation
         this.validatedStringField = null; // Initialize to null to test validation
+        this.instanceCfgTestField = 77;
+        this.instanceInvocationField = 88;
     }
 
     public TestFields(int intValue, String stringValue) {
@@ -62,22 +72,5 @@ public class TestFields {
         this.doubleField = intValue * 2.5;
         this.charField = 'B';
         this.stringField = stringValue;
-    }
-
-    // Helper methods to verify field access
-    public int getIntField() {
-        return intField;
-    }
-
-    public String getStringField() {
-        return stringField;
-    }
-
-    public static int getStaticIntField() {
-        return staticIntField;
-    }
-
-    public static String getStaticStringField() {
-        return staticStringField;
     }
 }
