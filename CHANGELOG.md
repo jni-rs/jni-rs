@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `JValueOwned::check_null()` + `::is_null()` methods for ergonomic null checks on owned (returned) values ([#798](https://github.com/jni-rs/jni-rs/pull/798))
 - More readable type accessors for `JValueOwned`, like `.into_bool()` instead of `.z()`, `.into_object()` instead of `.l()`, etc ([#798](https://github.com/jni-rs/jni-rs/pull/798))
 
+#### Fixed
+
+- `jni_mangle` now includes `docs/macros/jni_mangle.md` in the crate documentation, so the macro's documentation is visible on docs.rs and in IDEs ([#799](https://github.com/jni-rs/jni-rs/pull/799))
+
 ## [0.22.3] — 2026-03-05
 
 #### Fixed
