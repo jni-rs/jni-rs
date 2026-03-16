@@ -15,7 +15,7 @@ repository = "https://github.com/jni-rs/jni-rs"
 [workspace.dependencies]
 jni-macros = { path = "./crates/jni-macros", version = "=0.22.4" }
 javac = { path = "./crates/javac", version = "0.1.0" }
-jni = { path = "./crates/jni", version = "0.22.3" }
+jni = { path = "./crates/jni", version = "0.22.4" }
 
 jni-sys = "0.4.1"
 simd_cesu8 = "1.1.1"
