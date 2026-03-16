@@ -23,7 +23,6 @@ proc-macro2 = "1.0"
 simd_cesu8 = "1.0.1"
 
 [dev-dependencies]
-javac.workspace = true
 rusty-fork.workspace = true
 trybuild = "1"
 thiserror = "2"

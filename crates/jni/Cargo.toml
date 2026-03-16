@@ -73,7 +73,7 @@ walkdir = "2"
 [dev-dependencies]
 rusty-fork.workspace = true
 trybuild.workspace = true
-javac.workspace = true
+javac = "0.1"
 criterion = { version = "0.7", features = ["html_reports"] }
 assert_matches = "1.5.0"
 lazy_static = "1"
