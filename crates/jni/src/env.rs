@@ -158,7 +158,8 @@ use crate::{jni_str, objects::JThread, strings::JNIString};
 ///     passed a `null` reference.
 ///   - If a JNI function returns `null` to indicate an error (e.g.
 ///     [`Env::new_int_array`]), it is converted to `Err`/[`Error::NullPtr`], or
-///     some other more applicable error type, such as [`Error::MethodNotFound`].
+///     some other more applicable error type, such as
+///     [`Error::MethodNotFound`].
 ///   - Otherwise `null` is considered a valid Java reference and is represented
 ///     as [`JObject::null()`].
 ///
@@ -186,8 +187,9 @@ use crate::{jni_str, objects::JThread, strings::JNIString};
 /// If you don’t even have an `Env` (e.g. inside a `Drop` implementation), you
 /// can still get one via:
 ///
-/// * [`JavaVM::with_local_frame`]
-/// * [`JavaVM::with_top_local_frame`]
+/// * [`JavaVM::attach_current_thread`]
+/// * [`JavaVM::with_top_local_frame`] - if you can guarantee that the thread is
+///   already attached, and you just need a handle to the existing top frame.
 ///
 /// (and you can access a [`JavaVM`] via [`JavaVM::singleton`]).
 ///
@@ -241,7 +243,6 @@ use crate::{jni_str, objects::JThread, strings::JNIString};
 /// calls to that function may not compile:
 ///
 /// ```rust,compile_fail
-/// # extern crate self as jni;
 /// # use jni::{jni_sig, jni_str, errors::Result, Env, objects::*};
 /// #
 /// # fn f(env: &mut Env) -> Result<()> {
@@ -249,7 +250,7 @@ use crate::{jni_str, objects::JThread, strings::JNIString};
 ///     env: &mut Env,
 ///     obj: &JObject,
 /// ) {
-///     // …
+///     // ...
 /// }
 ///
 /// example_function(
@@ -265,30 +266,42 @@ use crate::{jni_str, objects::JThread, strings::JNIString};
 /// # }
 /// ```
 ///
-/// To fix this, the `Env` parameter needs to come *last*:
+/// This comes from the compiler needing to borrow `env` as mutable for the call
+/// to `new_object`, but also needing to borrow it as mutable for the call to
+/// `example_function`.
+///
+/// In the past we used to recommend here that you could avoid this by
+/// reordering the parameters so that `Env` comes last, but in practice this led
+/// to very inconsistent APIs where some functions had `Env` first and some had
+/// it last, which was confusing.
+///
+/// Now the recommendation is to just make sure that reference type arguments
+/// are derived before the call:
 ///
 /// ```rust,no_run
-/// # use jni::{jni_sig, jni_str, errors::Result, Env, objects::*};
+/// # use jni::{jni_sig, jni_str, errors::Result, Env, objects::JObject};
 /// #
 /// # fn f(env: &mut Env) -> Result<()> {
-/// fn example_function(
-///     obj: &JObject,
-///     env: &mut Env,
-/// ) {
-///     // …
-/// }
-///
-/// example_function(
-///     &env.new_object(
-///         jni_str!("com/example/SomeClass"),
-///         jni_sig!("()V"),
-///         &[],
-///     )?,
-///     env,
-/// )
+/// # fn example_function(
+/// #     env: &mut Env,
+/// #     obj: &JObject,
+/// # ) {
+/// #    // ...
+/// # }
+/// let obj = env.new_object(
+///    jni_str!("com/example/SomeClass"),
+///    jni_sig!("()V"),
+///    &[],
+/// )?;
+/// example_function(env, &obj)
 /// # ; Ok(())
 /// # }
 /// ```
+///
+/// Quite often reference type arguments have already been derived in some outer
+/// scope and don't involve any JNI method calls so this isn't too bad in
+/// practice and it keeps the APIs more consistent / predictable, with `Env`
+/// always coming first.
 ///
 /// # Checked and unchecked methods
 ///
@@ -319,8 +332,8 @@ use crate::{jni_str, objects::JThread, strings::JNIString};
 /// passed as NUL terminated, Modified UTF-8 encoded byte arrays.
 ///
 /// Anything that accepts an `AsRef<JNIStr>` can directly accept a `JNIStr`
-/// literal like `jni_str!("java/lang/String")` which will be
-/// encoded as MUTF-8 at compile time.
+/// literal like `jni_str!("java/lang/String")` which will be encoded as MUTF-8
+/// at compile time.
 ///
 /// See [jni_str!] for more details.
 ///
