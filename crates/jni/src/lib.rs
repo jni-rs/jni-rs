@@ -401,7 +401,7 @@ pub use jni_macros::jni_cstr;
 #[doc = include_str!("../docs/macros/jni_str.md")]
 pub use jni_macros::jni_str;
 
-#[doc(inline)]
+#[doc = include_str!("../docs/macros/jni_mangle.md")]
 pub use jni_macros::jni_mangle;
 
 #[doc = include_str!("../docs/macros/jni_sig.md")]
