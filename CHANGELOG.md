@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `JCharSequence` bindings for `java.lang.CharSequence` (including `AsRef<JCharSequence>` + `.as_char_sequence()` for `JString`) ([#793](https://github.com/jni-rs/jni-rs/pull/793))
 - `bind_java_type` supports `non_null` qualifier/property for methods and fields to map null references to `Error::NullPtr` ([#795](https://github.com/jni-rs/jni-rs/pull/795))
 - `bind_java_type` supports `#[cfg()]` attributes on methods and fields, to conditionally compile them based on features or other cfg conditions ([#797](https://github.com/jni-rs/jni-rs/pull/795))
+- `JValueOwned::check_null()` + `::is_null()` methods for ergonomic null checks on owned (returned) values ([#798](https://github.com/jni-rs/jni-rs/pull/798))
+- More readable type accessors for `JValueOwned`, like `.into_bool()` instead of `.z()`, `.into_object()` instead of `.l()`, etc ([#798](https://github.com/jni-rs/jni-rs/pull/798))
 
 ## [0.22.3] — 2026-03-05
 

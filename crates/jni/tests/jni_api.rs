@@ -1939,6 +1939,7 @@ fn test_java_char_conversion() {
             // The first character in the string is U+1F913, which is not representable in a single UTF-16 unit.
 
             // Get the first Java `char` and try to unwrap it to a Rust `char`.
+            #[allow(deprecated)]
             let c = unwrap(
                 env.call_method(&s, jni_str!("charAt"), jni_sig!("(I)C"), &[JValue::Int(0)]),
                 env,
@@ -1980,6 +1981,7 @@ fn test_java_char_conversion() {
             // The second character in the string *is* representable in a single UTF-16 unit.
 
             // Get it and unwrap it. It should succeed.
+            #[allow(deprecated)]
             let c = unwrap(
                 env.call_method(
                     &s,
