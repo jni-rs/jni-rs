@@ -13,7 +13,7 @@ crate::bind_java_type! {
     __jni_core = true,
     __sys_type = jstring,
     is_instance_of {
-        collection = JCharSequence,
+        char_sequence = JCharSequence,
     },
     methods {
         /// Returns a canonical, interned version of this string.
