@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [0.22.4] — 2026-03-16
+
 ### Added
 
 - `JCharSequence` bindings for `java.lang.CharSequence` (including `AsRef<JCharSequence>` + `.as_char_sequence()` for `JString`) ([#793](https://github.com/jni-rs/jni-rs/pull/793))
@@ -645,7 +648,9 @@ to call if there is a pending exception (#124):
 ## [0.10.1]
 - No changes has been made to the Changelog until this release.
 
-[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.22.2...HEAD
+[Unreleased]: https://github.com/jni-rs/jni-rs/compare/v0.22.4...HEAD
+[0.22.4]: https://github.com/jni-rs/jni-rs/compare/v0.22.3...v0.22.4
+[0.22.3]: https://github.com/jni-rs/jni-rs/compare/v0.22.2...v0.22.3
 [0.22.2]: https://github.com/jni-rs/jni-rs/compare/v0.22.1...v0.22.2
 [0.22.1]: https://github.com/jni-rs/jni-rs/compare/v0.22.0...v0.22.1
 [0.22.0]: https://github.com/jni-rs/jni-rs/compare/v0.21.1...v0.22.0
