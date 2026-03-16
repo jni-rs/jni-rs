@@ -353,3 +353,131 @@ native_method_test! {
         Ok(())
     }
 }
+
+// Version check function for testing requires attribute
+fn native_check_version_21() -> bool {
+    false // Simulate version < 21
+}
+
+fn native_check_version_19() -> bool {
+    true // Simulate version >= 19
+}
+
+// Bindings for testing requires attribute with native methods
+bind_java_type! {
+    rust_type = TestNativeMethodsWithRequires,
+    java_type = "com.example.TestNativeMethods",
+    constructors {
+        fn new(),
+    },
+    methods {
+        fn get_counter() -> jint,
+    },
+    native_methods {
+        // This native method should work (no requires)
+        pub fn native_basic_add(a: jint, b: jint) -> jint,
+
+        // This native method should not be registered (requires = false)
+        #[jni(requires = native_check_version_21())]
+        pub fn native_v21_only(value: jint) -> jint,
+
+        // This native method should be registered ( requires = true)
+        #[jni(requires = native_check_version_19())]
+        pub fn native_v19_available(value: jint) -> jint,
+
+        // Test with literal expression
+        #[jni(requires = "true")]
+        pub fn native_literal_true(value: jint) -> jint,
+
+        // Test with literal expression false
+        #[jni(requires = "false")]
+        pub fn native_literal_false(value: jint) -> jint,
+    }
+}
+
+impl TestNativeMethodsWithRequiresNativeInterface for TestNativeMethodsWithRequiresAPI {
+    type Error = jni::errors::Error;
+
+    fn native_basic_add<'local>(
+        _env: &mut Env<'local>,
+        _this: TestNativeMethodsWithRequires<'local>,
+        a: jint,
+        b: jint,
+    ) -> Result<jint, Self::Error> {
+        Ok(a + b)
+    }
+
+    fn native_v21_only<'local>(
+        _env: &mut Env<'local>,
+        _this: TestNativeMethodsWithRequires<'local>,
+        value: jint,
+    ) -> Result<jint, Self::Error> {
+        Ok(value * 21)
+    }
+
+    fn native_v19_available<'local>(
+        _env: &mut Env<'local>,
+        _this: TestNativeMethodsWithRequires<'local>,
+        value: jint,
+    ) -> Result<jint, Self::Error> {
+        Ok(value * 19)
+    }
+
+    fn native_literal_true<'local>(
+        _env: &mut Env<'local>,
+        _this: TestNativeMethodsWithRequires<'local>,
+        value: jint,
+    ) -> Result<jint, Self::Error> {
+        Ok(value + 100)
+    }
+
+    fn native_literal_false<'local>(
+        _env: &mut Env<'local>,
+        _this: TestNativeMethodsWithRequires<'local>,
+        value: jint,
+    ) -> Result<jint, Self::Error> {
+        Ok(value - 100)
+    }
+}
+
+// Note: This test verifies that optional native methods with requires=false
+// are NOT registered. The test should pass if calling the Java method
+// throws a NoSuchMethodError (native method not found). Since we're just
+// checking registration behavior here, we simply verify that the API
+// initialization succeeds and that the registration logic works correctly.
+native_method_test! {
+    test_name: test_requires_attribute_native_methods,
+    java_class: "com/example/TestNativeMethods.java",
+    api: TestNativeMethodsWithRequiresAPI,
+    test_body: |env| {
+        let obj = TestNativeMethodsWithRequires::new(env)?;
+
+        // Basic method should work (no requires)
+        let result = obj.native_basic_add(env, 10, 20)?;
+        assert_eq!(result, 30);
+
+        // Method with requires = true should work
+        let result = obj.native_v19_available(env, 5)?;
+        assert_eq!(result, 95);
+
+        // Method with requires = "true" should work
+        let result = obj.native_literal_true(env, 50)?;
+        assert_eq!(result, 150);
+
+        // Methods with requires = false should return UnsupportedVersion error
+        // when called from Rust
+        let result = obj.native_v21_only(env, 10);
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(matches!(e, jni::errors::Error::UnsupportedVersion));
+        }
+
+        let result = obj.native_literal_false(env, 10);
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(matches!(e, jni::errors::Error::UnsupportedVersion));
+        }
+
+        Ok(())
+    }
+}
