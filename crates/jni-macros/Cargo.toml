@@ -1,6 +1,6 @@
 [package]
 name = "jni-macros"
-version = "0.22.2"
+version = "0.22.4"
 description = "Procedural macros for the jni crate"
 keywords = ["jni", "java", "jvm", "android", "ndk"]
 categories = ["api-bindings", "development-tools::procedural-macro-helpers"]
