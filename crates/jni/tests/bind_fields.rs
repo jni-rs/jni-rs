@@ -380,6 +380,44 @@ fn setup_test_output(test_name: &str) -> PathBuf {
     out_dir
 }
 
+// Version check function for testing requires attribute
+fn field_check_version_21() -> bool {
+    false // Simulate version < 21
+}
+
+fn field_check_version(version: u32) -> bool {
+    const CURRENT_VERSION: u32 = 20;
+    version <= CURRENT_VERSION
+}
+
+// Bindings for testing requires attribute with fields
+bind_java_type! {
+    rust_type = TestFieldsWithRequires,
+    java_type = "com.example.TestFields",
+    constructors {
+        fn new(),
+    },
+    fields {
+        int_field: jint,  // Should work (no requires)
+
+        // This field should fail at runtime
+        #[jni(requires = field_check_version_21())]
+        long_field: jlong,
+
+        // This field should work
+        #[jni(requires = field_check_version(19))]
+        string_field: JString,
+
+        // Test with literal expression
+        #[jni(requires = "true")]
+        boolean_field: jboolean,
+
+        // Test with literal expression false
+        #[jni(requires = "false")]
+        byte_field: jbyte,
+    }
+}
+
 rusty_fork_test! {
 #[test]
 fn test_non_null_field_validation() {
@@ -457,5 +495,74 @@ fn test_non_null_field_validation() {
         Ok(())
     })
     .expect("Non-null field validation test failed");
+}
+}
+
+rusty_fork_test! {
+#[test]
+fn test_requires_attribute_fields() {
+    let out_dir = setup_test_output("bind_fields_requires");
+
+    javac::Build::new()
+        .file("tests/java/com/example/TestFields.java")
+        .output_dir(&out_dir)
+        .compile();
+
+    util::attach_current_thread(|env| {
+        load_test_fields_class(env, &out_dir)?;
+
+        let obj = TestFieldsWithRequires::new(env)?;
+
+        // Test that int_field works (no requires)
+        let value = obj.int_field(env)?;
+        assert_eq!(value, 10); // default value from constructor
+
+        obj.set_int_field(env, 42)?;
+        let value = obj.int_field(env)?;
+        assert_eq!(value, 42);
+
+        // Test that long_field fails (requires = false)
+        let result = obj.long_field(env);
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(matches!(e, jni::errors::Error::UnsupportedVersion));
+        }
+
+        let result = obj.set_long_field(env, 123456);
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(matches!(e, jni::errors::Error::UnsupportedVersion));
+        }
+
+        // Test that string_field works (requires = true)
+        let _value = obj.string_field(env)?;
+        let new_string = JString::from_str(env, "test")?;
+        obj.set_string_field(env, &new_string)?;
+        let result = obj.string_field(env)?;
+        assert_eq!(result.to_string(), "test");
+
+        // Test that boolean_field works (requires = "true")
+        let value = obj.boolean_field(env)?;
+        assert!(!value); // default value
+        obj.set_boolean_field(env, true)?;
+        let value = obj.boolean_field(env)?;
+        assert!(value);
+
+        // Test that byte_field fails (requires = "false")
+        let result = obj.byte_field(env);
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(matches!(e, jni::errors::Error::UnsupportedVersion));
+        }
+
+        let result = obj.set_byte_field(env, 10);
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(matches!(e, jni::errors::Error::UnsupportedVersion));
+        }
+
+        Ok(())
+    })
+    .expect("Requires attribute fields test failed");
 }
 }

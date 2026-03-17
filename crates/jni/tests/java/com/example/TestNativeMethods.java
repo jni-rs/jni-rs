@@ -41,6 +41,17 @@ public class TestNativeMethods {
 
     public native int nativeInvocationTest();
 
+    // Native methods to test requires attribute support
+    public native int nativeBasicAdd(int a, int b);
+
+    public native int nativeV21Only(int value);
+
+    public native int nativeV19Available(int value);
+
+    public native int nativeLiteralTrue(int value);
+
+    public native int nativeLiteralFalse(int value);
+
     // Non-native methods that can be used to test native method calls
     public int getCounter() {
         return counter;

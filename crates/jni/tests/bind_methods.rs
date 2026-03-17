@@ -2,11 +2,12 @@
 mod util;
 
 use jni::Env;
+use jni::bind_java_type;
 use jni::objects::JString;
-use jni::{bind_java_type, jni_str};
 use rusty_fork::rusty_fork_test;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 // Create bindings for TestMethods class
 bind_java_type! {
@@ -407,23 +408,28 @@ fn test_cfg_guarded_methods() {
 }
 
 // Helper function to load the TestMethods class
-fn load_test_methods_class(env: &mut Env, out_dir: &Path) -> jni::errors::Result<()> {
-    let class_path = out_dir.join("com/example/TestMethods.class");
-    assert!(class_path.exists(), "TestMethods.class not found");
+fn load_test_class(env: &mut Env, out_dir: &Path, name: &str) -> jni::errors::Result<()> {
+    let class_path = out_dir.join(format!("com/example/{}.class", name));
+    assert!(class_path.exists(), "{}.class not found", name);
 
-    let class_bytes = fs::read(&class_path).expect("Failed to read TestMethods.class");
+    let class_bytes =
+        fs::read(&class_path).unwrap_or_else(|_| panic!("Failed to read {}.class", name));
 
     let class_loader = jni::objects::JClassLoader::get_system_class_loader(env)
         .expect("Failed to get system class loader");
 
     env.define_class(
-        Some(jni_str!("com/example/TestMethods")),
+        Option::<&jni::strings::JNIStr>::None, // Urgh, passing None was supposed to be the easy choice :)
         &class_loader,
         &class_bytes,
     )
     .expect("Failed to define TestMethods class");
 
     Ok(())
+}
+
+fn load_test_methods_class(env: &mut Env, out_dir: &Path) -> jni::errors::Result<()> {
+    load_test_class(env, out_dir, "TestMethods")
 }
 
 // Helper function to set up test output directory
@@ -437,4 +443,152 @@ fn setup_test_output(test_name: &str) -> PathBuf {
     fs::create_dir_all(&out_dir).expect("Failed to create test output directory");
 
     out_dir
+}
+
+bind_java_type! {
+    TestVersion => "com.example.TestVersion",
+    fields {
+        #[allow(non_snake_case)]
+        static VERSION: jint,
+    }
+}
+
+// Cache for the Java version, queried once from TestVersion.VERSION
+static TEST_VERSION: OnceLock<u32> = OnceLock::new();
+
+// Demonstrate checking some `#[jni(requires = )]` conditions at runtime by
+// querying a Java version field and caching it
+fn jni_check_version(required_version: u32) -> bool {
+    let version = TEST_VERSION.get_or_init(|| {
+        let jvm = jni::JavaVM::singleton().expect("JavaVM singleton not initialized");
+        jvm.attach_current_thread(|env| TestVersion::VERSION(env))
+            .expect("Failed to get Java version") as u32
+    });
+
+    println!(
+        "Checking Java version ({}) >= {}",
+        *version, required_version
+    );
+
+    *version >= required_version
+}
+
+fn check_version_21() -> bool {
+    jni_check_version(21)
+}
+
+fn check_version(version: u32) -> bool {
+    jni_check_version(version)
+}
+
+fn check_feature_enabled() -> bool {
+    true // Simulate feature is enabled
+}
+
+// Bindings for testing requires attribute with methods
+bind_java_type! {
+    rust_type = TestMethodsWithRequires,
+    java_type = "com.example.TestMethods",
+    constructors {
+        fn new(),
+        // This constructor should fail at runtime since check_version_21() returns false
+        #[jni(requires = check_version_21())]
+        fn new_v21_only(message: JString),
+    },
+    methods {
+        fn get_message() -> JString,
+        // This method should fail at runtime
+        #[jni(requires = check_version_21())]
+        fn get_counter() -> jint,
+        // This method should work
+        #[jni(requires = check_version(19))]
+        fn set_message(message: JString) -> void,
+        // Test with literal expression
+        #[jni(requires = "true")]
+        fn reset() -> void,
+        // Test with literal expression false
+        #[jni(requires = "false")]
+        fn increment() -> void,
+        // Test with multiple requires - all must be true (should work)
+        #[jni(requires = check_version(19))]
+        #[jni(requires = check_feature_enabled())]
+        fn combined_check_pass() -> void,
+        // Test with multiple requires - one is false (should fail)
+        #[jni(requires = check_version(19))]
+        #[jni(requires = check_version_21())]
+        fn combined_check_fail() -> void,
+    }
+}
+
+rusty_fork_test! {
+#[test]
+fn test_requires_attribute_methods() {
+    let out_dir = setup_test_output("bind_methods_requires");
+
+    javac::Build::new()
+        .file("tests/java/com/example/TestVersion.java")
+        .file("tests/java/com/example/TestMethods.java")
+        .output_dir(&out_dir)
+        .compile();
+
+    util::attach_current_thread(|env| {
+        load_test_class(env, &out_dir, "TestVersion")?;
+        load_test_methods_class(env, &out_dir)?;
+
+        // Test that new() works (no requires)
+        let obj = TestMethodsWithRequires::new(env)?;
+
+        // Test that constructor with requires = false fails
+        let msg = JString::from_str(env, "test")?;
+        let result = TestMethodsWithRequires::new_v21_only(env, &msg);
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(matches!(e, jni::errors::Error::UnsupportedVersion));
+        }
+
+        // Test that get_message() works (no requires)
+        let message = obj.get_message(env)?;
+        assert_eq!(message.to_string(), "default");
+
+        // Test that get_counter() fails (requires = false)
+        let result = obj.get_counter(env);
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(matches!(e, jni::errors::Error::UnsupportedVersion));
+        }
+
+        // Test that set_message() works (requires = true)
+        let new_msg = JString::from_str(env, "updated")?;
+        obj.set_message(env, &new_msg)?;
+        let message = obj.get_message(env)?;
+        assert_eq!(message.to_string(), "updated");
+
+        // Test that reset() works (requires = "true")
+        obj.reset(env)?;
+        let message = obj.get_message(env)?;
+        assert_eq!(message.to_string(), "default");
+
+        // Test that increment() fails (requires = "false")
+        let result = obj.increment(env);
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(matches!(e, jni::errors::Error::UnsupportedVersion));
+        }
+
+        // Test combined requires - all conditions true (should work)
+        obj.combined_check_pass(env)?;
+        let message = obj.get_message(env)?;
+        assert_eq!(message.to_string(), "combined pass");
+
+        // Test combined requires - one condition false (should fail)
+        let result = obj.combined_check_fail(env);
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(matches!(e, jni::errors::Error::UnsupportedVersion));
+        }
+
+        Ok(())
+    })
+    .expect("Requires attribute methods test failed");
+}
 }

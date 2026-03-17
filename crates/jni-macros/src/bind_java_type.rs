@@ -59,6 +59,18 @@ custom_keyword!(__jni_core);
 custom_keyword!(raw);
 custom_keyword!(non_null);
 
+/// Represents a requires expression for conditional binding
+#[derive(Clone)]
+enum RequiresExpression {
+    /// A function call with optional integer arguments: path::to::func(1, 2, 3)
+    FunctionCall {
+        function: syn::Path,
+        args: Vec<syn::LitInt>,
+    },
+    /// An arbitrary expression: "some_expr()"
+    Literal(syn::LitStr),
+}
+
 /// Represents a visibility modifier
 #[derive(Clone)]
 enum VisibilitySpec {
@@ -126,6 +138,7 @@ struct Constructor {
     name: Ident,
     method_signature: MethodSignature,
     attrs: Vec<syn::Attribute>,
+    requires: Vec<RequiresExpression>,
 }
 
 /// Represents a method definition
@@ -138,6 +151,7 @@ struct Method {
     attrs: Vec<syn::Attribute>,
     is_static: bool,
     non_null: bool,
+    requires: Vec<RequiresExpression>,
 }
 
 /// Represents a field definition
@@ -156,6 +170,7 @@ struct Field {
     setter_attrs: Vec<syn::Attribute>,
     is_static: bool,
     non_null: bool,
+    requires: Vec<RequiresExpression>,
 }
 
 /// Represents an entry in the is_instance_of list
@@ -184,6 +199,7 @@ struct NativeMethod {
     is_static: bool,
     abi_check: Option<AbiCheck>,
     catch_unwind: Option<bool>,
+    requires: Vec<RequiresExpression>,
 }
 
 /// The kind of method being parsed (determines validation rules)
@@ -203,12 +219,13 @@ struct ParsedMethod {
     error_policy: Option<syn::Path>,    // Only set for NativeMethod
     export: Option<NativeMethodExport>, // Only set for NativeMethod
     attrs: Vec<syn::Attribute>,
-    native_fn: Option<syn::Path>, // Only set for NativeMethod
-    is_raw: bool,                 // Only set for NativeMethod
-    is_static: bool,              // Set for both Method and NativeMethod
-    abi_check: Option<AbiCheck>,  // Only set for NativeMethod
-    catch_unwind: Option<bool>,   // Only set for NativeMethod
-    non_null: bool,               // Set for Method and NativeMethod (not Constructor)
+    native_fn: Option<syn::Path>,      // Only set for NativeMethod
+    is_raw: bool,                      // Only set for NativeMethod
+    is_static: bool,                   // Set for both Method and NativeMethod
+    abi_check: Option<AbiCheck>,       // Only set for NativeMethod
+    catch_unwind: Option<bool>,        // Only set for NativeMethod
+    non_null: bool,                    // Set for Method and NativeMethod (not Constructor)
+    requires: Vec<RequiresExpression>, // Optional conditional binding
 }
 
 /// Parse an optional visibility specifier
@@ -270,6 +287,68 @@ fn parse_name_spec(input: ParseStream) -> Result<(String, Ident)> {
     }
 }
 
+/// Parse #[jni(requires = ...)] attributes and filter out all #[jni(...)] attributes
+/// Returns (requires_expressions, filtered_attributes) where:
+/// - requires_expressions: Vec of RequiresExpression parsed from #[jni(requires = ...)]
+/// - filtered_attributes: All attributes except #[jni(...)] attributes
+fn parse_and_filter_jni_attrs(
+    attrs: &[syn::Attribute],
+) -> Result<(Vec<RequiresExpression>, Vec<syn::Attribute>)> {
+    let mut expressions = Vec::new();
+    let mut filtered = Vec::new();
+
+    for attr in attrs {
+        if !attr.path().is_ident("jni") {
+            // Not a jni attribute, keep it
+            filtered.push(attr.clone());
+            continue;
+        }
+
+        // Parse jni attribute to extract requires expressions
+        attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("requires") {
+                meta.input.parse::<Token![=]>()?;
+
+                // Check if it's a string literal (quoted expression)
+                let expr = if meta.input.peek(LitStr) {
+                    let lit = meta.input.parse::<LitStr>()?;
+                    RequiresExpression::Literal(lit)
+                } else {
+                    // Otherwise, parse as a function call: path::to::func(arg1, arg2, ...)
+                    let function = meta.input.parse::<syn::Path>()?;
+
+                    // Check if there are parentheses (function call syntax)
+                    let args = if meta.input.peek(syn::token::Paren) {
+                        let content;
+                        parenthesized!(content in meta.input);
+
+                        let mut args = Vec::new();
+                        while !content.is_empty() {
+                            args.push(content.parse::<syn::LitInt>()?);
+                            if !content.is_empty() {
+                                content.parse::<Token![,]>()?;
+                            }
+                        }
+                        args
+                    } else {
+                        Vec::new()
+                    };
+
+                    RequiresExpression::FunctionCall { function, args }
+                };
+
+                expressions.push(expr);
+                Ok(())
+            } else {
+                Err(meta.error("unknown jni attribute"))
+            }
+        })?;
+        // Don't add jni attributes to filtered list
+    }
+
+    Ok((expressions, filtered))
+}
+
 /// Unified parser for method blocks (constructors, methods, and native methods)
 /// Parses both shorthand syntax: `[vis] [static] [raw] [extern] fn name(params) -> ret`
 /// and block syntax: `[vis] [static] [raw] [extern] fn name [=] { ... }`
@@ -282,6 +361,9 @@ fn parse_method(
 ) -> Result<ParsedMethod> {
     // Parse attributes first
     let attrs = input.call(syn::Attribute::parse_outer)?;
+
+    // Extract requires expressions and filter out #[jni(...)] attributes
+    let (requires, attrs) = parse_and_filter_jni_attrs(&attrs)?;
 
     // Parse optional visibility specifier before the method name
     let visibility = parse_visibility(input)?;
@@ -625,6 +707,7 @@ fn parse_method(
         abi_check,
         catch_unwind,
         non_null: is_non_null,
+        requires,
     })
 }
 
@@ -642,6 +725,7 @@ fn parse_constructors(
             name: parsed.rust_name,
             method_signature: parsed.method_signature,
             attrs: parsed.attrs,
+            requires: parsed.requires,
         });
 
         if input.peek(Token![,]) {
@@ -667,6 +751,7 @@ fn parse_methods(input: ParseStream, type_mappings: &TypeMappings) -> Result<Vec
             attrs: parsed.attrs,
             is_static: parsed.is_static,
             non_null: parsed.non_null,
+            requires: parsed.requires,
         });
 
         if !input.is_empty() {
@@ -697,6 +782,7 @@ fn parse_native_methods(
                 attrs: parsed.attrs.clone(),
                 is_static: parsed.is_static,
                 non_null: parsed.non_null,
+                requires: parsed.requires.clone(),
             });
         }
         native_methods.push(NativeMethod {
@@ -711,6 +797,7 @@ fn parse_native_methods(
             is_static: parsed.is_static,
             abi_check: parsed.abi_check,
             catch_unwind: parsed.catch_unwind,
+            requires: parsed.requires,
         });
 
         if !input.is_empty() {
@@ -725,6 +812,9 @@ fn parse_native_methods(
 fn parse_field(input: ParseStream, type_mappings: &TypeMappings) -> Result<Field> {
     // Parse attributes first (for the field itself)
     let field_attrs = input.call(syn::Attribute::parse_outer)?;
+
+    // Extract requires expressions and filter out #[jni(...)] attributes
+    let (requires, field_attrs) = parse_and_filter_jni_attrs(&field_attrs)?;
 
     // Parse optional visibility specifier before the field name
     let field_visibility = parse_visibility(input)?;
@@ -805,6 +895,7 @@ fn parse_field(input: ParseStream, type_mappings: &TypeMappings) -> Result<Field
             setter_attrs: Vec::new(),
             is_static,
             non_null: is_non_null,
+            requires,
         })
     } else if input.peek(syn::token::Brace) || input.peek(Token![=]) {
         // Block syntax: field_name [=] { name = "javaName", sig = Type, ... }
@@ -824,6 +915,9 @@ fn parse_field(input: ParseStream, type_mappings: &TypeMappings) -> Result<Field
 
         while !body_content.is_empty() {
             let prop_attrs = body_content.call(syn::Attribute::parse_outer)?;
+            // Filter out #[jni(...)] attributes from property attributes
+            // (requires expressions are not supported on getter/setter properties)
+            let (_, prop_attrs) = parse_and_filter_jni_attrs(&prop_attrs)?;
 
             // Try to parse visibility first (handles pub, pub(...), and priv)
             let vis = parse_visibility(&body_content)?;
@@ -925,6 +1019,7 @@ fn parse_field(input: ParseStream, type_mappings: &TypeMappings) -> Result<Field
             setter_attrs,
             is_static,
             non_null: is_non_null,
+            requires,
         })
     } else {
         Err(syn::Error::new(
@@ -2183,6 +2278,36 @@ fn extract_cfg_attrs(attrs: &[syn::Attribute]) -> Vec<syn::Attribute> {
         .collect()
 }
 
+/// Convert a slice of RequiresExpression to a TokenStream for code generation
+/// Returns None for an empty slice, otherwise generates the combined expression with &&
+fn requires_to_token_stream(requires: &[RequiresExpression]) -> Option<TokenStream> {
+    if requires.is_empty() {
+        return None;
+    }
+
+    let expr_tokens: Vec<_> = requires
+        .iter()
+        .map(|expr| match expr {
+            RequiresExpression::FunctionCall { function, args } => {
+                if args.is_empty() {
+                    quote! { #function() }
+                } else {
+                    quote! { #function(#(#args),*) }
+                }
+            }
+            RequiresExpression::Literal(lit) => {
+                let expr_str = lit.value();
+                let expr: syn::Expr =
+                    syn::parse_str(&expr_str).expect("Failed to parse requires expression");
+                quote! { #expr }
+            }
+        })
+        .map(|tokens| quote! { (#tokens) })
+        .collect();
+
+    Some(quote! { #(#expr_tokens)&&* })
+}
+
 /// Intermediate representation for ID lookups (method IDs or field IDs)
 struct IdLookup {
     /// The field name in the API struct (e.g., "new_method_id", "get_value_field_id")
@@ -2197,9 +2322,16 @@ struct IdLookup {
     lookup_fn: Ident,
     /// The cfg attributes to apply to this ID (e.g., #[cfg(feature = "foo")])
     cfg_attrs: Vec<syn::Attribute>,
+    /// Whether this is an optional binding (uses Option<T>)
+    is_optional: bool,
+    /// The requires expression for optional bindings
+    requires_expr: Option<TokenStream>,
 }
 
 /// Generate field and initialization code from IdLookup descriptors
+///
+/// Note: 'field' in this context refers to the `<Type>API` struct fields. This function generates
+/// code for both method ID and field ID lookups.
 fn generate_id_fields_and_inits(
     lookups: Vec<IdLookup>,
     jni: &syn::Path,
@@ -2214,21 +2346,50 @@ fn generate_id_fields_and_inits(
         let signature = &lookup.signature;
         let lookup_fn = lookup.lookup_fn;
         let cfg_attrs = &lookup.cfg_attrs;
+        let is_optional = lookup.is_optional;
+        let requires_expr = lookup.requires_expr;
 
         // Create CStr literals for both the name and signature
         let name_cstr = lit_cstr_mutf8(java_name);
 
         // Add field to API struct with cfg guards
-        fields.push(quote! {
-            #(#cfg_attrs)*
-            #field_name: #field_type,
-        });
+        if is_optional {
+            fields.push(quote! {
+                #(#cfg_attrs)*
+                #field_name: Option<#field_type>,
+            });
+        } else {
+            fields.push(quote! {
+                #(#cfg_attrs)*
+                #field_name: #field_type,
+            });
+        }
 
         // Add initialization with cfg guards
-        inits.push(quote! {
-            #(#cfg_attrs)*
-            #field_name: env.#lookup_fn(class, #jni::strings::JNIStr::from_cstr_unchecked(#name_cstr), #jni::jni_sig!(jni=#jni, #signature))?,
-        });
+        if is_optional {
+            // For optional bindings, evaluate the requires expression and conditionally perform lookup
+            let requires_check = requires_expr.expect("Optional binding must have requires_expr");
+            inits.push(quote! {
+                #(#cfg_attrs)*
+                #field_name: {
+                    // Make sure expression can't accidentally capture any variables from the
+                    // surrounding scope by evaluating it in a separate function.
+                    fn __eval_requires() -> bool {
+                        #requires_check
+                    }
+                    if __eval_requires() {
+                        Some(env.#lookup_fn(class, #jni::strings::JNIStr::from_cstr_unchecked(#name_cstr), #jni::jni_sig!(jni=#jni, #signature))?)
+                    } else {
+                        None
+                    }
+                },
+            });
+        } else {
+            inits.push(quote! {
+                #(#cfg_attrs)*
+                #field_name: env.#lookup_fn(class, #jni::strings::JNIStr::from_cstr_unchecked(#name_cstr), #jni::jni_sig!(jni=#jni, #signature))?,
+            });
+        }
     }
 
     (fields, inits)
@@ -2261,6 +2422,8 @@ fn generate_constructor_method_ids(
             })?;
 
         let cfg_attrs = extract_cfg_attrs(&constructor.attrs);
+        let is_optional = !constructor.requires.is_empty();
+        let requires_expr = requires_to_token_stream(&constructor.requires);
 
         lookups.push(IdLookup {
             field_name: method_id_field,
@@ -2269,6 +2432,8 @@ fn generate_constructor_method_ids(
             signature: jni_sig_str,
             lookup_fn: format_ident!("get_method_id"),
             cfg_attrs,
+            is_optional,
+            requires_expr,
         });
     }
 
@@ -2332,6 +2497,7 @@ fn generate_constructors(
     for constructor in constructors {
         let name = &constructor.name;
         let method_id_field = format_ident!("{}_method_id", name);
+        let is_optional = !constructor.requires.is_empty();
 
         // Generate JNI call arguments data
         let args =
@@ -2358,6 +2524,17 @@ fn generate_constructors(
         // Apply attributes to the constructor
         let attrs = &constructor.attrs;
 
+        // Get the method ID (with optional check)
+        let get_method_id = if is_optional {
+            quote! {
+                let method_id = api.#method_id_field.ok_or_else(|| #jni::errors::Error::UnsupportedVersion)?;
+            }
+        } else {
+            quote! {
+                let method_id = api.#method_id_field;
+            }
+        };
+
         constructor_impls.push(quote! {
             #(#attrs)*
             pub fn #name #lifetime_decls (
@@ -2365,6 +2542,7 @@ fn generate_constructors(
                 #(#decls),*
             ) -> #jni::errors::Result<#type_name<'env_local>> {
                 let api = #api_name::get(env, &#jni::refs::LoaderContext::None)?;
+                #get_method_id
                 let jni_args #jni_args_type = [#(#jvalue_conversions),*];
 
                 unsafe {
@@ -2388,7 +2566,7 @@ fn generate_constructors(
                     let ret_obj: #jni::sys::jobject = ((*interface).v1_1.NewObjectA)(
                         env_ptr,
                         class.as_raw(),
-                        api.#method_id_field.into_raw(),
+                        method_id.into_raw(),
                         jni_args.as_ptr()
                     );
 
@@ -2455,6 +2633,8 @@ fn generate_method_ids(
         };
 
         let cfg_attrs = extract_cfg_attrs(&method.attrs);
+        let is_optional = !method.requires.is_empty();
+        let requires_expr = requires_to_token_stream(&method.requires);
 
         lookups.push(IdLookup {
             field_name: method_id_field,
@@ -2463,6 +2643,8 @@ fn generate_method_ids(
             signature: jni_sig_str,
             lookup_fn,
             cfg_attrs,
+            is_optional,
+            requires_expr,
         });
     }
 
@@ -2509,6 +2691,8 @@ fn generate_field_ids(
         };
 
         let cfg_attrs = extract_cfg_attrs(&field.attrs);
+        let is_optional = !field.requires.is_empty();
+        let requires_expr = requires_to_token_stream(&field.requires);
 
         lookups.push(IdLookup {
             field_name: field_id_field,
@@ -2517,6 +2701,8 @@ fn generate_field_ids(
             signature: field_sig,
             lookup_fn,
             cfg_attrs,
+            is_optional,
+            requires_expr,
         });
     }
 
@@ -2723,6 +2909,7 @@ fn generate_methods(
         let method_id_field = format_ident!("{}_method_id", rust_name);
         let visibility = method.visibility.to_tokens();
         let is_static = method.is_static;
+        let is_optional = !method.requires.is_empty();
 
         // Generate JNI call arguments data
         let args = generate_jni_call_args(&method.method_signature.parameters, type_mappings, jni);
@@ -2778,6 +2965,16 @@ fn generate_methods(
             quote! { self }
         };
 
+        // Get the method ID (with optional check)
+        let get_method_id = if is_optional {
+            quote! {
+                let method_id = api.#method_id_field.ok_or_else(|| #jni::errors::Error::UnsupportedVersion)?;
+            }
+        } else {
+            quote! { let method_id = api.#method_id_field; }
+        };
+        let method_id_expr = quote! { method_id.into_raw() };
+
         // Generate the method body with JNI call
         let jni_call = generate_jni_call_for_return_type(
             &method.java_name,
@@ -2785,7 +2982,7 @@ fn generate_methods(
             is_static,
             jni,
             &this_or_class,
-            &quote! { api.#method_id_field.into_raw() },
+            &method_id_expr,
             &quote! { jni_args },
             type_mappings,
         );
@@ -2828,6 +3025,7 @@ fn generate_methods(
                 #(#decls),*
             ) -> #jni::errors::Result<#return_type> {
                 let api = #api_name::get(env, &#jni::refs::LoaderContext::None)?;
+                #get_method_id
                 let jni_args #jni_args_type = [#(#jvalue_conversions),*];
 
                 #class_def
@@ -3071,6 +3269,7 @@ fn generate_fields(
     for field in fields {
         let rust_name = &field.rust_name;
         let field_id_field = format_ident!("{}_field_id", rust_name);
+        let is_optional = !field.requires.is_empty();
 
         // Determine environment type based on field type (primitives use &Env, objects use &mut Env)
         let get_env_type = if field
@@ -3143,6 +3342,16 @@ fn generate_fields(
             quote! {}
         };
 
+        // Get the field ID (with optional check)
+        let get_field_id = if is_optional {
+            quote! {
+                let field_id = api.#field_id_field.ok_or_else(|| #jni::errors::Error::UnsupportedVersion)?;
+            }
+        } else {
+            quote! { let field_id = api.#field_id_field; }
+        };
+        let field_id_expr = quote! { field_id.into_raw() };
+
         if let Some(getter_name) = &field.getter_name {
             let getter_visibility = field.getter_visibility.to_tokens();
 
@@ -3180,7 +3389,7 @@ fn generate_fields(
                 field.is_static,
                 jni,
                 &this_or_class,
-                &quote! { api.#field_id_field.into_raw() },
+                &field_id_expr,
                 type_mappings,
             );
 
@@ -3209,6 +3418,7 @@ fn generate_fields(
                     env: #get_env_type
                 ) -> #jni::errors::Result<#return_type> {
                     let api = #api_name::get(env, &#jni::refs::LoaderContext::None)?;
+                    #get_field_id
                     #class_def
                     #get_null_check_and_return
                 }
@@ -3258,7 +3468,7 @@ fn generate_fields(
                 field.is_static,
                 jni,
                 &this_or_class,
-                &quote! { api.#field_id_field.into_raw() },
+                &field_id_expr,
                 &quote! { val },
                 type_mappings,
             );
@@ -3286,6 +3496,7 @@ fn generate_fields(
                     val: #arg_type
                 ) -> #jni::errors::Result<()> {
                     let api = #api_name::get(env, &#jni::refs::LoaderContext::None)?;
+                    #get_field_id
                     #class_def
                     #set_null_check_and_call
                 }
@@ -3708,7 +3919,8 @@ fn generate_native_registration_code(
         return Ok(quote! {});
     }
 
-    let mut native_method_descriptors = Vec::new();
+    let mut unconditional_descriptors = Vec::new();
+    let mut conditional_blocks = Vec::new();
 
     for method in native_methods {
         let java_name = &method.java_name;
@@ -3740,29 +3952,70 @@ fn generate_native_registration_code(
         // Extract cfg attributes to guard the registration descriptor
         let cfg_attrs = extract_cfg_attrs(&method.attrs);
 
-        native_method_descriptors.push(quote! {
+        let descriptor = quote! {
             #(#cfg_attrs)*
             #jni::NativeMethod::from_raw_parts(
                 #jni::strings::JNIStr::from_cstr_unchecked(#name_cstr),
                 #jni::strings::JNIStr::from_cstr_unchecked(#sig_cstr),
                 #fn_ptr,
             )
-        });
+        };
+
+        if !method.requires.is_empty() {
+            // Optional native method - conditionally register
+            let requires_check = requires_to_token_stream(&method.requires).unwrap();
+            conditional_blocks.push(quote! {
+                #(#cfg_attrs)*
+                {
+                    // Make sure expression can't accidentally capture any variables from the
+                    // surrounding scope by evaluating it in a separate function.
+                    fn __eval_requires() -> bool {
+                        #requires_check
+                    }
+                    if __eval_requires() {
+                        native_methods.push(#descriptor);
+                    }
+                }
+            });
+        } else {
+            // Unconditional native method
+            unconditional_descriptors.push(descriptor);
+        }
     }
 
-    Ok(quote! {
-        {
-            // Safety: All of the name and signature CStr literals have been validate
-            // at compile time and encoded as MUTF-8 - therefore they can be safely
-            // cast to a JNIStr unchecked at runtime.
-            unsafe {
-                let native_methods = &[
-                    #(#native_method_descriptors),*
-                ];
-                env.register_native_methods(class, native_methods)?;
+    // Generate the registration code
+    if conditional_blocks.is_empty() {
+        // All methods are unconditional - use simpler array syntax
+        Ok(quote! {
+            {
+                // Safety: All of the name and signature CStr literals have been validated
+                // at compile time and encoded as MUTF-8 - therefore they can be safely
+                // cast to a JNIStr unchecked at runtime.
+                unsafe {
+                    let native_methods = &[
+                        #(#unconditional_descriptors),*
+                    ];
+                    env.register_native_methods(class, native_methods)?;
+                }
             }
-        }
-    })
+        })
+    } else {
+        // We have conditional methods - build a Vec at runtime
+        Ok(quote! {
+            {
+                // Safety: All of the name and signature CStr literals have been validated
+                // at compile time and encoded as MUTF-8 - therefore they can be safely
+                // cast to a JNIStr unchecked at runtime.
+                unsafe {
+                    let mut native_methods = vec![
+                        #(#unconditional_descriptors),*
+                    ];
+                    #(#conditional_blocks)*
+                    env.register_native_methods(class, &native_methods)?;
+                }
+            }
+        })
+    }
 }
 
 /// Generate exported native method functions for methods marked with export = true
