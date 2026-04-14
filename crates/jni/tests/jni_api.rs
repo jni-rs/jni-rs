@@ -340,6 +340,76 @@ pub fn set_public_field_by_id() {
     .unwrap();
 }
 
+rusty_fork::rusty_fork_test! {
+    #[test]
+    fn set_array_field() {
+        // This test reproduces an issue where the `set_field` threw an error when
+        // setting an array field. The reason this was happening is that `set_field`
+        // checks that the type of the incoming `JValue` matches the type of the
+        // field, but the type of an array returned by `new_byte_array` is
+        // `JavaType::Object` whilst the type of an array signature is
+        // `JavaType::Array`.
+        let out_dir = util::setup_test_output("set_array_field");
+
+        javac::Build::new()
+            .file("tests/java/com/example/TestFields.java")
+            .output_dir(&out_dir)
+            .compile();
+        attach_current_thread(|env| {
+            util::load_test_class(env, &out_dir, "TestFields")?;
+
+            let instance = env.new_object(jni_str!("com/example/TestFields"), jni_sig!("()V"), &[])?;
+
+            // Set the `staticByteArray` field to a new value
+            let arr = env.new_byte_array(1)?;
+            env.set_field(
+                instance,
+                jni_str!("byteArrayField"),
+                jni_sig!("[B"),
+                JValue::Object(&arr),
+            )?;
+
+            Ok(())
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn set_static_array_field() {
+        // This test reproduces an issue where the `set_static_field` threw an error when
+        // setting an array field. The reason this was happening is that `set_static_field`
+        // checks that the type of the incoming `JValue` matches the type of the
+        // field, but the type of an array returned by `new_byte_array` is
+        // `JavaType::Object` whilst the type of an array signature is
+        // `JavaType::Array`.
+        let out_dir = util::setup_test_output("set_static_array_field");
+
+        javac::Build::new()
+            .file("tests/java/com/example/TestFields.java")
+            .output_dir(&out_dir)
+            .compile();
+
+        attach_current_thread(|env| {
+            util::load_test_class(env, &out_dir, "TestFields")?;
+
+            // let instance = env.new_object(jni_str!("com/example/TestFields"), jni_sig!("()V"), &[])?;
+            let class = env.load_class(jni_str!("com/example/TestFields"))?;
+
+            // Set the `staticByteArray` field to a new value
+            let arr = env.new_byte_array(1)?;
+            env.set_static_field(
+                class,
+                jni_str!("staticByteArray"),
+                jni_sig!("[B"),
+                JValue::Object(&arr),
+            )?;
+
+            Ok(())
+        })
+        .unwrap();
+    }
+}
+
 #[test]
 pub fn get_static_public_field() {
     attach_current_thread(|env| {
