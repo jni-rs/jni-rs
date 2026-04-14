@@ -196,6 +196,17 @@ impl<'sig> FieldSignature<'sig> {
     pub fn ty(&self) -> JavaType {
         self.ty
     }
+
+    /// Check if the type of this field is compatible with the given type. This
+    /// is not quite an equality check on `Self::ty()` because `JavaType::Array`
+    /// signatures are considered compatible with `JavaType::Object` values
+    pub fn type_is_compatible_with(&self, ty: JavaType) -> bool {
+        match (self.ty, ty) {
+            (JavaType::Array | JavaType::Object, JavaType::Array | JavaType::Object) => true,
+            (a, b) if a == b => true,
+            _ => false,
+        }
+    }
 }
 
 /// A runtime-parsed JNI method signature.

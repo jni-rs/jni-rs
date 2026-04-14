@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+#### Fixed
+
+- `Env::{set_field, set_static_field}` no longer throw `WrongJValueType` when passed array values for array signatures
+
 
 ## [0.22.4] — 2026-03-16
 

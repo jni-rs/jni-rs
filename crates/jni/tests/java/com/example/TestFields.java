@@ -5,6 +5,7 @@ package com.example;
  * bindings.
  */
 public class TestFields {
+
     // Static primitive fields
     public static int staticIntField = 42;
     public static long staticLongField = 9876543210L;
@@ -14,6 +15,7 @@ public class TestFields {
     public static float staticFloatField = 3.14f;
     public static double staticDoubleField = 2.71828;
     public static char staticCharField = 'X';
+    public static byte[] staticByteArray = new byte[0];
 
     // Static String field
     public static String staticStringField = "static string value";
@@ -27,13 +29,14 @@ public class TestFields {
     public float floatField;
     public double doubleField;
     public char charField;
+    public byte[] byteArrayField;
 
     // Instance String field
     public String stringField;
 
     // Fields for testing non_null validation
-    public String nullableStringField;  // Can be null
-    public String requiredStringField;  // Should be validated with non_null
+    public String nullableStringField; // Can be null
+    public String requiredStringField; // Should be validated with non_null
     public String validatedStringField; // Should be validated with non_null (block syntax)
 
     // Fields guarded by _cfg_test feature (never enabled in tests)
@@ -54,9 +57,10 @@ public class TestFields {
         this.floatField = 1.5f;
         this.doubleField = 2.5;
         this.charField = 'A';
+        this.byteArrayField = new byte[0];
         this.stringField = "instance string";
-        this.nullableStringField = null;  // Initialize to null for testing
-        this.requiredStringField = null;  // Initialize to null to test validation
+        this.nullableStringField = null; // Initialize to null for testing
+        this.requiredStringField = null; // Initialize to null to test validation
         this.validatedStringField = null; // Initialize to null to test validation
         this.instanceCfgTestField = 77;
         this.instanceInvocationField = 88;

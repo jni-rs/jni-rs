@@ -3997,9 +3997,8 @@ See the jni-rs Env documentation for more details.
         let obj = obj.as_ref();
         let obj = null_check!(obj, "set_field obj argument")?;
         let sig = sig.as_ref();
-        let field_ty = sig.ty();
 
-        if value.java_type() != field_ty {
+        if !sig.type_is_compatible_with(value.java_type()) {
             return Err(Error::WrongJValueType(value.type_name(), "see java field"));
         }
 
@@ -4173,9 +4172,8 @@ See the jni-rs Env documentation for more details.
         S: AsRef<FieldSignature<'sig>>,
     {
         let sig = sig.as_ref();
-        let field_ty = sig.ty();
 
-        if value.java_type() != field_ty {
+        if !sig.type_is_compatible_with(value.java_type()) {
             return Err(Error::WrongJValueType(value.type_name(), "see java field"));
         }
 
