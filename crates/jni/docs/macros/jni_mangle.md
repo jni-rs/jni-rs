@@ -138,6 +138,24 @@ pub fn another_function<'local>(env: EnvUnowned<'local>, _: JObject<'local>) { }
 // Note: Only argument types are encoded, return type (V) is ignored
 ```
 
+With class not contained in package name:
+```
+# use jni::{ EnvUnowned, objects::JObject };
+# use jni_macros::jni_mangle;
+#[jni_mangle("com.example.with_underscore.RustBindings")]
+pub fn some_rust_function<'local>(env: EnvUnowned<'local>, _: JObject<'local>) { }
+// Generates: Java_com_example_with_1underscore_RustBindings_someRustFunction
+```
+
+Which can for example be accessed from Kotlin like this:
+```kotlin
+package com.example.with_underscore
+
+class RustBindings {
+    private external fun someRustFunction()
+}
+```
+
 Pre-existing "system" ABI is preserved:
 ```
 # use jni::{ EnvUnowned, objects::JObject };
