@@ -2146,7 +2146,7 @@ This does not require a runtime type check since any `"#, stringify!(#type_name)
                             fn as_ref(&self) -> &#type_path<'local> {
                                 const fn assert_is_instance_of_type_is_ffi_safe<T: #jni::refs::TransparentReference>() {}
                                 const _: () = assert_is_instance_of_type_is_ffi_safe::<#type_path<'_>>();
-                                unsafe { std::mem::transmute(self) }
+                                unsafe { ::std::mem::transmute(self) }
                             }
                         }
                     });

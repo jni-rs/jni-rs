@@ -1374,8 +1374,8 @@ pub fn generate_type_mapping_checks(type_mappings: &TypeMappings, jni: &syn::Pat
         type_checks.push(quote! {
             {
                 const _: () =  {
-                    assert!(std::mem::size_of::<#jni::sys::#jni_sys_prim>() == std::mem::size_of::<#rust_path>(), concat!("Size mismatch for primitive type ", stringify!(#rust_path)));
-                    assert!(std::mem::align_of::<#jni::sys::#jni_sys_prim>() == std::mem::align_of::<#rust_path>(), concat!("Alignment mismatch for primitive type ", stringify!(#rust_path)));
+                    assert!(::std::mem::size_of::<#jni::sys::#jni_sys_prim>() == ::std::mem::size_of::<#rust_path>(), concat!("Size mismatch for primitive type ", stringify!(#rust_path)));
+                    assert!(::std::mem::align_of::<#jni::sys::#jni_sys_prim>() == ::std::mem::align_of::<#rust_path>(), concat!("Alignment mismatch for primitive type ", stringify!(#rust_path)));
                 };
             }
         });
