@@ -43,13 +43,20 @@ where
     ) -> Result<Self> {
         let mut is_copy: jboolean = true;
 
+        // We use jni_call_no_post_check_ex! (not jni_call_with_catch_and_null_check!)
+        // because once GetPrimitiveArrayCritical succeeds we're immediately in a
+        // critical section where no other JNI calls are allowed (including
+        // exception_check or exception_clear).
+        //
+        // jni_call_no_post_check_ex! only does a pre-check for pending exceptions,
+        // then calls GetPrimitiveArrayCritical without any post-call exception
+        // checking.
+        //
+        // GetPrimitiveArrayCritical can return NULL on OutOfMemory and may throw
+        // OutOfMemoryError. If it returns NULL, no critical section has been
+        // created, so it's safe to make JNI calls to check/clear exceptions.
         let ptr = unsafe {
-            jni_call_with_catch_and_null_check!(
-                catch |env| {
-                    crate::exceptions::JOutOfMemoryError =>
-                        Err(Error::JniCall(JniError::NoMemory)),
-                    else => Err(Error::NullPtr("Unexpected Exception")),
-                },
+            jni_call_no_post_check_ex!(
                 env,
                 v1_2,
                 GetPrimitiveArrayCritical,
@@ -58,10 +65,22 @@ where
             )? as *mut T
         };
 
+        // Check for NULL return (indicates OutOfMemory)
+        // If we got NULL, no critical section was created, so we can safely
+        // make JNI calls to clear any pending exception.
+        let ptr = match NonNull::new(ptr) {
+            Some(ptr) => ptr,
+            None => {
+                // Clear any pending OutOfMemoryError before returning
+                env.exception_clear();
+                return Err(Error::JniCall(JniError::NoMemory));
+            }
+        };
+
         Ok(AutoElementsCritical {
             array,
             len,
-            ptr: NonNull::new(ptr).ok_or(Error::NullPtr("Non-null ptr expected"))?,
+            ptr,
             mode,
             is_copy: is_copy == sys::JNI_TRUE,
             _lifetime: PhantomData,
