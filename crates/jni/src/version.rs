@@ -46,6 +46,10 @@ impl JNIVersion {
     pub const V21: Self = JNIVersion {
         ver: jni_sys::JNI_VERSION_21 as u32,
     };
+    /// JNI Version 24.0
+    pub const V24: Self = JNIVersion {
+        ver: jni_sys::JNI_VERSION_24 as u32,
+    };
 
     /// Return a version from a raw version constant like [`jni_sys::JNI_VERSION_1_2`]
     pub fn new(ver: jni_sys::jint) -> Self {

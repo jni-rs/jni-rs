@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `JNIVersion::V24` constant for JNI version 24.0 ([#819](https://github.com/jni-rs/jni-rs/pull/819))
+
 ### Fixed
 
 - `Env::{set_field, set_static_field}` no longer throw `WrongJValueType` when passed array values for array signatures ([#811](https://github.com/jni-rs/jni-rs/pull/811))
