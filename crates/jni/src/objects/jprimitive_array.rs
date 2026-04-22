@@ -210,6 +210,30 @@ impl<'local, T: TypeArray> JPrimitiveArray<'local, T> {
         AutoElements::new(env, self, mode)
     }
 
+    /// Returns an [`AutoElements`] to access the elements of this array,
+    /// consuming `self`.
+    ///
+    /// This is an alternative to [`Self::get_elements`] that can be useful when
+    /// you want to avoid getting an [`AutoElements`] that borrows `self`
+    /// because you want to call other methods on `self` while the elements are
+    /// still accessible, or you want to move the returned [`AutoElements`] to
+    /// another scope that doesn't borrow `self`.
+    ///
+    /// # Safety
+    ///
+    /// See the safety requirements of [`Self::get_elements`].
+    ///
+    /// Most importantly, the no-aliasing rules must be adhered to, and there
+    /// must not be any other [`AutoElements`] or [`AutoElementsCritical`] for
+    /// the same array at the same time.
+    pub unsafe fn into_elements(
+        self,
+        env: &Env,
+        mode: ReleaseMode,
+    ) -> Result<AutoElements<'local, T, Self>> {
+        AutoElements::new(env, self, mode)
+    }
+
     /// Returns an [`AutoElementsCritical`] to access the elements of this
     /// array.
     ///
@@ -308,6 +332,31 @@ impl<'local, T: TypeArray> JPrimitiveArray<'local, T> {
         env: &Env<'_>,
         mode: ReleaseMode,
     ) -> Result<AutoElementsCritical<'local, T, &Self>> {
+        AutoElementsCritical::new(env, self, mode)
+    }
+
+    /// Returns an [`AutoElementsCritical`] to access the elements of this
+    /// array, consuming `self`.
+    ///
+    /// This is an alternative to [`Self::get_elements_critical`] that can be
+    /// useful when you want to avoid getting an [`AutoElementsCritical`] that
+    /// borrows `self` because you want to call other methods on `self` while
+    /// the elements are still accessible, or you want to move the returned
+    /// [`AutoElementsCritical`] to another scope that doesn't borrow `self`.
+    ///
+    /// # Safety
+    ///
+    /// See the safety requirements of [`Self::get_elements_critical`].
+    ///
+    /// Most importantly, the critical section restrictions and no-aliasing
+    /// rules must be adhered to, and there must not be any other
+    /// [`AutoElements`] or [`AutoElementsCritical`] for the same array at the
+    /// same time.
+    pub unsafe fn into_elements_critical(
+        self,
+        env: &Env<'_>,
+        mode: ReleaseMode,
+    ) -> Result<AutoElementsCritical<'local, T, Self>> {
         AutoElementsCritical::new(env, self, mode)
     }
 
