@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `bind_java_type` now supports `#[jni(requires = ...)]` attributes on optional methods and fields, to conditionally enable them based on runtime checks like version checks ([#800](https://github.com/jni-rs/jni-rs/pull/800))
 
 ## [0.22.4] — 2026-03-16
 

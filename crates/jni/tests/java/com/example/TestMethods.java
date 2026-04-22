@@ -99,6 +99,17 @@ public class TestMethods {
         return null;
     }
 
+    // Methods for testing combined requires attributes
+    public void combinedCheckPass() {
+        // This method should be accessible when all requires conditions are true
+        message = "combined pass";
+    }
+
+    public void combinedCheckFail() {
+        // This method should fail when any requires condition is false
+        message = "combined fail";
+    }
+
     public String getRequiredMessage() {
         // This method returns null to test that non_null validation catches it
         return null;
