@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `JNIVersion::V24` constant for JNI version 24.0 ([#819](https://github.com/jni-rs/jni-rs/pull/819))
+- `JPrimitiveArray::into_elements[_critical]` methods for accessing elements without borrowing the array reference. ([#818](https://github.com/jni-rs/jni-rs/pull/818))
 
 ### Fixed
 
@@ -43,7 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.22.3] — 2026-03-05
 
-#### Fixed
+### Fixed
 
 - docs.rs build: Bumps `simd_cesu8` dep to >= 1.1.1 which no longer has an automatically-enabled
 "nightly" feature that may affect the docs.rs build (1.1.x is now also MSRV compatible) ([#790](https://github.com/jni-rs/jni-rs/pull/790))

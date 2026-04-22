@@ -1,4 +1,4 @@
-warning: use of deprecated method `jni::Env::<'local>::get_array_elements`: use JPrimitiveArray::get_elements instead. This API will be removed in a future version
+warning: use of deprecated method `jni::Env::<'local>::get_array_elements`: use JPrimitiveArray::get_elements or JPrimitiveArray::into_elements instead. This API will be removed in a future version
   --> tests/ui/fail/auto-elements-lifetime.rs:19:30
    |
 19 |                         env2.get_array_elements(java_array, ReleaseMode::CopyBack)

@@ -1323,6 +1323,81 @@ pub fn get_array_elements_critical() {
 }
 
 #[test]
+pub fn into_elements() {
+    attach_current_thread(|env| {
+        // Create an AutoElements in an inner scope and move it to outer scope
+        // This demonstrates that into_elements doesn't borrow from the array reference
+        let mut auto_elements = {
+            let java_array = env.new_int_array(3).unwrap();
+
+            // Call into_elements, consuming the array reference
+            // Safety: No other references to the array elements exist
+            unsafe {
+                java_array
+                    .into_elements(env, ReleaseMode::CopyBack)
+                    .unwrap()
+            }
+            // java_array is consumed here, but auto_elements can be returned
+        };
+
+        // We can still use auto_elements after the inner scope
+        assert_eq!(auto_elements.len(), 3);
+
+        // Write values
+        auto_elements[0] = 10;
+        auto_elements[1] = 20;
+        auto_elements[2] = 30;
+
+        // Read values back
+        assert_eq!(auto_elements[0], 10);
+        assert_eq!(auto_elements[1], 20);
+        assert_eq!(auto_elements[2], 30);
+
+        Ok(())
+    })
+    .unwrap();
+}
+
+#[test]
+pub fn into_elements_critical() {
+    attach_current_thread(|env| {
+        // Create AutoElementsCritical and move it out of the scope where array was created
+        // This demonstrates that into_elements_critical doesn't borrow from self
+        let mut auto_ptr = {
+            let java_array = env.new_int_array(3).unwrap();
+            let buf: &[i32] = &[1, 2, 3];
+            java_array.set_region(env, 0, buf).unwrap();
+
+            // Call into_elements_critical, which consumes the array reference
+            // This is key: into_elements_critical takes ownership, not a borrow
+            unsafe {
+                java_array
+                    .into_elements_critical(env, ReleaseMode::CopyBack)
+                    .unwrap()
+            }
+            // java_array is consumed here, but auto_ptr can be returned
+        };
+
+        // We can still use auto_ptr after the inner scope where java_array was created
+        assert_eq!(auto_ptr.len(), 3);
+        assert_eq!(auto_ptr[0], 1);
+        assert_eq!(auto_ptr[1], 2);
+        assert_eq!(auto_ptr[2], 3);
+
+        // Modify via `DerefMut`
+        auto_ptr[0] += 1;
+        auto_ptr[1] += 1;
+        auto_ptr[2] += 1;
+
+        // Explicitly drop to end critical section before Ok(()) is returned
+        drop(auto_ptr);
+
+        Ok(())
+    })
+    .unwrap();
+}
+
+#[test]
 pub fn get_object_class() {
     attach_current_thread(|env| {
         let string = env.new_string("test").unwrap();
