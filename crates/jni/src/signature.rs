@@ -1,10 +1,5 @@
 use std::{fmt, str::FromStr};
 
-use combine::{
-    ParseError, Parser, RangeStream, StdParseResult, Stream, between, many, parser,
-    parser::range::recognize, satisfy, skip_many, skip_many1, token,
-};
-
 use crate::{
     errors::*,
     strings::{JNIStr, JNIString},
@@ -66,18 +61,13 @@ impl FromStr for JavaType {
     type Err = Error;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        parser(parse_type)
-            .parse(s)
-            .map_err(|e| Error::ParseFailed(format!("Failed to parse '{s}': {e}")))
-            .map(|(res, tail)| {
-                if tail.is_empty() {
-                    Ok(res)
-                } else {
-                    Err(Error::ParseFailed(format!(
-                        "Trailing input: '{tail}' while parsing '{s}'"
-                    )))
-                }
-            })?
+        let (ty, rest) = parse_type(s)?;
+        match rest {
+            "" => Ok(ty),
+            _ => Err(Error::ParseFailed(format!(
+                "Trailing input: '{rest}' while parsing '{s}'"
+            ))),
+        }
     }
 }
 
@@ -261,24 +251,18 @@ impl RuntimeMethodSignature {
     /// Parse a method signature string into a RuntimeMethodSignature enum.
     #[allow(clippy::should_implement_trait)]
     pub fn from_str<S: AsRef<str>>(s: S) -> Result<RuntimeMethodSignature> {
-        parser(parse_method_sig)
-            .parse(s.as_ref())
-            .map_err(|e| Error::ParseFailed(format!("Failed to parse '{}': {e}", s.as_ref())))
-            .map(|(RuntimeMethodSignature { sig: _, args, ret }, tail)| {
-                if tail.is_empty() {
-                    Ok(RuntimeMethodSignature {
-                        // Note: the parser initially returns a placeholder, empty signature string,
-                        sig: JNIString::new(s.as_ref()),
-                        args,
-                        ret,
-                    })
-                } else {
-                    Err(Error::ParseFailed(format!(
-                        "Trailing input: '{tail}' while parsing '{}'",
-                        s.as_ref()
-                    )))
-                }
-            })?
+        let input = s.as_ref();
+        match parse_method_sig(input)? {
+            // Note: the parser initially returns a placeholder, empty signature string,
+            (RuntimeMethodSignature { sig: _, args, ret }, "") => Ok(RuntimeMethodSignature {
+                sig: JNIString::new(input),
+                args,
+                ret,
+            }),
+            (RuntimeMethodSignature { .. }, tail) => Err(Error::ParseFailed(format!(
+                "Trailing input: '{tail}' while parsing '{input}'"
+            ))),
+        }
     }
 
     /// Convert to a [MethodSignature] (for use with [Env] calls like [`Env::call_method`]).
@@ -358,23 +342,17 @@ impl RuntimeFieldSignature {
     /// Parse a field signature string into a RuntimeFieldSignature.
     #[allow(clippy::should_implement_trait)]
     pub fn from_str<S: AsRef<str>>(s: S) -> Result<RuntimeFieldSignature> {
-        parser(parse_field_sig)
-            .parse(s.as_ref())
-            .map_err(|e| Error::ParseFailed(format!("Failed to parse '{}': {e}", s.as_ref())))
-            .map(|(RuntimeFieldSignature { sig: _, ty }, tail)| {
-                if tail.is_empty() {
-                    // Note: the parser initially returns a placeholder, empty signature string,
-                    Ok(RuntimeFieldSignature {
-                        sig: JNIString::new(s.as_ref()),
-                        ty,
-                    })
-                } else {
-                    Err(Error::ParseFailed(format!(
-                        "Trailing input: '{tail}' while parsing '{}'",
-                        s.as_ref()
-                    )))
-                }
-            })?
+        let input = s.as_ref();
+        match parse_field_sig(input)? {
+            // Note: the parser initially returns a placeholder, empty signature string,
+            (RuntimeFieldSignature { sig: _, ty }, "") => Ok(RuntimeFieldSignature {
+                sig: JNIString::new(input),
+                ty,
+            }),
+            (RuntimeFieldSignature { .. }, tail) => Err(Error::ParseFailed(format!(
+                "Trailing input: '{tail}' while parsing '{input}'"
+            ))),
+        }
     }
 
     /// Convert to a [FieldSignature] (for use with [Env] calls like [`Env::get_field`]).
@@ -400,161 +378,178 @@ impl fmt::Display for RuntimeFieldSignature {
     }
 }
 
-fn parse_primitive<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<Primitive, S>
-where
-    S::Error: ParseError<char, S::Range, S::Position>,
-{
-    let boolean = token('Z').map(|_| Primitive::Boolean);
-    let byte = token('B').map(|_| Primitive::Byte);
-    let char_type = token('C').map(|_| Primitive::Char);
-    let double = token('D').map(|_| Primitive::Double);
-    let float = token('F').map(|_| Primitive::Float);
-    let int = token('I').map(|_| Primitive::Int);
-    let long = token('J').map(|_| Primitive::Long);
-    let short = token('S').map(|_| Primitive::Short);
-    let void = token('V').map(|_| Primitive::Void);
+/// Parse a primitive type descriptor from the start of `input`.
+/// Returns the parsed `Primitive` and the remaining input.
+fn parse_primitive(input: &str) -> Result<(Primitive, &str)> {
+    let (&first, _rest) = input
+        .as_bytes()
+        .split_first()
+        .ok_or_else(|| Error::ParseFailed("unexpected end of input".into()))?;
 
-    (boolean
-        .or(byte)
-        .or(char_type)
-        .or(double)
-        .or(float)
-        .or(int)
-        .or(long)
-        .or(short)
-        .or(void))
-    .parse_stream(input)
-    .into()
+    let prim = match first {
+        b'Z' => Primitive::Boolean,
+        b'B' => Primitive::Byte,
+        b'C' => Primitive::Char,
+        b'D' => Primitive::Double,
+        b'F' => Primitive::Float,
+        b'I' => Primitive::Int,
+        b'J' => Primitive::Long,
+        b'S' => Primitive::Short,
+        b'V' => Primitive::Void,
+        _ => {
+            return Err(Error::ParseFailed(format!(
+                "expected primitive type, got '{}'",
+                first as char
+            )));
+        }
+    };
+
+    // SAFETY: we split one ASCII byte, rest is valid UTF-8 at that offset
+    Ok((prim, &input[1..]))
 }
 
-fn parse_non_void_primitive<S: Stream<Token = char>>(input: &mut S) -> StdParseResult<Primitive, S>
-where
-    S::Error: ParseError<char, S::Range, S::Position>,
-{
-    let boolean = token('Z').map(|_| Primitive::Boolean);
-    let byte = token('B').map(|_| Primitive::Byte);
-    let char_type = token('C').map(|_| Primitive::Char);
-    let double = token('D').map(|_| Primitive::Double);
-    let float = token('F').map(|_| Primitive::Float);
-    let int = token('I').map(|_| Primitive::Int);
-    let long = token('J').map(|_| Primitive::Long);
-    let short = token('S').map(|_| Primitive::Short);
-
-    (boolean
-        .or(byte)
-        .or(char_type)
-        .or(double)
-        .or(float)
-        .or(int)
-        .or(long)
-        .or(short))
-    .parse_stream(input)
-    .into()
+/// Parse a non-void primitive type descriptor.
+fn parse_non_void_primitive(input: &str) -> Result<(Primitive, &str)> {
+    let (prim, rest) = parse_primitive(input)?;
+    if matches!(prim, Primitive::Void) {
+        return Err(Error::ParseFailed(
+            "void is not valid in this position".into(),
+        ));
+    }
+    Ok((prim, rest))
 }
 
-fn parse_array<'a, S>(input: &mut S) -> StdParseResult<JavaType, S>
-where
-    S: RangeStream<Token = char, Range = &'a str>,
-    S::Error: ParseError<char, S::Range, S::Position>,
-{
-    let marker = token('[');
-    (marker, parser(parse_non_void_type))
-        .map(|(_, _ty)| JavaType::Array)
-        .parse_stream(input)
-        .into()
+/// Parse an array type descriptor (`[<element_type>`).
+fn parse_array(input: &str) -> Result<(JavaType, &str)> {
+    let input = input
+        .strip_prefix('[')
+        .ok_or_else(|| Error::ParseFailed("expected '[' for array type".into()))?;
+    let (_, rest) = parse_non_void_type(input)?;
+    Ok((JavaType::Array, rest))
 }
 
-fn parse_object<'a, S>(input: &mut S) -> StdParseResult<JavaType, S>
-where
-    S: RangeStream<Token = char, Range = &'a str>,
-    S::Error: ParseError<char, &'a str, S::Position>,
-{
+/// Parse an object type descriptor (`Lclassname;`).
+fn parse_object(input: &str) -> Result<(JavaType, &str)> {
+    let input = input
+        .strip_prefix('L')
+        .ok_or_else(|| Error::ParseFailed("expected 'L' for object type".into()))?;
+
+    // JVMS §4.2.2: unqualified names must not contain '.', ';', '[', or '/'
     fn is_unqualified(c: char) -> bool {
-        // JVMS §4.2.2: '.', ';', '[' and '/' are disallowed in an unqualified name
         !matches!(c, '.' | ';' | '[' | '/')
     }
 
-    // One or more segments separated by '/', never starting or ending with '/'
-    let class_body = recognize((
-        skip_many1(satisfy(is_unqualified)),
-        skip_many(token('/').with(skip_many1(satisfy(is_unqualified)))),
-    ));
+    let bytes = input.as_bytes();
+    let mut i = 0;
+    // Must start with at least one unqualified char (no leading '/')
+    if i >= bytes.len() || !is_unqualified(bytes[i] as char) {
+        return Err(Error::ParseFailed("expected class name after 'L'".into()));
+    }
 
-    (
-        token('L'),
-        class_body.map(|s: &'a str| s.to_owned()),
-        token(';'),
-    )
-        .map(|(_, _name, _)| JavaType::Object)
-        .parse_stream(input)
-        .into()
+    while i < bytes.len() && is_unqualified(bytes[i] as char) {
+        i += 1;
+    }
+
+    // Optionally followed by ('/' segment)* where each segment is non-empty
+    while i < bytes.len() && bytes[i] == b'/' {
+        i += 1; // consume '/'
+        let seg_start = i;
+        while i < bytes.len() && is_unqualified(bytes[i] as char) {
+            i += 1;
+        }
+
+        if i == seg_start {
+            return Err(Error::ParseFailed(
+                "expected class name segment after '/'".into(),
+            ));
+        }
+    }
+
+    // Must end with ';'
+    if i >= bytes.len() || bytes[i] != b';' {
+        return Err(Error::ParseFailed(
+            "expected ';' to close object type".into(),
+        ));
+    }
+
+    Ok((JavaType::Object, &input[i + 1..]))
 }
 
-fn parse_type<'a, S>(input: &mut S) -> StdParseResult<JavaType, S>
-where
-    S: RangeStream<Token = char, Range = &'a str>,
-    S::Error: ParseError<char, &'a str, S::Position>,
-{
-    parser(parse_primitive)
-        .map(JavaType::Primitive)
-        .or(parser(parse_array))
-        .or(parser(parse_object))
-        .parse_stream(input)
-        .into()
+/// Parse any type descriptor (primitive, object, or array), including void.
+fn parse_type(input: &str) -> Result<(JavaType, &str)> {
+    match input.as_bytes().first() {
+        Some(b'L') => parse_object(input),
+        Some(b'[') => parse_array(input),
+        Some(_) => {
+            let (prim, rest) = parse_primitive(input)?;
+            Ok((JavaType::Primitive(prim), rest))
+        }
+        None => Err(Error::ParseFailed("unexpected end of input".into())),
+    }
 }
 
-fn parse_non_void_type<'a, S>(input: &mut S) -> StdParseResult<JavaType, S>
-where
-    S: RangeStream<Token = char, Range = &'a str>,
-    S::Error: ParseError<char, &'a str, S::Position>,
-{
-    parser(parse_non_void_primitive)
-        .map(JavaType::Primitive)
-        .or(parser(parse_array))
-        .or(parser(parse_object))
-        .parse_stream(input)
-        .into()
+/// Parse any non-void type descriptor (primitive, object, or array).
+fn parse_non_void_type(input: &str) -> Result<(JavaType, &str)> {
+    match input.as_bytes().first() {
+        Some(b'L') => parse_object(input),
+        Some(b'[') => parse_array(input),
+        Some(_) => {
+            let (prim, rest) = parse_non_void_primitive(input)?;
+            Ok((JavaType::Primitive(prim), rest))
+        }
+        None => Err(Error::ParseFailed("unexpected end of input".into())),
+    }
 }
 
-fn parse_args<'a, S>(input: &mut S) -> StdParseResult<Vec<JavaType>, S>
-where
-    S: RangeStream<Token = char, Range = &'a str>,
-    S::Error: ParseError<char, S::Range, S::Position>,
-{
-    between(token('('), token(')'), many(parser(parse_type)))
-        .parse_stream(input)
-        .into()
+/// Parse argument types enclosed in parentheses (`(<type>*)`).
+fn parse_args(input: &str) -> Result<(Vec<JavaType>, &str)> {
+    let input = input
+        .strip_prefix('(')
+        .ok_or_else(|| Error::ParseFailed("expected '(' to start arguments".into()))?;
+
+    let mut args = Vec::new();
+    let mut rest = input;
+    loop {
+        match rest.as_bytes().first() {
+            Some(b')') => return Ok((args, &rest[1..])),
+            Some(_) => {
+                let (ty, remaining) = parse_non_void_type(rest)?;
+                args.push(ty);
+                rest = remaining;
+            }
+            None => {
+                return Err(Error::ParseFailed(
+                    "unexpected end of input, expected ')'".into(),
+                ));
+            }
+        }
+    }
 }
 
-fn parse_method_sig<'a, S>(input: &mut S) -> StdParseResult<RuntimeMethodSignature, S>
-where
-    S: RangeStream<Token = char, Range = &'a str>,
-    S::Error: ParseError<char, S::Range, S::Position>,
-{
-    // Note: we initially return a placeholder signature string, which is replaced later
-    (parser(parse_args), parser(parse_type))
-        .map(|(a, r)| RuntimeMethodSignature {
+/// Note: we initially return a placeholder signature string, which is replaced later
+fn parse_method_sig(input: &str) -> Result<(RuntimeMethodSignature, &str)> {
+    let (args, rest) = parse_args(input)?;
+    let (ret, rest) = parse_type(rest)?;
+    Ok((
+        RuntimeMethodSignature {
             sig: JNIString::new(""),
-            args: a,
-            ret: r,
-        })
-        .parse_stream(input)
-        .into()
+            args,
+            ret,
+        },
+        rest,
+    ))
 }
 
-fn parse_field_sig<'a, S>(input: &mut S) -> StdParseResult<RuntimeFieldSignature, S>
-where
-    S: RangeStream<Token = char, Range = &'a str>,
-    S::Error: ParseError<char, S::Range, S::Position>,
-{
-    // Note: we initially return a placeholder signature string, which is replaced later
-    (parser(parse_non_void_type))
-        .map(|ty| RuntimeFieldSignature {
+/// Note: we initially return a placeholder signature string, which is replaced later
+fn parse_field_sig(input: &str) -> Result<(RuntimeFieldSignature, &str)> {
+    let (ty, rest) = parse_non_void_type(input)?;
+    Ok((
+        RuntimeFieldSignature {
             sig: JNIString::new(""),
             ty,
-        })
-        .parse_stream(input)
-        .into()
+        },
+        rest,
+    ))
 }
 
 #[cfg(test)]
