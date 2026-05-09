@@ -58,7 +58,6 @@ log.workspace = true
 thiserror.workspace = true
 
 cfg-if = "1.0.0"
-combine = "4.1.0"
 
 [target.'cfg(windows)'.dependencies]
 windows-link = "0.2"
