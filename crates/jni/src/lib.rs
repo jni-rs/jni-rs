@@ -268,11 +268,11 @@
 //!     https://docs.oracle.com/en/java/javase/21/docs/specs/jni/index.html
 //! [jni-tips]: https://developer.android.com/training/articles/perf-jni
 //! [jni-rs-examples]:
-//!     https://github.com/jni-rs/jni-rs/tree/master/examples
+//!     https://github.com/jni-rs/jni-rs/tree/master/crates/jni/examples
 //! [jni-rs-mylib-example]:
-//!     https://github.com/jni-rs/jni-rs/tree/master/mylib-example
-//! [jni-rs-its]: https://github.com/jni-rs/jni-rs/tree/master/tests
-//! [jni-rs-benches]: https://github.com/jni-rs/jni-rs/tree/master/benches
+//!     https://github.com/jni-rs/jni-rs/tree/master/crates/jni/mylib-example
+//! [jni-rs-its]: https://github.com/jni-rs/jni-rs/tree/master/crates/jni/tests
+//! [jni-rs-benches]: https://github.com/jni-rs/jni-rs/tree/master/crates/jni/benches
 //! [users-servo]:
 //!     https://github.com/servo/servo/tree/main/ports/servoshell/egl/android
 //! [users-ejb]:
@@ -282,7 +282,7 @@
 //! [projects-jnr]: https://github.com/jnr/jnr-ffi/
 //! [projects-graalvm]: http://www.graalvm.org/docs/why-graal/#for-java-programs
 //! [graalvm-rust]:
-//!     http://www.graalvm.org/docs/reference-manual/languages/llvm/#running-rust
+//!     https://www.graalvm.org/latest/reference-manual/llvm/Compiling/#running-rust
 //! [projects-panama]: https://jdk.java.net/panama/
 
 #[doc = include_str!("../docs/0.22-MIGRATION.md")]
