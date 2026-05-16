@@ -249,7 +249,6 @@
 //! ### Open-Source Users
 //! - The Servo browser engine Android [port][users-servo]
 //! - The Exonum framework [Java Binding][users-ejb]
-//! - MaidSafe [Java Binding][users-maidsafe]
 //!
 //! ### Other Projects Simplifying Java and Rust Communication
 //! - Consider [JNR][projects-jnr] if you just need to use a native library with
@@ -277,8 +276,6 @@
 //!     https://github.com/servo/servo/tree/main/ports/servoshell/egl/android
 //! [users-ejb]:
 //!     https://github.com/exonum/exonum-java-binding/tree/master/exonum-java-binding/core/rust
-//! [users-maidsafe]:
-//!     https://github.com/maidsafe/safe_client_libs/tree/master/safe_app_jni
 //! [projects-jnr]: https://github.com/jnr/jnr-ffi/
 //! [projects-graalvm]: http://www.graalvm.org/docs/why-graal/#for-java-programs
 //! [graalvm-rust]:
