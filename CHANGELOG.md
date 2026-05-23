@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `JNIVersion::V24` constant for JNI version 24.0 ([#819](https://github.com/jni-rs/jni-rs/pull/819))
+- The basic accessors on `MethodSignature` and `FieldSignature` are now `const`.
+- `JNIStr::to_bytes` is now `const`.
 
 ### Fixed
 

@@ -123,17 +123,17 @@ impl<'sig, 'args> MethodSignature<'sig, 'args> {
     }
 
     /// Get the JNI signature string
-    pub fn sig(&self) -> &JNIStr {
+    pub const fn sig(&self) -> &JNIStr {
         self.sig
     }
 
     /// Get the argument types
-    pub fn args(&self) -> &[JavaType] {
+    pub const fn args(&self) -> &[JavaType] {
         self.args
     }
 
     /// Get the return type
-    pub fn ret(&self) -> JavaType {
+    pub const fn ret(&self) -> JavaType {
         self.ret
     }
 }
@@ -178,12 +178,12 @@ impl<'sig> FieldSignature<'sig> {
     }
 
     /// Get the JNI signature string
-    pub fn sig(&self) -> &JNIStr {
+    pub const fn sig(&self) -> &JNIStr {
         self.sig
     }
 
     /// Get the field type
-    pub fn ty(&self) -> JavaType {
+    pub const fn ty(&self) -> JavaType {
         self.ty
     }
 
