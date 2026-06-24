@@ -107,13 +107,20 @@ const SPECIAL_OPTIONS: &[&str] = &["vfprintf", "abort", "exit"];
 
 const SPECIAL_OPTIONS_C: &[&CStr] = &[c"vfprintf", c"abort", c"exit"];
 
+/// Record-keeping data for a JVM option.
+#[derive(Debug)]
+pub struct OptRecord<'a> {
+    option: Cow<'a, CStr>,
+    extra_info: Option<*mut c_void>,
+}
+
 /// Builder for JavaVM InitArgs.
 ///
 /// *This API requires "invocation" feature to be enabled,
 /// see ["Launching JVM from Rust"](struct.JavaVM.html#launching-jvm-from-rust).*
 #[derive(Debug)]
 pub struct InitArgsBuilder<'a> {
-    opts: Result<Vec<Cow<'a, CStr>>, JvmError>,
+    opts: Result<Vec<OptRecord<'a>>, JvmError>,
     ignore_unrecognized: bool,
     version: JNIVersion,
 }
@@ -212,11 +219,14 @@ impl<'a> InitArgsBuilder<'a> {
         // C string. This isn't just an optimization; Win32 `WideCharToMultiByte` will **fail** if
         // passed an empty string, so we have to do this check first.
         if matches!(opt_string.as_ref(), "" | "\0") {
-            opts.push(Cow::Borrowed(
-                // Safety: This string not only is null-terminated without any interior null bytes,
-                // it's nothing but a null terminator.
-                c"",
-            ));
+            opts.push(OptRecord {
+                option: Cow::Borrowed(
+                    // Safety: This string not only is null-terminated without any interior null bytes,
+                    // it's nothing but a null terminator.
+                    c"",
+                ),
+                extra_info: None,
+            });
             return Ok(());
         }
         // If this is one of the special options, do nothing.
@@ -236,7 +246,135 @@ impl<'a> InitArgsBuilder<'a> {
             }
         };
 
-        opts.push(encoded);
+        opts.push(OptRecord {
+            option: encoded,
+            extra_info: None,
+        });
+        Ok(())
+    }
+
+    /// Adds a JVM option with extra info, such as `vfprintf`.
+    ///
+    /// See [the JNI specification][jni-options] for details on which options are accepted.
+    ///
+    /// The option must not contain any U+0000 code points except one at the end. A U+0000 code
+    /// point at the end is not required, but on platforms where UTF-8 is the default character
+    /// encoding, including one U+0000 code point at the end will make this method run slightly
+    /// faster.
+    ///
+    /// # Errors
+    ///
+    /// This method can fail if:
+    ///
+    /// * `opt_string` contains a U+0000 code point before the end.
+    /// * `opt_string` cannot be represented in the platform default character encoding.
+    /// * the platform's character encoding conversion API reports some other error.
+    /// * `opt_string` is too long. (In the current implementation, the maximum allowed length is
+    ///   1048576 bytes on Windows. There is currently no limit on other platforms.)
+    ///
+    /// Errors raised by this method are deferred. If an error occurs, it is returned from
+    /// [`InitArgsBuilder::build`] instead.
+    ///
+    /// [jni-options]: https://docs.oracle.com/en/java/javase/11/docs/specs/jni/invocation.html#jni_createjavavm
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that the passed `extra_info` value is valid for the provided option name.
+    /// For example, the `abort` option must provide an `unsafe fn(c_int)` function pointer and the
+    /// `vfprintf` option must provide a function pointer with an `unsafe fn(*const c_char, ...) -> c_int`
+    /// signature.
+    pub unsafe fn option_with_extra_info(
+        mut self,
+        opt_string: impl AsRef<str> + Into<Cow<'a, str>>,
+        extra_info: *mut c_void,
+    ) -> Self {
+        // SAFETY: This function's safety preconditions are the same for `try_option_with_extra_info`.
+        if let Err(error) = unsafe { self.try_option_with_extra_info(opt_string, extra_info) } {
+            self.opts = Err(error);
+        }
+
+        self
+    }
+
+    /// Adds a JVM option with extra info, such as `vfprintf`. Returns an error immediately upon
+    /// failure.
+    ///
+    /// This is an alternative to [`InitArgsBuilder::option_with_extra_info`] that does not
+    /// defer errors. See below for details.
+    ///
+    /// See [the JNI specification][jni-options] for details on which options are accepted.
+    ///
+    /// The option must not contain any U+0000 code points except one at the end. A U+0000 code
+    /// point at the end is not required, but on platforms where UTF-8 is the default character
+    /// encoding, including one U+0000 code point at the end will make this method run slightly
+    /// faster.
+    ///
+    /// # Errors
+    ///
+    /// This method can fail if:
+    ///
+    /// * `opt_string` contains a U+0000 code point before the end.
+    /// * `opt_string` cannot be represented in the platform default character encoding.
+    /// * the platform's character encoding conversion API reports some other error.
+    /// * `opt_string` is too long. (In the current implementation, the maximum allowed length is
+    ///   1048576 bytes on Windows. There is currently no limit on other platforms.)
+    ///
+    /// Unlike the `option` method, this one does not defer errors. If the `opt_string` cannot be
+    /// used, then this method returns `Err` and `self` is not changed. If there is already a
+    /// deferred error, however, then this method does nothing.
+    ///
+    /// [jni-options]: https://docs.oracle.com/en/java/javase/11/docs/specs/jni/invocation.html#jni_createjavavm
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that the passed `extra_info` value is valid for the provided option name.
+    /// For example, the `abort` option must provide an `unsafe fn(c_int)` function pointer and the
+    /// `vfprintf` option must provide a function pointer with an `unsafe fn(*const c_char, ...) -> c_int`
+    /// signature.
+    pub unsafe fn try_option_with_extra_info(
+        &mut self,
+        opt_string: impl Into<Cow<'a, str>>,
+        extra_info: *mut c_void,
+    ) -> Result<(), JvmError> {
+        let opt_string = opt_string.into();
+
+        // If there is already a deferred error, do nothing.
+        let opts = match &mut self.opts {
+            Ok(ok) => ok,
+            Err(_) => return Ok(()),
+        };
+
+        // If the option is the empty string, then skip everything else and pass a constant empty
+        // C string. This isn't just an optimization; Win32 `WideCharToMultiByte` will **fail** if
+        // passed an empty string, so we have to do this check first.
+        if matches!(opt_string.as_ref(), "" | "\0") {
+            opts.push(OptRecord {
+                option: Cow::Borrowed(
+                    // Safety: This string not only is null-terminated without any interior null bytes,
+                    // it's nothing but a null terminator.
+                    c"",
+                ),
+                extra_info: None,
+            });
+            return Ok(());
+        }
+
+        let encoded: Cow<'a, CStr> = {
+            cfg_if! {
+                if #[cfg(windows)] {
+                    char_encoding_windows::str_to_cstr_win32_default_codepage(opt_string)?
+                }
+                else {
+                    // Assume UTF-8 on all other platforms.
+                    char_encoding_generic::utf8_to_cstr(opt_string)?
+                }
+            }
+        };
+
+        opts.push(OptRecord {
+            option: encoded,
+            extra_info: Some(extra_info),
+        });
         Ok(())
     }
 
@@ -271,7 +409,10 @@ impl<'a> InitArgsBuilder<'a> {
         }
 
         // Add the option.
-        opts.push(opt_string);
+        opts.push(OptRecord {
+            option: opt_string,
+            extra_info: None,
+        });
 
         self
     }
@@ -309,9 +450,9 @@ impl<'a> InitArgsBuilder<'a> {
 
         let opts: Vec<JavaVMOption> = opt_strings
             .iter()
-            .map(|opt_string| JavaVMOption {
-                optionString: opt_string.as_ptr() as _,
-                extraInfo: ptr::null_mut(),
+            .map(|opt_record| JavaVMOption {
+                optionString: opt_record.option.as_ptr() as _,
+                extraInfo: opt_record.extra_info.unwrap_or(ptr::null_mut()),
             })
             .collect();
 
@@ -323,7 +464,7 @@ impl<'a> InitArgsBuilder<'a> {
                 nOptions: opts.len() as _,
             },
             _opts: opts,
-            _opt_strings: opt_strings,
+            _opt_records: opt_strings,
         })
     }
 
@@ -331,7 +472,7 @@ impl<'a> InitArgsBuilder<'a> {
     ///
     /// If a call to [`InitArgsBuilder::option`] caused a deferred error, then this method returns
     /// a reference to that error.
-    pub fn options(&self) -> Result<&[Cow<'a, CStr>], &JvmError> {
+    pub fn options(&self) -> Result<&[OptRecord<'a>], &JvmError> {
         self.opts.as_ref().map(Vec::as_slice)
     }
 }
@@ -350,7 +491,7 @@ pub struct InitArgs<'a> {
 
     // Option strings are stored here. This ensures that any that are owned aren't dropped before
     // the JVM is finished with them.
-    _opt_strings: Vec<Cow<'a, CStr>>,
+    _opt_records: Vec<OptRecord<'a>>,
 }
 
 impl InitArgs<'_> {

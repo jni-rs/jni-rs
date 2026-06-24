@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `JNIVersion::V24` constant for JNI version 24.0 ([#819](https://github.com/jni-rs/jni-rs/pull/819))
+- `InitArgsBuilder::option_with_extra_info` and `InitArgsBuilder::try_option_with_extra_info` to support `vfprintf`, `exit`, and `abort` options
 
 ### Fixed
 
