@@ -231,7 +231,7 @@ impl<'a> InitArgsBuilder<'a> {
         }
         // If this is one of the special options, do nothing.
         else if SPECIAL_OPTIONS.contains(&&*opt_string) {
-            return Ok(());
+            panic!("`try_option` does not support special options ({:?}); please use `try_option_with_extra_info` instead.", SPECIAL_OPTIONS);
         }
 
         let encoded: Cow<'a, CStr> = {
@@ -405,7 +405,7 @@ impl<'a> InitArgsBuilder<'a> {
 
         // If this is one of the special options, do nothing.
         if SPECIAL_OPTIONS_C.contains(&&*opt_string) {
-            return self;
+            panic!("`option_encoded` does not support special options ({:?}); please use `try_option_with_extra_info` instead.", SPECIAL_OPTIONS);
         }
 
         // Add the option.
