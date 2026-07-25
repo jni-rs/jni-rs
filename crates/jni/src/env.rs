@@ -4471,6 +4471,24 @@ See the jni-rs Env documentation for more details.
     ///
     /// - **Instance native methods** must have a `this: JObject<'local>` or `this: MyType<'local>` parameter as the second parameter.
     ///
+    /// The caller must also ensure that the native library providing the function pointers
+    /// outlives `class`. A native library is associated with the class loader that loaded it and
+    /// may be unloaded once that loader is garbage collected, while `class` stays alive as long as
+    /// *its own* defining loader does. Since the registered pointers are not tracked by the JVM,
+    /// calling a native method of `class` after its implementation has been unloaded is undefined
+    /// behaviour, not an `UnsatisfiedLinkError`. In practice this holds when the library is loaded
+    /// by the defining loader of `class`, or by one of that loader's ancestors (a loader is
+    /// strongly referenced by its descendants, so it outlives them).
+    ///
+    /// Note that this hazard is specific to registering methods explicitly: when the JVM resolves
+    /// an exported `Java_*` symbol itself, it only searches libraries loaded by the defining loader
+    /// of the class, so the required lifetime relationship holds by construction. Applications that
+    /// link everything into a single library loaded by the application's own class loader (for
+    /// example a typical Android or Tauri application) also satisfy it, because that library lives
+    /// until the process exits. Code that registers methods on classes belonging to an unrelated
+    /// loader — plugin systems, hot reloading, `URLClassLoader` or `DexClassLoader` — has to
+    /// establish the relationship itself, e.g. by unregistering the methods from `JNI_OnUnload`.
+    ///
     /// # Throws
     ///
     /// - `NoSuchMethodError` - if a method could not be found (based on its name and signature) or
