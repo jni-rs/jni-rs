@@ -4540,7 +4540,7 @@ See the jni-rs Env documentation for more details.
     /// See: [JPrimitiveArray::get_elements] for more details
     #[deprecated(
         since = "0.22.0",
-        note = "use JPrimitiveArray::get_elements instead. This API will be removed in a future version"
+        note = "use JPrimitiveArray::get_elements or JPrimitiveArray::into_elements instead. This API will be removed in a future version"
     )]
     pub unsafe fn get_array_elements<'array_local, T, TArrayRef>(
         &self,
@@ -4561,7 +4561,7 @@ See the jni-rs Env documentation for more details.
     /// See: [JPrimitiveArray::get_elements_critical] for more details
     #[deprecated(
         since = "0.22.0",
-        note = "use JPrimitiveArray::get_elements_critical instead. This API will be removed in a future version"
+        note = "use JPrimitiveArray::get_elements_critical or JPrimitiveArray::into_elements_critical instead. This API will be removed in a future version"
     )]
     pub unsafe fn get_array_elements_critical<'array_local, T, TArrayRef>(
         &self,
