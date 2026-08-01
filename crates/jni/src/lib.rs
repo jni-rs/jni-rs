@@ -60,6 +60,17 @@
 //!    the function name doesn't need to be mangled or exported from a shared
 //!    library)
 //!
+//! The two are not equivalent in one respect worth knowing up front. When the
+//! JVM looks up an exported symbol itself, it only searches libraries loaded by
+//! the defining class loader of the class in question, so the implementation is
+//! guaranteed to outlive the class. Explicit registration bypasses that lookup,
+//! so the caller becomes responsible for the same relationship: if the library
+//! providing the function pointers is unloaded while the class is still alive,
+//! calls to its native methods are undefined behaviour. See the safety
+//! documentation of [`Env::register_native_methods`] for when this matters —
+//! for a single library loaded by the application's own class loader (the usual
+//! case, including Android and Tauri applications) it holds automatically.
+//!
 //! The arguments and return type for a native method implementation are
 //! documented in the JNI specification under "Design" -> "Native Method
 //! Arguments"
