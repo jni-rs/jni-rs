@@ -394,7 +394,7 @@ impl JNIStr {
     ///
     /// The returned slice will **not** contain the trailing nul terminator that this JNI
     /// string has.
-    pub fn to_bytes(&self) -> &[u8] {
+    pub const fn to_bytes(&self) -> &[u8] {
         self.as_cstr().to_bytes()
     }
 }
