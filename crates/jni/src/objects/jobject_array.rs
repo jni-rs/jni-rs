@@ -227,7 +227,7 @@ impl<'local, E: Reference + 'local> JObjectArray<'local, E> {
 
     /// Unwrap to the raw jni type.
     pub const fn into_raw(self) -> jobjectArray {
-        self.array.into_raw() as jobjectArray
+        self.array.into_raw()
     }
 
     /// Cast a local reference to a [`JObjectArray<T>`]

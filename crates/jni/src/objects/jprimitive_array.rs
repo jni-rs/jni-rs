@@ -136,7 +136,7 @@ impl<'local, T: TypeArray> JPrimitiveArray<'local, T> {
 
     /// Unwrap to the raw jni type.
     pub const fn into_raw(self) -> jarray {
-        self.obj.into_raw() as jarray
+        self.obj.into_raw()
     }
 
     /// Returns the length of the array.
