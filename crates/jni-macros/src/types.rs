@@ -660,7 +660,7 @@ impl TypeMappings {
                 .insert_alias(simple_name, &jni_full_path)
                 .expect("Failed to insert built-in jni crate type alias");
             if is_core {
-                type_mappings.core_java.insert(java_class.clone());
+                type_mappings.core_java.insert(java_class);
             }
         }
 
@@ -872,8 +872,7 @@ impl TypeMappings {
             return Ok(());
         }
 
-        self.alias_to_rust
-            .insert(alias.to_string(), rust_type.clone());
+        self.alias_to_rust.insert(alias.to_string(), rust_type);
 
         Ok(())
     }

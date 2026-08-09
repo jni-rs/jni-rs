@@ -660,7 +660,7 @@ pub fn native_method_impl(input: TokenStream) -> Result<TokenStream> {
 
         // Generate the mangled JNI function name
         let mangled_name = if let NativeMethodExport::WithName(export_name) = input.export {
-            export_name.clone()
+            export_name
         } else {
             create_jni_fn_name(&java_class_dotted, java_method_name, Some(&jni_signature))
         };

@@ -3846,7 +3846,7 @@ fn generate_single_native_export(
 
     // Generate the mangled JNI function name
     let mangled_name = if let Some(export_name) = export_name {
-        export_name.clone()
+        export_name
     } else {
         create_jni_fn_name(java_class_dotted, java_method_name, Some(&jni_signature))
     };
