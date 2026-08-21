@@ -254,19 +254,18 @@ fn parse_visibility(input: ParseStream) -> Result<Option<VisibilitySpec>> {
 }
 
 /// Parse a name = "value" or name = rust_name pair
-fn parse_name_spec(input: ParseStream) -> Result<(String, Ident)> {
+fn parse_name_spec(input: ParseStream) -> Result<String> {
     input.parse::<name>()?;
     input.parse::<Token![=]>()?;
 
     if input.peek(LitStr) {
         let lit = input.parse::<LitStr>()?;
         let java_name = lit.value();
-        let rust_name = format_ident!("{}", java_name);
-        Ok((java_name, rust_name))
+        Ok(java_name)
     } else {
         let rust_name = input.parse::<Ident>()?;
         let java_name = rust_name.to_string();
-        Ok((java_name, rust_name))
+        Ok(java_name)
     }
 }
 
@@ -378,7 +377,7 @@ fn parse_method(
             let lookahead = body_content.lookahead1();
 
             if lookahead.peek(name) {
-                let (jname, _) = parse_name_spec(&body_content)?;
+                let jname = parse_name_spec(&body_content)?;
                 java_name = Some(jname);
             } else if lookahead.peek(sig) {
                 method_signature = Some(parse_method_sig(&body_content, type_mappings)?);
@@ -862,7 +861,7 @@ fn parse_field(input: ParseStream, type_mappings: &TypeMappings) -> Result<Field
                 let lookahead = body_content.lookahead1();
 
                 if lookahead.peek(name) {
-                    let (jname, _) = parse_name_spec(&body_content)?;
+                    let jname = parse_name_spec(&body_content)?;
                     java_name = jname;
                 } else if lookahead.peek(sig) {
                     field_signature = Some(parse_field_sig(&body_content, type_mappings)?);
