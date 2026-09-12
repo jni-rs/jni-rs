@@ -5,7 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-windows-bindgen = "0.65"
+windows-bindgen = "0.100"
 
 # Prevent this from interfering with other crates/workspaces
 [workspace]

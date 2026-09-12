@@ -60,7 +60,7 @@ thiserror.workspace = true
 cfg-if = "1.0.0"
 
 [target.'cfg(windows)'.dependencies]
-windows-link = "0.2"
+windows-link = "0.100"
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 libloading = { workspace = true, optional = true }

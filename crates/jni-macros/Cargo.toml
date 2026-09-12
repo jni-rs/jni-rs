@@ -17,7 +17,7 @@ doctest = false
 rustc_version = "0.4"
 
 [dependencies]
-syn = { version = "2.0", features = ["full"] }
+syn = { version = "3", features = ["full"] }
 quote = "1.0"
 proc-macro2 = "1.0"
 simd_cesu8 = "1.0.1"

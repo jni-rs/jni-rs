@@ -293,6 +293,12 @@ mod version;
 pub use self::version::*;
 
 #[cfg(windows)]
+#[allow(
+    dead_code,
+    nonstandard_style,
+    non_upper_case_globals,
+    clippy::upper_case_acronyms
+)]
 mod windows_sys;
 
 #[macro_use]
