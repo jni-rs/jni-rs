@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Some `std` paths emitted by `bind_java_type` were not fully qualified with a `::` prefix ([#816](https://github.com/jni-rs/jni-rs/pull/816))
 - Avoid `ExceptionCheck` calls within `GetPrimitiveArrayCritical` section (avoiding Hotspot warnings about JNI calls not being allowed in critical sections) ([#817](https://github.com/jni-rs/jni-rs/pull/817))
 - Fix some broken links in the documentation.
+- Custom primitive wrappers can now be used as bound fields in `bind_java_type`
 
 ## [0.22.4] — 2026-03-16
 

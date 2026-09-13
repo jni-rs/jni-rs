@@ -2942,7 +2942,7 @@ fn generate_jni_get_field_call(
                     env_ptr,
                     #this_or_class.as_raw(),
                     #field_id
-                )
+                ).into()
             };
 
             if env.exception_check() {
@@ -2977,35 +2977,35 @@ fn generate_jni_set_field_call(
             }
             PrimitiveType::Boolean => {
                 let call_fn = format_ident!("{}BooleanField", call_prefix);
-                (call_fn, quote! { #val as #jni::sys::jboolean })
+                (call_fn, quote! { #val.into() })
             }
             PrimitiveType::Byte => {
                 let call_fn = format_ident!("{}ByteField", call_prefix);
-                (call_fn, quote! { #val as #jni::sys::jbyte })
+                (call_fn, quote! { #val.into() })
             }
             PrimitiveType::Char => {
                 let call_fn = format_ident!("{}CharField", call_prefix);
-                (call_fn, quote! { #val as #jni::sys::jchar })
+                (call_fn, quote! { #val.into() })
             }
             PrimitiveType::Short => {
                 let call_fn = format_ident!("{}ShortField", call_prefix);
-                (call_fn, quote! { #val as #jni::sys::jshort })
+                (call_fn, quote! { #val.into() })
             }
             PrimitiveType::Int => {
                 let call_fn = format_ident!("{}IntField", call_prefix);
-                (call_fn, quote! { #val as #jni::sys::jint })
+                (call_fn, quote! { #val.into() })
             }
             PrimitiveType::Long => {
                 let call_fn = format_ident!("{}LongField", call_prefix);
-                (call_fn, quote! { #val as #jni::sys::jlong })
+                (call_fn, quote! { #val.into() })
             }
             PrimitiveType::Float => {
                 let call_fn = format_ident!("{}FloatField", call_prefix);
-                (call_fn, quote! { #val as #jni::sys::jfloat })
+                (call_fn, quote! { #val.into() })
             }
             PrimitiveType::Double => {
                 let call_fn = format_ident!("{}DoubleField", call_prefix);
-                (call_fn, quote! { #val as #jni::sys::jdouble })
+                (call_fn, quote! { #val.into() })
             }
         }
     } else {

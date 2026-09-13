@@ -99,7 +99,7 @@ bind_java_type! {
 3. **Unsafe primitive mappings**: `unsafe RustType => javaPrimitive`
    - Maps a Rust type to a Java primitive (for handles, pointers, etc.)
    - Macro validates size/alignment at compile time
-   - Requires `From<RustType> for jlong` (or appropriate primitive) implementation
+   - Requires `From<RustType> for jlong` and `From<jlong> for RustType` (or appropriate primitive) implementation
 
 See the [`jni_sig!`] macro documentation for complete details on type mappings.
 
