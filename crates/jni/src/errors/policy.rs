@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use crate::Env;
@@ -156,6 +157,30 @@ pub trait ErrorPolicy<T, E> {
     }
 }
 
+fn panic_message(payload: Box<dyn Any>) -> String {
+    let payload = match Box::<dyn Any + 'static>::downcast::<String>(payload) {
+        Ok(s) => return *s,
+        Err(e) => e,
+    };
+
+    let s = match Box::<dyn Any + 'static>::downcast::<&str>(payload) {
+        Ok(s) => *s,
+        Err(payload) => {
+            // Since it's possible that dropping a panic payload may itself panic,
+            // we catch any panic and fallback to forgetting/leaking the payload.
+            let wrapper = AssertUnwindSafe(payload);
+            if let Err(drop_panic) = catch_unwind(|| drop(wrapper)) {
+                log::error!("Panic while dropping panic payload: {:?}", drop_panic);
+                std::mem::forget(drop_panic);
+            }
+
+            "non-string panic payload"
+        }
+    };
+
+    s.to_owned()
+}
+
 /// An error policy that throws `java.lang.RuntimeException` for any Rust error
 /// or panic, returning `null` or `0` as a default value.
 ///
@@ -209,18 +234,7 @@ impl<T: Default, E: std::error::Error> ErrorPolicy<T, E> for ThrowRuntimeExAndDe
         _cap: &mut Self::Captures<'unowned_env_local, 'native_method>,
         payload: Box<dyn std::any::Any + Send + 'static>,
     ) -> crate::errors::Result<T> {
-        let panic_string = match payload.downcast::<&'static str>() {
-            Ok(s) => (*s).to_string(),
-            Err(payload) => {
-                // Since it's possible that dropping a panic payload may itself panic,
-                // we catch any panic and fallback to forgetting/leaking the payload.
-                if let Err(drop_panic) = catch_unwind(AssertUnwindSafe(|| drop(payload))) {
-                    log::error!("Panic while dropping panic payload: {:?}", drop_panic);
-                    std::mem::forget(drop_panic);
-                }
-                "non-string panic payload".to_string()
-            }
-        };
+        let panic_string = panic_message(payload);
 
         // Note: `env.throw()` will return `Err(Error::JavaException)` after throwing but in this case
         // (where we are going to be letting the exception propagate to Java), we want to ensure we
@@ -254,18 +268,7 @@ impl<T: Default, E: std::error::Error> ErrorPolicy<T, E> for LogErrorAndDefault 
         _cap: &mut Self::Captures<'unowned_env_local, 'native_method>,
         payload: Box<dyn std::any::Any + Send + 'static>,
     ) -> crate::errors::Result<T> {
-        let panic_string = match payload.downcast::<&'static str>() {
-            Ok(s) => (*s).to_string(),
-            Err(payload) => {
-                // Since it's possible that dropping a panic payload may itself panic,
-                // we catch any panic and fallback to forgetting/leaking the payload.
-                if let Err(drop_panic) = catch_unwind(AssertUnwindSafe(|| drop(payload))) {
-                    log::error!("Panic while dropping panic payload: {:?}", drop_panic);
-                    std::mem::forget(drop_panic);
-                }
-                "non-string panic payload".to_string()
-            }
-        };
+        let panic_string = panic_message(payload);
         log::error!("Rust panic: {}", panic_string);
         Ok(T::default())
     }
@@ -318,18 +321,7 @@ impl<T: Default, E: std::error::Error> ErrorPolicy<T, E> for LogContextErrorAndD
         cap: &mut Self::Captures<'unowned_env_local, 'native_method>,
         payload: Box<dyn std::any::Any + Send + 'static>,
     ) -> crate::errors::Result<T> {
-        let panic_string = match payload.downcast::<&'static str>() {
-            Ok(s) => (*s).to_string(),
-            Err(payload) => {
-                // Since it's possible that dropping a panic payload may itself panic,
-                // we catch any panic and fallback to forgetting/leaking the payload.
-                if let Err(drop_panic) = catch_unwind(AssertUnwindSafe(|| drop(payload))) {
-                    log::error!("Panic while dropping panic payload: {:?}", drop_panic);
-                    std::mem::forget(drop_panic);
-                }
-                "non-string panic payload".to_string()
-            }
-        };
+        let panic_string = panic_message(payload);
         log::error!("{cap}: {panic_string}");
         Ok(T::default())
     }
