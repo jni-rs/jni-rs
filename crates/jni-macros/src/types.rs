@@ -1324,7 +1324,7 @@ pub fn generate_type_mapping_checks(type_mappings: &TypeMappings, jni: &syn::Pat
         .filter(|(rust_type, _)| !rust_type.is_builtin())
     {
         let rust_path: syn::Path = syn::parse_str(rust_type.path())
-            .unwrap_or_else(|_| panic!("Invalid Rust type path: {}", &rust_type.path()));
+            .unwrap_or_else(|_| panic!("Invalid Rust type path: {}", rust_type.path()));
 
         let java_class_dotted = java_class.to_java_dotted();
         let java_class_cstr = lit_cstr_mutf8(&java_class_dotted);
@@ -1355,7 +1355,7 @@ pub fn generate_type_mapping_checks(type_mappings: &TypeMappings, jni: &syn::Pat
         .filter(|rt| !rt.is_builtin())
     {
         let rust_path: syn::Path = syn::parse_str(rust_type.path())
-            .unwrap_or_else(|_| panic!("Invalid Rust type path: {}", &rust_type.path()));
+            .unwrap_or_else(|_| panic!("Invalid Rust type path: {}", rust_type.path()));
 
         let jni_sys_prim = match rust_type.primitive().unwrap() {
             PrimitiveType::Void => {
