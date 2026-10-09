@@ -160,11 +160,12 @@ pub enum Error {
     ///
     /// Unlike [`Error::JavaException`], this error indicates that the exception was caught and cleared by the JNI code,
     /// rather than being left as a pending exception that may propagate back to the JVM.
-    #[error("Caught Java exception: {msg}\nStack trace:\n{stack}")]
+    #[error("Caught Java exception: {name}{}\nStack trace:\n{stack}", MessageSuffix(.msg))]
     #[non_exhaustive]
     CaughtJavaException {
         exception: jni::refs::Global<jni::objects::JThrowable<'static>>,
         name: String,
+        /// `getMessage()`, or `"<NULL>"` when it returned `null`.
         msg: String,
         stack: String,
     },
@@ -181,6 +182,17 @@ pub enum Error {
     /// A security manager denied the operation (`SecurityException`)
     #[error("Security violation")]
     SecurityViolation,
+}
+
+struct MessageSuffix<'a>(&'a str);
+
+impl std::fmt::Display for MessageSuffix<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.0 {
+            "<NULL>" => Ok(()),
+            msg => write!(f, ": {msg}"),
+        }
+    }
 }
 
 #[derive(Debug, Error)]

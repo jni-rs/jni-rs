@@ -315,6 +315,33 @@ fn test_env_throw_apis_return_java_exception_err() {
 }
 
 #[test]
+fn test_caught_java_exception_display_names_class() {
+    let jvm = util::jvm();
+
+    jvm.attach_current_thread(|env| -> jni::errors::Result<()> {
+        let _ = env.throw_new_void(jni::jni_str!("java/util/NoSuchElementException"));
+        let catch = env.exception_catch().unwrap_err();
+        assert_eq!(
+            catch.to_string().lines().next(),
+            Some("Caught Java exception: java.util.NoSuchElementException")
+        );
+
+        let _ = env.throw_new(
+            jni::jni_str!("java/lang/IllegalStateException"),
+            jni::jni_str!("not connected"),
+        );
+        let catch = env.exception_catch().unwrap_err();
+        assert_eq!(
+            catch.to_string().lines().next(),
+            Some("Caught Java exception: java.lang.IllegalStateException: not connected")
+        );
+
+        Ok(())
+    })
+    .unwrap();
+}
+
+#[test]
 fn test_no_attach_current_thread_side_effects() {
     let jvm = util::jvm();
 
