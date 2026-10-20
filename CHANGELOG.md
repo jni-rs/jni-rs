@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Some `std` paths emitted by `bind_java_type` were not fully qualified with a `::` prefix ([#816](https://github.com/jni-rs/jni-rs/pull/816))
 - Avoid `ExceptionCheck` calls within `GetPrimitiveArrayCritical` section (avoiding Hotspot warnings about JNI calls not being allowed in critical sections) ([#817](https://github.com/jni-rs/jni-rs/pull/817))
 - Fix some broken links in the documentation.
+- Converting a Java string that contains both a supplementary character and U+0000 to a Rust string on Android no longer replaces the U+0000 with two U+FFFD characters ([#850](https://github.com/jni-rs/jni-rs/issues/850))
 
 ## [0.22.4] — 2026-03-16
 

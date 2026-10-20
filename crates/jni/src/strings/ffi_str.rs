@@ -108,13 +108,52 @@ impl From<JNIString> for CString {
 
 impl<'str_ref> From<&'str_ref JNIStr> for Cow<'str_ref, str> {
     fn from(other: &'str_ref JNIStr) -> Cow<'str_ref, str> {
-        let bytes = other.as_cstr().to_bytes();
-        match mutf8::decode(bytes) {
-            Ok(s) => s,
-            Err(e) => {
-                debug!("error decoding java cesu8: {:#?}", e);
-                String::from_utf8_lossy(bytes)
+        decode_java_utf8(other.as_cstr().to_bytes())
+    }
+}
+
+/// Decodes the bytes of a Java string, as returned by `GetStringUTFChars`, into UTF-8.
+///
+/// Android's `GetStringUTFChars` encodes U+0000 as `0xC0 0x80`, as modified UTF-8 does, but
+/// encodes supplementary characters as four-byte UTF-8 sequences instead of surrogate pairs.
+/// Modified UTF-8 never contains a byte of `0xF0` or above, so each such byte starts a four-byte
+/// sequence that is copied as-is, and the bytes between those sequences are decoded as modified
+/// UTF-8. Invalid bytes are replaced with U+FFFD.
+fn decode_java_utf8(bytes: &[u8]) -> Cow<'_, str> {
+    if let Ok(decoded) = mutf8::decode(bytes) {
+        return decoded;
+    }
+
+    let mut decoded = String::with_capacity(bytes.len());
+    let mut rest = bytes;
+    while let Some(lead) = rest.iter().position(|&byte| byte >= 0xf0) {
+        let (mutf8_bytes, tail) = rest.split_at(lead);
+        push_mutf8_lossy(&mut decoded, mutf8_bytes);
+        match tail.get(..4).and_then(|seq| std::str::from_utf8(seq).ok()) {
+            Some(supplementary) => {
+                decoded.push_str(supplementary);
+                rest = &tail[4..];
             }
+            None => {
+                debug!(
+                    "invalid four-byte sequence in java string: {:02x?}",
+                    &tail[..tail.len().min(4)]
+                );
+                decoded.push(char::REPLACEMENT_CHARACTER);
+                rest = &tail[1..];
+            }
+        }
+    }
+    push_mutf8_lossy(&mut decoded, rest);
+    Cow::Owned(decoded)
+}
+
+fn push_mutf8_lossy(decoded: &mut String, bytes: &[u8]) {
+    match mutf8::decode(bytes) {
+        Ok(segment) => decoded.push_str(&segment),
+        Err(e) => {
+            debug!("error decoding java modified utf-8: {:#?}", e);
+            decoded.push_str(&mutf8::decode_lossy(bytes));
         }
     }
 }
@@ -382,6 +421,10 @@ impl JNIStr {
     /// [`Cow::Borrowed`]. Otherwise, this method will perform the conversion
     /// into a new string, and return [`Cow::Owned`].
     ///
+    /// Supplementary characters encoded as four-byte UTF-8 sequences, as
+    /// Android's `GetStringUTFChars` returns them, are also decoded. Bytes
+    /// that are not valid in either encoding are replaced with U+FFFD.
+    ///
     /// There is also an implementation of `From<&JNIStr>` for `Cow<str>`,
     /// which has the same effect as this method.
     ///
@@ -425,5 +468,41 @@ impl AsRef<JNIStr> for JNIStr {
 impl AsRef<JNIStr> for JNIString {
     fn as_ref(&self) -> &JNIStr {
         self
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::decode_java_utf8;
+
+    #[test]
+    fn decodes_valid_java_strings_exactly() {
+        let cases: [(&[u8], &str); 6] = [
+            (b"ciao", "ciao"),
+            (b"a\xc0\x80b", "a\0b"),
+            // Supplementary characters as a surrogate pair, as HotSpot returns them.
+            (b"\xed\xa0\xbd\xed\xb4\x94", "\u{1f514}"),
+            // Supplementary characters as four-byte UTF-8, as ART returns them.
+            (b"\xf0\x9f\x94\x94", "\u{1f514}"),
+            (b"\xf0\x9f\x94\x94 \xc0\x80", "\u{1f514} \0"),
+            (
+                b"ciao \xe2\x80\x94 \xc3\xbcn\xc3\xafcode \xe2\x9c\x93 \xf0\x9f\x94\x94 \xc0\x80",
+                "ciao \u{2014} \u{fc}n\u{ef}code \u{2713} \u{1f514} \0",
+            ),
+        ];
+        for (bytes, expected) in cases {
+            assert_eq!(decode_java_utf8(bytes), expected, "bytes: {bytes:02x?}");
+        }
+    }
+
+    #[test]
+    fn replaces_only_invalid_bytes() {
+        // A truncated four-byte sequence followed by an encoded NUL.
+        let decoded = decode_java_utf8(b"\xf0\x9f\x94\xc0\x80\xf0\x9f\x94\x94");
+        let (replaced, kept): (String, String) = decoded
+            .chars()
+            .partition(|&c| c == char::REPLACEMENT_CHARACTER);
+        assert!(!replaced.is_empty());
+        assert_eq!(kept, "\0\u{1f514}");
     }
 }
